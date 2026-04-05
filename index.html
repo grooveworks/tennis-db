@@ -1830,12 +1830,29 @@ function TennisDB(){
     reader.onload=ev=>{
       try{
         const d=JSON.parse(ev.target.result);
-        const apply=(key,setter,stoKey)=>{if(d[key]){setter(d[key]);save(stoKey,d[key]);}};
-        apply("tournaments",setTournaments,KEYS.tournaments); apply("practices",setPractices,KEYS.practices);
-        apply("trials",setTrials,KEYS.trials); apply("rackets",setRackets,KEYS.rackets);
-        apply("strings",setStrings,KEYS.strings); apply("measurements",setMeasurements,KEYS.measurements);
-        apply("mental",setMental,KEYS.mental); apply("next",setNext,KEYS.next); apply("profile",setProfile,KEYS.profile); apply("venues",setVenues,KEYS.venues);
-        toast.show("📥 インポート完了（保存済み）");
+        const merge=(existing,incoming)=>{
+          if(!Array.isArray(incoming))return incoming;
+          const map=new Map(existing.map(item=>[item.id,item]));
+          incoming.forEach(item=>{map.set(item.id,{...map.get(item.id),...item});});
+          return [...map.values()].sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+        };
+        const apply=(key,getter,setter,stoKey)=>{
+          if(d[key]){
+            const merged=Array.isArray(d[key])?merge(getter,d[key]):({...getter,...d[key]});
+            setter(merged);save(stoKey,merged);
+          }
+        };
+        apply("tournaments",tournaments,setTournaments,KEYS.tournaments);
+        apply("practices",practices,setPractices,KEYS.practices);
+        apply("trials",trials,setTrials,KEYS.trials);
+        apply("rackets",rackets,setRackets,KEYS.rackets);
+        apply("strings",strings,setStrings,KEYS.strings);
+        apply("measurements",measurements,setMeasurements,KEYS.measurements);
+        apply("mental",mental,setMental,KEYS.mental);
+        apply("next",next,setNext,KEYS.next);
+        apply("profile",profile,setProfile,KEYS.profile);
+        apply("venues",venues,setVenues,KEYS.venues);
+        toast.show("📥 インポート完了（統合保存済み）");
       }catch{toast.show("❌ 読み込み失敗",C.red);}
     };
     reader.readAsText(file);e.target.value="";
