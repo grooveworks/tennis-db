@@ -1960,11 +1960,109 @@ function ProfileTab({data,setData,toast}){
 }
 
 
+// ── SEARCH TAB ────────────────────────────────────
+function SearchTab({tournaments,practices,rackets,stringSetups}){
+  const [fSetup,setFSetup]=useState("");
+  const [fRacket,setFRacket]=useState("");
+  const [fTenMin,setFTenMin]=useState("");
+  const [fTenMax,setFTenMax]=useState("");
+  const [fTempMin,setFTempMin]=useState("");
+  const [fTempMax,setFTempMax]=useState("");
+  const [fDateFrom,setFDateFrom]=useState("");
+  const [fDateTo,setFDateTo]=useState("");
+
+  // Build unified records from tournaments + practices
+  const allRecords=React.useMemo(()=>{
+    const recs=[];
+    (tournaments||[]).forEach(t=>{
+      recs.push({type:"🏆",date:t.date,name:t.name||"",level:t.level,racket:t.racketName||"",setup:t.stringSetup||"",tension:t.tensionNote||"",temp:t.temp||"",weather:t.weather||"",result:t.overallResult||""});
+      (t.matches||[]).forEach(m=>{
+        if(m.racketName||m.stringSetup||m.tension) recs.push({type:"⚔️",date:t.date,name:`${t.name} ${m.round||""}`,level:t.level,racket:m.racketName||t.racketName||"",setup:m.stringSetup||t.stringSetup||"",tension:m.tension||t.tensionNote||"",temp:t.temp||"",weather:t.weather||"",result:m.result||""});
+      });
+    });
+    (practices||[]).forEach(p=>{
+      recs.push({type:"🏃",date:p.date,name:p.type||"練習",level:"",racket:p.racketName||"",setup:p.stringSetup||"",tension:p.tension||"",temp:p.temp||"",weather:p.weather||"",result:""});
+    });
+    return recs.sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+  },[tournaments,practices]);
+
+  const parseTension=s=>{const n=parseFloat((s||"").replace(/[^0-9.]/g,""));return isNaN(n)?null:n;};
+
+  const filtered=allRecords.filter(r=>{
+    if(fSetup&&r.setup!==fSetup) return false;
+    if(fRacket&&!r.racket.includes(fRacket)) return false;
+    if(fTenMin||fTenMax){const t=parseTension(r.tension);if(t===null)return false;if(fTenMin&&t<Number(fTenMin))return false;if(fTenMax&&t>Number(fTenMax))return false;}
+    if(fTempMin||fTempMax){const t=Number(r.temp);if(!r.temp||isNaN(t))return false;if(fTempMin&&t<Number(fTempMin))return false;if(fTempMax&&t>Number(fTempMax))return false;}
+    if(fDateFrom&&r.date<fDateFrom) return false;
+    if(fDateTo&&r.date>fDateTo) return false;
+    return true;
+  });
+
+  const hasFilter=fSetup||fRacket||fTenMin||fTenMax||fTempMin||fTempMax||fDateFrom||fDateTo;
+  const clearAll=()=>{setFSetup("");setFRacket("");setFTenMin("");setFTenMax("");setFTempMin("");setFTempMax("");setFDateFrom("");setFDateTo("");};
+
+  const setupOpts=[{value:"",label:"全て"},...(stringSetups||[]).filter(s=>s.status!=="archived").map(s=>({value:s.label,label:s.label}))];
+  const racketOpts=[{value:"",label:"全て"},...(rackets||[]).filter(r=>r.status!=="retired").map(r=>({value:r.name,label:r.name}))];
+
+  const rc=r=>r==="優勝"||r==="勝利"?C.accent:r==="準優勝"?C.yellow:r==="敗北"||r==="敗退"?C.red:C.textMuted;
+
+  return (
+    <div>
+      <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:10,padding:14,marginBottom:12}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+          <span style={{fontSize:12,color:C.accent,fontWeight:700}}>🔍 セッティング検索</span>
+          {hasFilter&&<button onClick={clearAll} style={{background:"none",border:`1px solid ${C.border}`,color:C.textMuted,borderRadius:4,padding:"2px 10px",fontSize:10,cursor:"pointer"}}>リセット</button>}
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 10px"}}>
+          <FSelect label="ストリングセッティング" value={fSetup} onChange={setFSetup} options={setupOpts}/>
+          <FSelect label="ラケット" value={fRacket} onChange={setFRacket} options={racketOpts}/>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:"0 8px"}}>
+          <Field label="テンション(min)" value={fTenMin} onChange={setFTenMin} type="number" placeholder="40"/>
+          <Field label="テンション(max)" value={fTenMax} onChange={setFTenMax} type="number" placeholder="50"/>
+          <Field label="気温(min)" value={fTempMin} onChange={setFTempMin} type="number" placeholder="5"/>
+          <Field label="気温(max)" value={fTempMax} onChange={setFTempMax} type="number" placeholder="30"/>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 10px"}}>
+          <Field label="期間（から）" value={fDateFrom} onChange={setFDateFrom} placeholder="2025/09/01"/>
+          <Field label="期間（まで）" value={fDateTo} onChange={setFDateTo} placeholder="2026/12/31"/>
+        </div>
+      </div>
+
+      <div style={{fontSize:11,color:C.textMuted,marginBottom:8}}>{hasFilter?`${filtered.length}件ヒット（全${allRecords.length}件中）`:`全${allRecords.length}件`}</div>
+
+      <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,overflow:"hidden"}}>
+        {(hasFilter?filtered:filtered.slice(0,30)).map((r,i)=>(
+          <div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",borderBottom:`1px solid ${C.border}`,fontSize:11}}>
+            <span style={{width:22,textAlign:"center",flexShrink:0}}>{r.type}</span>
+            <span style={{width:72,color:C.textMuted,fontFamily:"monospace",flexShrink:0}}>{r.date}</span>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{color:C.text,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.name}</div>
+              <div style={{color:C.textMuted,fontSize:10,marginTop:1}}>
+                {r.racket&&<span>{r.racket}</span>}
+                {r.setup&&<span style={{marginLeft:6,color:C.yellow}}>{r.setup}</span>}
+                {r.tension&&<span style={{marginLeft:6,color:C.accent}}>{r.tension}</span>}
+              </div>
+            </div>
+            <div style={{textAlign:"right",flexShrink:0}}>
+              {r.temp&&<div style={{fontSize:10,color:C.textMuted}}>{r.temp}℃{r.weather?` ${r.weather}`:""}</div>}
+              {r.result&&<div style={{fontSize:10,color:rc(r.result),fontWeight:600}}>{r.result}</div>}
+            </div>
+          </div>
+        ))}
+        {!hasFilter&&filtered.length>30&&<div style={{padding:"10px 14px",fontSize:10,color:C.textMuted,textAlign:"center"}}>条件を絞り込むと全件表示されます（上位30件表示中）</div>}
+        {hasFilter&&filtered.length===0&&<div style={{padding:"20px 14px",fontSize:12,color:C.textMuted,textAlign:"center"}}>条件に一致する記録がありません</div>}
+      </div>
+    </div>
+  );
+}
+
 const TABS=[
   {id:"profile",label:"選手",icon:"👤"},
   {id:"tournaments",label:"大会",icon:"🏆"},
   {id:"practices",label:"練習",icon:"🏃"},
   {id:"trials",label:"試打",icon:"🎾"},
+  {id:"search",label:"検索",icon:"🔍"},
   {id:"rackets",label:"ラケット",icon:"🖊️"},
   {id:"strings",label:"ST",icon:"🪢"},
   {id:"measurements",label:"実測値",icon:"📐"},
@@ -2104,6 +2202,7 @@ function TennisDB(){
       {tab==="tournaments"&&<TournamentsTab data={tournaments} setData={setTournaments} rackets={rackets} strings={strings} stringSetups={stringSetups} venues={venues} setVenues={v=>{setVenues(v);save(KEYS.venues,v);}} toast={toast} quickAdd={quickAdd==="tournaments"} onQuickAddDone={()=>setQuickAdd(null)}/>}
       {tab==="practices"&&<PracticesTab data={practices} setData={setPractices} rackets={rackets} strings={strings} stringSetups={stringSetups} venues={venues} setVenues={v=>{setVenues(v);save(KEYS.venues,v);}} toast={toast} quickAdd={quickAdd==="practices"} onQuickAddDone={()=>setQuickAdd(null)}/>}
       {tab==="trials"&&<TrialsTab data={trials} setData={setTrials} practices={practices} rackets={rackets} strings={strings} venues={venues} setVenues={v=>{setVenues(v);save(KEYS.venues,v);}} toast={toast} quickAdd={quickAdd==="trials"} onQuickAddDone={()=>setQuickAdd(null)}/>}
+      {tab==="search"&&<SearchTab tournaments={tournaments} practices={practices} rackets={rackets} stringSetups={stringSetups}/>}
       {tab==="rackets"&&<RacketsTab data={rackets} setData={setRackets} toast={toast}/>}
       {tab==="strings"&&<StringsTab data={strings} setData={setStrings} stringSetups={stringSetups} setStringSetups={setStringSetups} toast={toast}/>}
       {tab==="measurements"&&<MeasurementsTab data={measurements} setData={setMeasurements} toast={toast}/>}
