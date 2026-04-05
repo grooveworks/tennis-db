@@ -146,7 +146,7 @@ const exportAll=async data=>{
 
 // ── MASTER OPTIONS ────────────────────────────────
 const getRacketOpts=rackets=>[{value:"",label:"-- ラケットを選択 --"},...rackets.filter(r=>r.status!=="retired").map(r=>({value:r.name,label:`${r.name}`}))];
-const getStringOpts=strings=>[{value:"",label:"-- ストリングを選択 --"},...strings.filter(s=>s.status!=="rejected").map(s=>({value:s.name,label:`${s.name} [${s.qty}]`}))];
+const getStringOpts=strings=>[{value:"",label:"-- ストリングを選択 --"},...strings.filter(s=>s.status!=="rejected").map(s=>({value:s.name,label:s.name}))];
 const getSetupOpts=(stringSetups)=>{
   const opts=[{value:"",label:"-- セッティングを選択 --"}];
   (stringSetups||[]).filter(s=>s.status!=="archived").forEach(s=>{
