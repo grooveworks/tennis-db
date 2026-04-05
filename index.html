@@ -463,7 +463,7 @@ function MatchModal({match,mode,onSave,onClose,rackets,strings}){
         </div>
         {isAdd?(
           <>
-            <FSelect label="ラウンド" value={f.round} onChange={s("round")} options={[{value:"1回戦",label:"1回戦"},{value:"2回戦",label:"2回戦"},{value:"3回戦",label:"3回戦"},{value:"準々決勝",label:"準々決勝"},{value:"準決勝",label:"準決勝"},{value:"決勝",label:"決勝"},{value:"予選",label:"予選"}]}/>
+            <FSelect label="ラウンド" value={f.round} onChange={s("round")} options={[{value:"1回戦",label:"1回戦"},{value:"2回戦",label:"2回戦"},{value:"3回戦",label:"3回戦"},{value:"準々決勝",label:"準々決勝"},{value:"準決勝",label:"準決勝"},{value:"決勝",label:"決勝"},{value:"予選",label:"予選"},{value:"エキシビション",label:"エキシビション"}]/>
             <Field label="対戦相手（任意）" value={f.opponent} onChange={s("opponent")} placeholder="相手の名前やハンドル名"/>
             <FSelect label="使用ラケット" value={f.racketName||""} onChange={s("racketName")} options={getRacketOpts(rackets)}/>
             <FSelect label="セッティング" value={f.stringSetup||""} onChange={s("stringSetup")} options={getSetupOpts(rackets,strings)}/>
@@ -474,7 +474,7 @@ function MatchModal({match,mode,onSave,onClose,rackets,strings}){
         ):(
           <>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 12px"}}>
-              <FSelect label="ラウンド" value={f.round} onChange={s("round")} options={[{value:"1回戦",label:"1回戦"},{value:"2回戦",label:"2回戦"},{value:"3回戦",label:"3回戦"},{value:"準々決勝",label:"準々決勝"},{value:"準決勝",label:"準決勝"},{value:"決勝",label:"決勝"},{value:"予選",label:"予選"}]}/>
+              <FSelect label="ラウンド" value={f.round} onChange={s("round")} options={[{value:"1回戦",label:"1回戦"},{value:"2回戦",label:"2回戦"},{value:"3回戦",label:"3回戦"},{value:"準々決勝",label:"準々決勝"},{value:"準決勝",label:"準決勝"},{value:"決勝",label:"決勝"},{value:"予選",label:"予選"},{value:"エキシビション",label:"エキシビション"}]/>
               <FSelect label="結果" value={f.result} onChange={s("result")} options={[{value:"勝利",label:"🎉 勝利"},{value:"敗北",label:"❌ 敗北"},{value:"棄権",label:"棄権"}]}/>
             </div>
             <Field label="対戦相手（任意）" value={f.opponent} onChange={s("opponent")} placeholder="相手の名前やハンドル名"/>
@@ -632,7 +632,7 @@ function TournamentDetail({trn,onEdit,onDelete,onUpdate,rackets,strings}){
     onUpdate({...trn,matches:(trn.matches||[]).map(m=>m.id===id?updatedMatch:m)});
   };
 
-  const roundColor={"1回戦":"gray","2回戦":"gray","3回戦":"blue","準々決勝":"blue","準決勝":"purple","決勝":"yellow","予選":"gray"};
+  const roundColor={"1回戦":"gray","2回戦":"gray","3回戦":"blue","準々決勝":"blue","準決勝":"purple","決勝":"yellow","予選":"gray","エキシビション":"orange"};
 
   return (
     <div style={{padding:"12px 14px 16px",borderTop:`1px solid ${C.border}`,background:"#0c1018"}}>
