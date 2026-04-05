@@ -133,7 +133,16 @@ function useToast(){
 const KEYS={tournaments:"yuke-tournaments-v1",practices:"yuke-practices-v1",trials:"yuke-trials-v1",rackets:"yuke-rackets-v1",strings:"yuke-strings-v1",measurements:"yuke-measurements-v1",mental:"yuke-mental-v1",next:"yuke-next-v1",profile:"yuke-profile-v1",venues:"yuke-venues-v1"};
 const load=k=>{try{const v=localStorage.getItem(k);if(v)return JSON.parse(v);}catch(_){}return null;};
 const save=(k,d)=>{try{localStorage.setItem(k,JSON.stringify(d));return true;}catch(e){console.error("Storage error:",k,e);return false;}};
-const exportAll=data=>{const b=new Blob([JSON.stringify({version:8,exportedAt:new Date().toISOString(),...data},null,2)],{type:"application/json"});const u=URL.createObjectURL(b);const a=document.createElement("a");const d=new Date().toLocaleDateString("ja-JP",{year:"numeric",month:"2-digit",day:"2-digit"}).replace(/\//g,"-");a.href=u;a.download=`tennis_db_${d}.json`;a.click();URL.revokeObjectURL(u);};
+const exportAll=async data=>{
+  const json=JSON.stringify({version:8,exportedAt:new Date().toISOString(),...data},null,2);
+  const d=new Date().toLocaleDateString("ja-JP",{year:"numeric",month:"2-digit",day:"2-digit"}).replace(/\//g,"-");
+  const fname=`tennis_db_${d}.json`;
+  const file=new File([json],fname,{type:"application/json"});
+  if(navigator.share&&navigator.canShare&&navigator.canShare({files:[file]})){
+    try{await navigator.share({files:[file],title:"Tennis DB バックアップ"});return "shared";}catch(e){if(e.name==="AbortError")return "cancelled";}
+  }
+  const b=new Blob([json],{type:"application/json"});const u=URL.createObjectURL(b);const a=document.createElement("a");a.href=u;a.download=fname;a.click();URL.revokeObjectURL(u);return "downloaded";
+};
 
 // ── MASTER OPTIONS ────────────────────────────────
 const getRacketOpts=rackets=>[{value:"",label:"-- ラケットを選択 --"},...rackets.filter(r=>r.status!=="retired").map(r=>({value:r.name,label:`${r.name}`}))];
@@ -725,12 +734,53 @@ function TournamentsTab({data,setData,rackets,strings,venues,setVenues,toast,qui
   const totalMatchWins=data.reduce((s,t)=>(s+(t.matches||[]).filter(m=>m.result==="勝利").length),0);
   const levels=["all",...new Set(data.map(t=>t.level))];
   const filtered=data.filter(t=>(filterLevel==="all"||t.level===filterLevel)&&(filterType==="all"||t.type===filterType));
+  const [showStats,setShowStats]=useState(false);
+
+  // クラス別集計
+  const byLevel={};
+  data.forEach(t=>{
+    if(!byLevel[t.level])byLevel[t.level]={total:0,wins:0,matches:0,matchWins:0};
+    byLevel[t.level].total++;
+    if(t.overallResult==="優勝")byLevel[t.level].wins++;
+    (t.matches||[]).forEach(m=>{byLevel[t.level].matches++;if(m.result==="勝利")byLevel[t.level].matchWins++;});
+  });
+
+  // 種目別集計
+  const byType={};
+  data.forEach(t=>{
+    const tl=t.type==="singles"?"シングルス":t.type==="doubles"?"ダブルス":"ミックス";
+    if(!byType[tl])byType[tl]={total:0,wins:0};
+    byType[tl].total++;
+    if(t.overallResult==="優勝")byType[tl].wins++;
+  });
+
+  // 月別集計
+  const byMonth={};
+  data.forEach(t=>{
+    const m=t.date?.slice(0,7);if(!m)return;
+    if(!byMonth[m])byMonth[m]={total:0,wins:0,results:[]};
+    byMonth[m].total++;
+    if(t.overallResult==="優勝")byMonth[m].wins++;
+    byMonth[m].results.push(t.overallResult);
+  });
+  const months=Object.keys(byMonth).sort();
+
+  // 直近5大会
+  const recent5=data.slice(0,5);
+  const recentWins=recent5.filter(t=>t.overallResult==="優勝").length;
+  const recentFinals=recent5.filter(t=>["優勝","準優勝","決勝敗退"].includes(t.overallResult)).length;
+
+  // 連勝記録
+  let maxStreak=0,curStreak=0;
+  [...data].reverse().forEach(t=>{
+    if(t.overallResult==="優勝"){curStreak++;maxStreak=Math.max(maxStreak,curStreak);}
+    else curStreak=0;
+  });
 
   return (
     <div>
       {cfm.el}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)"
-,gap:8,marginBottom:12}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:8}}>
         {[["大会数",`${data.length}件`],["優勝",`${wins}回`],["試合記録",`${totalMatches}試合`],["試合勝率",totalMatches?`${Math.round(totalMatchWins/totalMatches*100)}%`:"—"]].map(([l,v],i)=>(
           <div key={i} style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 12px"}}>
             <div style={{fontSize:9,color:C.textMuted,marginBottom:4}}>{l}</div>
@@ -738,6 +788,78 @@ function TournamentsTab({data,setData,rackets,strings,venues,setVenues,toast,qui
           </div>
         ))}
       </div>
+      <button onClick={()=>setShowStats(!showStats)} style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:6,padding:"6px 12px",fontSize:11,color:showStats?C.accent:C.textMuted,fontWeight:600,cursor:"pointer",marginBottom:10,width:"100%"}}>
+        {showStats?"▼ 詳細統計を閉じる":"▶ 詳細統計を表示"}
+      </button>
+      {showStats&&(
+        <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:10,padding:14,marginBottom:12}}>
+          {/* 直近の調子 */}
+          <div style={{marginBottom:14}}>
+            <div style={{fontSize:11,color:C.accent,fontWeight:700,marginBottom:8}}>🔥 直近の調子（5大会）</div>
+            <div style={{display:"flex",gap:6,marginBottom:6}}>
+              {recent5.map((t,i)=>{
+                const rc=t.overallResult==="優勝"?"green":["準優勝","決勝敗退"].includes(t.overallResult)?"yellow":"red";
+                return <Badge key={i} color={rc}>{t.overallResult}</Badge>;
+              })}
+            </div>
+            <div style={{fontSize:11,color:C.textDim}}>
+              優勝 <span style={{color:C.accent,fontWeight:700}}>{recentWins}</span>回 / 決勝進出 <span style={{color:C.yellow,fontWeight:700}}>{recentFinals}</span>回 / 最大連続優勝 <span style={{color:C.accent,fontWeight:700}}>{maxStreak}</span>回
+            </div>
+          </div>
+
+          {/* クラス別 */}
+          <div style={{marginBottom:14}}>
+            <div style={{fontSize:11,color:C.blue,fontWeight:700,marginBottom:8}}>📊 クラス別戦績</div>
+            {Object.entries(byLevel).map(([lv,d])=>(
+              <div key={lv} style={{display:"flex",alignItems:"center",gap:8,marginBottom:5}}>
+                <div style={{width:60,fontSize:11,color:C.text,fontWeight:600}}>{lv}</div>
+                <div style={{flex:1,background:"#1a1d24",borderRadius:3,height:16,overflow:"hidden",position:"relative"}}>
+                  {d.total>0&&<div style={{width:`${(d.wins/d.total)*100}%`,height:"100%",background:C.accent,borderRadius:3,minWidth:d.wins>0?3:0}}/>}
+                </div>
+                <div style={{width:100,fontSize:10,color:C.textDim,textAlign:"right"}}>
+                  {d.wins}優勝/{d.total}大会{d.matches>0?` (${d.matchWins}勝${d.matches-d.matchWins}敗)`:""}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* 種目別 */}
+          <div style={{marginBottom:14}}>
+            <div style={{fontSize:11,color:C.purple,fontWeight:700,marginBottom:8}}>🎾 種目別</div>
+            <div style={{display:"flex",gap:12}}>
+              {Object.entries(byType).map(([tp,d])=>(
+                <div key={tp} style={{background:C.panel2,borderRadius:6,padding:"8px 14px",flex:1,textAlign:"center"}}>
+                  <div style={{fontSize:10,color:C.textMuted}}>{tp}</div>
+                  <div style={{fontSize:14,fontWeight:800,color:C.text}}>{d.total}大会</div>
+                  <div style={{fontSize:10,color:C.accent}}>優勝{d.wins}回</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* 月別推移 */}
+          <div>
+            <div style={{fontSize:11,color:C.orange,fontWeight:700,marginBottom:8}}>📅 月別推移</div>
+            {months.map(m=>{
+              const d=byMonth[m];
+              return (
+                <div key={m} style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+                  <div style={{width:55,fontSize:10,color:C.textMuted,fontFamily:"monospace"}}>{m}</div>
+                  <div style={{display:"flex",gap:3}}>
+                    {d.results.map((r,i)=>{
+                      const c=r==="優勝"?C.accent:["準優勝","決勝敗退"].includes(r)?C.yellow:C.red;
+                      return <div key={i} style={{width:10,height:10,borderRadius:2,background:c}} title={r}/>;
+                    })}
+                  </div>
+                  <div style={{fontSize:10,color:C.textDim}}>
+                    {d.total}大会{d.wins>0?` 🏆${d.wins}`:""}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div style={{display:"flex",gap:4,marginBottom:6,flexWrap:"wrap"}}>
         {[["all","全種目"],["singles","S シングルス"],["doubles","D ダブルス"],["mixed","Mix ミックス"]].map(([v,l])=>(
@@ -1815,12 +1937,13 @@ function TennisDB(){
     setMental(mn||INIT.mental); setNext(nx||INIT.next); setProfile(pf||INIT.profile); setVenues(vn||INIT.venues); setReady(true);
   },[]);
 
-  const handleExport=()=>{
-    exportAll({tournaments,practices,trials,rackets,strings,measurements,mental,next,profile,venues});
+  const handleExport=async()=>{
+    const result=await exportAll({tournaments,practices,trials,rackets,strings,measurements,mental,next,profile,venues});
+    if(result==="cancelled")return;
     const now=new Date().toISOString();
     try{localStorage.setItem("yuke-last-export",now);}catch{}
     setLastExport(now);
-    toast.show("📤 全データをエクスポートしました");
+    toast.show(result==="shared"?"📤 共有しました":"📤 ダウンロードしました");
   };
   const [lastExport,setLastExport]=useState(()=>{try{return localStorage.getItem("yuke-last-export")||"";}catch{return "";}});
   const daysSinceExport=lastExport?Math.floor((Date.now()-new Date(lastExport).getTime())/(1000*60*60*24)):999;
