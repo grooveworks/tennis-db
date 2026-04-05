@@ -134,7 +134,7 @@ const KEYS={tournaments:"yuke-tournaments-v1",practices:"yuke-practices-v1",tria
 const load=k=>{try{const v=localStorage.getItem(k);if(v)return JSON.parse(v);}catch(_){}return null;};
 const save=(k,d)=>{try{localStorage.setItem(k,JSON.stringify(d));return true;}catch(e){console.error("Storage error:",k,e);return false;}};
 const exportAll=async data=>{
-  const json=JSON.stringify({version:9,exportedAt:new Date().toISOString(),...data},null,2);
+  const json=JSON.stringify({version:10,exportedAt:new Date().toISOString(),...data},null,2);
   const d=new Date().toLocaleDateString("ja-JP",{year:"numeric",month:"2-digit",day:"2-digit"}).replace(/\//g,"-");
   const fname=`tennis_db_${d}.json`;
   const file=new File([json],fname,{type:"application/json"});
@@ -156,6 +156,18 @@ const getSetupOpts=(stringSetups)=>{
 };
 
 const today=()=>new Date().toLocaleDateString("ja-JP",{year:"numeric",month:"2-digit",day:"2-digit"});
+const fmtTension=(main,cross,legacy)=>{
+  if(main&&cross&&main!==cross) return `${main}/${cross}p`;
+  if(main) return `${main}p`;
+  if(legacy) return legacy;
+  return "";
+};
+const TensionFields=({main,cross,onMainChange,onCrossChange})=>(
+  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 10px"}}>
+    <Field label="テンション縦" value={main||""} onChange={onMainChange} type="number" placeholder="46"/>
+    <Field label="テンション横" value={cross||""} onChange={onCrossChange} type="number" placeholder="43"/>
+  </div>
+);
 
 // ── INITIAL DATA ──────────────────────────────────
 const INIT={
@@ -468,10 +480,8 @@ function MatchModal({match,mode,onSave,onClose,rackets,strings}){
             <FSelect label="ラウンド" value={f.round} onChange={s("round")} options={[{value:"1回戦",label:"1回戦"},{value:"2回戦",label:"2回戦"},{value:"3回戦",label:"3回戦"},{value:"準々決勝",label:"準々決勝"},{value:"準決勝",label:"準決勝"},{value:"決勝",label:"決勝"},{value:"予選",label:"予選"},{value:"エキシビション",label:"エキシビション"}]}/>
             <Field label="対戦相手（任意）" value={f.opponent} onChange={s("opponent")} placeholder="相手の名前やハンドル名"/>
             <FSelect label="使用ラケット" value={f.racketName||""} onChange={s("racketName")} options={getRacketOpts(rackets)}/>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 10px"}}>
-              <FSelect label="ストリングセッティング" value={f.stringSetup||""} onChange={s("stringSetup")} options={getSetupOpts(stringSetups)}/>
-              <Field label="テンション" value={f.tension||""} onChange={s("tension")} placeholder="43p"/>
-            </div>
+            <FSelect label="ストリングセッティング" value={f.stringSetup||""} onChange={s("stringSetup")} options={getSetupOpts(stringSetups)}/>
+            <TensionFields main={f.tensionMain||""} cross={f.tensionCross||""} onMainChange={s("tensionMain")} onCrossChange={s("tensionCross")}/>
             <div style={{fontSize:11,color:C.textMuted,marginTop:4,marginBottom:14,padding:"8px 10px",background:C.panel2,borderRadius:6,borderLeft:`2px solid ${C.border}`}}>
               試合後に編集ボタンから結果・スコア・メンタル・メモを記録できます
             </div>
@@ -484,10 +494,8 @@ function MatchModal({match,mode,onSave,onClose,rackets,strings}){
             </div>
             <Field label="対戦相手（任意）" value={f.opponent} onChange={s("opponent")} placeholder="相手の名前やハンドル名"/>
             <FSelect label="使用ラケット" value={f.racketName||""} onChange={s("racketName")} options={getRacketOpts(rackets)}/>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 10px"}}>
-              <FSelect label="ストリングセッティング" value={f.stringSetup||""} onChange={s("stringSetup")} options={getSetupOpts(stringSetups)}/>
-              <Field label="テンション" value={f.tension||""} onChange={s("tension")} placeholder="43p"/>
-            </div>
+            <FSelect label="ストリングセッティング" value={f.stringSetup||""} onChange={s("stringSetup")} options={getSetupOpts(stringSetups)}/>
+            <TensionFields main={f.tensionMain||""} cross={f.tensionCross||""} onMainChange={s("tensionMain")} onCrossChange={s("tensionCross")}/>
             <Field label="セットスコア" value={(f.setScores||[]).join(", ")} onChange={v=>s("setScores")(v.split(",").map(x=>x.trim()))} placeholder="6-3, 6-4"/>
             <Stars label="メンタル" value={f.mental} onChange={s("mental")}/>
             <Stars label="フィジカル" value={f.physical} onChange={s("physical")}/>
@@ -531,7 +539,7 @@ function MatchDetail({match,onEdit,onDelete,onUpdate}){
           <div style={{fontSize:9,color:C.textMuted,marginBottom:4}}>セットスコア</div>
           <div style={{fontSize:14,color:C.text,fontWeight:700}}>{(match.setScores||[]).join(", ")||"—"}</div>
           <div style={{fontSize:10,color:C.textMuted,marginTop:3}}>相手: {match.opponent||"—"}</div>
-          {match.racketName&&<div style={{fontSize:10,color:C.accent,marginTop:2}}>🖊️ {match.racketName}{match.stringSetup?` / ${match.stringSetup}`:""}{match.tension?` / ${match.tension}`:""}</div>}
+          {match.racketName&&<div style={{fontSize:10,color:C.accent,marginTop:2}}>🖊️ {match.racketName}{match.stringSetup?` / ${match.stringSetup}`:""}{(match.tensionMain||match.tension)?` / ${fmtTension(match.tensionMain,match.tensionCross,match.tension)}`:""}</div>}
         </div>
       </div>
       {/* Mental/Physical bars */}
@@ -597,7 +605,7 @@ function TournamentModal({tournament,onSave,onClose,rackets,strings,stringSetups
             <FSelect label="結果" value={f.overallResult||""} onChange={s("overallResult")} options={[{value:"",label:"— 未定 —"},{value:"優勝",label:"優勝🏆"},{value:"準優勝",label:"準優勝"},{value:"準決勝敗退",label:"準決勝敗退"},{value:"決勝敗退",label:"決勝敗退"},{value:"予選敗退",label:"予選敗退"},{value:"敗退",label:"敗退"}]}/>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"0 10px"}}>
               <Field label="気温（℃）" value={f.temp||""} onChange={s("temp")} type="number" placeholder="15"/>
-              <Field label="テンション" value={f.tensionNote||""} onChange={s("tensionNote")} placeholder="43p"/>
+              <TensionFields main={f.tensionMain||""} cross={f.tensionCross||""} onMainChange={s("tensionMain")} onCrossChange={s("tensionCross")}/>
               <FSelect label="天気" value={f.weather||""} onChange={s("weather")} options={[{value:"",label:"—"},{value:"晴",label:"☀ 晴"},{value:"曇",label:"☁ 曇"},{value:"雨",label:"🌧 雨"},{value:"屋内",label:"🏠 屋内"}]}/>
             </div>
             <div style={{fontSize:11,color:C.accent,margin:"10px 0 8px",paddingBottom:5,borderBottom:`1px solid ${C.border}`}}>▶ 機材（マスターから選択）</div>
@@ -623,7 +631,7 @@ function TournamentDetail({trn,onEdit,onDelete,onUpdate,rackets,strings,stringSe
   const [matchModal,setMatchModal]=useState(null);
   const wins=(trn.matches||[]).filter(m=>m.result==="勝利").length;
 
-  const blankMatchRecord=()=>({id:`mr${Date.now()}`,round:`${(trn.matches||[]).length+1}回戦`,opponent:"",racketName:trn.racketName||"",stringSetup:trn.stringSetup||"",tension:trn.tensionNote||"",result:"勝利",setScores:[],mental:3,physical:3,mentalNote:"",techNote:"",opponentNote:"",note:"",games:[],changeovers:[]});
+  const blankMatchRecord=()=>({id:`mr${Date.now()}`,round:`${(trn.matches||[]).length+1}回戦`,opponent:"",racketName:trn.racketName||"",stringSetup:trn.stringSetup||"",tensionMain:trn.tensionMain||"",tensionCross:trn.tensionCross||"",result:"勝利",setScores:[],mental:3,physical:3,mentalNote:"",techNote:"",opponentNote:"",note:"",games:[],changeovers:[]});
 
   const saveMatch=(form)=>{
     const isNew=!(trn.matches||[]).find(m=>m.id===form.id);
@@ -650,7 +658,7 @@ function TournamentDetail({trn,onEdit,onDelete,onUpdate,rackets,strings,stringSe
       {cfm.el}
       {/* Tournament info */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:12}}>
-        {[["会場",trn.venue||"—"],["ラケット",trn.racketName||"—"],["気温",trn.temp?`${trn.temp}℃`:"—"],["天気",trn.weather||"—"],["ST",trn.stringSetup||"—"],["テンション",trn.tensionNote||"—"],["試合数",`${(trn.matches||[]).length}試合`],["勝利数",`${wins}勝${(trn.matches||[]).length-wins}敗`]].map(([k,v])=>(
+        {[["会場",trn.venue||"—"],["ラケット",trn.racketName||"—"],["気温",trn.temp?`${trn.temp}℃`:"—"],["天気",trn.weather||"—"],["ST",trn.stringSetup||"—"],["テンション",fmtTension(trn.tensionMain,trn.tensionCross,trn.tensionNote)||"—"],["試合数",`${(trn.matches||[]).length}試合`],["勝利数",`${wins}勝${(trn.matches||[]).length-wins}敗`]].map(([k,v])=>(
           <div key={k} style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:6,padding:"6px 10px"}}>
             <div style={{fontSize:9,color:C.textMuted,marginBottom:2}}>{k}</div>
             <div style={{fontSize:11,color:C.textDim,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{v}</div>
@@ -732,7 +740,7 @@ function TournamentsTab({data,setData,rackets,strings,stringSetups,venues,setVen
   const [filterLevel,setFilterLevel]=useState("all");
   const [filterType,setFilterType]=useState("all");
 
-  const blankTournament=()=>({id:`trn${Date.now()}`,date:today(),name:"",level:"中上級",type:"singles",venue:"",racketName:"",stringSetup:"",tensionNote:"",temp:"",weather:"",overallResult:"",generalNote:"",matches:[]});
+  const blankTournament=()=>({id:`trn${Date.now()}`,date:today(),name:"",level:"中上級",type:"singles",venue:"",racketName:"",stringSetup:"",tensionMain:"",tensionCross:"",temp:"",weather:"",overallResult:"",generalNote:"",matches:[]});
   useEffect(()=>{if(quickAdd){setModal({tournament:blankTournament()});onQuickAddDone();}},[quickAdd]);
 
   const persist=list=>{const s=[...list].sort((a,b)=>b.date.localeCompare(a.date));setData(s);save(KEYS.tournaments,s);};
@@ -920,7 +928,7 @@ function TournamentsTab({data,setData,rackets,strings,stringSetups,venues,setVen
 }
 
 // ── PRACTICE TAB ──────────────────────────────────
-const blankPractice=()=>({id:`p${Date.now()}`,date:today(),venue:"",type:"スクール",duration:"90",racketName:"",stringSetup:"",tension:"",temp:"",weather:"",physical:3,focus:"",coachNote:"",goodNote:"",improveNote:"",generalNote:"",calories:"",totalCalories:"",heartRateAvg:"",heartRateMax:"",timeRange:"",workoutLocation:"",difficulty:"",hrZone1:"",hrZone2:"",hrZone3:"",hrZone4:"",hrZone5:"",recoveryHR:"",hasTrial:false,trialRacketName:"",trialString:"",trialTension:"",trialSpin:3,trialControl:3,trialPower:3,trialFeel:3,trialInfo:3,trialJudgment:"保留",trialNote:""});
+const blankPractice=()=>({id:`p${Date.now()}`,date:today(),venue:"",type:"スクール",duration:"90",racketName:"",stringSetup:"",tensionMain:"",tensionCross:"",temp:"",weather:"",physical:3,focus:"",coachNote:"",goodNote:"",improveNote:"",generalNote:"",calories:"",totalCalories:"",heartRateAvg:"",heartRateMax:"",timeRange:"",workoutLocation:"",difficulty:"",hrZone1:"",hrZone2:"",hrZone3:"",hrZone4:"",hrZone5:"",recoveryHR:"",hasTrial:false,trialRacketName:"",trialString:"",trialTension:"",trialSpin:3,trialControl:3,trialPower:3,trialFeel:3,trialInfo:3,trialJudgment:"保留",trialNote:""});
 
 function PracticesTab({data,setData,rackets,strings,stringSetups,venues,setVenues,toast,quickAdd,onQuickAddDone}){
   const cfm=useConfirm();
@@ -958,7 +966,7 @@ function PracticesTab({data,setData,rackets,strings,stringSetups,venues,setVenue
           </div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 12px"}}>
             <FSelect label="天気" value={f.weather||""} onChange={s("weather")} options={[{value:"",label:"—"},{value:"晴",label:"☀ 晴"},{value:"曇",label:"☁ 曇"},{value:"雨",label:"🌧 雨"},{value:"屋内",label:"🏠 屋内"}]}/>
-            <Field label="テンション" value={f.tension||""} onChange={s("tension")} placeholder="43p"/>
+            <TensionFields main={f.tensionMain||""} cross={f.tensionCross||""} onMainChange={s("tensionMain")} onCrossChange={s("tensionCross")}/>
           </div>
           <FSelect label="ラケット" value={f.racketName||""} onChange={s("racketName")} options={getRacketOpts(rackets)}/>
           {isNew&&(
@@ -978,11 +986,8 @@ function PracticesTab({data,setData,rackets,strings,stringSetups,venues,setVenue
               </div>
             </div>
           )}
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"0 10px"}}>
-            <FSelect label="ストリングセッティング" value={f.stringSetup||""} onChange={s("stringSetup")} options={setupOpts}/>
-            <Field label="テンション" value={f.tension||""} onChange={s("tension")} placeholder="43p"/>
-            <FSelect label="天気" value={f.weather||""} onChange={s("weather")} options={[{value:"",label:"—"},{value:"晴",label:"☀ 晴"},{value:"曇",label:"☁ 曇"},{value:"雨",label:"🌧 雨"},{value:"屋内",label:"🏠 屋内"}]}/>
-          </div>
+          <FSelect label="ストリングセッティング" value={f.stringSetup||""} onChange={s("stringSetup")} options={setupOpts}/>
+          <TensionFields main={f.tensionMain||""} cross={f.tensionCross||""} onMainChange={s("tensionMain")} onCrossChange={s("tensionCross")}/>
           <div style={{fontSize:11,color:C.accent,margin:"8px 0 8px",paddingBottom:5,borderBottom:`1px solid ${C.border}`}}>▶ 内容・評価</div>
           <Stars label="フィジカルコンディション" value={f.physical} onChange={s("physical")}/>
           <Field label="🎯 フォーカスポイント" value={f.focus||""} onChange={s("focus")} multiline placeholder="ラケットダウン / フォロースルー拡大 / セミオープンスタンス..."/>
@@ -1001,7 +1006,10 @@ function PracticesTab({data,setData,rackets,strings,stringSetups,venues,setVenue
               <FSelect label="試打ラケット" value={f.trialRacketName||""} onChange={s("trialRacketName")} options={[{value:"",label:"-- ラケットを選択 --"},...rackets.map(r=>({value:r.name,label:r.name}))]}/>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 12px"}}>
                 <FSelect label="ストリング" value={f.trialString||""} onChange={s("trialString")} options={[{value:"",label:"-- 選択 --"},...strings.map(st=>({value:st.name,label:st.name}))]}/>
-                <Field label="テンション" value={f.trialTension||""} onChange={s("trialTension")} placeholder="43p"/>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 12px"}}>
+                <Field label="テンション縦" value={f.trialTensionMain||""} onChange={s("trialTensionMain")} type="number" placeholder="46"/>
+                <Field label="テンション横" value={f.trialTensionCross||""} onChange={s("trialTensionCross")} type="number" placeholder="43"/>
               </div>
               <div style={{fontSize:10,color:C.yellow,marginBottom:6}}>5段階評価</div>
               <Stars label="スピン" value={f.trialSpin} onChange={s("trialSpin")}/>
@@ -1196,8 +1204,8 @@ function PracticesTab({data,setData,rackets,strings,stringSetups,venues,setVenue
 }
 
 // ── TRIALS TAB ────────────────────────────────────
-const blankTrial=()=>({id:`t${Date.now()}`,date:today(),racketName:"",string:"",stringCross:"",tension:"",temp:"",venue:"",judgment:"保留",spin:3,control:3,power:3,feel:3,info:3,strokeNote:"",serveNote:"",volleyNote:"",generalNote:"",sessions:[]});
-const blankSession=()=>({id:`s${Date.now()}`,date:today(),temp:"",tension:"",note:""});
+const blankTrial=()=>({id:`t${Date.now()}`,date:today(),racketName:"",string:"",stringCross:"",tensionMain:"",tensionCross:"",temp:"",venue:"",judgment:"保留",spin:3,control:3,power:3,feel:3,info:3,strokeNote:"",serveNote:"",volleyNote:"",generalNote:"",sessions:[]});
+const blankSession=()=>({id:`s${Date.now()}`,date:today(),temp:"",tensionMain:"",tensionCross:"",note:""});
 
 function TrialsTab({data,setData,practices,rackets,strings,venues,setVenues,toast,quickAdd,onQuickAddDone}){
   const cfm=useConfirm();
@@ -1234,8 +1242,8 @@ function TrialsTab({data,setData,practices,rackets,strings,venues,setVenues,toas
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"0 12px"}}>
             <FSelect label="縦糸" value={f.string||""} onChange={s("string")} options={getStringOpts(strings)}/>
             <FSelect label="横糸" value={f.stringCross||""} onChange={s("stringCross")} options={[{value:"",label:"-- 同じ --"},...getStringOpts(strings).slice(1)]}/>
-            <Field label="テンション" value={f.tension||""} onChange={s("tension")} placeholder="43p"/>
           </div>
+          <TensionFields main={f.tensionMain||""} cross={f.tensionCross||""} onMainChange={s("tensionMain")} onCrossChange={s("tensionCross")}/>
           <div style={{fontSize:11,color:C.accent,margin:"10px 0 10px",paddingBottom:5,borderBottom:`1px solid ${C.border}`}}>▶ 打感評価</div>
           <div style={{background:C.panel2,borderRadius:8,padding:"12px 14px",marginBottom:12}}>
             {[["🌀 スピン","spin"],["🎯 コントロール","control"],["💥 パワー","power"],["✋ フィール","feel"],["📡 打感情報量","info"]].map(([label,key])=>(
@@ -1257,10 +1265,11 @@ function TrialsTab({data,setData,practices,rackets,strings,venues,setVenues,toas
                 <span style={{fontSize:10,color:C.purple,fontWeight:700}}>#{si+1}</span>
                 <button onClick={()=>setF(p=>({...p,sessions:p.sessions.filter((_,i)=>i!==si)}))} style={{background:"none",border:"none",color:C.textMuted,cursor:"pointer",fontSize:14}}>✕</button>
               </div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"0 8px"}}>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:"0 8px"}}>
                 <Field label="日付" value={sess.date} onChange={v=>setF(p=>({...p,sessions:p.sessions.map((s,i)=>i===si?{...s,date:v}:s)}))} placeholder="2026/04/05"/>
                 <Field label="気温(℃)" value={sess.temp} onChange={v=>setF(p=>({...p,sessions:p.sessions.map((s,i)=>i===si?{...s,temp:v}:s)}))} placeholder="18"/>
-                <Field label="テンション" value={sess.tension} onChange={v=>setF(p=>({...p,sessions:p.sessions.map((s,i)=>i===si?{...s,tension:v}:s)}))} placeholder="43p"/>
+                <Field label="T縦" value={sess.tensionMain||""} onChange={v=>setF(p=>({...p,sessions:p.sessions.map((s,i)=>i===si?{...s,tensionMain:v}:s)}))} type="number" placeholder="46"/>
+                <Field label="T横" value={sess.tensionCross||""} onChange={v=>setF(p=>({...p,sessions:p.sessions.map((s,i)=>i===si?{...s,tensionCross:v}:s)}))} type="number" placeholder="43"/>
               </div>
               <Field label="メモ" value={sess.note} onChange={v=>setF(p=>({...p,sessions:p.sessions.map((s,i)=>i===si?{...s,note:v}:s)}))} multiline placeholder="この日の打感・気づき..."/>
             </div>
@@ -1960,6 +1969,142 @@ function ProfileTab({data,setData,toast}){
 }
 
 
+// ── QUICK TRIAL MODE ──────────────────────────────
+// ── QUICK TRIAL MODE ──────────────────────────────
+function QuickTrialMode({rackets,stringSetups,trials,setTrials,onClose,toast}){
+  const [cards,setCards]=useState([]);
+  const [selected,setSelected]=useState(null);
+  const [adding,setAdding]=useState(false);
+  const [addF,setAddF]=useState({racket:"",setup:"",tensionMain:"",tensionCross:""});
+  const [eval_,setEval]=useState({info:3,power:3,spin:3,hold:3,swing:3,safety:3,goodShots:[],memo:""});
+
+  const activeRackets=rackets.filter(r=>r.status!=="retired");
+  const rOpts=[{value:"",label:"-- ラケット --"},...activeRackets.map(r=>({value:r.name,label:r.name}))];
+  const sOpts=[{value:"",label:"-- セッティング --"},...(stringSetups||[]).filter(s=>s.status!=="archived").map(s=>({value:s.label,label:s.label}))];
+  const statusColor={active:"#e74c3c",candidate:"#3498db",considering:"#95a5a6",support:"#27ae60"};
+
+  const handleAddCard=()=>{
+    if(!addF.racket){toast.show("ラケットを選択",C.red);return;}
+    const r=activeRackets.find(x=>x.name===addF.racket);
+    const sc=statusColor[r?.status]||"#888";
+    setCards(prev=>[...prev,{id:`qc${Date.now()}`,racket:addF.racket,setup:addF.setup,tensionMain:addF.tensionMain,tensionCross:addF.tensionCross,color:sc,done:false}]);
+    setAddF({racket:"",setup:"",tensionMain:"",tensionCross:""});setAdding(false);
+  };
+
+  const criteria=[
+    {key:"info",label:"打感情報",sub:"手に来る情報量"},
+    {key:"power",label:"飛び",sub:"推進力・飛距離"},
+    {key:"spin",label:"スピン",sub:"回転のかかり"},
+    {key:"hold",label:"ホールド",sub:"掴む・乗る感覚"},
+    {key:"swing",label:"振り抜き",sub:"スイングの抜け"},
+    {key:"safety",label:"安心感",sub:"振り切れるか"},
+  ];
+
+  const toggleShot=s=>{setEval(p=>({...p,goodShots:p.goodShots.includes(s)?p.goodShots.filter(x=>x!==s):[...p.goodShots,s]}));};
+
+  const handleSave=()=>{
+    const card=cards.find(c=>c.id===selected);if(!card)return;
+    const trial={id:`t${Date.now()}`,date:new Date().toLocaleDateString("ja-JP",{year:"numeric",month:"2-digit",day:"2-digit"}),racketName:card.racket,string:card.setup,stringCross:"",tensionMain:card.tensionMain||"",tensionCross:card.tensionCross||"",temp:"",venue:"",judgment:"保留",spin:eval_.spin,control:eval_.safety,power:eval_.power,feel:eval_.hold,info:eval_.info,strokeNote:eval_.goodShots.length>0?"良: "+eval_.goodShots.join(", "):"",serveNote:"",volleyNote:"",generalNote:eval_.memo,sessions:[]};
+    const updated=[trial,...(trials||[])];
+    setTrials(updated);save(KEYS.trials,updated);
+    setCards(prev=>prev.map(c=>c.id===selected?{...c,done:true}:c));
+    toast.show("✅ 保存しました");
+    setSelected(null);setEval({info:3,power:3,spin:3,hold:3,swing:3,safety:3,goodShots:[],memo:""});
+  };
+
+  const bg="#f5f0e8",txt="#222",muted="#888",bdr="#ddd";
+
+  // Evaluation view
+  if(selected){
+    const card=cards.find(c=>c.id===selected);
+    const sc=card?.color||"#888";
+    return (
+      <div style={{position:"fixed",inset:0,background:bg,zIndex:500,overflowY:"auto",fontFamily:"'Noto Sans JP',sans-serif"}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 16px",borderBottom:"1px solid "+bdr}}>
+          <button onClick={()=>setSelected(null)} style={{background:"none",border:"none",fontSize:14,color:txt,cursor:"pointer",fontWeight:600}}>← 一覧</button>
+          <span style={{fontSize:13,color:muted}}>試打ノート</span>
+          <div style={{width:40}}></div>
+        </div>
+        <div style={{background:sc,borderRadius:12,margin:"12px 16px",padding:"16px 20px"}}>
+          <div style={{fontSize:20,fontWeight:800,color:"#fff"}}>{card?.racket}</div>
+          <div style={{fontSize:13,color:"rgba(255,255,255,0.8)",marginTop:4}}>{[card?.setup,fmtTension(card?.tensionMain,card?.tensionCross)].filter(Boolean).join(" / ")}</div>
+        </div>
+        <div style={{padding:"0 16px 20px"}}>
+          {criteria.map(c=>(
+            <div key={c.key} style={{marginBottom:20}}>
+              <div style={{display:"flex",alignItems:"baseline",gap:8,marginBottom:8}}>
+                <span style={{fontSize:16,fontWeight:700,color:txt}}>{c.label}</span>
+                <span style={{fontSize:12,color:muted}}>{c.sub}</span>
+              </div>
+              <div style={{display:"flex",gap:8}}>
+                {[1,2,3,4,5].map(n=>(
+                  <button key={n} onClick={()=>setEval(p=>({...p,[c.key]:n}))} style={{width:56,height:48,borderRadius:8,border:"2px solid "+(eval_[c.key]===n?sc:bdr),background:eval_[c.key]===n?sc:"#fff",color:eval_[c.key]===n?"#fff":muted,fontSize:18,fontWeight:700,cursor:"pointer"}}>{n}</button>
+                ))}
+              </div>
+            </div>
+          ))}
+          <div style={{marginBottom:20}}>
+            <div style={{fontSize:16,fontWeight:700,color:txt,marginBottom:8}}>良かったショット</div>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+              {["フォア","バック","ボレー","サーブ"].map(s=>{
+                const on=eval_.goodShots.includes(s);
+                return <button key={s} onClick={()=>toggleShot(s)} style={{padding:"10px 20px",borderRadius:8,border:"2px solid "+(on?sc:bdr),background:on?sc:"#fff",color:on?"#fff":txt,fontSize:14,fontWeight:600,cursor:"pointer"}}>{s}</button>;
+              })}
+            </div>
+          </div>
+          <div style={{marginBottom:20}}>
+            <div style={{fontSize:16,fontWeight:700,color:txt,marginBottom:8}}>メモ（一言）</div>
+            <textarea value={eval_.memo} onChange={e=>setEval(p=>({...p,memo:e.target.value}))} placeholder="気づいたことを一言..." rows={3} style={{width:"100%",borderRadius:8,border:"1px solid "+bdr,padding:"12px",fontSize:14,fontFamily:"inherit",resize:"vertical",color:txt}}/>
+          </div>
+          <button onClick={handleSave} style={{width:"100%",background:sc,border:"none",borderRadius:10,padding:"14px",fontSize:16,fontWeight:700,color:"#fff",cursor:"pointer"}}>保存して一覧に戻る</button>
+        </div>
+      </div>
+    );
+  }
+
+  // Card list view
+  return (
+    <div style={{position:"fixed",inset:0,background:bg,zIndex:500,overflowY:"auto",fontFamily:"'Noto Sans JP',sans-serif"}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 16px",borderBottom:"1px solid "+bdr}}>
+        <button onClick={onClose} style={{background:"none",border:"none",fontSize:20,color:txt,cursor:"pointer"}}>✕</button>
+        <span style={{fontSize:15,fontWeight:700,color:txt}}>試打ノート</span>
+        <div style={{width:30}}></div>
+      </div>
+      <div style={{padding:"12px 16px"}}>
+        {cards.length===0&&!adding&&(
+          <div style={{textAlign:"center",padding:"30px 0",color:muted,fontSize:13}}>
+            「＋ 追加」で今日試打するラケット×セッティングを登録
+          </div>
+        )}
+        {cards.map(card=>(
+          <button key={card.id} onClick={()=>!card.done&&setSelected(card.id)} style={{display:"block",width:"100%",textAlign:"left",background:card.done?"#f0f0e8":"#fff",border:"2px solid "+(card.done?"#ccc":card.color+"30"),borderLeft:"4px solid "+(card.done?"#aaa":card.color),borderRadius:10,padding:"16px 20px",marginBottom:10,cursor:card.done?"default":"pointer",opacity:card.done?0.6:1}}>
+            <div style={{fontSize:18,fontWeight:800,color:card.done?"#aaa":card.color}}>{card.racket}{card.done?" ✅":""}</div>
+            <div style={{fontSize:13,color:muted,marginTop:4}}>{[card.setup,fmtTension(card.tensionMain,card.tensionCross)].filter(Boolean).join(" / ")}</div>
+          </button>
+        ))}
+        {!adding?(
+          <button onClick={()=>setAdding(true)} style={{width:"100%",background:"#fff",border:"2px dashed "+bdr,borderRadius:10,padding:"14px",fontSize:14,color:muted,cursor:"pointer",fontWeight:600}}>＋ 追加</button>
+        ):(
+          <div style={{background:"#fff",border:"1px solid "+bdr,borderRadius:10,padding:16}}>
+            <select value={addF.racket} onChange={e=>setAddF(p=>({...p,racket:e.target.value}))} style={{width:"100%",border:"1px solid "+bdr,borderRadius:6,padding:"10px",fontSize:14,marginBottom:8,color:txt,background:"#fff"}}>
+              {rOpts.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+            <select value={addF.setup} onChange={e=>setAddF(p=>({...p,setup:e.target.value}))} style={{width:"100%",border:"1px solid "+bdr,borderRadius:6,padding:"10px",fontSize:14,marginBottom:8,color:txt,background:"#fff"}}>
+              {sOpts.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+            <input value={addF.tensionMain} onChange={e=>setAddF(p=>({...p,tensionMain:e.target.value}))} placeholder="縦テンション（例：46）" style={{width:"100%",border:"1px solid "+bdr,borderRadius:6,padding:"10px",fontSize:14,marginBottom:8,color:txt}}/>
+            <input value={addF.tensionCross} onChange={e=>setAddF(p=>({...p,tensionCross:e.target.value}))} placeholder="横テンション（例：43、同じなら空欄）" style={{width:"100%",border:"1px solid "+bdr,borderRadius:6,padding:"10px",fontSize:14,marginBottom:10,color:txt}}/>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>setAdding(false)} style={{flex:1,background:"#eee",border:"none",borderRadius:6,padding:"10px",fontSize:13,cursor:"pointer",color:txt}}>キャンセル</button>
+              <button onClick={handleAddCard} style={{flex:1,background:txt,border:"none",borderRadius:6,padding:"10px",fontSize:13,color:"#fff",cursor:"pointer",fontWeight:700}}>追加</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── HOME TAB ──────────────────────────────────────
 function HomeTab({next,setNext,tournaments,practices,trials,daysSinceExport,lastExport,onExport,onRecord,toast}){
   const persistNext=list=>{setNext(list);save(KEYS.next,list);};
@@ -2069,13 +2214,13 @@ function SearchTab({tournaments,practices,rackets,stringSetups}){
   const allRecords=React.useMemo(()=>{
     const recs=[];
     (tournaments||[]).forEach(t=>{
-      recs.push({type:"🏆",date:t.date,name:t.name||"",level:t.level,racket:t.racketName||"",setup:t.stringSetup||"",tension:t.tensionNote||"",temp:t.temp||"",weather:t.weather||"",result:t.overallResult||""});
+      recs.push({type:"🏆",date:t.date,name:t.name||"",level:t.level,racket:t.racketName||"",setup:t.stringSetup||"",tension:fmtTension(t.tensionMain,t.tensionCross,t.tensionNote),tensionMain:t.tensionMain||"",tensionCross:t.tensionCross||"",temp:t.temp||"",weather:t.weather||"",result:t.overallResult||""});
       (t.matches||[]).forEach(m=>{
-        if(m.racketName||m.stringSetup||m.tension) recs.push({type:"⚔️",date:t.date,name:`${t.name} ${m.round||""}`,level:t.level,racket:m.racketName||t.racketName||"",setup:m.stringSetup||t.stringSetup||"",tension:m.tension||t.tensionNote||"",temp:t.temp||"",weather:t.weather||"",result:m.result||""});
+        if(m.racketName||m.stringSetup||m.tension) recs.push({type:"⚔️",date:t.date,name:`${t.name} ${m.round||""}`,level:t.level,racket:m.racketName||t.racketName||"",setup:m.stringSetup||t.stringSetup||"",tension:fmtTension(m.tensionMain,m.tensionCross,m.tension||t.tensionNote),tensionMain:m.tensionMain||t.tensionMain||"",tensionCross:m.tensionCross||t.tensionCross||"",temp:t.temp||"",weather:t.weather||"",result:m.result||""});
       });
     });
     (practices||[]).forEach(p=>{
-      recs.push({type:"🏃",date:p.date,name:p.type||"練習",level:"",racket:p.racketName||"",setup:p.stringSetup||"",tension:p.tension||"",temp:p.temp||"",weather:p.weather||"",result:""});
+      recs.push({type:"🏃",date:p.date,name:p.type||"練習",level:"",racket:p.racketName||"",setup:p.stringSetup||"",tension:fmtTension(p.tensionMain,p.tensionCross,p.tension),tensionMain:p.tensionMain||"",tensionCross:p.tensionCross||"",temp:p.temp||"",weather:p.weather||"",result:""});
     });
     return recs.sort((a,b)=>(b.date||"").localeCompare(a.date||""));
   },[tournaments,practices]);
@@ -2085,7 +2230,7 @@ function SearchTab({tournaments,practices,rackets,stringSetups}){
   const filtered=allRecords.filter(r=>{
     if(fSetup&&r.setup!==fSetup) return false;
     if(fRacket&&!r.racket.includes(fRacket)) return false;
-    if(fTenMin||fTenMax){const t=parseTension(r.tension);if(t===null)return false;if(fTenMin&&t<Number(fTenMin))return false;if(fTenMax&&t>Number(fTenMax))return false;}
+    if(fTenMin||fTenMax){const tm=r.tensionMain?Number(r.tensionMain):parseTension(r.tension);if(tm===null)return false;if(fTenMin&&tm<Number(fTenMin))return false;if(fTenMax&&tm>Number(fTenMax))return false;}
     if(fTempMin||fTempMax){const t=Number(r.temp);if(!r.temp||isNaN(t))return false;if(fTempMin&&t<Number(fTempMin))return false;if(fTempMax&&t>Number(fTempMax))return false;}
     if(fDateFrom&&r.date<fDateFrom) return false;
     if(fDateTo&&r.date>fDateTo) return false;
@@ -2170,6 +2315,7 @@ function TennisDB(){
   const [ready,setReady]=useState(false);
   const [quickAdd,setQuickAdd]=useState(null);
   const [showAddMenu,setShowAddMenu]=useState(false);
+  const [quickTrial,setQuickTrial]=useState(false);
   const [tournaments,setTournaments]=useState([]);
   const [practices,setPractices]=useState([]);
   const [trials,setTrials]=useState([]);
@@ -2254,6 +2400,7 @@ function TennisDB(){
         button:hover{opacity:0.82;}
       `}</style>
       {toast.el}
+      {quickTrial&&<QuickTrialMode rackets={rackets} stringSetups={stringSetups} trials={trials} setTrials={v=>{setTrials(v);}} onClose={()=>setQuickTrial(false)} toast={toast}/>}
       {daysSinceExport>=3&&(
         <div onClick={handleExport} style={{background:"#2e0505",border:"1px solid #b45252",borderRadius:8,padding:"10px 14px",marginBottom:12,display:"flex",alignItems:"center",gap:10,cursor:"pointer"}}>
           <span style={{fontSize:16}}>⚠️</span>
@@ -2293,7 +2440,7 @@ function TennisDB(){
         ))}
       </div>
       <div style={{zoom:large?1.22:1}}>
-      {tab==="home"&&<HomeTab next={next} setNext={setNext} tournaments={tournaments} practices={practices} trials={trials} daysSinceExport={daysSinceExport} lastExport={lastExport} onExport={handleExport} onRecord={t=>{setTab(t);setQuickAdd(t);}} toast={toast}/>}
+      {tab==="home"&&<HomeTab next={next} setNext={setNext} tournaments={tournaments} practices={practices} trials={trials} daysSinceExport={daysSinceExport} lastExport={lastExport} onExport={handleExport} onRecord={t=>{if(t==="trials"){setQuickTrial(true);}else{setTab(t);setQuickAdd(t);}}} toast={toast}/>}
       {tab==="profile"&&<ProfileTab data={profile} setData={setProfile} toast={toast}/>}
       {tab==="tournaments"&&<TournamentsTab data={tournaments} setData={setTournaments} rackets={rackets} strings={strings} stringSetups={stringSetups} venues={venues} setVenues={v=>{setVenues(v);save(KEYS.venues,v);}} toast={toast} quickAdd={quickAdd==="tournaments"} onQuickAddDone={()=>setQuickAdd(null)}/>}
       {tab==="practices"&&<PracticesTab data={practices} setData={setPractices} rackets={rackets} strings={strings} stringSetups={stringSetups} venues={venues} setVenues={v=>{setVenues(v);save(KEYS.venues,v);}} toast={toast} quickAdd={quickAdd==="practices"} onQuickAddDone={()=>setQuickAdd(null)}/>}
