@@ -2215,13 +2215,20 @@ function QuickTrialMode({rackets,stringSetups,trials,setTrials,onClose,toast}){
 // ── HOME TAB ──────────────────────────────────────
 function HomeTab({next,setNext,tournaments,practices,trials,daysSinceExport,lastExport,onExport,onRecord,toast}){
   const persistNext=list=>{setNext(list);save(KEYS.next,list);};
-  const toggleCheck=id=>{persistNext(next.map(n=>n.id===id?{...n,done:!n.done,doneAt:!n.done?new Date().toISOString():""}:n));};
+  const toggleCheck=id=>{
+    const item=(next||[]).find(n=>n.id===id);if(!item)return;
+    persistNext(next.map(n=>n.id===id?{...n,done:true,doneAt:new Date().toISOString()}:n));
+    toast.show("✅ 完了",C.accent,()=>{persistNext(next.map(n=>n.id===id?{...n,done:false,doneAt:""}:n));});
+  };
+  const [quickText,setQuickText]=useState("");
+  const addQuick=()=>{if(!quickText.trim())return;persistNext([{id:`nx${Date.now()}`,priority:"中",category:"準備",label:quickText.trim(),detail:"",done:false,doneAt:"",checklist:[]},...(next||[])]);setQuickText("");toast.show("✅ 追加しました");};
 
   const pending=(next||[]).filter(n=>!n.done).slice(0,5);
   const todayStr=new Date().toLocaleDateString("ja-JP",{year:"numeric",month:"2-digit",day:"2-digit"});
   const upcoming=(tournaments||[]).filter(t=>t.date>=todayStr).sort((a,b)=>a.date.localeCompare(b.date));
   const recentTrn=(tournaments||[]).slice(0,3);
   const recentPrac=(practices||[]).slice(0,2);
+  const catColor={検証:C.blue,準備:C.accent,買い物:C.orange,チェックリスト:C.purple};
 
   return (
     <div style={{display:"grid",gap:14}}>
@@ -2235,37 +2242,46 @@ function HomeTab({next,setNext,tournaments,practices,trials,daysSinceExport,last
         ))}
       </div>
 
-      {/* Next actions */}
-      {pending.length>0&&(
-        <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:10,padding:14}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-            <span style={{fontSize:12,color:C.accent,fontWeight:700}}>▶ Next Actions</span>
-            <span style={{fontSize:10,color:C.textMuted}}>{pending.length}件</span>
-          </div>
-          {pending.map(a=>{
-            const pc={最高:C.accent,高:C.blue,中:C.yellow,低:C.textMuted};
-            return (
-              <div key={a.id} onClick={()=>toggleCheck(a.id)} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:`1px solid ${C.border}`,cursor:"pointer"}}>
-                <div style={{width:22,height:22,borderRadius:4,border:`2px solid ${pc[a.priority]||C.textMuted}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:12}}></div>
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontSize:12,color:C.text,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.label}</div>
-                  {a.detail&&<div style={{fontSize:10,color:C.textMuted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.detail}</div>}
-                </div>
-                <Badge color={pc[a.priority]===C.accent?"green":pc[a.priority]===C.blue?"blue":pc[a.priority]===C.yellow?"yellow":"gray"} sm>{a.priority}</Badge>
-              </div>
-            );
-          })}
+      {/* Next actions with quick add */}
+      <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:10,padding:14}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+          <span style={{fontSize:13,color:C.accent,fontWeight:700}}>▶ Next Actions</span>
+          <span style={{fontSize:11,color:C.textMuted}}>{pending.length}件</span>
         </div>
-      )}
+        <div style={{display:"flex",gap:6,marginBottom:10}}>
+          <input value={quickText} onChange={e=>setQuickText(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addQuick()} placeholder="やること を入力してEnter..." style={{flex:1,background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 12px",color:C.text,fontSize:13,outline:"none",fontFamily:"inherit"}}/>
+          <button onClick={addQuick} style={{background:C.accent,border:"none",color:"#000",borderRadius:8,padding:"10px 14px",fontSize:13,fontWeight:700,cursor:"pointer",flexShrink:0}}>＋</button>
+        </div>
+        {pending.length===0&&<div style={{textAlign:"center",padding:"8px 0",color:C.textMuted,fontSize:12}}>全て完了！</div>}
+        {pending.map(a=>{
+          const bc=catColor[a.category]||C.blue;
+          const cl=a.checklist||[];
+          const clDone=cl.filter(c=>c.done).length;
+          return (
+            <div key={a.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:`1px solid ${C.border}`}}>
+              <button onClick={()=>toggleCheck(a.id)} style={{width:30,height:30,borderRadius:6,border:`2px solid ${bc}`,background:"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0}}></button>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:13,color:C.text,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.label}</div>
+                <div style={{fontSize:10,color:C.textMuted,display:"flex",gap:6,marginTop:2}}>
+                  {a.category&&<span style={{color:bc}}>{a.category}</span>}
+                  {cl.length>0&&<span>{clDone}/{cl.length}完了</span>}
+                  {a.detail&&<span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.detail}</span>}
+                </div>
+              </div>
+              <span style={{fontSize:10,color:bc,background:bc+"18",padding:"3px 8px",borderRadius:4,fontWeight:600,flexShrink:0}}>{a.priority}</span>
+            </div>
+          );
+        })}
+      </div>
 
       {/* Upcoming tournament */}
       {upcoming.length>0&&(
         <div style={{background:"#0a1a10",border:`1px solid #1a3a20`,borderRadius:10,padding:14}}>
-          <div style={{fontSize:11,color:C.accent,fontWeight:700,marginBottom:8}}>📅 次の大会</div>
+          <div style={{fontSize:12,color:C.accent,fontWeight:700,marginBottom:8}}>📅 次の大会</div>
           {upcoming.slice(0,2).map(t=>(
             <div key={t.id} style={{display:"flex",alignItems:"center",gap:10,marginBottom:4}}>
-              <span style={{fontSize:11,color:C.textMuted,fontFamily:"monospace",width:72}}>{t.date}</span>
-              <span style={{fontSize:12,color:C.text,fontWeight:600}}>{t.name}</span>
+              <span style={{fontSize:12,color:C.textMuted,fontFamily:"monospace",width:76}}>{t.date}</span>
+              <span style={{fontSize:13,color:C.text,fontWeight:600}}>{t.name}</span>
               <Badge color={t.type==="singles"?"gray":t.type==="doubles"?"blue":"purple"} sm>{t.type==="singles"?"S":t.type==="doubles"?"D":"Mix"}</Badge>
             </div>
           ))}
@@ -2274,18 +2290,18 @@ function HomeTab({next,setNext,tournaments,practices,trials,daysSinceExport,last
 
       {/* Recent activity */}
       <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:10,padding:14}}>
-        <div style={{fontSize:11,color:C.textMuted,fontWeight:700,marginBottom:8}}>📋 最近の記録</div>
+        <div style={{fontSize:12,color:C.textMuted,fontWeight:700,marginBottom:8}}>📋 最近の記録</div>
         {recentTrn.map(t=>(
-          <div key={t.id} style={{display:"flex",alignItems:"center",gap:8,marginBottom:5,fontSize:11}}>
-            <span style={{color:C.textMuted,fontFamily:"monospace",width:72}}>{t.date}</span>
+          <div key={t.id} style={{display:"flex",alignItems:"center",gap:8,marginBottom:5,fontSize:12}}>
+            <span style={{color:C.textMuted,fontFamily:"monospace",width:76}}>{t.date}</span>
             <span>🏆</span>
             <span style={{color:C.text,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.name}</span>
             <span style={{color:t.overallResult==="優勝"?C.accent:t.overallResult==="準優勝"?C.yellow:C.textMuted,fontWeight:600}}>{t.overallResult}</span>
           </div>
         ))}
         {recentPrac.map(p=>(
-          <div key={p.id} style={{display:"flex",alignItems:"center",gap:8,marginBottom:5,fontSize:11}}>
-            <span style={{color:C.textMuted,fontFamily:"monospace",width:72}}>{p.date}</span>
+          <div key={p.id} style={{display:"flex",alignItems:"center",gap:8,marginBottom:5,fontSize:12}}>
+            <span style={{color:C.textMuted,fontFamily:"monospace",width:76}}>{p.date}</span>
             <span>🏃</span>
             <span style={{color:C.text,flex:1}}>{p.type}{p.duration?` ${p.duration}分`:""}</span>
           </div>
