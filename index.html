@@ -155,10 +155,15 @@ const exportAll=async data=>{
 // ── MASTER OPTIONS ────────────────────────────────
 const getRacketOpts=rackets=>[{value:"",label:"-- ラケットを選択 --"},...rackets.filter(r=>r.status!=="retired").map(r=>({value:r.name,label:`${r.name}`}))];
 const getStringOpts=strings=>[{value:"",label:"-- ストリングを選択 --"},...strings.filter(s=>s.status!=="rejected").map(s=>({value:s.name,label:s.name}))];
-const getSetupOpts=(stringSetups)=>{
+const getSetupOpts=(stringSetups,strings)=>{
   const opts=[{value:"",label:"-- セッティングを選択 --"}];
+  const added=new Set();
   (stringSetups||[]).filter(s=>s.status!=="archived").forEach(s=>{
-    opts.push({value:s.label,label:s.label});
+    opts.push({value:s.label,label:s.label});added.add(s.label);
+  });
+  // Auto-add single strings not already in setup master
+  (strings||[]).filter(s=>s.status!=="rejected"&&!added.has(s.name)).forEach(s=>{
+    opts.push({value:s.name,label:s.name+" (単張り)"});
   });
   return opts;
 };
@@ -488,7 +493,7 @@ function MatchModal({match,mode,onSave,onClose,rackets,strings}){
             <FSelect label="ラウンド" value={f.round} onChange={s("round")} options={[{value:"1回戦",label:"1回戦"},{value:"2回戦",label:"2回戦"},{value:"3回戦",label:"3回戦"},{value:"準々決勝",label:"準々決勝"},{value:"準決勝",label:"準決勝"},{value:"決勝",label:"決勝"},{value:"予選",label:"予選"},{value:"エキシビション",label:"エキシビション"}]}/>
             <Field label="対戦相手（任意）" value={f.opponent} onChange={s("opponent")} placeholder="相手の名前やハンドル名"/>
             <FSelect label="使用ラケット" value={f.racketName||""} onChange={s("racketName")} options={getRacketOpts(rackets)}/>
-            <FSelect label="ストリングセッティング" value={f.stringSetup||""} onChange={s("stringSetup")} options={getSetupOpts(stringSetups)}/>
+            <FSelect label="ストリングセッティング" value={f.stringSetup||""} onChange={s("stringSetup")} options={getSetupOpts(stringSetups,strings)}/>
             <TensionFields main={f.tensionMain||""} cross={f.tensionCross||""} onMainChange={s("tensionMain")} onCrossChange={s("tensionCross")}/>
             <div style={{fontSize:11,color:C.textMuted,marginTop:4,marginBottom:14,padding:"8px 10px",background:C.panel2,borderRadius:6,borderLeft:`2px solid ${C.border}`}}>
               試合後に編集ボタンから結果・スコア・メンタル・メモを記録できます
@@ -502,7 +507,7 @@ function MatchModal({match,mode,onSave,onClose,rackets,strings}){
             </div>
             <Field label="対戦相手（任意）" value={f.opponent} onChange={s("opponent")} placeholder="相手の名前やハンドル名"/>
             <FSelect label="使用ラケット" value={f.racketName||""} onChange={s("racketName")} options={getRacketOpts(rackets)}/>
-            <FSelect label="ストリングセッティング" value={f.stringSetup||""} onChange={s("stringSetup")} options={getSetupOpts(stringSetups)}/>
+            <FSelect label="ストリングセッティング" value={f.stringSetup||""} onChange={s("stringSetup")} options={getSetupOpts(stringSetups,strings)}/>
             <TensionFields main={f.tensionMain||""} cross={f.tensionCross||""} onMainChange={s("tensionMain")} onCrossChange={s("tensionCross")}/>
             <Field label="セットスコア" value={(f.setScores||[]).join(", ")} onChange={v=>s("setScores")(v.split(",").map(x=>x.trim()))} placeholder="6-3, 6-4"/>
             <Stars label="メンタル" value={f.mental} onChange={s("mental")}/>
@@ -585,7 +590,7 @@ function MatchDetail({match,onEdit,onDelete,onUpdate}){
 // ── TOURNAMENT MODAL ──────────────────────────────
 function TournamentModal({tournament,onSave,onClose,rackets,strings,stringSetups,venues,onAddVenue}){
   const [f,setF]=useState({...tournament}); const s=k=>v=>setF(p=>({...p,[k]:v}));
-  const setupOpts=getSetupOpts(stringSetups);
+  const setupOpts=getSetupOpts(stringSetups,strings);
   const isNew=!tournament.name;
   return (
     <div style={{position:"fixed",inset:0,background:"#000c",zIndex:200,display:"flex",alignItems:"flex-start",justifyContent:"center",overflowY:"auto",padding:"20px 12px"}} onClick={e=>e.target===e.currentTarget&&onClose()}>
@@ -950,7 +955,7 @@ function PracticesTab({data,setData,rackets,strings,stringSetups,venues,setVenue
   const handleDelete=id=>cfm.ask("この記録を削除しますか？",()=>{persist(data.filter(p=>p.id!==id));setExpanded(null);toast.show("🗑 削除しました",C.red);});
   const [guide,setGuide]=useState(false);
   const totalMin=data.reduce((s,p)=>s+(parseInt(p.duration)||0),0);
-  const setupOpts=getSetupOpts(stringSetups);
+  const setupOpts=getSetupOpts(stringSetups,strings);
 
   const Modal=({practice})=>{
     const [f,setF]=useState({...practice}); const s=k=>v=>setF(p=>({...p,[k]:v}));
@@ -1297,19 +1302,38 @@ function TrialsTab({data,setData,practices,rackets,strings,venues,setVenues,toas
     );
   };
 
+  const [fRacket,setFRacket]=useState("");
+  const [fJudge,setFJudge]=useState("");
+  const [fString,setFString]=useState("");
+  const rOpts=[{value:"",label:"全てのラケット"},...[...new Set(allTrials.map(t=>t.racketName).filter(Boolean))].map(r=>({value:r,label:r}))];
+  const sOpts2=[{value:"",label:"全てのストリング"},...[...new Set(allTrials.map(t=>t.string).filter(Boolean))].map(s=>({value:s,label:s}))];
+  const filtered=allTrials.filter(t=>{
+    if(fRacket&&t.racketName!==fRacket)return false;
+    if(fJudge&&t.judgment!==fJudge)return false;
+    if(fString&&t.string!==fString)return false;
+    return true;
+  });
+  const hasFilter=fRacket||fJudge||fString;
+
   return (
     <div>
       {cfm.el}
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-        <div><span style={{fontSize:11,color:C.accent,letterSpacing:"0.1em"}}>試打ノート</span><span style={{fontSize:10,color:C.textMuted,marginLeft:8}}>{allTrials.length}件{practiceTrials.length>0?`（練習中${practiceTrials.length}件含む）`:""}</span></div>
-        <button onClick={()=>setModal({trial:blankTrial()})} style={{background:C.accent,border:"none",color:"#000",borderRadius:6,padding:"6px 14px",fontSize:12,fontWeight:700,cursor:"pointer"}}>＋ 追加</button>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+        <div><span style={{fontSize:12,color:C.accent,fontWeight:700}}>試打ノート</span><span style={{fontSize:11,color:C.textMuted,marginLeft:8}}>{hasFilter?`${filtered.length}/${allTrials.length}件`:allTrials.length+"件"}{practiceTrials.length>0?`（練習中${practiceTrials.length}件含む）`:""}</span></div>
+        <button onClick={()=>setModal({trial:blankTrial()})} style={{background:C.accent,border:"none",color:"#000",borderRadius:6,padding:"8px 14px",fontSize:13,fontWeight:700,cursor:"pointer"}}>＋ 追加</button>
       </div>
-      {allTrials.length===0&&<div style={{background:C.panel,border:`1px dashed ${C.border}`,borderRadius:8,padding:"30px 20px",textAlign:"center",color:C.textMuted,fontSize:12}}>試打ノートがありません</div>}
-      <div style={{background:allTrials.length?C.panel:"transparent",border:allTrials.length?`1px solid ${C.border}`:"none",borderRadius:8,overflow:"hidden"}}>
-        {allTrials.map((t,i)=>{
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"0 8px",marginBottom:10}}>
+        <FSelect label="" value={fRacket} onChange={setFRacket} options={rOpts}/>
+        <FSelect label="" value={fJudge} onChange={setFJudge} options={[{value:"",label:"全判定"},{value:"採用候補",label:"✅ 採用候補"},{value:"保留",label:"🟡 保留"},{value:"却下",label:"❌ 却下"}]}/>
+        <FSelect label="" value={fString} onChange={setFString} options={sOpts2}/>
+      </div>
+      {hasFilter&&<button onClick={()=>{setFRacket("");setFJudge("");setFString("");}} style={{background:"none",border:`1px solid ${C.border}`,color:C.textMuted,borderRadius:4,padding:"4px 12px",fontSize:11,cursor:"pointer",marginBottom:8,display:"block"}}>フィルター解除</button>}
+      {filtered.length===0&&<div style={{background:C.panel,border:`1px dashed ${C.border}`,borderRadius:8,padding:"30px 20px",textAlign:"center",color:C.textMuted,fontSize:12}}>{hasFilter?"条件に一致する試打がありません":"試打ノートがありません"}</div>}
+      <div style={{background:filtered.length?C.panel:"transparent",border:filtered.length?`1px solid ${C.border}`:"none",borderRadius:8,overflow:"hidden"}}>
+        {filtered.map((t,i)=>{
           const isOpen=expanded===t.id; const ac=avg(t); const ac2=parseFloat(ac)>=4?C.accent:parseFloat(ac)>=3?C.yellow:C.red;
           return (
-            <div key={t.id} style={{borderBottom:i<allTrials.length-1?`1px solid ${C.border}`:"none"}}>
+            <div key={t.id} style={{borderBottom:i<filtered.length-1?`1px solid ${C.border}`:"none"}}>
               <div onClick={()=>setExpanded(isOpen?null:t.id)} style={{display:"flex",alignItems:"center",gap:10,padding:"11px 14px",background:isOpen?"#0d0f18":"transparent",cursor:"pointer",borderLeft:isOpen?`3px solid ${t.fromPractice?C.blue:C.orange}`:"3px solid transparent",transition:"all 0.1s"}}>
                 <div style={{minWidth:76,fontSize:10,color:C.textMuted,fontFamily:"monospace"}}>{t.date}</div>
                 <Badge color={jc[t.judgment]||"gray"} sm>{t.judgment}</Badge>
