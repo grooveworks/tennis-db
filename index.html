@@ -1282,7 +1282,7 @@ const claudeFormatters={
     if(!list||!list.length)return "";
     const l=["# ラケット"];
     list.forEach(r=>{
-      l.push(`\n## ${r.name}（${r.role||""}）`,`${r.weight||""} / ${r.balance||""} / ${r.face||""} / ${r.beam||""}`);
+      l.push(`\n## ${r.name}（${r.role||""}） [id:${r.id}]`,`${r.weight||""} / ${r.balance||""} / ${r.face||""} / ${r.beam||""}`);
       if(r.string)l.push(`ST: ${r.string} / T: ${r.tension||"—"}`);
       if(r.note)l.push(r.note);
     });
@@ -1293,16 +1293,18 @@ const claudeFormatters={
     const l=["# ストリング在庫"];
     const grp={active:[],key:[],hold:[],rejected:[]};
     list.forEach(s=>(grp[s.status]||grp.hold).push(s));
-    if(grp.active.length)l.push("【使用中】"+grp.active.map(s=>`${s.name}(${s.qty})`).join(" / "));
-    if(grp.key.length)l.push("【注目】"+grp.key.map(s=>`${s.name}(${s.qty}) ${s.note||""}`).join(" / "));
-    if(grp.hold.length)l.push("【保留】"+grp.hold.map(s=>`${s.name}(${s.qty})`).join(" / "));
-    if(grp.rejected.length)l.push("【除外】"+grp.rejected.map(s=>`${s.name}: ${s.note||""}`).join(" / "));
+    const fmt=s=>`${s.name}(${s.qty})[id:${s.id}]`;
+    const fmtR=s=>`${s.name}: ${s.note||""}[id:${s.id}]`;
+    if(grp.active.length)l.push("【使用中】"+grp.active.map(fmt).join(" / "));
+    if(grp.key.length)l.push("【注目】"+grp.key.map(s=>`${s.name}(${s.qty}) ${s.note||""}[id:${s.id}]`).join(" / "));
+    if(grp.hold.length)l.push("【保留】"+grp.hold.map(fmt).join(" / "));
+    if(grp.rejected.length)l.push("【除外】"+grp.rejected.map(fmtR).join(" / "));
     return l.join("\n");
   },
   measurements:(list)=>{
     if(!list||!list.length)return "";
     const l=["# 実測値"];
-    list.forEach(m=>{l.push(`${m.current?"▶":"　"}${m.racket} ${m.state}: ${m.weight} / BP${m.balance} / G:${m.gripW}×${m.gripT}`);});
+    list.forEach(m=>{l.push(`${m.current?"▶":"　"}${m.racket} ${m.state}: ${m.weight} / BP${m.balance} / G:${m.gripW}×${m.gripT} [id:${m.id}]`);});
     return l.join("\n");
   },
   tournaments:(list)=>{
@@ -1311,11 +1313,11 @@ const claudeFormatters={
     list.forEach(t=>{
       const type=t.type==="singles"?"S":t.type==="doubles"?"D":"MIX";
       const ten=fmtTen(t.tensionMain,t.tensionCross);
-      l.push(`\n## ${t.date} ${t.name||""} ${t.level}${type} → ${t.overallResult||"—"}`);
+      l.push(`\n## ${t.date} ${t.name||""} ${t.level}${type} → ${t.overallResult||"—"} [id:${t.id}]`);
       if(t.racketName)l.push(`機材: ${t.racketName} / ${t.stringSetup||""} / ${ten!=="—"?ten+"p":""} ${t.temp?t.temp+"℃":""}`);
       (t.matches||[]).forEach((m,i)=>{
         const sc=(m.setScores||[]).map(s=>`${s.me}-${s.opp}`).join(", ");
-        l.push(`  ${m.round||`${i+1}回戦`} ${m.result} ${sc} vs ${m.opponent||"?"} M${m.mental||3}/P${m.physical||3}`);
+        l.push(`  ${m.round||`${i+1}回戦`} ${m.result} ${sc} vs ${m.opponent||"?"} M${m.mental||3}/P${m.physical||3} [id:${m.id}]`);
         if(m.techNote)l.push(`    技術: ${m.techNote}`);
         if(m.mentalNote)l.push(`    メンタル: ${m.mentalNote}`);
         if(m.note)l.push(`    メモ: ${m.note}`);
@@ -1329,7 +1331,7 @@ const claudeFormatters={
     const l=["# 練習記録"];
     list.forEach(p=>{
       const ten=fmtTen(p.tensionMain,p.tensionCross);
-      l.push(`\n${p.date} ${p.type} ${p.duration||""}分 @${p.venue||"—"} ${p.temp?p.temp+"℃":""}`);
+      l.push(`\n${p.date} ${p.type} ${p.duration||""}分 @${p.venue||"—"} ${p.temp?p.temp+"℃":""} [id:${p.id}]`);
       if(p.racketName)l.push(`機材: ${p.racketName} / ${p.stringSetup||""} / ${ten!=="—"?ten+"p":""}`);
       if(p.calories||p.heartRateAvg)l.push(`⌚ ${p.calories?p.calories+"kcal":""} HR:${p.heartRateAvg||"—"}/${p.heartRateMax||"—"}bpm`);
       if(p.focus)l.push(`テーマ: ${p.focus}`);
@@ -1353,7 +1355,7 @@ const claudeFormatters={
     all.forEach(t=>{
       const ten=fmtTen(t.tensionMain,t.tensionCross,t.tension);
       const avg=((t.spin+t.control+t.power+t.feel+t.info)/5).toFixed(1);
-      l.push(`\n## ${t.date} ${t.racketName||"—"} / ${t.string||"—"}${t.stringCross?` × ${t.stringCross}`:""} / ${ten} → ${t.judgment}${t.fromPractice?" [練習中]":""}`);
+      l.push(`\n## ${t.date} ${t.racketName||"—"} / ${t.string||"—"}${t.stringCross?` × ${t.stringCross}`:""} / ${ten} → ${t.judgment}${t.fromPractice?" [練習中]":""} [id:${t.id}]`);
       l.push(`Sp${t.spin}/Co${t.control}/Pw${t.power}/Fe${t.feel}/In${t.info} (avg ${avg}) ${t.temp?t.temp+"℃":""} ${t.venue||""}`);
       if(t.strokeNote)l.push(`ストローク: ${t.strokeNote}`);
       if(t.serveNote)l.push(`サーブ: ${t.serveNote}`);
@@ -1369,13 +1371,13 @@ const claudeFormatters={
   mental:(list)=>{
     if(!list||!list.length)return "";
     const l=["# メンタルノート"];
-    list.forEach(m=>{l.push(`[${m.category||m.tag}] ${m.title}: ${m.content}`);});
+    list.forEach(m=>{l.push(`[${m.category||m.tag}] ${m.title}: ${m.content} [id:${m.id}]`);});
     return l.join("\n");
   },
   next:(list)=>{
     if(!list||!list.length)return "";
     const l=["# Next Actions"];
-    list.forEach(n=>{l.push(`${n.done?"✅":"☐"} [${n.priority||"中"}] ${n.label}${n.detail?` — ${n.detail}`:""}`);});
+    list.forEach(n=>{l.push(`${n.done?"✅":"☐"} [${n.priority||"中"}] ${n.label}${n.detail?` — ${n.detail}`:""} [id:${n.id}]`);});
     return l.join("\n");
   },
 };
@@ -1453,7 +1455,7 @@ function ClaudeShareModal({onClose,data,toast}){
 const formatTrialForClaude=t=>{
   const ten=[t.tensionMain,t.tensionCross].filter(Boolean).join("/") || t.tension || "—";
   const avg=((t.spin+t.control+t.power+t.feel+t.info)/5).toFixed(1);
-  const lines=[`## ${t.date} ${t.racketName||"—"} / ${t.string||"—"}${t.stringCross?` × ${t.stringCross}`:""} / ${ten} → ${t.judgment}`,
+  const lines=[`## ${t.date} ${t.racketName||"—"} / ${t.string||"—"}${t.stringCross?` × ${t.stringCross}`:""} / ${ten} → ${t.judgment} [id:${t.id}]`,
     `Sp${t.spin}/Co${t.control}/Pw${t.power}/Fe${t.feel}/In${t.info} (avg ${avg}) ${t.temp?t.temp+"℃":""} ${t.venue||""}`];
   if(t.strokeNote)lines.push(`ストローク: ${t.strokeNote}`);
   if(t.serveNote)lines.push(`サーブ: ${t.serveNote}`);
