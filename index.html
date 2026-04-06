@@ -1265,6 +1265,213 @@ function PracticesTab({data,setData,rackets,strings,stringSetups,venues,setVenue
 const blankTrial=()=>({id:`t${Date.now()}`,date:today(),racketName:"",string:"",stringCross:"",tensionMain:"",tensionCross:"",temp:"",venue:"",judgment:"保留",spin:3,control:3,power:3,feel:3,info:3,strokeNote:"",serveNote:"",volleyNote:"",generalNote:"",sessions:[]});
 const blankSession=()=>({id:`s${Date.now()}`,date:today(),temp:"",tensionMain:"",tensionCross:"",note:""});
 
+// ── CLAUDE SHARE ──────────────────────────────────
+const fmtTen=(m,c,legacy)=>[m,c].filter(Boolean).join("/")||legacy||"—";
+const claudeFormatters={
+  profile:(d)=>{
+    if(!d||!d.name)return "";
+    const l=["# プロフィール",`${d.name} / ${d.level||""} / ${d.career||""}`];
+    if(d.playStyle)l.push(`スタイル: ${d.playStyle}`);
+    if(d.playStyleDetail)l.push(d.playStyleDetail);
+    if(d.strengths)l.push(`強み: ${d.strengths}`);
+    if(d.weaknesses)l.push(`課題: ${d.weaknesses}`);
+    if(d.racket)l.push(`ラケット: ${d.racket} / ${d.stringing||""}`);
+    return l.join("\n");
+  },
+  rackets:(list)=>{
+    if(!list||!list.length)return "";
+    const l=["# ラケット"];
+    list.forEach(r=>{
+      l.push(`\n## ${r.name}（${r.role||""}）`,`${r.weight||""} / ${r.balance||""} / ${r.face||""} / ${r.beam||""}`);
+      if(r.string)l.push(`ST: ${r.string} / T: ${r.tension||"—"}`);
+      if(r.note)l.push(r.note);
+    });
+    return l.join("\n");
+  },
+  strings:(list)=>{
+    if(!list||!list.length)return "";
+    const l=["# ストリング在庫"];
+    const grp={active:[],key:[],hold:[],rejected:[]};
+    list.forEach(s=>(grp[s.status]||grp.hold).push(s));
+    if(grp.active.length)l.push("【使用中】"+grp.active.map(s=>`${s.name}(${s.qty})`).join(" / "));
+    if(grp.key.length)l.push("【注目】"+grp.key.map(s=>`${s.name}(${s.qty}) ${s.note||""}`).join(" / "));
+    if(grp.hold.length)l.push("【保留】"+grp.hold.map(s=>`${s.name}(${s.qty})`).join(" / "));
+    if(grp.rejected.length)l.push("【除外】"+grp.rejected.map(s=>`${s.name}: ${s.note||""}`).join(" / "));
+    return l.join("\n");
+  },
+  measurements:(list)=>{
+    if(!list||!list.length)return "";
+    const l=["# 実測値"];
+    list.forEach(m=>{l.push(`${m.current?"▶":"　"}${m.racket} ${m.state}: ${m.weight} / BP${m.balance} / G:${m.gripW}×${m.gripT}`);});
+    return l.join("\n");
+  },
+  tournaments:(list)=>{
+    if(!list||!list.length)return "";
+    const l=["# 大会記録"];
+    list.forEach(t=>{
+      const type=t.type==="singles"?"S":t.type==="doubles"?"D":"MIX";
+      const ten=fmtTen(t.tensionMain,t.tensionCross);
+      l.push(`\n## ${t.date} ${t.name||""} ${t.level}${type} → ${t.overallResult||"—"}`);
+      if(t.racketName)l.push(`機材: ${t.racketName} / ${t.stringSetup||""} / ${ten!=="—"?ten+"p":""} ${t.temp?t.temp+"℃":""}`);
+      (t.matches||[]).forEach((m,i)=>{
+        const sc=(m.setScores||[]).map(s=>`${s.me}-${s.opp}`).join(", ");
+        l.push(`  ${m.round||`${i+1}回戦`} ${m.result} ${sc} vs ${m.opponent||"?"} M${m.mental||3}/P${m.physical||3}`);
+        if(m.techNote)l.push(`    技術: ${m.techNote}`);
+        if(m.mentalNote)l.push(`    メンタル: ${m.mentalNote}`);
+        if(m.note)l.push(`    メモ: ${m.note}`);
+      });
+      if(t.generalNote)l.push(`総括: ${t.generalNote}`);
+    });
+    return l.join("\n");
+  },
+  practices:(list)=>{
+    if(!list||!list.length)return "";
+    const l=["# 練習記録"];
+    list.forEach(p=>{
+      const ten=fmtTen(p.tensionMain,p.tensionCross);
+      l.push(`\n${p.date} ${p.type} ${p.duration||""}分 @${p.venue||"—"} ${p.temp?p.temp+"℃":""}`);
+      if(p.racketName)l.push(`機材: ${p.racketName} / ${p.stringSetup||""} / ${ten!=="—"?ten+"p":""}`);
+      if(p.calories||p.heartRateAvg)l.push(`⌚ ${p.calories?p.calories+"kcal":""} HR:${p.heartRateAvg||"—"}/${p.heartRateMax||"—"}bpm`);
+      if(p.focus)l.push(`テーマ: ${p.focus}`);
+      if(p.goodNote)l.push(`良: ${p.goodNote}`);
+      if(p.improveNote)l.push(`改善: ${p.improveNote}`);
+      if(p.coachNote)l.push(`コーチ: ${p.coachNote}`);
+      if(p.generalNote)l.push(`メモ: ${p.generalNote}`);
+      if(p.hasTrial&&p.trialRacketName)l.push(`⚔️試打: ${p.trialRacketName} ${p.trialString||""} ${p.trialTension||""} 判定:${p.trialJudgment||"保留"} Sp${p.trialSpin}/Co${p.trialControl}/Pw${p.trialPower}/Fe${p.trialFeel}/In${p.trialInfo}${p.trialNote?` ${p.trialNote}`:""}`);
+    });
+    return l.join("\n");
+  },
+  trials:(list,practices)=>{
+    const practiceTrials=(practices||[]).filter(p=>p.hasTrial&&p.trialRacketName).map(p=>({
+      id:`pt-${p.id}`,date:p.date,racketName:p.trialRacketName,string:p.trialString||"",stringCross:"",tensionMain:p.trialTension||"",tensionCross:"",temp:p.temp||"",venue:p.venue||"",
+      judgment:p.trialJudgment||"保留",spin:p.trialSpin||3,control:p.trialControl||3,power:p.trialPower||3,feel:p.trialFeel||3,info:p.trialInfo||3,
+      strokeNote:"",serveNote:"",volleyNote:"",generalNote:p.trialNote||"",sessions:[],fromPractice:true
+    }));
+    const all=[...list,...practiceTrials].sort((a,b)=>b.date.localeCompare(a.date));
+    if(!all.length)return "";
+    const l=["# 試打ノート"];
+    all.forEach(t=>{
+      const ten=fmtTen(t.tensionMain,t.tensionCross,t.tension);
+      const avg=((t.spin+t.control+t.power+t.feel+t.info)/5).toFixed(1);
+      l.push(`\n## ${t.date} ${t.racketName||"—"} / ${t.string||"—"}${t.stringCross?` × ${t.stringCross}`:""} / ${ten} → ${t.judgment}${t.fromPractice?" [練習中]":""}`);
+      l.push(`Sp${t.spin}/Co${t.control}/Pw${t.power}/Fe${t.feel}/In${t.info} (avg ${avg}) ${t.temp?t.temp+"℃":""} ${t.venue||""}`);
+      if(t.strokeNote)l.push(`ストローク: ${t.strokeNote}`);
+      if(t.serveNote)l.push(`サーブ: ${t.serveNote}`);
+      if(t.volleyNote)l.push(`ボレー: ${t.volleyNote}`);
+      if(t.generalNote)l.push(`総括: ${t.generalNote}`);
+      (t.sessions||[]).forEach((s,i)=>{
+        const st=fmtTen(s.tensionMain,s.tensionCross);
+        l.push(`  #${i+1} ${s.date||""} ${s.temp?s.temp+"℃":""} T:${st} ${s.note||""}`);
+      });
+    });
+    return l.join("\n");
+  },
+  mental:(list)=>{
+    if(!list||!list.length)return "";
+    const l=["# メンタルノート"];
+    list.forEach(m=>{l.push(`[${m.category||m.tag}] ${m.title}: ${m.content}`);});
+    return l.join("\n");
+  },
+  next:(list)=>{
+    if(!list||!list.length)return "";
+    const l=["# Next Actions"];
+    list.forEach(n=>{l.push(`${n.done?"✅":"☐"} [${n.priority||"中"}] ${n.label}${n.detail?` — ${n.detail}`:""}`);});
+    return l.join("\n");
+  },
+};
+
+function ClaudeShareModal({onClose,data,toast}){
+  const cats=[
+    ["profile","プロフィール",data.profile],
+    ["rackets","ラケット",data.rackets],
+    ["strings","ストリング",data.strings],
+    ["measurements","実測値",data.measurements],
+    ["tournaments","大会",data.tournaments],
+    ["practices","練習",data.practices],
+    ["trials","試打",data.trials],
+    ["mental","メンタル",data.mental],
+    ["next","Next",data.next],
+  ];
+  const [sel,setSel]=useState(()=>Object.fromEntries(cats.map(([k])=>[k,true])));
+  const toggle=k=>setSel(p=>({...p,[k]:!p[k]}));
+  const selectAll=v=>setSel(Object.fromEntries(cats.map(([k])=>[k,v])));
+
+  const texts=cats.map(([k,label,d])=>{
+    if(!sel[k])return null;
+    if(k==="trials")return claudeFormatters.trials(data.trials,data.practices);
+    return claudeFormatters[k]?claudeFormatters[k](d):null;
+  }).filter(Boolean);
+  const fullText=texts.join("\n\n---\n\n");
+  const charCount=fullText.length;
+  const tooLarge=charCount>80000;
+
+  const catSizes=cats.map(([k,label,d])=>{
+    let t;
+    if(k==="trials")t=claudeFormatters.trials(data.trials,data.practices);
+    else t=claudeFormatters[k]?claudeFormatters[k](d):"";
+    return [k,label,t?t.length:0];
+  });
+
+  const handleCopy=async()=>{
+    try{await navigator.clipboard.writeText(fullText);toast.show(`📋 ${charCount.toLocaleString()}文字コピー完了 → Claudeに貼り付け`);}catch{
+      const ta=document.createElement("textarea");ta.value=fullText;ta.style.cssText="position:fixed;opacity:0";document.body.appendChild(ta);ta.select();document.execCommand("copy");document.body.removeChild(ta);toast.show(`📋 コピー完了`);
+    }
+    onClose();
+  };
+
+  return (
+    <div style={{position:"fixed",inset:0,background:"#000c",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div style={{background:C.panel,border:`1px solid ${C.purple}`,borderRadius:12,width:"100%",maxWidth:400,padding:20}} onClick={e=>e.stopPropagation()}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+          <span style={{fontSize:15,fontWeight:700,color:C.purple}}>📋 Claude共有</span>
+          <button onClick={onClose} style={{background:"none",border:"none",color:C.textMuted,fontSize:18,cursor:"pointer"}}>✕</button>
+        </div>
+        <div style={{fontSize:11,color:C.textMuted,marginBottom:10,lineHeight:1.6}}>共有するカテゴリを選択 → コピー → Claudeのチャットに貼り付け</div>
+        <div style={{display:"flex",gap:6,marginBottom:10}}>
+          <button onClick={()=>selectAll(true)} style={{background:"none",border:`1px solid ${C.border}`,color:C.textDim,borderRadius:5,padding:"4px 10px",fontSize:10,cursor:"pointer"}}>全選択</button>
+          <button onClick={()=>selectAll(false)} style={{background:"none",border:`1px solid ${C.border}`,color:C.textDim,borderRadius:5,padding:"4px 10px",fontSize:10,cursor:"pointer"}}>全解除</button>
+        </div>
+        {catSizes.map(([k,label,size])=>(
+          <label key={k} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",background:sel[k]?"#130528":"transparent",border:`1px solid ${sel[k]?C.purple:C.border}`,borderRadius:7,marginBottom:4,cursor:"pointer"}}>
+            <input type="checkbox" checked={sel[k]} onChange={()=>toggle(k)} style={{accentColor:C.purple,width:18,height:18}}/>
+            <span style={{flex:1,fontSize:13,color:sel[k]?C.text:C.textMuted,fontWeight:sel[k]?600:400}}>{label}</span>
+            <span style={{fontSize:10,color:C.textMuted,fontFamily:"monospace"}}>{size>0?`${(size/1000).toFixed(1)}k`:"-"}</span>
+          </label>
+        ))}
+        <div style={{marginTop:12,padding:"10px 12px",background:C.panel2,borderRadius:8,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div>
+            <div style={{fontSize:12,color:tooLarge?C.red:C.text,fontWeight:700}}>{(charCount/1000).toFixed(1)}k 文字</div>
+            <div style={{fontSize:10,color:tooLarge?C.red:C.textMuted}}>{tooLarge?"⚠ 大きすぎます。カテゴリを減らしてください":"Claudeに貼り付け可能"}</div>
+          </div>
+          <button onClick={handleCopy} disabled={tooLarge||charCount===0} style={{background:tooLarge||charCount===0?"#333":C.purple,border:"none",color:tooLarge?"#666":"#fff",borderRadius:8,padding:"10px 20px",fontSize:14,fontWeight:700,cursor:tooLarge?"not-allowed":"pointer"}}>📋 コピー</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const formatTrialForClaude=t=>{
+  const ten=[t.tensionMain,t.tensionCross].filter(Boolean).join("/") || t.tension || "—";
+  const avg=((t.spin+t.control+t.power+t.feel+t.info)/5).toFixed(1);
+  const lines=[`## ${t.date} ${t.racketName||"—"} / ${t.string||"—"}${t.stringCross?` × ${t.stringCross}`:""} / ${ten} → ${t.judgment}`,
+    `Sp${t.spin}/Co${t.control}/Pw${t.power}/Fe${t.feel}/In${t.info} (avg ${avg}) ${t.temp?t.temp+"℃":""} ${t.venue||""}`];
+  if(t.strokeNote)lines.push(`ストローク: ${t.strokeNote}`);
+  if(t.serveNote)lines.push(`サーブ: ${t.serveNote}`);
+  if(t.volleyNote)lines.push(`ボレー: ${t.volleyNote}`);
+  if(t.generalNote)lines.push(`総括: ${t.generalNote}`);
+  (t.sessions||[]).forEach((s,i)=>{
+    const st=[s.tensionMain,s.tensionCross].filter(Boolean).join("/");
+    lines.push(`  #${i+1} ${s.date||""} ${s.temp?s.temp+"℃":""} T:${st} ${s.note||""}`);
+  });
+  return lines.join("\n");
+};
+const formatMultipleTrialsForClaude=trials=>trials.map(t=>formatTrialForClaude(t)).join("\n\n---\n\n");
+const copyToClipboard=async(text,toast,label)=>{
+  try{await navigator.clipboard.writeText(text);toast.show(`📋 ${label||"コピーしました"}`);}catch{
+    const ta=document.createElement("textarea");ta.value=text;ta.style.cssText="position:fixed;opacity:0";document.body.appendChild(ta);ta.select();document.execCommand("copy");document.body.removeChild(ta);toast.show(`📋 ${label||"コピーしました"}`);
+  }
+};
+
 function TrialsTab({data,setData,practices,rackets,strings,venues,setVenues,toast,quickAdd,onQuickAddDone}){
   const cfm=useConfirm();
   const [expanded,setExpanded]=useState(null);
@@ -1365,7 +1572,10 @@ function TrialsTab({data,setData,practices,rackets,strings,venues,setVenues,toas
       {cfm.el}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
         <div><span style={{fontSize:12,color:C.accent,fontWeight:700}}>試打ノート</span><span style={{fontSize:11,color:C.textMuted,marginLeft:8}}>{hasFilter?`${filtered.length}/${allTrials.length}件`:allTrials.length+"件"}{practiceTrials.length>0?`（練習中${practiceTrials.length}件含む）`:""}</span></div>
-        <button onClick={()=>setModal({trial:blankTrial()})} style={{background:C.accent,border:"none",color:"#000",borderRadius:6,padding:"8px 14px",fontSize:13,fontWeight:700,cursor:"pointer"}}>＋ 追加</button>
+        <div style={{display:"flex",gap:6}}>
+          {filtered.length>0&&<button onClick={()=>copyToClipboard(formatMultipleTrialsForClaude(filtered),toast,`${filtered.length}件コピー → Claudeに貼り付け`)} style={{background:"#130528",border:`1px solid ${C.purple}`,color:C.purple,borderRadius:6,padding:"8px 10px",fontSize:11,fontWeight:700,cursor:"pointer"}}>📋 {hasFilter?filtered.length+"件":"全件"}</button>}
+          <button onClick={()=>setModal({trial:blankTrial()})} style={{background:C.accent,border:"none",color:"#000",borderRadius:6,padding:"8px 14px",fontSize:13,fontWeight:700,cursor:"pointer"}}>＋ 追加</button>
+        </div>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"0 8px",marginBottom:10}}>
         <FSelect label="" value={fRacket} onChange={setFRacket} options={rOpts}/>
@@ -1442,10 +1652,14 @@ function TrialsTab({data,setData,practices,rackets,strings,venues,setVenues,toas
                   )}
                   <div style={{display:"flex",gap:8,marginTop:10}}>
                     {t.fromPractice?(
-                      <div style={{flex:1,textAlign:"center",fontSize:11,color:C.blue,padding:"8px 0"}}>🏃 練習タブから編集できます</div>
+                      <div style={{display:"flex",gap:8,flex:1,alignItems:"center"}}>
+                        <div style={{flex:1,textAlign:"center",fontSize:11,color:C.blue,padding:"8px 0"}}>🏃 練習タブから編集</div>
+                        <Btn onClick={()=>copyToClipboard(formatTrialForClaude(t),toast,"Claudeに貼り付けできます")}>📋 Claude共有</Btn>
+                      </div>
                     ):(
                       <>
                         <Btn onClick={()=>setModal({trial:t})} style={{flex:1}}>✏️ 編集</Btn>
+                        <Btn onClick={()=>copyToClipboard(formatTrialForClaude(t),toast,"Claudeに貼り付けできます")} style={{flex:1}}>📋 Claude共有</Btn>
                         <Btn onClick={()=>handleDelete(t.id)} variant="danger">🗑</Btn>
                       </>
                     )}
@@ -2507,6 +2721,7 @@ function TennisDB(){
   const [ready,setReady]=useState(false);
   const [quickAdd,setQuickAdd]=useState(null);
   const [showAddMenu,setShowAddMenu]=useState(false);
+  const [showClaudeShare,setShowClaudeShare]=useState(false);
   const [quickTrial,setQuickTrial]=useState(false);
   const [tournaments,setTournaments]=useState([]);
   const [practices,setPractices]=useState([]);
@@ -2688,6 +2903,7 @@ function TennisDB(){
         button:hover{opacity:0.82;}
       `}</style>
       {toast.el}
+      {showClaudeShare&&<ClaudeShareModal onClose={()=>setShowClaudeShare(false)} data={{profile,rackets,strings,measurements,tournaments,practices,trials,mental,next}} toast={toast}/>}
       {quickTrial&&<QuickTrialMode rackets={rackets} stringSetups={stringSetups} trials={trials} setTrials={v=>{setTrials(v);}} onClose={()=>setQuickTrial(false)} toast={toast}/>}
       {daysSinceExport>=3&&(
         <div onClick={handleExport} style={{background:"#2e0505",border:"1px solid #b45252",borderRadius:8,padding:"10px 14px",marginBottom:12,display:"flex",alignItems:"center",gap:10,cursor:"pointer"}}>
@@ -2721,6 +2937,7 @@ function TennisDB(){
           <button onClick={()=>setShowAddMenu(true)} style={{background:C.accent,border:"none",color:"#000",borderRadius:6,padding:"6px 14px",fontSize:13,fontWeight:800,cursor:"pointer"}}>＋</button>
           <button onClick={toggleLarge} style={{background:large?"#1a2e10":"#111318",border:`1px solid ${large?C.accent:C.border}`,color:large?C.accent:C.textMuted,borderRadius:6,padding:"6px 10px",fontSize:13,fontWeight:700,cursor:"pointer"}} title="文字サイズ切り替え">{large?"A↓":"A↑"}</button>
           <button onClick={handleExport} style={{background:"#051828",border:`1px solid ${C.blue}`,color:C.blue,borderRadius:6,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>📤</button>
+          <button onClick={()=>setShowClaudeShare(true)} style={{background:"#130528",border:`1px solid ${C.purple}`,color:C.purple,borderRadius:6,padding:"6px 8px",fontSize:10,fontWeight:600,cursor:"pointer"}} title="Claudeに共有">📋</button>
           <button onClick={()=>importRef.current.click()} style={{background:"#0d1a10",border:`1px solid ${C.accentDim}`,color:C.accent,borderRadius:6,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>📥</button>
           <input ref={importRef} type="file" accept=".json" onChange={handleImport} style={{display:"none"}}/>
           {user?
