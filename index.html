@@ -127,8 +127,13 @@ const StarRow=({label,value,onChange})=>(
 // ── TOAST ─────────────────────────────────────────
 function useToast(){
   const [t,setT]=useState(null);
-  const show=(msg,color=C.accent)=>{setT({msg,color});setTimeout(()=>setT(null),2600);};
-  const el=t?<div style={{position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",background:C.panel,border:`1px solid ${t.color}`,color:t.color,borderRadius:8,padding:"10px 20px",fontSize:13,fontWeight:600,zIndex:300,boxShadow:"0 4px 20px #0008",whiteSpace:"nowrap"}}>{t.msg}</div>:null;
+  const tRef=useRef(null);
+  const show=(msg,color=C.accent,onUndo=null)=>{if(tRef.current)clearTimeout(tRef.current);setT({msg,color,onUndo});tRef.current=setTimeout(()=>setT(null),onUndo?5000:2600);};
+  const doUndo=()=>{if(t?.onUndo){t.onUndo();setT(null);}};
+  const el=t?<div style={{position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",background:C.panel,border:`1px solid ${t.color}`,color:t.color,borderRadius:8,padding:"10px 20px",fontSize:13,fontWeight:600,zIndex:300,boxShadow:"0 4px 20px #0008",display:"flex",alignItems:"center",gap:12,whiteSpace:"nowrap"}}>
+    <span>{t.msg}</span>
+    {t.onUndo&&<button onClick={doUndo} style={{background:t.color,border:"none",color:"#000",borderRadius:4,padding:"5px 12px",fontSize:12,fontWeight:700,cursor:"pointer"}}>元に戻す</button>}
+  </div>:null;
   return {show,el};
 }
 
@@ -1708,47 +1713,47 @@ function NextTab({data,setData,toast}){
   const [showTpl,setShowTpl]=useState(false);
   const catColor={検証:C.blue,準備:C.accent,買い物:C.orange,チェックリスト:C.purple};
   const catIcon={検証:"🔬",準備:"📋",買い物:"🛒",チェックリスト:"✅"};
-  const pc={最高:"green",高:"blue",中:"yellow",低:"gray"};
   const persist=list=>{setData(list);save(KEYS.next,list);};
-  const toggleCheck=id=>{persist(data.map(n=>n.id===id?{...n,done:!n.done,doneAt:!n.done?new Date().toISOString():""}:n));};
+  const toggleCheck=id=>{
+    const item=data.find(n=>n.id===id);if(!item)return;
+    const wasDone=item.done;
+    persist(data.map(n=>n.id===id?{...n,done:!n.done,doneAt:!n.done?new Date().toISOString():""}:n));
+    if(!wasDone){toast.show("✅ 完了",C.accent,()=>{persist(data.map(n=>n.id===id?{...n,done:false,doneAt:""}:n));});}
+  };
+  const toggleSubCheck=(itemId,idx)=>{persist(data.map(n=>{
+    if(n.id!==itemId)return n;
+    const cl=[...(n.checklist||[])];cl[idx]={...cl[idx],done:!cl[idx].done};return{...n,checklist:cl};
+  }));};
   const handleSave=form=>{const isNew=!data.find(n=>n.id===form.id);persist(isNew?[...data,form]:data.map(n=>n.id===form.id?form:n));setModal(null);toast.show("✅ 更新しました");};
-  const handleDelete=id=>cfm.ask("この記録を削除しますか？",()=>{persist(data.filter(n=>n.id!==id));toast.show("🗑 削除しました",C.red);});
-  const clearDone=()=>cfm.ask("完了済みを全て削除しますか？",()=>{persist(data.filter(n=>!n.done));toast.show("🗑 完了済みを削除しました",C.red);});
+  const handleDelete=id=>cfm.ask("削除しますか？",()=>{persist(data.filter(n=>n.id!==id));toast.show("🗑 削除しました",C.red);});
+  const clearDone=()=>cfm.ask("完了済みを全て削除？",()=>{persist(data.filter(n=>!n.done));toast.show("🗑 削除しました",C.red);});
 
   const TEMPLATES={
-    試合持ち物:[
-      "ラケット（エース＋サブ）","タオル×2","水筒（2本）","サングラス（Oakley）",
-      "替えグリップテープ","帽子","日焼け止め","着替え","テーピング","サプリ（塩分・エネルギー）"
-    ],
-    試合前準備:[
-      "ストリングのテンション確認","グリップテープ交換","天気・気温チェック","対戦相手の情報確認",
-      "ウォームアップメニュー決定","メンタルルーティン確認"
-    ],
-    張り替え:[
-      "ストリング在庫確認","テンション決定（気温考慮）","クランプ・工具点検","張り上がり後の玉突きチェック"
-    ]
+    試合持ち物:{cat:"チェックリスト",items:["ラケット（エース＋サブ）","タオル×2","水筒（2本）","サングラス","替えグリップテープ","帽子","日焼け止め","着替え","テーピング","サプリ（塩分・エネルギー）"]},
+    試合前準備:{cat:"準備",items:["ストリングのテンション確認","グリップテープ交換","天気・気温チェック","ウォームアップメニュー決定","メンタルルーティン確認"]},
+    張り替え:{cat:"準備",items:["ストリング在庫確認","テンション決定（気温考慮）","クランプ・工具点検","張り上がり後の玉突きチェック"]},
   };
   const addTemplate=name=>{
-    const items=TEMPLATES[name].map((label,i)=>({
-      id:`nx${Date.now()}_${i}`,priority:"中",color:"green",category:"チェックリスト",
-      label,detail:`${name}テンプレート`,done:false,doneAt:""
-    }));
-    persist([...items,...data]);
-    setShowTpl(false);
-    toast.show(`📋 ${name}（${items.length}件）を追加しました`);
+    const tpl=TEMPLATES[name];
+    const item={id:`nx${Date.now()}`,priority:"中",category:tpl.cat,label:name,detail:"",done:false,doneAt:"",checklist:tpl.items.map(t=>({text:t,done:false}))};
+    persist([item,...data]);setShowTpl(false);
+    toast.show(`📋 ${name}を追加しました`);
   };
 
   const pending=data.filter(n=>!n.done);
   const done=data.filter(n=>n.done).sort((a,b)=>(b.doneAt||"").localeCompare(a.doneAt||""));
 
   const Modal=({item})=>{
-    const [f,setF]=useState({...item}); const s=k=>v=>setF(p=>({...p,[k]:v}));
+    const [f,setF]=useState({...item,checklist:item.checklist||[]}); const s=k=>v=>setF(p=>({...p,[k]:v}));
+    const [newCl,setNewCl]=useState("");
+    const addCl=()=>{if(newCl.trim()){setF(p=>({...p,checklist:[...p.checklist,{text:newCl.trim(),done:false}]}));setNewCl("");}};
+    const rmCl=i=>setF(p=>({...p,checklist:p.checklist.filter((_,j)=>j!==i)}));
     return (
       <div style={{position:"fixed",inset:0,background:"#000c",zIndex:200,display:"flex",alignItems:"flex-start",justifyContent:"center",overflowY:"auto",padding:"20px 12px"}} onClick={e=>e.target===e.currentTarget&&setModal(null)}>
         <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,width:"100%",maxWidth:460,padding:20}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-            <span style={{fontSize:14,fontWeight:700,color:C.text}}>Nextアクション</span>
-            <Btn onClick={()=>setModal(null)} variant="ghost" style={{fontSize:18,padding:"0 6px"}}>✕</Btn>
+            <span style={{fontSize:15,fontWeight:700,color:C.text}}>Nextアクション</span>
+            <button onClick={()=>setModal(null)} style={{background:"none",border:`1px solid ${C.border}`,color:C.textMuted,borderRadius:6,padding:"8px 14px",fontSize:14,cursor:"pointer"}}>✕ 閉じる</button>
           </div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 12px"}}>
             <FSelect label="カテゴリ" value={f.category||"検証"} onChange={s("category")} options={[{value:"検証",label:"🔬 検証"},{value:"準備",label:"📋 準備"},{value:"買い物",label:"🛒 買い物"},{value:"チェックリスト",label:"✅ チェックリスト"}]}/>
@@ -1756,30 +1761,57 @@ function NextTab({data,setData,toast}){
           </div>
           <Field label="アクション名" value={f.label||""} onChange={s("label")} placeholder="Boom Pro × Phantom Spin 17 で実打"/>
           <Field label="詳細" value={f.detail||""} onChange={s("detail")} multiline placeholder="背景、条件、期待する結果..."/>
-          <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:14}}>
-            <Btn onClick={()=>setModal(null)}>キャンセル</Btn>
-            <Btn onClick={()=>handleSave(f)} variant="primary">保存</Btn>
+          <div style={{fontSize:11,color:C.purple,margin:"10px 0 6px",fontWeight:600}}>📋 チェックリスト（任意）</div>
+          {f.checklist.map((cl,i)=>(
+            <div key={i} style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+              <span style={{fontSize:12,color:C.text,flex:1}}>{cl.text}</span>
+              <button onClick={()=>rmCl(i)} style={{background:"none",border:"none",color:C.red,cursor:"pointer",fontSize:14,padding:"4px 8px"}}>✕</button>
+            </div>
+          ))}
+          <div style={{display:"flex",gap:6,marginTop:4}}>
+            <input value={newCl} onChange={e=>setNewCl(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addCl()} placeholder="チェック項目を追加..." style={{flex:1,background:C.panel2,border:`1px solid ${C.border}`,borderRadius:6,padding:"8px 10px",color:C.text,fontSize:12,outline:"none"}}/>
+            <button onClick={addCl} style={{background:C.purple,border:"none",color:"#fff",borderRadius:6,padding:"8px 14px",fontSize:12,fontWeight:700,cursor:"pointer"}}>追加</button>
+          </div>
+          <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:16}}>
+            <button onClick={()=>setModal(null)} style={{background:C.panel2,border:`1px solid ${C.border}`,color:C.textMuted,borderRadius:8,padding:"10px 20px",fontSize:13,cursor:"pointer"}}>キャンセル</button>
+            <button onClick={()=>handleSave(f)} style={{background:C.accent,border:"none",color:"#000",borderRadius:8,padding:"10px 20px",fontSize:13,fontWeight:700,cursor:"pointer"}}>保存</button>
           </div>
         </div>
       </div>
     );
   };
 
-  const ItemRow=({a})=>{
+  const ItemCard=({a})=>{
+    const [open,setOpen]=useState(false);
     const bc=catColor[a.category]||C.blue;
+    const cl=a.checklist||[];
+    const clDone=cl.filter(c=>c.done).length;
+    const hasCl=cl.length>0;
     return (
-      <div style={{background:a.done?"#0a0c10":C.panel,border:`1px solid ${a.done?"#1a1d24":C.border}`,borderLeft:`3px solid ${a.done?C.textMuted:bc}`,borderRadius:8,padding:"10px 12px",display:"flex",gap:10,alignItems:"center",opacity:a.done?0.5:1}}>
-        <button onClick={()=>toggleCheck(a.id)} style={{width:24,height:24,borderRadius:5,border:`2px solid ${a.done?C.accent:bc}`,background:a.done?C.accent:"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0,fontSize:12,color:"#000",fontWeight:700}}>{a.done?"✓":""}</button>
-        <div style={{flex:1,minWidth:0}}>
-          <div style={{fontSize:12,color:a.done?C.textMuted:C.text,fontWeight:600,textDecoration:a.done?"line-through":"none",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.label}</div>
-          {a.detail&&!a.done&&<div style={{fontSize:10,color:C.textMuted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.detail}</div>}
+      <div style={{background:a.done?"#0a0c10":C.panel,border:`1px solid ${a.done?"#1a1d24":C.border}`,borderLeft:`4px solid ${a.done?C.textMuted:bc}`,borderRadius:10,padding:"12px 14px",opacity:a.done?0.5:1}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <button onClick={()=>toggleCheck(a.id)} style={{width:32,height:32,borderRadius:6,border:`2px solid ${a.done?C.accent:bc}`,background:a.done?C.accent:"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0,fontSize:16,color:"#000",fontWeight:700}}>{a.done?"✓":""}</button>
+          <div onClick={()=>!a.done&&setOpen(!open)} style={{flex:1,minWidth:0,cursor:hasCl&&!a.done?"pointer":"default"}}>
+            <div style={{fontSize:14,color:a.done?C.textMuted:C.text,fontWeight:700,textDecoration:a.done?"line-through":"none"}}>{a.label}</div>
+            {!a.done&&a.detail&&<div style={{fontSize:11,color:C.textMuted,marginTop:2}}>{a.detail}</div>}
+            {!a.done&&hasCl&&<div style={{fontSize:10,color:bc,marginTop:3}}>{catIcon[a.category]||""} {clDone}/{cl.length}完了 {open?"▲":"▼"}</div>}
+          </div>
+          <div style={{display:"flex",gap:4,flexShrink:0}}>
+            {!a.done&&<span style={{fontSize:10,color:bc,background:bc+"18",padding:"4px 8px",borderRadius:4,fontWeight:600}}>{a.priority}</span>}
+            <button onClick={()=>setModal({item:a})} style={{background:C.panel2,border:`1px solid ${C.border}`,color:C.textMuted,cursor:"pointer",fontSize:14,borderRadius:6,padding:"6px 10px",minWidth:36,textAlign:"center"}}>✏️</button>
+            <button onClick={()=>handleDelete(a.id)} style={{background:C.panel2,border:`1px solid ${C.border}`,color:C.red,cursor:"pointer",fontSize:14,borderRadius:6,padding:"6px 10px",minWidth:36,textAlign:"center"}}>🗑</button>
+          </div>
         </div>
-        <div style={{display:"flex",gap:2,alignItems:"center",flexShrink:0}}>
-          {!a.done&&<span style={{fontSize:9,color:bc,background:bc+"18",padding:"2px 6px",borderRadius:3}}>{catIcon[a.category]||""}{a.category||"検証"}</span>}
-          {!a.done&&<Badge color={pc[a.priority]||"gray"} sm>{a.priority}</Badge>}
-          <button onClick={()=>setModal({item:a})} style={{background:"none",border:"none",color:C.textMuted,cursor:"pointer",fontSize:11,padding:2}}>✏️</button>
-          <button onClick={()=>handleDelete(a.id)} style={{background:"none",border:"none",color:C.red,cursor:"pointer",fontSize:11,padding:2}}>🗑</button>
-        </div>
+        {open&&hasCl&&!a.done&&(
+          <div style={{marginTop:10,marginLeft:42,display:"grid",gap:4}}>
+            {cl.map((c,i)=>(
+              <div key={i} onClick={()=>toggleSubCheck(a.id,i)} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",background:c.done?"#0d1018":C.panel2,border:`1px solid ${C.border}`,borderRadius:6,cursor:"pointer"}}>
+                <div style={{width:22,height:22,borderRadius:4,border:`2px solid ${c.done?C.accent:C.border}`,background:c.done?C.accent:"transparent",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,color:"#000",fontWeight:700,flexShrink:0}}>{c.done?"✓":""}</div>
+                <span style={{fontSize:13,color:c.done?C.textMuted:C.text,textDecoration:c.done?"line-through":"none"}}>{c.text}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     );
   };
@@ -1787,37 +1819,37 @@ function NextTab({data,setData,toast}){
   return (
     <div style={{display:"grid",gap:8}}>
       {cfm.el}
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:2}}>
-        <span style={{fontSize:12,color:C.accent,fontWeight:700}}>▶ Next Actions <span style={{color:C.textMuted,fontWeight:400}}>({pending.length}件)</span></span>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+        <span style={{fontSize:14,color:C.accent,fontWeight:700}}>▶ Next Actions <span style={{color:C.textMuted,fontWeight:400}}>({pending.length})</span></span>
         <div style={{display:"flex",gap:6}}>
-          <button onClick={()=>setShowTpl(!showTpl)} style={{background:C.panel,border:`1px solid ${C.border}`,color:C.purple,borderRadius:5,padding:"4px 10px",fontSize:10,fontWeight:600,cursor:"pointer"}}>📋 テンプレ</button>
-          <button onClick={()=>setModal({item:{id:`nx${Date.now()}`,priority:"中",color:"blue",category:"検証",label:"",detail:"",done:false,doneAt:""}})} style={{background:C.accent,border:"none",color:"#000",borderRadius:5,padding:"4px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>＋ 追加</button>
+          <button onClick={()=>setShowTpl(!showTpl)} style={{background:C.panel,border:`1px solid ${C.purple}`,color:C.purple,borderRadius:6,padding:"8px 12px",fontSize:12,fontWeight:600,cursor:"pointer"}}>📋 テンプレ</button>
+          <button onClick={()=>setModal({item:{id:`nx${Date.now()}`,priority:"中",category:"検証",label:"",detail:"",done:false,doneAt:"",checklist:[]}})} style={{background:C.accent,border:"none",color:"#000",borderRadius:6,padding:"8px 14px",fontSize:13,fontWeight:700,cursor:"pointer"}}>＋ 追加</button>
         </div>
       </div>
       {showTpl&&(
-        <div style={{background:C.panel,border:`1px solid ${C.purple}`,borderRadius:8,padding:12,marginBottom:4}}>
-          <div style={{fontSize:11,color:C.purple,fontWeight:600,marginBottom:8}}>📋 テンプレートから追加</div>
-          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-            {Object.entries(TEMPLATES).map(([name,items])=>(
-              <button key={name} onClick={()=>addTemplate(name)} style={{background:"#1a102e",border:`1px solid ${C.purple}`,color:C.text,borderRadius:6,padding:"8px 14px",fontSize:12,cursor:"pointer",fontWeight:600}}>
-                {name}（{items.length}件）
+        <div style={{background:C.panel,border:`1px solid ${C.purple}`,borderRadius:10,padding:14}}>
+          <div style={{fontSize:12,color:C.purple,fontWeight:600,marginBottom:10}}>📋 テンプレートから追加（1つのアクション内にチェックリスト生成）</div>
+          <div style={{display:"grid",gap:8}}>
+            {Object.entries(TEMPLATES).map(([name,tpl])=>(
+              <button key={name} onClick={()=>addTemplate(name)} style={{background:"#1a102e",border:`1px solid ${C.purple}`,color:C.text,borderRadius:8,padding:"12px 16px",fontSize:14,cursor:"pointer",fontWeight:600,textAlign:"left"}}>
+                {name}（{tpl.items.length}項目）
               </button>
             ))}
           </div>
         </div>
       )}
-      {pending.length===0&&<div style={{textAlign:"center",padding:"20px 0",color:C.textMuted,fontSize:12}}>全て完了！</div>}
-      {pending.map(a=><ItemRow key={a.id} a={a}/>)}
+      {pending.length===0&&<div style={{textAlign:"center",padding:"24px 0",color:C.textMuted,fontSize:14}}>全て完了！</div>}
+      {pending.map(a=><ItemCard key={a.id} a={a}/>)}
       {done.length>0&&(
-        <div style={{marginTop:8}}>
-          <button onClick={()=>setShowDone(!showDone)} style={{background:"none",border:"none",color:C.textMuted,cursor:"pointer",fontSize:11,padding:0,display:"flex",alignItems:"center",gap:6}}>
+        <div style={{marginTop:10}}>
+          <button onClick={()=>setShowDone(!showDone)} style={{background:"none",border:"none",color:C.textMuted,cursor:"pointer",fontSize:12,padding:0,display:"flex",alignItems:"center",gap:6}}>
             <span style={{transform:showDone?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.2s",display:"inline-block"}}>▶</span>
             完了済み（{done.length}件）
-            {showDone&&<span onClick={e=>{e.stopPropagation();clearDone();}} style={{color:C.red,marginLeft:8,fontSize:10}}>全削除</span>}
+            {showDone&&<span onClick={e=>{e.stopPropagation();clearDone();}} style={{color:C.red,marginLeft:10,fontSize:11}}>全削除</span>}
           </button>
           {showDone&&(
-            <div style={{display:"grid",gap:4,marginTop:6}}>
-              {done.map(a=><ItemRow key={a.id} a={a}/>)}
+            <div style={{display:"grid",gap:6,marginTop:8}}>
+              {done.map(a=><ItemCard key={a.id} a={a}/>)}
             </div>
           )}
         </div>
