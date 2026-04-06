@@ -15,6 +15,9 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 </head>
 <body>
 <div id="root"></div>
@@ -137,10 +140,52 @@ function useToast(){
   return {show,el};
 }
 
+// ── FIREBASE ─────────────────────────────────────
+const firebaseConfig={apiKey:"AIzaSyAXWAtHjBOi31FoNXZiAwW-A7ywZcDY2mM",authDomain:"tennis-db-ca9ae.firebaseapp.com",projectId:"tennis-db-ca9ae",storageBucket:"tennis-db-ca9ae.firebasestorage.app",messagingSenderId:"1031131288345",appId:"1:1031131288345:web:2adcb9f2eeafa5801ceb88"};
+const fbApp=firebase.initializeApp(firebaseConfig);
+const fbAuth=firebase.auth();
+const fbDb=firebase.firestore();
+fbDb.enablePersistence({synchronizeTabs:true}).catch(()=>{});
+
 // ── STORAGE ───────────────────────────────────────
-const KEYS={tournaments:"yuke-tournaments-v1",practices:"yuke-practices-v1",trials:"yuke-trials-v1",rackets:"yuke-rackets-v1",strings:"yuke-strings-v1",measurements:"yuke-measurements-v1",mental:"yuke-mental-v1",next:"yuke-next-v1",profile:"yuke-profile-v1",venues:"yuke-venues-v1",stringSetups:"yuke-stringsetups-v1"};
-const load=k=>{try{const v=localStorage.getItem(k);if(v)return JSON.parse(v);}catch(_){}return null;};
-const save=(k,d)=>{try{localStorage.setItem(k,JSON.stringify(d));return true;}catch(e){console.error("Storage error:",k,e);return false;}};
+const KEYS={tournaments:"tournaments",practices:"practices",trials:"trials",rackets:"rackets",strings:"strings",measurements:"measurements",mental:"mental",next:"next",profile:"profile",venues:"venues",stringSetups:"stringSetups"};
+const LS_PREFIX="yuke-";
+const lsLoad=k=>{try{const v=localStorage.getItem(LS_PREFIX+k+"-v1");if(v)return JSON.parse(v);}catch(_){}return null;};
+const lsSave=(k,d)=>{try{localStorage.setItem(LS_PREFIX+k+"-v1",JSON.stringify(d));}catch(_){}};
+
+// Cloud save (debounced per key)
+const _saveTimers={};
+const save=(k,d)=>{
+  lsSave(k,d);
+  const user=fbAuth.currentUser;
+  if(!user)return;
+  if(_saveTimers[k])clearTimeout(_saveTimers[k]);
+  _saveTimers[k]=setTimeout(()=>{
+    fbDb.collection("users").doc(user.uid).collection("data").doc(k).set({items:Array.isArray(d)?d:null,obj:Array.isArray(d)?null:d,updatedAt:firebase.firestore.FieldValue.serverTimestamp()}).catch(e=>console.error("Firestore save error:",k,e));
+  },800);
+};
+
+// Cloud load all
+const cloudLoadAll=async(uid)=>{
+  try{
+    const snap=await fbDb.collection("users").doc(uid).collection("data").get();
+    const result={};
+    snap.forEach(doc=>{const d=doc.data();result[doc.id]=d.items||d.obj||null;});
+    return result;
+  }catch(e){console.error("Firestore load error:",e);return null;}
+};
+
+// Cloud upload all (for initial migration)
+const cloudSaveAll=async(uid,allData)=>{
+  const batch=fbDb.batch();
+  Object.entries(KEYS).forEach(([name,key])=>{
+    if(allData[name]){
+      const ref=fbDb.collection("users").doc(uid).collection("data").doc(key);
+      batch.set(ref,{items:Array.isArray(allData[name])?allData[name]:null,obj:Array.isArray(allData[name])?null:allData[name],updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+    }
+  });
+  await batch.commit();
+};
 const exportAll=async data=>{
   const json=JSON.stringify({version:10,exportedAt:new Date().toISOString(),...data},null,2);
   const d=new Date().toLocaleDateString("ja-JP",{year:"numeric",month:"2-digit",day:"2-digit"}).replace(/\//g,"-");
@@ -2475,18 +2520,114 @@ function TennisDB(){
   const [venues,setVenues]=useState([]);
   const [stringSetups,setStringSetups]=useState([]);
   const [large,setLarge]=useState(()=>{try{return localStorage.getItem("yuke-fs")==="large";}catch{return false;}});
+  const [user,setUser]=useState(null);
+  const [authReady,setAuthReady]=useState(false);
+  const [syncing,setSyncing]=useState(false);
   const importRef=useRef();
   const toast=useToast();
 
   const toggleLarge=()=>setLarge(v=>{const n=!v;try{localStorage.setItem("yuke-fs",n?"large":"normal");}catch{}return n;});
 
+  const ds=(a)=>a?[...a].sort((x,y)=>(y.date||"").localeCompare(x.date||"")):null;
+
+  const applyData=(src)=>{
+    if(src.tournaments)setTournaments(ds(src.tournaments)||[]);
+    if(src.practices)setPractices(ds(src.practices)||[]);
+    if(src.trials)setTrials(ds(src.trials)||[]);
+    if(src.rackets)setRackets(src.rackets);
+    if(src.strings)setStrings(src.strings);
+    if(src.measurements)setMeasurements(src.measurements);
+    if(src.mental)setMental(src.mental);
+    if(src.next)setNext(src.next);
+    if(src.profile)setProfile(src.profile);
+    if(src.venues)setVenues(src.venues);
+    if(src.stringSetups)setStringSetups(src.stringSetups);
+  };
+
+  // Load from localStorage first
   useEffect(()=>{
-    const tr=load(KEYS.tournaments),pr=load(KEYS.practices),ti=load(KEYS.trials),r=load(KEYS.rackets),s=load(KEYS.strings),ms=load(KEYS.measurements),mn=load(KEYS.mental),nx=load(KEYS.next),pf=load(KEYS.profile),vn=load(KEYS.venues),ss=load(KEYS.stringSetups);
-    const ds=(a)=>a?[...a].sort((x,y)=>y.date.localeCompare(x.date)):null;
-    setTournaments(ds(tr)||ds(INIT.tournaments)); setPractices(ds(pr)||ds(INIT.practices)); setTrials(ds(ti)||ds(INIT.trials));
-    setRackets(r||INIT.rackets); setStrings(s||INIT.strings); setMeasurements(ms||INIT.measurements);
-    setMental(mn||INIT.mental); setNext(nx||INIT.next); setProfile(pf||INIT.profile); setVenues(vn||INIT.venues); setStringSetups(ss||INIT.stringSetups); setReady(true);
+    const local={};
+    Object.entries(KEYS).forEach(([name,key])=>{local[name]=lsLoad(key);});
+    applyData({
+      tournaments:ds(local.tournaments)||ds(INIT.tournaments),
+      practices:ds(local.practices)||ds(INIT.practices),
+      trials:ds(local.trials)||ds(INIT.trials),
+      rackets:local.rackets||INIT.rackets,
+      strings:local.strings||INIT.strings,
+      measurements:local.measurements||INIT.measurements,
+      mental:local.mental||INIT.mental,
+      next:local.next||INIT.next,
+      profile:local.profile||INIT.profile,
+      venues:local.venues||INIT.venues,
+      stringSetups:local.stringSetups||INIT.stringSetups,
+    });
+    setReady(true);
   },[]);
+
+  // Auth listener
+  useEffect(()=>{
+    const unsub=fbAuth.onAuthStateChanged(async(u)=>{
+      setUser(u);setAuthReady(true);
+      if(u){
+        setSyncing(true);
+        const cloud=await cloudLoadAll(u.uid);
+        if(cloud&&Object.keys(cloud).length>0){
+          // Cloud data exists → apply it
+          const merged={};
+          Object.entries(KEYS).forEach(([name,key])=>{
+            if(cloud[key]){merged[name]=cloud[key];lsSave(key,cloud[key]);}
+          });
+          applyData(merged);
+          setSyncing(false);
+          toast.show("☁️ クラウドから同期しました");
+        }else{
+          // No cloud data → migrate localStorage to cloud
+          const allLocal={};
+          Object.entries(KEYS).forEach(([name,key])=>{allLocal[name]=lsLoad(key);});
+          const hasLocal=Object.values(allLocal).some(v=>v!==null);
+          if(hasLocal){
+            await cloudSaveAll(u.uid,allLocal);
+            toast.show("☁️ ローカルデータをクラウドに移行しました");
+          }
+          setSyncing(false);
+        }
+        // Real-time listener
+        const dataRef=fbDb.collection("users").doc(u.uid).collection("data");
+        const unsubSnap=dataRef.onSnapshot(snap=>{
+          snap.docChanges().forEach(change=>{
+            if(change.type==="modified"){
+              const key=change.doc.id;
+              const d=change.doc.data();
+              const val=d.items||d.obj;
+              if(!val)return;
+              const name=Object.entries(KEYS).find(([,v])=>v===key)?.[0];
+              if(!name)return;
+              lsSave(key,val);
+              const setters={tournaments:setTournaments,practices:setPractices,trials:setTrials,rackets:setRackets,strings:setStrings,measurements:setMeasurements,mental:setMental,next:setNext,profile:setProfile,venues:setVenues,stringSetups:setStringSetups};
+              if(setters[name]){
+                if(Array.isArray(val)&&val[0]?.date){setters[name](ds(val));}
+                else{setters[name](val);}
+              }
+            }
+          });
+        });
+        return ()=>unsubSnap();
+      }
+    });
+    return ()=>unsub();
+  },[]);
+
+  const handleLogin=async()=>{
+    try{
+      const provider=new firebase.auth.GoogleAuthProvider();
+      await fbAuth.signInWithPopup(provider);
+    }catch(e){
+      if(e.code==="auth/popup-blocked"){
+        try{await fbAuth.signInWithRedirect(new firebase.auth.GoogleAuthProvider());}catch(e2){toast.show("❌ ログイン失敗",C.red);}
+      }else{toast.show("❌ ログイン失敗: "+e.message,C.red);}
+    }
+  };
+  const handleLogout=async()=>{await fbAuth.signOut();toast.show("ログアウトしました");};
 
   const handleExport=async()=>{
     const result=await exportAll({tournaments,practices,trials,rackets,strings,measurements,mental,next,profile,venues,stringSetups});
@@ -2571,7 +2712,10 @@ function TennisDB(){
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
         <div>
           <h1 style={{fontSize:19,fontWeight:800,letterSpacing:"-0.02em",background:`linear-gradient(90deg,${C.accent},#60e0ff)`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>ゆっけ Tennis DB</h1>
-          <div style={{fontSize:10,color:C.textMuted,marginTop:2}}>大会 {tournaments.length}件 / 練習 {practices.length}件 / 試打 {trials.length}件{lastExport&&daysSinceExport<3?` · 📤${new Date(lastExport).toLocaleDateString("ja-JP")}`:""}</div>
+          <div style={{fontSize:10,color:C.textMuted,marginTop:2}}>
+            {user?<span style={{color:syncing?"#fbbf24":"#60a5fa"}}>{syncing?"☁️ 同期中...":"☁️ "+user.email.split("@")[0]}</span>:<span style={{color:C.red}}>⚠ オフライン（ログインで同期）</span>}
+            {" · "}大会 {tournaments.length} / 練習 {practices.length} / 試打 {trials.length}
+          </div>
         </div>
         <div style={{display:"flex",gap:6}}>
           <button onClick={()=>setShowAddMenu(true)} style={{background:C.accent,border:"none",color:"#000",borderRadius:6,padding:"6px 14px",fontSize:13,fontWeight:800,cursor:"pointer"}}>＋</button>
@@ -2579,7 +2723,10 @@ function TennisDB(){
           <button onClick={handleExport} style={{background:"#051828",border:`1px solid ${C.blue}`,color:C.blue,borderRadius:6,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>📤</button>
           <button onClick={()=>importRef.current.click()} style={{background:"#0d1a10",border:`1px solid ${C.accentDim}`,color:C.accent,borderRadius:6,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>📥</button>
           <input ref={importRef} type="file" accept=".json" onChange={handleImport} style={{display:"none"}}/>
-        </div>
+          {user?
+            <button onClick={handleLogout} style={{background:"#1a1020",border:`1px solid ${C.purple}`,color:C.purple,borderRadius:6,padding:"6px 8px",fontSize:10,fontWeight:600,cursor:"pointer"}} title="ログアウト">👤</button>
+            :<button onClick={handleLogin} style={{background:"#1a2810",border:`1px solid ${C.accent}`,color:C.accent,borderRadius:6,padding:"6px 8px",fontSize:10,fontWeight:600,cursor:"pointer"}}>☁️ログイン</button>
+          }</div>
       </div>
       <div style={{display:"flex",gap:2,marginBottom:12,background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:3,flexWrap:"wrap"}}>
         {TABS.map(t=>(
