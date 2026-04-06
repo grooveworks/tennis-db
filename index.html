@@ -1704,11 +1704,43 @@ function MentalTab({data,setData,toast}){
 function NextTab({data,setData,toast}){
   const cfm=useConfirm();
   const [modal,setModal]=useState(null);
-  const cc={green:C.accent,blue:C.blue,yellow:C.yellow,gray:C.textMuted};
+  const [showDone,setShowDone]=useState(false);
+  const [showTpl,setShowTpl]=useState(false);
+  const catColor={検証:C.blue,準備:C.accent,買い物:C.orange,チェックリスト:C.purple};
+  const catIcon={検証:"🔬",準備:"📋",買い物:"🛒",チェックリスト:"✅"};
   const pc={最高:"green",高:"blue",中:"yellow",低:"gray"};
   const persist=list=>{setData(list);save(KEYS.next,list);};
+  const toggleCheck=id=>{persist(data.map(n=>n.id===id?{...n,done:!n.done,doneAt:!n.done?new Date().toISOString():""}:n));};
   const handleSave=form=>{const isNew=!data.find(n=>n.id===form.id);persist(isNew?[...data,form]:data.map(n=>n.id===form.id?form:n));setModal(null);toast.show("✅ 更新しました");};
   const handleDelete=id=>cfm.ask("この記録を削除しますか？",()=>{persist(data.filter(n=>n.id!==id));toast.show("🗑 削除しました",C.red);});
+  const clearDone=()=>cfm.ask("完了済みを全て削除しますか？",()=>{persist(data.filter(n=>!n.done));toast.show("🗑 完了済みを削除しました",C.red);});
+
+  const TEMPLATES={
+    試合持ち物:[
+      "ラケット（エース＋サブ）","タオル×2","水筒（2本）","サングラス（Oakley）",
+      "替えグリップテープ","帽子","日焼け止め","着替え","テーピング","サプリ（塩分・エネルギー）"
+    ],
+    試合前準備:[
+      "ストリングのテンション確認","グリップテープ交換","天気・気温チェック","対戦相手の情報確認",
+      "ウォームアップメニュー決定","メンタルルーティン確認"
+    ],
+    張り替え:[
+      "ストリング在庫確認","テンション決定（気温考慮）","クランプ・工具点検","張り上がり後の玉突きチェック"
+    ]
+  };
+  const addTemplate=name=>{
+    const items=TEMPLATES[name].map((label,i)=>({
+      id:`nx${Date.now()}_${i}`,priority:"中",color:"green",category:"チェックリスト",
+      label,detail:`${name}テンプレート`,done:false,doneAt:""
+    }));
+    persist([...items,...data]);
+    setShowTpl(false);
+    toast.show(`📋 ${name}（${items.length}件）を追加しました`);
+  };
+
+  const pending=data.filter(n=>!n.done);
+  const done=data.filter(n=>n.done).sort((a,b)=>(b.doneAt||"").localeCompare(a.doneAt||""));
+
   const Modal=({item})=>{
     const [f,setF]=useState({...item}); const s=k=>v=>setF(p=>({...p,[k]:v}));
     return (
@@ -1718,8 +1750,10 @@ function NextTab({data,setData,toast}){
             <span style={{fontSize:14,fontWeight:700,color:C.text}}>Nextアクション</span>
             <Btn onClick={()=>setModal(null)} variant="ghost" style={{fontSize:18,padding:"0 6px"}}>✕</Btn>
           </div>
-          <FSelect label="優先度" value={f.priority||"中"} onChange={s("priority")} options={[{value:"最高",label:"最高"},{value:"高",label:"高"},{value:"中",label:"中"},{value:"低",label:"低"}]}/>
-          <FSelect label="カラー" value={f.color||"blue"} onChange={s("color")} options={[{value:"green",label:"緑"},{value:"blue",label:"青"},{value:"yellow",label:"黄"},{value:"gray",label:"グレー"}]}/>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 12px"}}>
+            <FSelect label="カテゴリ" value={f.category||"検証"} onChange={s("category")} options={[{value:"検証",label:"🔬 検証"},{value:"準備",label:"📋 準備"},{value:"買い物",label:"🛒 買い物"},{value:"チェックリスト",label:"✅ チェックリスト"}]}/>
+            <FSelect label="優先度" value={f.priority||"中"} onChange={s("priority")} options={[{value:"最高",label:"最高"},{value:"高",label:"高"},{value:"中",label:"中"},{value:"低",label:"低"}]}/>
+          </div>
           <Field label="アクション名" value={f.label||""} onChange={s("label")} placeholder="Boom Pro × Phantom Spin 17 で実打"/>
           <Field label="詳細" value={f.detail||""} onChange={s("detail")} multiline placeholder="背景、条件、期待する結果..."/>
           <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:14}}>
@@ -1730,26 +1764,64 @@ function NextTab({data,setData,toast}){
       </div>
     );
   };
+
+  const ItemRow=({a})=>{
+    const bc=catColor[a.category]||C.blue;
+    return (
+      <div style={{background:a.done?"#0a0c10":C.panel,border:`1px solid ${a.done?"#1a1d24":C.border}`,borderLeft:`3px solid ${a.done?C.textMuted:bc}`,borderRadius:8,padding:"10px 12px",display:"flex",gap:10,alignItems:"center",opacity:a.done?0.5:1}}>
+        <button onClick={()=>toggleCheck(a.id)} style={{width:24,height:24,borderRadius:5,border:`2px solid ${a.done?C.accent:bc}`,background:a.done?C.accent:"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0,fontSize:12,color:"#000",fontWeight:700}}>{a.done?"✓":""}</button>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontSize:12,color:a.done?C.textMuted:C.text,fontWeight:600,textDecoration:a.done?"line-through":"none",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.label}</div>
+          {a.detail&&!a.done&&<div style={{fontSize:10,color:C.textMuted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.detail}</div>}
+        </div>
+        <div style={{display:"flex",gap:2,alignItems:"center",flexShrink:0}}>
+          {!a.done&&<span style={{fontSize:9,color:bc,background:bc+"18",padding:"2px 6px",borderRadius:3}}>{catIcon[a.category]||""}{a.category||"検証"}</span>}
+          {!a.done&&<Badge color={pc[a.priority]||"gray"} sm>{a.priority}</Badge>}
+          <button onClick={()=>setModal({item:a})} style={{background:"none",border:"none",color:C.textMuted,cursor:"pointer",fontSize:11,padding:2}}>✏️</button>
+          <button onClick={()=>handleDelete(a.id)} style={{background:"none",border:"none",color:C.red,cursor:"pointer",fontSize:11,padding:2}}>🗑</button>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div style={{display:"grid",gap:8}}>
       {cfm.el}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:2}}>
-        <span style={{fontSize:11,color:C.accent}}>Next Actions</span>
-        <button onClick={()=>setModal({item:{id:`nx${Date.now()}`,priority:"中",color:"blue",label:"",detail:""}})} style={{background:C.accent,border:"none",color:"#000",borderRadius:5,padding:"4px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>＋ 追加</button>
+        <span style={{fontSize:12,color:C.accent,fontWeight:700}}>▶ Next Actions <span style={{color:C.textMuted,fontWeight:400}}>({pending.length}件)</span></span>
+        <div style={{display:"flex",gap:6}}>
+          <button onClick={()=>setShowTpl(!showTpl)} style={{background:C.panel,border:`1px solid ${C.border}`,color:C.purple,borderRadius:5,padding:"4px 10px",fontSize:10,fontWeight:600,cursor:"pointer"}}>📋 テンプレ</button>
+          <button onClick={()=>setModal({item:{id:`nx${Date.now()}`,priority:"中",color:"blue",category:"検証",label:"",detail:"",done:false,doneAt:""}})} style={{background:C.accent,border:"none",color:"#000",borderRadius:5,padding:"4px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>＋ 追加</button>
+        </div>
       </div>
-      {data.map(a=>(
-        <div key={a.id} style={{background:C.panel,border:`1px solid ${C.border}`,borderLeft:`3px solid ${cc[a.color]||C.textMuted}`,borderRadius:8,padding:13,display:"flex",gap:14,alignItems:"center"}}>
-          <Badge color={pc[a.priority]||"gray"}>{a.priority}</Badge>
-          <div style={{flex:1}}>
-            <div style={{fontSize:13,color:C.text,fontWeight:700,marginBottom:3}}>{a.label}</div>
-            <div style={{fontSize:11,color:C.textMuted}}>{a.detail}</div>
-          </div>
-          <div style={{display:"flex",gap:4,flexShrink:0}}>
-            <button onClick={()=>setModal({item:a})} style={{background:"none",border:"none",color:C.textMuted,cursor:"pointer",fontSize:13}}>✏️</button>
-            <button onClick={()=>handleDelete(a.id)} style={{background:"none",border:"none",color:C.red,cursor:"pointer",fontSize:13}}>🗑</button>
+      {showTpl&&(
+        <div style={{background:C.panel,border:`1px solid ${C.purple}`,borderRadius:8,padding:12,marginBottom:4}}>
+          <div style={{fontSize:11,color:C.purple,fontWeight:600,marginBottom:8}}>📋 テンプレートから追加</div>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+            {Object.entries(TEMPLATES).map(([name,items])=>(
+              <button key={name} onClick={()=>addTemplate(name)} style={{background:"#1a102e",border:`1px solid ${C.purple}`,color:C.text,borderRadius:6,padding:"8px 14px",fontSize:12,cursor:"pointer",fontWeight:600}}>
+                {name}（{items.length}件）
+              </button>
+            ))}
           </div>
         </div>
-      ))}
+      )}
+      {pending.length===0&&<div style={{textAlign:"center",padding:"20px 0",color:C.textMuted,fontSize:12}}>全て完了！</div>}
+      {pending.map(a=><ItemRow key={a.id} a={a}/>)}
+      {done.length>0&&(
+        <div style={{marginTop:8}}>
+          <button onClick={()=>setShowDone(!showDone)} style={{background:"none",border:"none",color:C.textMuted,cursor:"pointer",fontSize:11,padding:0,display:"flex",alignItems:"center",gap:6}}>
+            <span style={{transform:showDone?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.2s",display:"inline-block"}}>▶</span>
+            完了済み（{done.length}件）
+            {showDone&&<span onClick={e=>{e.stopPropagation();clearDone();}} style={{color:C.red,marginLeft:8,fontSize:10}}>全削除</span>}
+          </button>
+          {showDone&&(
+            <div style={{display:"grid",gap:4,marginTop:6}}>
+              {done.map(a=><ItemRow key={a.id} a={a}/>)}
+            </div>
+          )}
+        </div>
+      )}
       {modal&&<Modal item={modal.item}/>}
     </div>
   );
