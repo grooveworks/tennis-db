@@ -2213,7 +2213,7 @@ function QuickTrialMode({rackets,stringSetups,trials,setTrials,onClose,toast}){
 }
 
 // ── HOME TAB ──────────────────────────────────────
-function HomeTab({next,setNext,tournaments,practices,trials,daysSinceExport,lastExport,onExport,onRecord,toast}){
+function HomeTab({next,setNext,tournaments,practices,trials,daysSinceExport,lastExport,onExport,onRecord,onGoToNext,toast}){
   const persistNext=list=>{setNext(list);save(KEYS.next,list);};
   const toggleCheck=id=>{
     const item=(next||[]).find(n=>n.id===id);if(!item)return;
@@ -2221,7 +2221,7 @@ function HomeTab({next,setNext,tournaments,practices,trials,daysSinceExport,last
     toast.show("✅ 完了",C.accent,()=>{persistNext(next.map(n=>n.id===id?{...n,done:false,doneAt:""}:n));});
   };
   const [quickText,setQuickText]=useState("");
-  const addQuick=()=>{if(!quickText.trim())return;persistNext([{id:`nx${Date.now()}`,priority:"中",category:"準備",label:quickText.trim(),detail:"",done:false,doneAt:"",checklist:[]},...(next||[])]);setQuickText("");toast.show("✅ 追加しました");};
+  const addQuick=()=>{if(!quickText.trim())return;persistNext([{id:`nx${Date.now()}`,priority:"中",category:"準備",label:quickText.trim(),detail:"",done:false,doneAt:"",checklist:[]},...(next||[])]);setQuickText("");toast.show("✅ 追加 → 詳細はNextタブで編集");};
 
   const pending=(next||[]).filter(n=>!n.done).slice(0,5);
   const todayStr=new Date().toLocaleDateString("ja-JP",{year:"numeric",month:"2-digit",day:"2-digit"});
@@ -2246,7 +2246,7 @@ function HomeTab({next,setNext,tournaments,practices,trials,daysSinceExport,last
       <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:10,padding:14}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
           <span style={{fontSize:13,color:C.accent,fontWeight:700}}>▶ Next Actions</span>
-          <span style={{fontSize:11,color:C.textMuted}}>{pending.length}件</span>
+          <button onClick={onGoToNext} style={{background:"none",border:`1px solid ${C.border}`,color:C.textMuted,borderRadius:6,padding:"6px 12px",fontSize:11,cursor:"pointer"}}>Nextタブで編集 →</button>
         </div>
         <div style={{display:"flex",gap:6,marginBottom:10}}>
           <input value={quickText} onChange={e=>setQuickText(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addQuick()} placeholder="やること を入力してEnter..." style={{flex:1,background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 12px",color:C.text,fontSize:13,outline:"none",fontFamily:"inherit"}}/>
@@ -2563,7 +2563,7 @@ function TennisDB(){
         ))}
       </div>
       <div style={{zoom:large?1.22:1}}>
-      {tab==="home"&&<HomeTab next={next} setNext={setNext} tournaments={tournaments} practices={practices} trials={trials} daysSinceExport={daysSinceExport} lastExport={lastExport} onExport={handleExport} onRecord={t=>{if(t==="trials"){setQuickTrial(true);}else{setTab(t);setQuickAdd(t);}}} toast={toast}/>}
+      {tab==="home"&&<HomeTab next={next} setNext={setNext} tournaments={tournaments} practices={practices} trials={trials} daysSinceExport={daysSinceExport} lastExport={lastExport} onExport={handleExport} onRecord={t=>{if(t==="trials"){setQuickTrial(true);}else{setTab(t);setQuickAdd(t);}}} onGoToNext={()=>setTab("next")} toast={toast}/>}
       {tab==="profile"&&<ProfileTab data={profile} setData={setProfile} toast={toast}/>}
       {tab==="tournaments"&&<TournamentsTab data={tournaments} setData={setTournaments} rackets={rackets} strings={strings} stringSetups={stringSetups} venues={venues} setVenues={v=>{setVenues(v);save(KEYS.venues,v);}} toast={toast} quickAdd={quickAdd==="tournaments"} onQuickAddDone={()=>setQuickAdd(null)}/>}
       {tab==="practices"&&<PracticesTab data={practices} setData={setPractices} rackets={rackets} strings={strings} stringSetups={stringSetups} venues={venues} setVenues={v=>{setVenues(v);save(KEYS.venues,v);}} toast={toast} quickAdd={quickAdd==="practices"} onQuickAddDone={()=>setQuickAdd(null)}/>}
