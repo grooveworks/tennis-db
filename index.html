@@ -573,7 +573,7 @@ function MatchModal({match,mode,onSave,onClose,rackets,strings}){
 }
 
 // ── MATCH RECORD DETAIL ───────────────────────────
-function MatchDetail({match,onEdit,onDelete,onUpdate}){
+function MatchDetail({match,onEdit,onDelete,onUpdate,trn,toast}){
   const [showGames,setShowGames]=useState(false);
   const games=match.games||[];
   const score=games.reduce((a,g)=>({me:a.me+(g.winner==="me"?1:0),opp:a.opp+(g.winner==="opp"?1:0)}),{me:0,opp:0});
@@ -626,6 +626,7 @@ function MatchDetail({match,onEdit,onDelete,onUpdate}){
       {showGames&&<GameTracker match={match} onChange={onUpdate}/>}
       <div style={{display:"flex",gap:8,marginTop:10}}>
         <Btn onClick={onEdit} style={{flex:1}}>✏️ 編集</Btn>
+        {trn&&toast&&<Btn onClick={()=>copyToClipboard(formatMatchForClaude(trn,match),toast,"試合データ → Claudeに貼り付け")}>📋</Btn>}
         <Btn onClick={onDelete} variant="danger">🗑</Btn>
       </div>
     </div>
@@ -683,7 +684,7 @@ function TournamentModal({tournament,onSave,onClose,rackets,strings,stringSetups
 }
 
 // ── TOURNAMENT DETAIL ─────────────────────────────
-function TournamentDetail({trn,onEdit,onDelete,onUpdate,rackets,strings,stringSetups}){
+function TournamentDetail({trn,onEdit,onDelete,onUpdate,rackets,strings,stringSetups,toast}){
   const cfm=useConfirm();
   const [expandedMatch,setExpandedMatch]=useState(null);
   const [matchModal,setMatchModal]=useState(null);
@@ -771,7 +772,7 @@ function TournamentDetail({trn,onEdit,onDelete,onUpdate,rackets,strings,stringSe
                 </div>
                 <div style={{color:C.textMuted,fontSize:10,transform:isOpen?"rotate(90deg)":"none",transition:"transform 0.2s"}}>▶</div>
               </div>
-              {isOpen&&<MatchDetail match={m} onEdit={()=>setMatchModal({match:m,mode:"edit"})} onDelete={()=>deleteMatch(m.id)} onUpdate={(updated)=>updateMatchGames(m.id,updated)}/>}
+              {isOpen&&<MatchDetail match={m} onEdit={()=>setMatchModal({match:m,mode:"edit"})} onDelete={()=>deleteMatch(m.id)} onUpdate={(updated)=>updateMatchGames(m.id,updated)} trn={trn} toast={toast}/>}
             </div>
           );
         })}
@@ -779,6 +780,7 @@ function TournamentDetail({trn,onEdit,onDelete,onUpdate,rackets,strings,stringSe
 
       <div style={{display:"flex",gap:8}}>
         <Btn onClick={onEdit} style={{flex:1}}>✏️ 大会情報を編集</Btn>
+        {toast&&<Btn onClick={()=>copyToClipboard(formatTournamentAllForClaude(trn),toast,"大会全体 → Claudeに貼り付け")}>📋 全試合</Btn>}
         <Btn onClick={onDelete} variant="danger">🗑</Btn>
       </div>
       {matchModal&&<MatchModal match={matchModal.match} mode={matchModal.mode||"edit"} onSave={saveMatch} onClose={()=>setMatchModal(null)} rackets={rackets} strings={strings}/>}
@@ -974,7 +976,7 @@ function TournamentsTab({data,setData,rackets,strings,stringSetups,venues,setVen
                 </div>
                 <div style={{color:C.textMuted,fontSize:10,transform:isOpen?"rotate(90deg)":"none",transition:"transform 0.2s",flexShrink:0}}>▶</div>
               </div>
-              {isOpen&&<TournamentDetail trn={trn} onEdit={()=>setModal({tournament:trn})} onDelete={()=>handleDelete(trn.id)} onUpdate={handleUpdate} rackets={rackets} strings={strings} stringSetups={stringSetups}/>}
+              {isOpen&&<TournamentDetail trn={trn} onEdit={()=>setModal({tournament:trn})} onDelete={()=>handleDelete(trn.id)} onUpdate={handleUpdate} rackets={rackets} strings={strings} stringSetups={stringSetups} toast={toast}/>}
             </div>
           );
         })}
@@ -1248,6 +1250,7 @@ function PracticesTab({data,setData,rackets,strings,stringSetups,venues,setVenue
                   )}
                   <div style={{display:"flex",gap:8,marginTop:10}}>
                     <Btn onClick={()=>setModal({practice:p})} style={{flex:1}}>✏️ 編集</Btn>
+                    <Btn onClick={()=>copyToClipboard(formatPracticeForClaude(p),toast,"練習データ → Claudeに貼り付け")}>📋</Btn>
                     <Btn onClick={()=>handleDelete(p.id)} variant="danger">🗑</Btn>
                   </div>
                 </div>
@@ -1468,6 +1471,72 @@ const formatTrialForClaude=t=>{
   return lines.join("\n");
 };
 const formatMultipleTrialsForClaude=trials=>trials.map(t=>formatTrialForClaude(t)).join("\n\n---\n\n");
+const formatMatchForClaude=(trn,match)=>{
+  const type=trn.type==="singles"?"S":trn.type==="doubles"?"D":"MIX";
+  const games=match.games||[];
+  const score=games.reduce((a,g)=>({me:a.me+(g.winner==="me"?1:0),opp:a.opp+(g.winner==="opp"?1:0)}),{me:0,opp:0});
+  const l=[
+    `# 試合共有 [id:${trn.id}]`,
+    `${trn.date} ${trn.name||""} ${trn.level}${type} ${trn.temp?trn.temp+"℃":""}`,
+    `機材: ${trn.racketName||"—"} / ${trn.stringSetup||"—"} / ${fmtTen(trn.tensionMain,trn.tensionCross)}`,
+    ``,
+    `## ${match.round||"—"} vs ${match.opponent||"?"} → ${match.result} [id:${match.id}]`,
+    `ゲーム: ${score.me}-${score.opp} セット: ${(match.setScores||[]).join(", ")||"—"}`,
+    `メンタル: ${match.mental}/5 フィジカル: ${match.physical}/5`,
+  ];
+  if(games.length>0){
+    l.push(`ゲーム推移: ${games.map(g=>g.winner==="me"?"○":"×").join("")}`);
+    const changeovers=match.changeovers||[];
+    if(changeovers.length>0){
+      changeovers.forEach(co=>{l.push(`  CO@${co.afterGame}G: ${co.note}`);});
+    }
+  }
+  if(match.mentalNote)l.push(`🧠メンタル: ${match.mentalNote}`);
+  if(match.techNote)l.push(`🎾技術: ${match.techNote}`);
+  if(match.opponentNote)l.push(`👤相手: ${match.opponentNote}`);
+  if(match.note)l.push(`📝メモ: ${match.note}`);
+  return l.join("\n");
+};
+const formatTournamentAllForClaude=(trn)=>{
+  const type=trn.type==="singles"?"S":trn.type==="doubles"?"D":"MIX";
+  const wins=(trn.matches||[]).filter(m=>m.result==="勝利").length;
+  const l=[
+    `# 大会全体 [id:${trn.id}]`,
+    `${trn.date} ${trn.name||""} ${trn.level}${type} → ${trn.overallResult||"—"} ${trn.temp?trn.temp+"℃":""}`,
+    `機材: ${trn.racketName||"—"} / ${trn.stringSetup||"—"} / ${fmtTen(trn.tensionMain,trn.tensionCross)}`,
+    `${wins}勝${(trn.matches||[]).length-wins}敗`,
+  ];
+  (trn.matches||[]).forEach(m=>{
+    const games=m.games||[];
+    const sc=games.reduce((a,g)=>({me:a.me+(g.winner==="me"?1:0),opp:a.opp+(g.winner==="opp"?1:0)}),{me:0,opp:0});
+    l.push(`\n## ${m.round||"—"} vs ${m.opponent||"?"} → ${m.result} ${sc.me}-${sc.opp} [id:${m.id}]`);
+    l.push(`M${m.mental}/P${m.physical} セット: ${(m.setScores||[]).join(", ")||"—"}`);
+    if(games.length>0)l.push(`推移: ${games.map(g=>g.winner==="me"?"○":"×").join("")}`);
+    if(m.mentalNote)l.push(`🧠 ${m.mentalNote}`);
+    if(m.techNote)l.push(`🎾 ${m.techNote}`);
+    if(m.opponentNote)l.push(`👤 ${m.opponentNote}`);
+    if(m.note)l.push(`📝 ${m.note}`);
+  });
+  if(trn.generalNote)l.push(`\n総括: ${trn.generalNote}`);
+  return l.join("\n");
+};
+const formatPracticeForClaude=(p)=>{
+  const ten=fmtTen(p.tensionMain,p.tensionCross);
+  const l=[
+    `# 練習共有 [id:${p.id}]`,
+    `${p.date} ${p.type} ${p.duration||""}分 @${p.venue||"—"} ${p.temp?p.temp+"℃":""}`,
+    `機材: ${p.racketName||"—"} / ${p.stringSetup||""} / ${ten!=="—"?ten+"p":""}`,
+  ];
+  if(p.calories||p.heartRateAvg)l.push(`⌚ ${p.calories?p.calories+"kcal":""} HR:${p.heartRateAvg||"—"}/${p.heartRateMax||"—"}bpm`);
+  if(p.focus)l.push(`テーマ: ${p.focus}`);
+  if(p.goodNote)l.push(`良: ${p.goodNote}`);
+  if(p.improveNote)l.push(`改善: ${p.improveNote}`);
+  if(p.coachNote)l.push(`コーチ: ${p.coachNote}`);
+  if(p.generalNote)l.push(`メモ: ${p.generalNote}`);
+  if(p.hasTrial&&p.trialRacketName)l.push(`⚔️試打: ${p.trialRacketName} ${p.trialString||""} ${p.trialTension||""} 判定:${p.trialJudgment||"保留"} Sp${p.trialSpin}/Co${p.trialControl}/Pw${p.trialPower}/Fe${p.trialFeel}/In${p.trialInfo}${p.trialNote?` ${p.trialNote}`:""}`);
+  return l.join("\n");
+};
+
 const copyToClipboard=async(text,toast,label)=>{
   try{await navigator.clipboard.writeText(text);toast.show(`📋 ${label||"コピーしました"}`);}catch{
     const ta=document.createElement("textarea");ta.value=text;ta.style.cssText="position:fixed;opacity:0";document.body.appendChild(ta);ta.select();document.execCommand("copy");document.body.removeChild(ta);toast.show(`📋 ${label||"コピーしました"}`);
