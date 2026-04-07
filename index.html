@@ -2094,8 +2094,24 @@ function NextTab({data,setData,toast}){
     toast.show(`📋 ${name}を追加しました`);
   };
 
-  const pending=data.filter(n=>!n.done);
+  const PRIO_ORDER={"最高":0,"高":1,"中":2,"低":3};
+  const pending=data.filter(n=>!n.done).sort((a,b)=>(PRIO_ORDER[a.priority]??2)-(PRIO_ORDER[b.priority]??2));
   const done=data.filter(n=>n.done).sort((a,b)=>(b.doneAt||"").localeCompare(a.doneAt||""));
+  const moveItem=(id,dir)=>{
+    const list=[...data];
+    const idx=list.findIndex(n=>n.id===id);
+    if(idx<0)return;
+    const item=list[idx];
+    const samePrio=list.filter(n=>!n.done&&n.priority===item.priority);
+    const posInPrio=samePrio.findIndex(n=>n.id===id);
+    if(dir==="up"&&posInPrio<=0)return;
+    if(dir==="down"&&posInPrio>=samePrio.length-1)return;
+    const swapWith=samePrio[posInPrio+(dir==="up"?-1:1)];
+    const idxA=list.findIndex(n=>n.id===id);
+    const idxB=list.findIndex(n=>n.id===swapWith.id);
+    [list[idxA],list[idxB]]=[list[idxB],list[idxA]];
+    persist(list);
+  };
 
   const Modal=({item})=>{
     const [f,setF]=useState({...item,checklist:item.checklist||[]}); const s=k=>v=>setF(p=>({...p,[k]:v}));
@@ -2151,6 +2167,10 @@ function NextTab({data,setData,toast}){
             {!a.done&&hasCl&&<div style={{fontSize:10,color:bc,marginTop:3}}>{catIcon[a.category]||""} {clDone}/{cl.length}完了 {open?"▲":"▼"}</div>}
           </div>
           <div style={{display:"flex",gap:4,flexShrink:0}}>
+            {!a.done&&<div style={{display:"flex",flexDirection:"column",gap:1}}>
+              <button onClick={()=>moveItem(a.id,"up")} style={{background:"none",border:`1px solid ${C.border}`,color:C.textMuted,cursor:"pointer",fontSize:9,borderRadius:3,padding:"2px 6px",lineHeight:1}}>▲</button>
+              <button onClick={()=>moveItem(a.id,"down")} style={{background:"none",border:`1px solid ${C.border}`,color:C.textMuted,cursor:"pointer",fontSize:9,borderRadius:3,padding:"2px 6px",lineHeight:1}}>▼</button>
+            </div>}
             {!a.done&&<span style={{fontSize:10,color:bc,background:bc+"18",padding:"4px 8px",borderRadius:4,fontWeight:600}}>{a.priority}</span>}
             <button onClick={()=>setModal({item:a})} style={{background:C.panel2,border:`1px solid ${C.border}`,color:C.textMuted,cursor:"pointer",fontSize:14,borderRadius:6,padding:"6px 10px",minWidth:36,textAlign:"center"}}>✏️</button>
             <button onClick={()=>handleDelete(a.id)} style={{background:C.panel2,border:`1px solid ${C.border}`,color:C.red,cursor:"pointer",fontSize:14,borderRadius:6,padding:"6px 10px",minWidth:36,textAlign:"center"}}>🗑</button>
