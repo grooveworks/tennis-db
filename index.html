@@ -2813,6 +2813,7 @@ function TennisDB(){
   const [quickAdd,setQuickAdd]=useState(null);
   const [showAddMenu,setShowAddMenu]=useState(false);
   const [showClaudeShare,setShowClaudeShare]=useState(false);
+  const [showDataMenu,setShowDataMenu]=useState(false);
   const [quickTrial,setQuickTrial]=useState(false);
   const [tournaments,setTournaments]=useState([]);
   const [practices,setPractices]=useState([]);
@@ -3018,32 +3019,38 @@ function TennisDB(){
         </div>
       )}
       <div style={{marginBottom:12}}>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
-          <div style={{minWidth:0}}>
-            <h1 style={{fontSize:17,fontWeight:800,letterSpacing:"-0.02em",background:`linear-gradient(90deg,${C.accent},#60e0ff)`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",whiteSpace:"nowrap",margin:0}}>ゆっけ Tennis DB</h1>
-          </div>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
+          <h1 style={{fontSize:17,fontWeight:800,letterSpacing:"-0.02em",background:`linear-gradient(90deg,${C.accent},#60e0ff)`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",margin:0}}>ゆっけ Tennis DB</h1>
           <div style={{display:"flex",gap:4,flexShrink:0}}>
             <button onClick={()=>setShowAddMenu(true)} style={{background:C.accent,border:"none",color:"#000",borderRadius:6,padding:"6px 12px",fontSize:13,fontWeight:800,cursor:"pointer"}}>＋</button>
             <button onClick={toggleLarge} style={{background:large?"#1a2e10":"#111318",border:`1px solid ${large?C.accent:C.border}`,color:large?C.accent:C.textMuted,borderRadius:6,padding:"6px 8px",fontSize:12,fontWeight:700,cursor:"pointer"}}>{large?"A↓":"A↑"}</button>
+            <button onClick={()=>setShowDataMenu(!showDataMenu)} style={{background:C.panel,border:`1px solid ${C.border}`,color:C.textMuted,borderRadius:6,padding:"6px 8px",fontSize:12,cursor:"pointer"}}>⋯</button>
           </div>
         </div>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-          <div style={{fontSize:10,color:C.textMuted}}>
-            {user?<span style={{color:syncing?"#fbbf24":"#60a5fa"}}>{syncing?"☁️ 同期中...":"☁️ "+user.email.split("@")[0]}</span>:<span style={{color:C.red}}>⚠ オフライン</span>}
-            {" · "}大会 {tournaments.length} / 練習 {practices.length} / 試打 {trials.length}
-          </div>
-          <div style={{display:"flex",gap:4,flexShrink:0}}>
-            <button onClick={handleExport} style={{background:"#051828",border:`1px solid ${C.blue}`,color:C.blue,borderRadius:5,padding:"5px 8px",fontSize:10,fontWeight:600,cursor:"pointer"}}>📤</button>
-            <button onClick={()=>setShowClaudeShare(true)} style={{background:"#130528",border:`1px solid ${C.purple}`,color:C.purple,borderRadius:5,padding:"5px 8px",fontSize:10,fontWeight:600,cursor:"pointer"}}>📋</button>
-            <button onClick={()=>importRef.current.click()} style={{background:"#0d1a10",border:`1px solid ${C.accentDim}`,color:C.accent,borderRadius:5,padding:"5px 8px",fontSize:10,fontWeight:600,cursor:"pointer"}}>📥</button>
-            <input ref={importRef} type="file" accept=".json" onChange={handleImport} style={{display:"none"}}/>
+        <div style={{fontSize:10,color:C.textMuted}}>
+          {user?<span style={{color:syncing?"#fbbf24":"#60a5fa"}}>{syncing?"☁️ 同期中...":"☁️ "+user.email.split("@")[0]}</span>:<span style={{color:C.red}}>⚠ オフライン</span>}
+          {" · "}大会 {tournaments.length} / 練習 {practices.length} / 試打 {trials.length}
+        </div>
+      </div>
+      {showDataMenu&&(
+        <div style={{position:"fixed",inset:0,background:"#000a",zIndex:300}} onClick={()=>setShowDataMenu(false)}>
+          <div style={{position:"absolute",top:50,right:14,background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:8,minWidth:180,boxShadow:"0 8px 30px #000a"}} onClick={e=>e.stopPropagation()}>
+            {[
+              ["📤 エクスポート（バックアップ）",handleExport],
+              ["📋 Claude共有",()=>{setShowClaudeShare(true);setShowDataMenu(false);}],
+              ["📥 インポート",()=>{importRef.current.click();setShowDataMenu(false);}],
+            ].map(([label,fn])=>(
+              <button key={label} onClick={fn} style={{display:"block",width:"100%",textAlign:"left",background:"none",border:"none",color:C.text,padding:"12px 14px",fontSize:13,fontWeight:600,cursor:"pointer",borderRadius:8}}>{label}</button>
+            ))}
+            <div style={{borderTop:`1px solid ${C.border}`,margin:"4px 0"}}/>
             {user?
-              <button onClick={handleLogout} style={{background:"#1a1020",border:`1px solid ${C.purple}`,color:C.purple,borderRadius:5,padding:"5px 8px",fontSize:10,fontWeight:600,cursor:"pointer"}}>👤</button>
-              :<button onClick={handleLogin} style={{background:"#1a2810",border:`1px solid ${C.accent}`,color:C.accent,borderRadius:5,padding:"5px 8px",fontSize:10,fontWeight:600,cursor:"pointer"}}>☁️</button>
+              <button onClick={()=>{handleLogout();setShowDataMenu(false);}} style={{display:"block",width:"100%",textAlign:"left",background:"none",border:"none",color:C.purple,padding:"12px 14px",fontSize:13,fontWeight:600,cursor:"pointer",borderRadius:8}}>👤 ログアウト</button>
+              :<button onClick={()=>{handleLogin();setShowDataMenu(false);}} style={{display:"block",width:"100%",textAlign:"left",background:"none",border:"none",color:C.accent,padding:"12px 14px",fontSize:13,fontWeight:600,cursor:"pointer",borderRadius:8}}>☁️ ログイン</button>
             }
           </div>
         </div>
-      </div>
+      )}
+      <input ref={importRef} type="file" accept=".json" onChange={handleImport} style={{display:"none"}}/>
       <div style={{display:"flex",gap:2,marginBottom:12,background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:3,flexWrap:"wrap"}}>
         {TABS.map(t=>(
           <button key={t.id} onClick={()=>setTab(t.id)} style={{flex:"1 1 auto",background:tab===t.id?C.accent:"none",border:"none",color:tab===t.id?"#000":C.textMuted,borderRadius:5,padding:"7px 6px",fontSize:10,fontWeight:tab===t.id?700:400,cursor:"pointer",transition:"all 0.12s",whiteSpace:"nowrap"}}>{t.icon} {t.label}</button>
