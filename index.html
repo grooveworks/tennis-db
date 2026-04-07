@@ -2605,7 +2605,7 @@ function HomeTab({next,setNext,tournaments,practices,trials,daysSinceExport,last
   const catColor={検証:C.blue,準備:C.accent,買い物:C.orange,チェックリスト:C.purple};
 
   return (
-    <div style={{display:"grid",gap:14}}>
+    <div style={{display:"grid",gap:14,overflow:"hidden"}}>
       {/* Record buttons */}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
         {[["🏆","大会","tournaments"],["🏃","練習","practices"],["🎾","試打","trials"]].map(([icon,label,t])=>(
