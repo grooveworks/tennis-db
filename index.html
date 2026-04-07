@@ -661,7 +661,7 @@ function TournamentModal({tournament,onSave,onClose,rackets,strings,stringSetups
         )}
         {!isNew&&(
           <>
-            <FSelect label="結果" value={f.overallResult||""} onChange={s("overallResult")} options={[{value:"",label:"— 未定 —"},{value:"優勝",label:"優勝🏆"},{value:"準優勝",label:"準優勝"},{value:"準決勝敗退",label:"準決勝敗退"},{value:"決勝敗退",label:"決勝敗退"},{value:"予選敗退",label:"予選敗退"},{value:"敗退",label:"敗退"}]}/>
+            <FSelect label="結果" value={f.overallResult||""} onChange={s("overallResult")} options={[{value:"",label:"— 未定 —"},{value:"優勝",label:"優勝🏆"},{value:"準優勝",label:"準優勝"},{value:"予選突破",label:"予選突破"},{value:"準決勝敗退",label:"準決勝敗退"},{value:"決勝敗退",label:"決勝敗退"},{value:"予選敗退",label:"予選敗退"},{value:"敗退",label:"敗退"}]}/>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"0 10px"}}>
               <Field label="気温（℃）" value={f.temp||""} onChange={s("temp")} type="number" placeholder="15"/>
               <TensionFields main={f.tensionMain||""} cross={f.tensionCross||""} onMainChange={s("tensionMain")} onCrossChange={s("tensionCross")}/>
@@ -789,7 +789,7 @@ function TournamentDetail({trn,onEdit,onDelete,onUpdate,rackets,strings,stringSe
 }
 
 // ── TOURNAMENTS TAB ───────────────────────────────
-const resultColor=r=>r==="優勝"?"green":r==="準優勝"?"blue":(r==="予選敗退"||r.includes("敗退"))?"red":"gray";
+const resultColor=r=>r==="優勝"?"green":r==="準優勝"?"blue":r==="予選突破"?"blue":(r==="予選敗退"||r.includes("敗退"))?"red":"gray";
 const typeLabel={singles:"S",doubles:"D",mixed:"Mix"};
 const typeColor={singles:"gray",doubles:"blue",mixed:"purple"};
 
