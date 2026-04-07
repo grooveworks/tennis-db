@@ -2452,24 +2452,23 @@ function ProfileTab({data,setData,toast}){
 
 // ── QUICK TRIAL MODE ──────────────────────────────
 // ── QUICK TRIAL MODE ──────────────────────────────
-function QuickTrialMode({rackets,stringSetups,trials,setTrials,cards,setCards,onClose,toast}){
+function QuickTrialMode({rackets,stringSetups,strings,trials,setTrials,cards,setCards,onClose,toast}){
   const [selected,setSelected]=useState(null);
   const [adding,setAdding]=useState(false);
-  const [addF,setAddF]=useState({racket:"",setup:"",tensionMain:"",tensionCross:""});
+  const [addF,setAddF]=useState({racket:"",string:"",stringCross:"",tensionMain:"",tensionCross:""});
   const [eval_,setEval]=useState({info:3,power:3,spin:3,hold:3,swing:3,safety:3,goodShots:[],memo:""});
 
   const persistCards=list=>{setCards(list);save(KEYS.quickTrialCards,list);};
   const activeRackets=rackets.filter(r=>r.status!=="retired");
   const rOpts=[{value:"",label:"-- ラケット --"},...activeRackets.map(r=>({value:r.name,label:r.name}))];
-  const sOpts=[{value:"",label:"-- セッティング --"},...(stringSetups||[]).filter(s=>s.status!=="archived").map(s=>({value:s.label,label:s.label}))];
   const statusColor={active:"#e74c3c",candidate:"#3498db",considering:"#95a5a6",support:"#27ae60"};
 
   const handleAddCard=()=>{
     if(!addF.racket){toast.show("ラケットを選択",C.red);return;}
     const r=activeRackets.find(x=>x.name===addF.racket);
     const sc=statusColor[r?.status]||"#888";
-    persistCards([...cards,{id:`qc${Date.now()}`,racket:addF.racket,setup:addF.setup,tensionMain:addF.tensionMain,tensionCross:addF.tensionCross,color:sc}]);
-    setAddF({racket:"",setup:"",tensionMain:"",tensionCross:""});setAdding(false);
+    persistCards([...cards,{id:`qc${Date.now()}`,racket:addF.racket,string:addF.string,stringCross:addF.stringCross,tensionMain:addF.tensionMain,tensionCross:addF.tensionCross,color:sc}]);
+    setAddF({racket:"",string:"",stringCross:"",tensionMain:"",tensionCross:""});setAdding(false);
   };
 
   const criteria=[
@@ -2485,7 +2484,7 @@ function QuickTrialMode({rackets,stringSetups,trials,setTrials,cards,setCards,on
 
   const handleSave=()=>{
     const card=cards.find(c=>c.id===selected);if(!card)return;
-    const trial={id:`t${Date.now()}`,date:new Date().toLocaleDateString("ja-JP",{year:"numeric",month:"2-digit",day:"2-digit"}),racketName:card.racket,string:card.setup,stringCross:"",tensionMain:card.tensionMain||"",tensionCross:card.tensionCross||"",temp:"",venue:"",judgment:"保留",spin:eval_.spin,control:eval_.safety,power:eval_.power,feel:eval_.hold,info:eval_.info,strokeNote:eval_.goodShots.length>0?"良: "+eval_.goodShots.join(", "):"",serveNote:"",volleyNote:"",generalNote:eval_.memo,sessions:[]};
+    const trial={id:`t${Date.now()}`,date:new Date().toLocaleDateString("ja-JP",{year:"numeric",month:"2-digit",day:"2-digit"}),racketName:card.racket,string:card.string||"",stringCross:card.stringCross||"",tensionMain:card.tensionMain||"",tensionCross:card.tensionCross||"",temp:"",venue:"",judgment:"保留",spin:eval_.spin,control:eval_.safety,power:eval_.power,feel:eval_.hold,info:eval_.info,strokeNote:eval_.goodShots.length>0?"良: "+eval_.goodShots.join(", "):"",serveNote:"",volleyNote:"",generalNote:eval_.memo,sessions:[]};
     const updated=[trial,...(trials||[])];
     setTrials(updated);save(KEYS.trials,updated);
     persistCards(cards.filter(c=>c.id!==selected));
@@ -2508,7 +2507,7 @@ function QuickTrialMode({rackets,stringSetups,trials,setTrials,cards,setCards,on
         </div>
         <div style={{background:sc,borderRadius:12,margin:"12px 16px",padding:"16px 20px"}}>
           <div style={{fontSize:20,fontWeight:800,color:"#fff"}}>{card?.racket}</div>
-          <div style={{fontSize:13,color:"rgba(255,255,255,0.8)",marginTop:4}}>{[card?.setup,fmtTension(card?.tensionMain,card?.tensionCross)].filter(Boolean).join(" / ")}</div>
+          <div style={{fontSize:13,color:"rgba(255,255,255,0.8)",marginTop:4}}>{[card?.string,card?.stringCross].filter(Boolean).join(" / ")}{card?.tensionMain?" / "+fmtTension(card?.tensionMain,card?.tensionCross):""}</div>
         </div>
         <div style={{padding:"0 16px 20px"}}>
           {criteria.map(c=>(
@@ -2537,7 +2536,7 @@ function QuickTrialMode({rackets,stringSetups,trials,setTrials,cards,setCards,on
             <div style={{fontSize:16,fontWeight:700,color:txt,marginBottom:8}}>メモ（一言）</div>
             <textarea value={eval_.memo} onChange={e=>setEval(p=>({...p,memo:e.target.value}))} placeholder="気づいたことを一言..." rows={3} style={{width:"100%",borderRadius:8,border:"1px solid "+bdr,padding:"12px",fontSize:14,fontFamily:"inherit",resize:"vertical",color:txt}}/>
           </div>
-          <button onClick={handleSave} style={{width:"100%",background:sc,border:"none",borderRadius:10,padding:"14px",fontSize:16,fontWeight:700,color:"#fff",cursor:"pointer"}}>保存して一覧に戻る</button>
+          <button onClick={handleSave} style={{width:"100%",background:sc,border:"none",borderRadius:10,padding:"14px",fontSize:16,fontWeight:700,color:"#fff",cursor:"pointer"}}>保存して試打タブに転送する</button>
         </div>
       </div>
     );
@@ -2560,7 +2559,7 @@ function QuickTrialMode({rackets,stringSetups,trials,setTrials,cards,setCards,on
         {cards.map(card=>(
           <button key={card.id} onClick={()=>setSelected(card.id)} style={{display:"block",width:"100%",textAlign:"left",background:"#fff",border:"2px solid "+card.color+"30",borderLeft:"4px solid "+card.color,borderRadius:10,padding:"16px 20px",marginBottom:10,cursor:"pointer"}}>
             <div style={{fontSize:18,fontWeight:800,color:card.color}}>{card.racket}</div>
-            <div style={{fontSize:13,color:muted,marginTop:4}}>{[card.setup,fmtTension(card.tensionMain,card.tensionCross)].filter(Boolean).join(" / ")}</div>
+            <div style={{fontSize:13,color:muted,marginTop:4}}>{[card.string,card.stringCross].filter(Boolean).join(" / ")}{card.tensionMain?" / "+fmtTension(card.tensionMain,card.tensionCross):""}</div>
           </button>
         ))}
         {!adding?(
@@ -2570,11 +2569,18 @@ function QuickTrialMode({rackets,stringSetups,trials,setTrials,cards,setCards,on
             <select value={addF.racket} onChange={e=>setAddF(p=>({...p,racket:e.target.value}))} style={{width:"100%",border:"1px solid "+bdr,borderRadius:6,padding:"10px",fontSize:14,marginBottom:8,color:txt,background:"#fff"}}>
               {rOpts.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
-            <select value={addF.setup} onChange={e=>setAddF(p=>({...p,setup:e.target.value}))} style={{width:"100%",border:"1px solid "+bdr,borderRadius:6,padding:"10px",fontSize:14,marginBottom:8,color:txt,background:"#fff"}}>
-              {sOpts.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-            <input value={addF.tensionMain} onChange={e=>setAddF(p=>({...p,tensionMain:e.target.value}))} placeholder="縦テンション（例：46）" style={{width:"100%",border:"1px solid "+bdr,borderRadius:6,padding:"10px",fontSize:14,marginBottom:8,color:txt}}/>
-            <input value={addF.tensionCross} onChange={e=>setAddF(p=>({...p,tensionCross:e.target.value}))} placeholder="横テンション（例：43、同じなら空欄）" style={{width:"100%",border:"1px solid "+bdr,borderRadius:6,padding:"10px",fontSize:14,marginBottom:10,color:txt}}/>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
+              <select value={addF.string} onChange={e=>setAddF(p=>({...p,string:e.target.value}))} style={{width:"100%",border:"1px solid "+bdr,borderRadius:6,padding:"10px",fontSize:14,color:txt,background:"#fff"}}>
+                {getStringOpts(strings).map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+              <select value={addF.stringCross} onChange={e=>setAddF(p=>({...p,stringCross:e.target.value}))} style={{width:"100%",border:"1px solid "+bdr,borderRadius:6,padding:"10px",fontSize:14,color:txt,background:"#fff"}}>
+                {[{value:"",label:"-- 横糸（同じ）--"},...getStringOpts(strings).slice(1)].map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
+              <input value={addF.tensionMain} onChange={e=>setAddF(p=>({...p,tensionMain:e.target.value}))} placeholder="縦テンション（例：46）" style={{width:"100%",border:"1px solid "+bdr,borderRadius:6,padding:"10px",fontSize:14,color:txt,background:"#fff"}}/>
+              <input value={addF.tensionCross} onChange={e=>setAddF(p=>({...p,tensionCross:e.target.value}))} placeholder="横テンション（同じなら空欄）" style={{width:"100%",border:"1px solid "+bdr,borderRadius:6,padding:"10px",fontSize:14,color:txt,background:"#fff"}}/>
+            </div>
             <div style={{display:"flex",gap:8}}>
               <button onClick={()=>setAdding(false)} style={{flex:1,background:"#eee",border:"none",borderRadius:6,padding:"10px",fontSize:13,cursor:"pointer",color:txt}}>キャンセル</button>
               <button onClick={handleAddCard} style={{flex:1,background:txt,border:"none",borderRadius:6,padding:"10px",fontSize:13,color:"#fff",cursor:"pointer",fontWeight:700}}>追加</button>
@@ -2999,7 +3005,7 @@ function TennisDB(){
       `}</style>
       {toast.el}
       {showClaudeShare&&<ClaudeShareModal onClose={()=>setShowClaudeShare(false)} data={{profile,rackets,strings,measurements,tournaments,practices,trials,mental,next}} toast={toast}/>}
-      {quickTrial&&<QuickTrialMode rackets={rackets} stringSetups={stringSetups} trials={trials} setTrials={v=>{setTrials(v);}} cards={quickTrialCards} setCards={setQuickTrialCards} onClose={()=>setQuickTrial(false)} toast={toast}/>}
+      {quickTrial&&<QuickTrialMode rackets={rackets} stringSetups={stringSetups} strings={strings} trials={trials} setTrials={v=>{setTrials(v);}} cards={quickTrialCards} setCards={setQuickTrialCards} onClose={()=>setQuickTrial(false)} toast={toast}/>}
       {daysSinceExport>=3&&(
         <div onClick={handleExport} style={{background:"#2e0505",border:"1px solid #b45252",borderRadius:8,padding:"10px 14px",marginBottom:12,display:"flex",alignItems:"center",gap:10,cursor:"pointer"}}>
           <span style={{fontSize:16}}>⚠️</span>
