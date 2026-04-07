@@ -3017,7 +3017,7 @@ function TennisDB(){
           </div>
         </div>
       )}
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,flexWrap:"wrap",gap:6}}>
         <div style={{minWidth:0}}>
           <h1 style={{fontSize:19,fontWeight:800,letterSpacing:"-0.02em",background:`linear-gradient(90deg,${C.accent},#60e0ff)`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",margin:0}}>ゆっけ Tennis DB</h1>
           <div style={{fontSize:10,color:C.textMuted,marginTop:2}}>
@@ -3025,7 +3025,7 @@ function TennisDB(){
             {" · "}大会 {tournaments.length} / 練習 {practices.length} / 試打 {trials.length}
           </div>
         </div>
-        <div style={{display:"flex",gap:6,flexShrink:0,flexWrap:"wrap",justifyContent:"flex-end"}}>
+        <div style={{display:"flex",gap:6,flexWrap:"wrap",justifyContent:"flex-end"}}>
           <button onClick={()=>setShowAddMenu(true)} style={{background:C.accent,border:"none",color:"#000",borderRadius:6,padding:"6px 14px",fontSize:13,fontWeight:800,cursor:"pointer"}}>＋</button>
           <button onClick={toggleLarge} style={{background:large?"#1a2e10":"#111318",border:`1px solid ${large?C.accent:C.border}`,color:large?C.accent:C.textMuted,borderRadius:6,padding:"6px 10px",fontSize:13,fontWeight:700,cursor:"pointer"}}>{large?"A↓":"A↑"}</button>
           <button onClick={handleExport} style={{background:"#051828",border:`1px solid ${C.blue}`,color:C.blue,borderRadius:6,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>📤</button>
