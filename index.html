@@ -8,7 +8,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#0a0c10">
 <title>ゆっけ Tennis DB</title>
-<style>html,body{margin:0;padding:0;background:#0a0c10;height:100%;width:100%;max-width:100%;overflow-x:hidden;}#root{height:100%;width:100%;max-width:100%;overflow-x:hidden;}*{box-sizing:border-box;}</style>
+<style>html,body{margin:0;padding:0;background:#0a0c10;height:100%;overflow-x:hidden;}#root{height:100%;overflow-x:hidden;}</style>
 <script>
 (function(){var w=console.warn;console.warn=function(){if(arguments[0]&&typeof arguments[0]==='string'&&arguments[0].indexOf('in-browser Babel')!==-1)return;w.apply(console,arguments);};})();
 </script>
@@ -2984,13 +2984,14 @@ function TennisDB(){
   if(!ready) return <div style={{background:C.bg,minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",color:C.textMuted,fontFamily:"sans-serif"}}>読み込み中...</div>;
 
   return (
-    <div style={{minHeight:"100vh",width:"100%",overflowX:"hidden",background:C.bg,color:C.text,fontFamily:"'DM Sans','Noto Sans JP',sans-serif",padding:"16px 14px",boxSizing:"border-box"}}>
+    <div style={{minHeight:"100vh",background:C.bg,color:C.text,fontFamily:"'DM Sans','Noto Sans JP',sans-serif",padding:"16px 14px"}}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700;800&family=Noto+Sans+JP:wght@400;500;700&display=swap');
+        *{box-sizing:border-box;margin:0;padding:0;}
         ::-webkit-scrollbar{width:4px;height:4px;}
         ::-webkit-scrollbar-track{background:${C.bg};}
         ::-webkit-scrollbar-thumb{background:${C.border};border-radius:2px;}
-        input,textarea,select{color-scheme:dark;max-width:100%;}
+        input,textarea,select{color-scheme:dark;}
         button:hover{opacity:0.82;}
       `}</style>
       {toast.el}
