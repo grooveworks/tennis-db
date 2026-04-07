@@ -523,7 +523,7 @@ function GameTracker({ match, onChange }) {
 }
 
 // ── MATCH RECORD MODAL ────────────────────────────
-function MatchModal({match,mode,onSave,onClose,rackets,strings}){
+function MatchModal({match,mode,onSave,onClose,rackets,strings,stringSetups}){
   const [f,setF]=useState({...match}); const s=k=>v=>setF(p=>({...p,[k]:v}));
   const isAdd=mode==="add";
   return (
@@ -783,7 +783,7 @@ function TournamentDetail({trn,onEdit,onDelete,onUpdate,rackets,strings,stringSe
         {toast&&<Btn onClick={()=>copyToClipboard(formatTournamentAllForClaude(trn),toast,"大会全体 → Claudeに貼り付け")}>📋 全試合</Btn>}
         <Btn onClick={onDelete} variant="danger">🗑</Btn>
       </div>
-      {matchModal&&<MatchModal match={matchModal.match} mode={matchModal.mode||"edit"} onSave={saveMatch} onClose={()=>setMatchModal(null)} rackets={rackets} strings={strings}/>}
+      {matchModal&&<MatchModal match={matchModal.match} mode={matchModal.mode||"edit"} onSave={saveMatch} onClose={()=>setMatchModal(null)} rackets={rackets} strings={strings} stringSetups={stringSetups}/>}
     </div>
   );
 }
