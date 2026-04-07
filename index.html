@@ -3043,7 +3043,7 @@ function TennisDB(){
           <button key={t.id} onClick={()=>setTab(t.id)} style={{flex:"1 1 auto",background:tab===t.id?C.accent:"none",border:"none",color:tab===t.id?"#000":C.textMuted,borderRadius:5,padding:"7px 6px",fontSize:10,fontWeight:tab===t.id?700:400,cursor:"pointer",transition:"all 0.12s",whiteSpace:"nowrap"}}>{t.icon} {t.label}</button>
         ))}
       </div>
-      <div style={large?{zoom:1.22,width:`${100/1.22}%`}:{}}>
+      <div style={{zoom:large?1.22:1}}>
       {tab==="home"&&<HomeTab next={next} setNext={setNext} tournaments={tournaments} practices={practices} trials={trials} daysSinceExport={daysSinceExport} lastExport={lastExport} onExport={handleExport} onRecord={t=>{if(t==="trials"){setQuickTrial(true);}else{setTab(t);setQuickAdd(t);}}} onGoToNext={()=>setTab("next")} toast={toast}/>}
       {tab==="profile"&&<ProfileTab data={profile} setData={setProfile} toast={toast}/>}
       {tab==="tournaments"&&<TournamentsTab data={tournaments} setData={setTournaments} rackets={rackets} strings={strings} stringSetups={stringSetups} venues={venues} setVenues={v=>{setVenues(v);save(KEYS.venues,v);}} toast={toast} quickAdd={quickAdd==="tournaments"} onQuickAddDone={()=>setQuickAdd(null)}/>}
