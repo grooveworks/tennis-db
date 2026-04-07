@@ -148,7 +148,7 @@ const fbDb=firebase.firestore();
 fbDb.enablePersistence({synchronizeTabs:true}).catch(()=>{});
 
 // ── STORAGE ───────────────────────────────────────
-const KEYS={tournaments:"tournaments",practices:"practices",trials:"trials",rackets:"rackets",strings:"strings",measurements:"measurements",mental:"mental",next:"next",profile:"profile",venues:"venues",stringSetups:"stringSetups"};
+const KEYS={tournaments:"tournaments",practices:"practices",trials:"trials",rackets:"rackets",strings:"strings",measurements:"measurements",mental:"mental",next:"next",profile:"profile",venues:"venues",stringSetups:"stringSetups",quickTrialCards:"quickTrialCards"};
 const LS_PREFIX="yuke-";
 const lsLoad=k=>{try{const v=localStorage.getItem(LS_PREFIX+k+"-v1");if(v)return JSON.parse(v);}catch(_){}return null;};
 const lsSave=(k,d)=>{try{localStorage.setItem(LS_PREFIX+k+"-v1",JSON.stringify(d));}catch(_){}};
@@ -2452,13 +2452,13 @@ function ProfileTab({data,setData,toast}){
 
 // ── QUICK TRIAL MODE ──────────────────────────────
 // ── QUICK TRIAL MODE ──────────────────────────────
-function QuickTrialMode({rackets,stringSetups,trials,setTrials,onClose,toast}){
-  const [cards,setCards]=useState([]);
+function QuickTrialMode({rackets,stringSetups,trials,setTrials,cards,setCards,onClose,toast}){
   const [selected,setSelected]=useState(null);
   const [adding,setAdding]=useState(false);
   const [addF,setAddF]=useState({racket:"",setup:"",tensionMain:"",tensionCross:""});
   const [eval_,setEval]=useState({info:3,power:3,spin:3,hold:3,swing:3,safety:3,goodShots:[],memo:""});
 
+  const persistCards=list=>{setCards(list);save(KEYS.quickTrialCards,list);};
   const activeRackets=rackets.filter(r=>r.status!=="retired");
   const rOpts=[{value:"",label:"-- ラケット --"},...activeRackets.map(r=>({value:r.name,label:r.name}))];
   const sOpts=[{value:"",label:"-- セッティング --"},...(stringSetups||[]).filter(s=>s.status!=="archived").map(s=>({value:s.label,label:s.label}))];
@@ -2468,7 +2468,7 @@ function QuickTrialMode({rackets,stringSetups,trials,setTrials,onClose,toast}){
     if(!addF.racket){toast.show("ラケットを選択",C.red);return;}
     const r=activeRackets.find(x=>x.name===addF.racket);
     const sc=statusColor[r?.status]||"#888";
-    setCards(prev=>[...prev,{id:`qc${Date.now()}`,racket:addF.racket,setup:addF.setup,tensionMain:addF.tensionMain,tensionCross:addF.tensionCross,color:sc,done:false}]);
+    persistCards([...cards,{id:`qc${Date.now()}`,racket:addF.racket,setup:addF.setup,tensionMain:addF.tensionMain,tensionCross:addF.tensionCross,color:sc}]);
     setAddF({racket:"",setup:"",tensionMain:"",tensionCross:""});setAdding(false);
   };
 
@@ -2488,8 +2488,8 @@ function QuickTrialMode({rackets,stringSetups,trials,setTrials,onClose,toast}){
     const trial={id:`t${Date.now()}`,date:new Date().toLocaleDateString("ja-JP",{year:"numeric",month:"2-digit",day:"2-digit"}),racketName:card.racket,string:card.setup,stringCross:"",tensionMain:card.tensionMain||"",tensionCross:card.tensionCross||"",temp:"",venue:"",judgment:"保留",spin:eval_.spin,control:eval_.safety,power:eval_.power,feel:eval_.hold,info:eval_.info,strokeNote:eval_.goodShots.length>0?"良: "+eval_.goodShots.join(", "):"",serveNote:"",volleyNote:"",generalNote:eval_.memo,sessions:[]};
     const updated=[trial,...(trials||[])];
     setTrials(updated);save(KEYS.trials,updated);
-    setCards(prev=>prev.map(c=>c.id===selected?{...c,done:true}:c));
-    toast.show("✅ 保存しました");
+    persistCards(cards.filter(c=>c.id!==selected));
+    toast.show("✅ 試打タブに保存 → カード削除");
     setSelected(null);setEval({info:3,power:3,spin:3,hold:3,swing:3,safety:3,goodShots:[],memo:""});
   };
 
@@ -2558,8 +2558,8 @@ function QuickTrialMode({rackets,stringSetups,trials,setTrials,onClose,toast}){
           </div>
         )}
         {cards.map(card=>(
-          <button key={card.id} onClick={()=>!card.done&&setSelected(card.id)} style={{display:"block",width:"100%",textAlign:"left",background:card.done?"#f0f0e8":"#fff",border:"2px solid "+(card.done?"#ccc":card.color+"30"),borderLeft:"4px solid "+(card.done?"#aaa":card.color),borderRadius:10,padding:"16px 20px",marginBottom:10,cursor:card.done?"default":"pointer",opacity:card.done?0.6:1}}>
-            <div style={{fontSize:18,fontWeight:800,color:card.done?"#aaa":card.color}}>{card.racket}{card.done?" ✅":""}</div>
+          <button key={card.id} onClick={()=>setSelected(card.id)} style={{display:"block",width:"100%",textAlign:"left",background:"#fff",border:"2px solid "+card.color+"30",borderLeft:"4px solid "+card.color,borderRadius:10,padding:"16px 20px",marginBottom:10,cursor:"pointer"}}>
+            <div style={{fontSize:18,fontWeight:800,color:card.color}}>{card.racket}</div>
             <div style={{fontSize:13,color:muted,marginTop:4}}>{[card.setup,fmtTension(card.tensionMain,card.tensionCross)].filter(Boolean).join(" / ")}</div>
           </button>
         ))}
@@ -2826,6 +2826,7 @@ function TennisDB(){
   const [profile,setProfile]=useState({});
   const [venues,setVenues]=useState([]);
   const [stringSetups,setStringSetups]=useState([]);
+  const [quickTrialCards,setQuickTrialCards]=useState([]);
   const [large,setLarge]=useState(()=>{try{return localStorage.getItem("yuke-fs")==="large";}catch{return false;}});
   const [user,setUser]=useState(null);
   const [authReady,setAuthReady]=useState(false);
@@ -2849,6 +2850,7 @@ function TennisDB(){
     if(src.profile)setProfile(src.profile);
     if(src.venues)setVenues(src.venues);
     if(src.stringSetups)setStringSetups(src.stringSetups);
+    if(src.quickTrialCards)setQuickTrialCards(src.quickTrialCards);
   };
 
   // Load from localStorage first
@@ -2867,6 +2869,7 @@ function TennisDB(){
       profile:local.profile||INIT.profile,
       venues:local.venues||INIT.venues,
       stringSetups:local.stringSetups||INIT.stringSetups,
+      quickTrialCards:local.quickTrialCards||[],
     });
     setReady(true);
   },[]);
@@ -2910,7 +2913,7 @@ function TennisDB(){
               const name=Object.entries(KEYS).find(([,v])=>v===key)?.[0];
               if(!name)return;
               lsSave(key,val);
-              const setters={tournaments:setTournaments,practices:setPractices,trials:setTrials,rackets:setRackets,strings:setStrings,measurements:setMeasurements,mental:setMental,next:setNext,profile:setProfile,venues:setVenues,stringSetups:setStringSetups};
+              const setters={tournaments:setTournaments,practices:setPractices,trials:setTrials,rackets:setRackets,strings:setStrings,measurements:setMeasurements,mental:setMental,next:setNext,profile:setProfile,venues:setVenues,stringSetups:setStringSetups,quickTrialCards:setQuickTrialCards};
               if(setters[name]){
                 if(Array.isArray(val)&&val[0]?.date){setters[name](ds(val));}
                 else{setters[name](val);}
@@ -2996,7 +2999,7 @@ function TennisDB(){
       `}</style>
       {toast.el}
       {showClaudeShare&&<ClaudeShareModal onClose={()=>setShowClaudeShare(false)} data={{profile,rackets,strings,measurements,tournaments,practices,trials,mental,next}} toast={toast}/>}
-      {quickTrial&&<QuickTrialMode rackets={rackets} stringSetups={stringSetups} trials={trials} setTrials={v=>{setTrials(v);}} onClose={()=>setQuickTrial(false)} toast={toast}/>}
+      {quickTrial&&<QuickTrialMode rackets={rackets} stringSetups={stringSetups} trials={trials} setTrials={v=>{setTrials(v);}} cards={quickTrialCards} setCards={setQuickTrialCards} onClose={()=>setQuickTrial(false)} toast={toast}/>}
       {daysSinceExport>=3&&(
         <div onClick={handleExport} style={{background:"#2e0505",border:"1px solid #b45252",borderRadius:8,padding:"10px 14px",marginBottom:12,display:"flex",alignItems:"center",gap:10,cursor:"pointer"}}>
           <span style={{fontSize:16}}>⚠️</span>
