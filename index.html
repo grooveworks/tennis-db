@@ -6,9 +6,9 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="theme-color" content="#0a0c10">
+<meta name="theme-color" content="#f2f2f7">
 <title>ゆっけ Tennis DB</title>
-<style>html,body{margin:0;padding:0;background:#0a0c10;height:100%;overflow-x:hidden;}#root{height:100%;overflow-x:hidden;}</style>
+<style>html,body{margin:0;padding:0;background:#f2f2f7;height:100%;overflow-x:hidden;}#root{height:100%;overflow-x:hidden;}</style>
 <script>
 (function(){var w=console.warn;console.warn=function(){if(arguments[0]&&typeof arguments[0]==='string'&&arguments[0].indexOf('in-browser Babel')!==-1)return;w.apply(console,arguments);};})();
 </script>
@@ -24,35 +24,35 @@
 <script type="text/babel">
 const { useState, useEffect, useRef } = React;
 
-const APP_VERSION="1.8.4"; // 2026/04/08
+const APP_VERSION="1.9.0"; // 2026/04/08 Light Theme
 const C = {
-  bg:"#0a0c10", panel:"#111318", panel2:"#0d1018", panel3:"#0a0d14",
-  border:"#1e2330", accent:"#00e5a0", accentDim:"#00b87a",
-  text:"#e8eaf0", textMuted:"#6b7280", textDim:"#9ca3af",
-  red:"#f87171", yellow:"#fbbf24", blue:"#60a5fa", purple:"#a78bfa", orange:"#fb923c",
+  bg:"#f2f2f7", panel:"#ffffff", panel2:"#e8e8ed", panel3:"#dddde2",
+  border:"#c7c7cc", accent:"#00b87a", accentDim:"#009963",
+  text:"#1a1a1a", textMuted:"#6b7280", textDim:"#9ca3af",
+  red:"#dc2626", yellow:"#d97706", blue:"#2563eb", purple:"#7c3aed", orange:"#ea580c",
 };
 
 // ── UI ────────────────────────────────────────────
 const Badge = ({ color="gray", children, sm }) => {
-  const m={green:["#052e1a",C.accent,"#00b87a"],red:["#2e0505",C.red,"#b45252"],yellow:["#2e2005",C.yellow,"#b88a24"],blue:["#051828",C.blue,"#3b82f6"],purple:["#130528",C.purple,"#7c3aed"],orange:["#2e1505",C.orange,"#c2410c"],gray:["#1a1d24",C.textDim,"#374151"]};
+  const m={green:["#e6f9f0",C.accent,"#00b87a"],red:["#fef2f2",C.red,"#dc2626"],yellow:["#fffbeb","#b45309","#d97706"],blue:["#eff6ff",C.blue,"#2563eb"],purple:["#f5f3ff",C.purple,"#7c3aed"],orange:["#fff7ed",C.orange,"#ea580c"],gray:["#f3f4f6","#374151","#9ca3af"]};
   const [bg,tc,bc]=m[color]||m.gray;
   return <span style={{background:bg,color:tc,border:`1px solid ${bc}`,borderRadius:4,padding:sm?"1px 5px":"2px 7px",fontSize:sm?10:11,fontWeight:600,letterSpacing:"0.04em",whiteSpace:"nowrap"}}>{children}</span>;
 };
 const Btn=({onClick,children,variant="default",style:ext={}})=>{
-  const s={default:{background:C.panel,border:`1px solid ${C.border}`,color:C.textDim},primary:{background:C.accent,border:`1px solid ${C.accent}`,color:"#000",fontWeight:700},danger:{background:"#2e0505",border:`1px solid #b45252`,color:C.red},ghost:{background:"none",border:"none",color:C.textMuted}};
+  const s={default:{background:C.panel,border:`1px solid ${C.border}`,color:C.text},primary:{background:C.accent,border:`1px solid ${C.accent}`,color:"#fff",fontWeight:700},danger:{background:"#fef2f2",border:`1px solid #dc2626`,color:C.red},ghost:{background:"none",border:"none",color:C.textMuted}};
   return <button onClick={onClick} style={{...(s[variant]||s.default),borderRadius:6,padding:"6px 14px",fontSize:12,cursor:"pointer",...ext}}>{children}</button>;
 };
 // ── CONFIRM DIALOG ────────────────────────────────
 function ConfirmDialog({message,onYes,onNo}){
   return (
-    <div style={{position:"fixed",inset:0,background:"#000a",zIndex:400,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-      <div style={{background:C.panel,border:`1px solid #b45252`,borderRadius:12,padding:24,maxWidth:300,width:"100%",textAlign:"center"}}>
+    <div style={{position:"fixed",inset:0,background:"#0006",zIndex:400,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <div style={{background:C.panel,border:`1px solid ${C.red}`,borderRadius:12,padding:24,maxWidth:300,width:"100%",textAlign:"center",boxShadow:"0 4px 20px #0002"}}>
         <div style={{fontSize:22,marginBottom:10}}>🗑</div>
         <div style={{fontSize:13,color:C.text,marginBottom:6,fontWeight:600}}>削除の確認</div>
         <div style={{fontSize:12,color:C.textMuted,marginBottom:18,lineHeight:1.6}}>{message}</div>
         <div style={{display:"flex",gap:10}}>
           <button onClick={onNo} style={{flex:1,background:C.panel2,border:`1px solid ${C.border}`,color:C.textDim,borderRadius:7,padding:"10px",fontSize:13,cursor:"pointer",fontWeight:600}}>キャンセル</button>
-          <button onClick={onYes} style={{flex:1,background:"#2e0505",border:"1px solid #b45252",color:C.red,borderRadius:7,padding:"10px",fontSize:13,cursor:"pointer",fontWeight:700}}>削除する</button>
+          <button onClick={onYes} style={{flex:1,background:"#fef2f2",border:"1px solid #dc2626",color:C.red,borderRadius:7,padding:"10px",fontSize:13,cursor:"pointer",fontWeight:700}}>削除する</button>
         </div>
       </div>
     </div>
@@ -95,7 +95,7 @@ function VenueSelect({label,value,onChange,venues,onAddVenue}){
       {adding&&(
         <div style={{display:"flex",gap:6,marginTop:6}}>
           <input value={newV} onChange={e=>setNewV(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleAdd()} placeholder="場所名を入力" autoFocus style={{flex:1,background:C.panel2,border:`1px solid ${C.accent}`,borderRadius:6,padding:"7px 10px",color:C.text,fontSize:12,outline:"none"}}/>
-          <button onClick={handleAdd} style={{background:C.accent,border:"none",color:"#000",borderRadius:6,padding:"7px 12px",fontSize:12,fontWeight:700,cursor:"pointer"}}>追加</button>
+          <button onClick={handleAdd} style={{background:C.accent,border:"none",color:"#fff",borderRadius:6,padding:"7px 12px",fontSize:12,fontWeight:700,cursor:"pointer"}}>追加</button>
           <button onClick={()=>{setAdding(false);setNewV("");}} style={{background:"none",border:`1px solid ${C.border}`,color:C.textMuted,borderRadius:6,padding:"7px 10px",fontSize:12,cursor:"pointer"}}>✕</button>
         </div>
       )}
@@ -136,7 +136,7 @@ function useToast(){
   const doUndo=()=>{if(t?.onUndo){t.onUndo();setT(null);}};
   const el=t?<div style={{position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",background:C.panel,border:`1px solid ${t.color}`,color:t.color,borderRadius:8,padding:"10px 20px",fontSize:13,fontWeight:600,zIndex:600,boxShadow:"0 4px 20px #0008",display:"flex",alignItems:"center",gap:12,whiteSpace:"nowrap"}}>
     <span>{t.msg}</span>
-    {t.onUndo&&<button onClick={doUndo} style={{background:t.color,border:"none",color:"#000",borderRadius:4,padding:"5px 12px",fontSize:12,fontWeight:700,cursor:"pointer"}}>元に戻す</button>}
+    {t.onUndo&&<button onClick={doUndo} style={{background:t.color,border:"none",color:"#fff",borderRadius:4,padding:"5px 12px",fontSize:12,fontWeight:700,cursor:"pointer"}}>元に戻す</button>}
   </div>:null;
   return {show,el};
 }
@@ -422,7 +422,7 @@ function GameTracker({ match, onChange }) {
           <div style={{fontSize:9,color:C.textMuted,marginBottom:4}}>ゲーム推移</div>
           <div style={{display:"flex",flexWrap:"wrap",gap:2}}>
             {games.map((g,i)=>(
-              <div key={g.id} style={{width:14,height:14,borderRadius:2,background:g.winner==="me"?C.accent:C.red,display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,color:"#000",fontWeight:700}}>{i+1}</div>
+              <div key={g.id} style={{width:14,height:14,borderRadius:2,background:g.winner==="me"?C.accent:C.red,display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,color:"#fff",fontWeight:700}}>{i+1}</div>
             ))}
           </div>
         </div>
@@ -434,7 +434,7 @@ function GameTracker({ match, onChange }) {
           if(row.type==="game") {
             const isMe = row.game.winner==="me";
             return (
-              <div key={row.game.id} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 10px",background:isMe?"#0d1a10":"#1a0808",borderRadius:6,border:`1px solid ${isMe?C.accentDim:"#b45252"}`}}>
+              <div key={row.game.id} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 10px",background:isMe?"#ecfdf5":"#fef2f2",borderRadius:6,border:`1px solid ${isMe?C.accentDim:"#dc2626"}`}}>
                 <span style={{fontSize:10,color:C.textMuted,minWidth:60,fontFamily:"monospace"}}>ゲーム {row.index+1}</span>
                 <div style={{flex:1,display:"flex",alignItems:"center",gap:6}}>
                   <span style={{fontSize:12,fontWeight:700,color:isMe?C.accent:C.red}}>{isMe?"✓ 私":"✓ 相手"}</span>
@@ -451,7 +451,7 @@ function GameTracker({ match, onChange }) {
             const co = row.co;
             return (
               <div key={`co-${row.afterGame}`} style={{margin:"2px 0"}}>
-                <div style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",background:co?"#0a1020":"#0d0f14",borderRadius:6,border:`1px solid ${co?C.blue:C.border}`}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",background:co?"#eff6ff":"#f0f0f5",borderRadius:6,border:`1px solid ${co?C.blue:C.border}`}}>
                   <div style={{flex:1}}>
                     <div style={{fontSize:9,color:C.blue,letterSpacing:"0.08em",marginBottom:co?4:0}}>⟳ チェンジオーバー（{row.afterGame}ゲーム後）</div>
                     {co && (
@@ -514,8 +514,8 @@ function GameTracker({ match, onChange }) {
       {!pendingCO && (
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
           <div style={{fontSize:10,color:C.textMuted,marginRight:4}}>次のゲーム：</div>
-          <button onClick={()=>addGame("me")} style={{flex:1,background:"#052e1a",border:`1px solid ${C.accent}`,color:C.accent,borderRadius:6,padding:"10px",fontSize:13,fontWeight:700,cursor:"pointer"}}>私 ✓</button>
-          <button onClick={()=>addGame("opp")} style={{flex:1,background:"#2e0505",border:`1px solid #b45252`,color:C.red,borderRadius:6,padding:"10px",fontSize:13,fontWeight:700,cursor:"pointer"}}>相手 ✓</button>
+          <button onClick={()=>addGame("me")} style={{flex:1,background:"#ecfdf5",border:`1px solid ${C.accent}`,color:C.accent,borderRadius:6,padding:"10px",fontSize:13,fontWeight:700,cursor:"pointer"}}>私 ✓</button>
+          <button onClick={()=>addGame("opp")} style={{flex:1,background:"#fef2f2",border:`1px solid #b45252`,color:C.red,borderRadius:6,padding:"10px",fontSize:13,fontWeight:700,cursor:"pointer"}}>相手 ✓</button>
           {games.length>0&&<button onClick={removeLastGame} style={{background:"none",border:`1px solid ${C.border}`,color:C.textMuted,borderRadius:6,padding:"10px",fontSize:11,cursor:"pointer"}}>↩</button>}
         </div>
       )}
@@ -528,7 +528,7 @@ function MatchModal({match,mode,onSave,onClose,rackets,strings,stringSetups}){
   const [f,setF]=useState({...match}); const s=k=>v=>setF(p=>({...p,[k]:v}));
   const isAdd=mode==="add";
   return (
-    <div style={{position:"fixed",inset:0,background:"#000c",zIndex:300,display:"flex",alignItems:"flex-start",justifyContent:"center",overflowY:"auto",padding:"20px 12px"}} onClick={e=>e.target===e.currentTarget&&onClose()}>
+    <div style={{position:"fixed",inset:0,background:"#0004",zIndex:300,display:"flex",alignItems:"flex-start",justifyContent:"center",overflowY:"auto",padding:"20px 12px"}} onClick={e=>e.target===e.currentTarget&&onClose()}>
       <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,width:"100%",maxWidth:480,padding:20}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
           <span style={{fontSize:14,fontWeight:700,color:C.text}}>{isAdd?"試合を追加":"試合の詳細を記録"}</span>
@@ -580,7 +580,7 @@ function MatchDetail({match,onEdit,onDelete,onUpdate,trn,toast}){
   const score=games.reduce((a,g)=>({me:a.me+(g.winner==="me"?1:0),opp:a.opp+(g.winner==="opp"?1:0)}),{me:0,opp:0});
   const notes=[[" 🧠メンタル",match.mentalNote],["🎾 技術",match.techNote],["👤 相手",match.opponentNote],["📝 総括",match.note]].filter(([,v])=>v);
   return (
-    <div style={{padding:"12px 14px 14px",borderTop:`1px solid ${C.border}`,background:"#0c1018"}}>
+    <div style={{padding:"12px 14px 14px",borderTop:`1px solid ${C.border}`,background:"#f0f0f5"}}>
       {/* Score & info */}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
         <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:6,padding:"8px 12px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
@@ -621,7 +621,7 @@ function MatchDetail({match,onEdit,onDelete,onUpdate,trn,toast}){
         </div>
       ))}
       {/* Game tracker toggle */}
-      <button onClick={()=>setShowGames(!showGames)} style={{width:"100%",background:showGames?"#0a1020":C.panel2,border:`1px solid ${showGames?C.blue:C.border}`,color:showGames?C.blue:C.textMuted,borderRadius:6,padding:"8px",fontSize:12,cursor:"pointer",marginTop:8,fontWeight:600}}>
+      <button onClick={()=>setShowGames(!showGames)} style={{width:"100%",background:showGames?"#eff6ff":C.panel2,border:`1px solid ${showGames?C.blue:C.border}`,color:showGames?C.blue:C.textMuted,borderRadius:6,padding:"8px",fontSize:12,cursor:"pointer",marginTop:8,fontWeight:600}}>
         {showGames?"▲ ゲーム記録を閉じる":`▼ ゲーム記録を開く（${games.length}ゲーム記録済み）`}
       </button>
       {showGames&&<GameTracker match={match} onChange={onUpdate}/>}
@@ -640,7 +640,7 @@ function TournamentModal({tournament,onSave,onClose,rackets,strings,stringSetups
   const setupOpts=getSetupOpts(stringSetups,strings);
   const isNew=!tournament.name;
   return (
-    <div style={{position:"fixed",inset:0,background:"#000c",zIndex:200,display:"flex",alignItems:"flex-start",justifyContent:"center",overflowY:"auto",padding:"20px 12px"}} onClick={e=>e.target===e.currentTarget&&onClose()}>
+    <div style={{position:"fixed",inset:0,background:"#0004",zIndex:200,display:"flex",alignItems:"flex-start",justifyContent:"center",overflowY:"auto",padding:"20px 12px"}} onClick={e=>e.target===e.currentTarget&&onClose()}>
       <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,width:"100%",maxWidth:520,padding:20}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
           <span style={{fontSize:14,fontWeight:700,color:C.text}}>{isNew?"🏆 大会を追加":"🏆 "+f.name}</span>
@@ -714,7 +714,7 @@ function TournamentDetail({trn,onEdit,onDelete,onUpdate,rackets,strings,stringSe
   const roundColor={"1回戦":"gray","2回戦":"gray","3回戦":"blue","準々決勝":"blue","準決勝":"purple","決勝":"yellow","予選":"gray","エキシビション":"orange"};
 
   return (
-    <div style={{padding:"12px 14px 16px",borderTop:`1px solid ${C.border}`,background:"#0c1018"}}>
+    <div style={{padding:"12px 14px 16px",borderTop:`1px solid ${C.border}`,background:"#f0f0f5"}}>
       {cfm.el}
       {/* Tournament info */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:12}}>
@@ -735,7 +735,7 @@ function TournamentDetail({trn,onEdit,onDelete,onUpdate,rackets,strings,stringSe
       {/* Match list */}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
         <span style={{fontSize:11,color:C.accent,letterSpacing:"0.08em"}}>試合記録</span>
-        <button onClick={()=>setMatchModal({match:blankMatchRecord(),mode:"add"})} style={{background:C.accent,border:"none",color:"#000",borderRadius:5,padding:"3px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>＋ 試合を追加</button>
+        <button onClick={()=>setMatchModal({match:blankMatchRecord(),mode:"add"})} style={{background:C.accent,border:"none",color:"#fff",borderRadius:5,padding:"3px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>＋ 試合を追加</button>
       </div>
 
       {(trn.matches||[]).length===0&&(
@@ -752,7 +752,7 @@ function TournamentDetail({trn,onEdit,onDelete,onUpdate,rackets,strings,stringSe
           const mc=m.mental>=4?C.accent:m.mental>=3?C.yellow:C.red;
           return (
             <div key={m.id} style={{borderBottom:i<(trn.matches||[]).length-1?`1px solid ${C.border}`:"none"}}>
-              <div onClick={()=>setExpandedMatch(isOpen?null:m.id)} style={{display:"flex",alignItems:"center",gap:8,padding:"10px 14px",background:isOpen?"#0a0d18":"transparent",cursor:"pointer",borderLeft:isOpen?`3px solid ${C.blue}`:"3px solid transparent",transition:"all 0.1s"}}>
+              <div onClick={()=>setExpandedMatch(isOpen?null:m.id)} style={{display:"flex",alignItems:"center",gap:8,padding:"10px 14px",background:isOpen?"#f0f0f5":"transparent",cursor:"pointer",borderLeft:isOpen?`3px solid ${C.blue}`:"3px solid transparent",transition:"all 0.1s"}}>
                 <Badge color={roundColor[m.round]||"gray"} sm>{m.round}</Badge>
                 <Badge color={m.result==="勝利"?"green":"red"} sm>{m.result==="勝利"?"勝利✓":"敗北"}</Badge>
                 <div style={{flex:1,minWidth:0}}>
@@ -893,7 +893,7 @@ function TournamentsTab({data,setData,rackets,strings,stringSetups,venues,setVen
             {Object.entries(byLevel).map(([lv,d])=>(
               <div key={lv} style={{display:"flex",alignItems:"center",gap:8,marginBottom:5}}>
                 <div style={{width:60,fontSize:11,color:C.text,fontWeight:600}}>{lv}</div>
-                <div style={{flex:1,background:"#1a1d24",borderRadius:3,height:16,overflow:"hidden",position:"relative"}}>
+                <div style={{flex:1,background:"#e5e7eb",borderRadius:3,height:16,overflow:"hidden",position:"relative"}}>
                   {d.total>0&&<div style={{width:`${(d.wins/d.total)*100}%`,height:"100%",background:C.accent,borderRadius:3,minWidth:d.wins>0?3:0}}/>}
                 </div>
                 <div style={{width:100,fontSize:10,color:C.textDim,textAlign:"right"}}>
@@ -950,7 +950,7 @@ function TournamentsTab({data,setData,rackets,strings,stringSetups,venues,setVen
         <div style={{display:"flex",gap:4,flex:1,flexWrap:"wrap"}}>
           {levels.map(l=><button key={l} onClick={()=>setFilterLevel(l)} style={{background:filterLevel===l?C.accent:C.panel,border:`1px solid ${filterLevel===l?C.accent:C.border}`,color:filterLevel===l?"#000":C.textMuted,borderRadius:5,padding:"4px 10px",fontSize:11,cursor:"pointer",fontWeight:filterLevel===l?700:400}}>{l==="all"?"全て":l}</button>)}
         </div>
-        <button onClick={()=>setModal({tournament:blankTournament()})} style={{background:C.accent,border:"none",color:"#000",borderRadius:6,padding:"6px 14px",fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>＋ 大会を追加</button>
+        <button onClick={()=>setModal({tournament:blankTournament()})} style={{background:C.accent,border:"none",color:"#fff",borderRadius:6,padding:"6px 14px",fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>＋ 大会を追加</button>
       </div>
 
       <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,overflow:"hidden"}}>
@@ -962,7 +962,7 @@ function TournamentsTab({data,setData,rackets,strings,stringSetups,venues,setVen
           const myGames=allGames.filter(g=>g.winner==="me").length;
           return (
             <div key={trn.id} style={{borderBottom:i<filtered.length-1?`1px solid ${C.border}`:"none"}}>
-              <div onClick={()=>setExpanded(isOpen?null:trn.id)} style={{display:"flex",alignItems:"center",gap:10,padding:"12px 14px",background:isOpen?"#0d0f18":"transparent",cursor:"pointer",borderLeft:isOpen?`3px solid ${C.accent}`:"3px solid transparent",transition:"all 0.1s"}}>
+              <div onClick={()=>setExpanded(isOpen?null:trn.id)} style={{display:"flex",alignItems:"center",gap:10,padding:"12px 14px",background:isOpen?"#f0f0f5":"transparent",cursor:"pointer",borderLeft:isOpen?`3px solid ${C.accent}`:"3px solid transparent",transition:"all 0.1s"}}>
                 <div style={{minWidth:76,fontSize:10,color:C.textMuted,fontFamily:"monospace"}}>{trn.date}</div>
                 <div style={{display:"flex",gap:4,flexShrink:0}}>
                   <Badge color={typeColor[trn.type]||"gray"} sm>{typeLabel[trn.type]||"S"}</Badge>
@@ -1010,7 +1010,7 @@ function PracticesTab({data,setData,rackets,strings,stringSetups,venues,setVenue
     const isNew=!data.find(p=>p.id===practice.id);
     const hasWatch=f.calories||f.heartRateAvg||f.hrZone1;
     return (
-      <div style={{position:"fixed",inset:0,background:"#000c",zIndex:200,display:"flex",alignItems:"flex-start",justifyContent:"center",overflowY:"auto",padding:"20px 12px"}} onClick={e=>e.target===e.currentTarget&&setModal(null)}>
+      <div style={{position:"fixed",inset:0,background:"#0004",zIndex:200,display:"flex",alignItems:"flex-start",justifyContent:"center",overflowY:"auto",padding:"20px 12px"}} onClick={e=>e.target===e.currentTarget&&setModal(null)}>
         <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,width:"100%",maxWidth:540,padding:20}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
             <span style={{fontSize:14,fontWeight:700,color:C.text}}>{isNew?"🏃 練習を追加":"🏃 練習記録"}</span>
@@ -1037,7 +1037,7 @@ function PracticesTab({data,setData,rackets,strings,stringSetups,venues,setVenue
           )}
           {!isNew&&(<>
           {(f.calories||f.heartRateAvg||f.hrZone1)&&(
-            <div style={{background:"#1a0c05",border:"1px solid #7c2d12",borderRadius:8,padding:"10px 12px",margin:"8px 0"}}>
+            <div style={{background:"#fff7ed",border:"1px solid #f97316",borderRadius:8,padding:"10px 12px",margin:"8px 0"}}>
               <div style={{fontSize:10,color:"#f97316",marginBottom:6,fontWeight:600}}>⌚ Apple Watch（スクショ取込済み）</div>
               <div style={{display:"flex",gap:8,flexWrap:"wrap",fontSize:11}}>
                 {f.timeRange&&<span style={{color:C.textDim}}>⏱{f.timeRange}</span>}
@@ -1061,12 +1061,12 @@ function PracticesTab({data,setData,rackets,strings,stringSetups,venues,setVenue
           <Field label="📝 メモ" value={f.generalNote||""} onChange={s("generalNote")} multiline placeholder="その他気づき..."/>
           <div style={{fontSize:11,color:C.yellow,margin:"8px 0 8px",paddingBottom:5,borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",gap:8}}>
             <span>⚔️ 試打あり</span>
-            <button onClick={()=>setF(p=>{if(p.hasTrial){return {...p,hasTrial:false,trialRacketName:"",trialString:"",trialStringCross:"",trialTensionMain:"",trialTensionCross:"",trialSpin:3,trialControl:3,trialPower:3,trialFeel:3,trialInfo:3,trialJudgment:"保留",trialNote:""};}return {...p,hasTrial:true};})} style={{background:f.hasTrial?C.yellow:"#1a1d24",border:`1px solid ${f.hasTrial?C.yellow:C.border}`,borderRadius:12,width:40,height:22,cursor:"pointer",position:"relative",transition:"all 0.2s"}}>
+            <button onClick={()=>setF(p=>{if(p.hasTrial){return {...p,hasTrial:false,trialRacketName:"",trialString:"",trialStringCross:"",trialTensionMain:"",trialTensionCross:"",trialSpin:3,trialControl:3,trialPower:3,trialFeel:3,trialInfo:3,trialJudgment:"保留",trialNote:""};}return {...p,hasTrial:true};})} style={{background:f.hasTrial?C.yellow:"#d1d5db",border:`1px solid ${f.hasTrial?C.yellow:C.border}`,borderRadius:12,width:40,height:22,cursor:"pointer",position:"relative",transition:"all 0.2s"}}>
               <div style={{position:"absolute",top:2,left:f.hasTrial?20:2,width:16,height:16,borderRadius:"50%",background:f.hasTrial?"#000":"#666",transition:"all 0.2s"}}/>
             </button>
           </div>
           {f.hasTrial&&(
-            <div style={{background:"#1a1805",border:`1px solid #6b5b10`,borderRadius:8,padding:"12px 14px",marginBottom:10}}>
+            <div style={{background:"#fffbeb",border:`1px solid #d97706`,borderRadius:8,padding:"12px 14px",marginBottom:10}}>
               <FSelect label="試打ラケット" value={f.trialRacketName||""} onChange={s("trialRacketName")} options={[{value:"",label:"-- ラケットを選択 --"},...rackets.map(r=>({value:r.name,label:r.name}))]}/>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 12px"}}>
                 <FSelect label="縦糸" value={f.trialString||""} onChange={s("trialString")} options={getStringOpts(strings)}/>
@@ -1109,7 +1109,7 @@ function PracticesTab({data,setData,rackets,strings,stringSetups,venues,setVenue
         ))}
       </div>
       {guide&&(
-        <div style={{position:"fixed",inset:0,background:"#000c",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+        <div style={{position:"fixed",inset:0,background:"#0004",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
           <div style={{background:C.panel,border:`1px solid ${C.blue}`,borderRadius:12,width:"100%",maxWidth:480,padding:20}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
               <span style={{fontSize:14,fontWeight:700,color:C.blue}}>⌚ Apple Watch 連携ガイド</span>
@@ -1129,7 +1129,7 @@ function PracticesTab({data,setData,rackets,strings,stringSetups,venues,setVenue
                 </div>
               </div>
             ))}
-            <div style={{background:"#0d1018",border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 12px",marginTop:4}}>
+            <div style={{background:"#eeeef3",border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 12px",marginTop:4}}>
               <div style={{fontSize:10,color:C.textMuted,marginBottom:4}}>💡 ポイント</div>
               <div style={{fontSize:11,color:C.textDim,lineHeight:1.7}}>
                 スクショ2枚で15項目のデータが取れます。心拍ゾーン別の滞在時間は体力分析に直結する貴重なデータです。iOSの制限でShortcut経由では取得できないため、この方法がベストです。
@@ -1142,8 +1142,8 @@ function PracticesTab({data,setData,rackets,strings,stringSetups,venues,setVenue
         </div>
       )}
       <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginBottom:10}}>
-        <button onClick={()=>setGuide(true)} style={{background:"#051828",border:`1px solid ${C.blue}`,color:C.blue,borderRadius:6,padding:"6px 12px",fontSize:12,fontWeight:600,cursor:"pointer"}}>⌚ Watch連携ガイド</button>
-        <button onClick={()=>setModal({practice:blankPractice()})} style={{background:C.accent,border:"none",color:"#000",borderRadius:6,padding:"6px 14px",fontSize:12,fontWeight:700,cursor:"pointer"}}>＋ 追加</button>
+        <button onClick={()=>setGuide(true)} style={{background:"#eff6ff",border:`1px solid ${C.blue}`,color:C.blue,borderRadius:6,padding:"6px 12px",fontSize:12,fontWeight:600,cursor:"pointer"}}>⌚ Watch連携ガイド</button>
+        <button onClick={()=>setModal({practice:blankPractice()})} style={{background:C.accent,border:"none",color:"#fff",borderRadius:6,padding:"6px 14px",fontSize:12,fontWeight:700,cursor:"pointer"}}>＋ 追加</button>
       </div>
       {data.length===0&&<div style={{background:C.panel,border:`1px dashed ${C.border}`,borderRadius:8,padding:"30px 20px",textAlign:"center",color:C.textMuted,fontSize:12}}>練習記録がありません</div>}
       <div style={{background:data.length?C.panel:"transparent",border:data.length?`1px solid ${C.border}`:"none",borderRadius:8,overflow:"hidden"}}>
@@ -1151,7 +1151,7 @@ function PracticesTab({data,setData,rackets,strings,stringSetups,venues,setVenue
           const isOpen=expanded===p.id;
           return (
             <div key={p.id} style={{borderBottom:i<data.length-1?`1px solid ${C.border}`:"none"}}>
-              <div onClick={()=>setExpanded(isOpen?null:p.id)} style={{display:"flex",alignItems:"center",gap:10,padding:"11px 14px",background:isOpen?"#0d0f18":"transparent",cursor:"pointer",borderLeft:isOpen?`3px solid ${C.blue}`:"3px solid transparent",transition:"all 0.1s"}}>
+              <div onClick={()=>setExpanded(isOpen?null:p.id)} style={{display:"flex",alignItems:"center",gap:10,padding:"11px 14px",background:isOpen?"#f0f0f5":"transparent",cursor:"pointer",borderLeft:isOpen?`3px solid ${C.blue}`:"3px solid transparent",transition:"all 0.1s"}}>
                 <div style={{minWidth:76,fontSize:10,color:C.textMuted,fontFamily:"monospace"}}>{p.date}</div>
                 <Badge color={typeColor2[p.type]||"gray"} sm>{typeIcon[p.type]||""} {p.type}</Badge>
                 <div style={{flex:1,minWidth:0}}>
@@ -1164,9 +1164,9 @@ function PracticesTab({data,setData,rackets,strings,stringSetups,venues,setVenue
                 <div style={{color:C.textMuted,fontSize:10,transform:isOpen?"rotate(90deg)":"none",transition:"transform 0.2s"}}>▶</div>
               </div>
               {isOpen&&(
-                <div style={{padding:"12px 14px 14px",borderTop:`1px solid ${C.border}`,background:"#0c1018"}}>
+                <div style={{padding:"12px 14px 14px",borderTop:`1px solid ${C.border}`,background:"#f0f0f5"}}>
                   {(p.calories||p.heartRateAvg||p.heartRateMax)&&(
-                    <div style={{marginBottom:10,background:"#1a0c05",border:"1px solid #7c2d12",borderRadius:8,padding:"10px 12px"}}>
+                    <div style={{marginBottom:10,background:"#fff7ed",border:"1px solid #f97316",borderRadius:8,padding:"10px 12px"}}>
                       <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8}}>
                         <span style={{fontSize:10,color:"#f97316",fontWeight:700}}>⌚ Apple Watch</span>
                         {p.timeRange&&<span style={{fontSize:10,color:C.textMuted}}>{p.timeRange}</span>}
@@ -1174,10 +1174,10 @@ function PracticesTab({data,setData,rackets,strings,stringSetups,venues,setVenue
                         {p.difficulty&&<span style={{fontSize:10,color:C.purple}}>難易度{p.difficulty}</span>}
                       </div>
                       <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6,marginBottom:p.hrZone1?10:0}}>
-                        {p.duration&&<div style={{background:"#111318",borderRadius:5,padding:"5px 8px"}}><div style={{fontSize:8,color:C.textMuted}}>⏱ 時間</div><div style={{fontSize:12,fontWeight:700,color:C.text}}>{p.duration}分</div></div>}
-                        {p.calories&&<div style={{background:"#111318",borderRadius:5,padding:"5px 8px"}}><div style={{fontSize:8,color:C.textMuted}}>🔥 Active</div><div style={{fontSize:12,fontWeight:700,color:C.orange}}>{p.calories}</div></div>}
-                        {p.heartRateAvg&&<div style={{background:"#111318",borderRadius:5,padding:"5px 8px"}}><div style={{fontSize:8,color:C.textMuted}}>💓 平均</div><div style={{fontSize:12,fontWeight:700,color:"#fca5a5"}}>{p.heartRateAvg}</div></div>}
-                        {p.totalCalories&&<div style={{background:"#111318",borderRadius:5,padding:"5px 8px"}}><div style={{fontSize:8,color:C.textMuted}}>🔥 合計</div><div style={{fontSize:12,fontWeight:700,color:C.orange}}>{p.totalCalories}</div></div>}
+                        {p.duration&&<div style={{background:"#f0f0f5",borderRadius:5,padding:"5px 8px"}}><div style={{fontSize:8,color:C.textMuted}}>⏱ 時間</div><div style={{fontSize:12,fontWeight:700,color:C.text}}>{p.duration}分</div></div>}
+                        {p.calories&&<div style={{background:"#f0f0f5",borderRadius:5,padding:"5px 8px"}}><div style={{fontSize:8,color:C.textMuted}}>🔥 Active</div><div style={{fontSize:12,fontWeight:700,color:C.orange}}>{p.calories}</div></div>}
+                        {p.heartRateAvg&&<div style={{background:"#f0f0f5",borderRadius:5,padding:"5px 8px"}}><div style={{fontSize:8,color:C.textMuted}}>💓 平均</div><div style={{fontSize:12,fontWeight:700,color:"#fca5a5"}}>{p.heartRateAvg}</div></div>}
+                        {p.totalCalories&&<div style={{background:"#f0f0f5",borderRadius:5,padding:"5px 8px"}}><div style={{fontSize:8,color:C.textMuted}}>🔥 合計</div><div style={{fontSize:12,fontWeight:700,color:C.orange}}>{p.totalCalories}</div></div>}
                       </div>
                       {p.hrZone1&&(()=>{
                         const parseMin=s=>{if(!s)return 0;const p=s.split(":");return(parseInt(p[0])||0)+(parseInt(p[1])||0)/60;};
@@ -1201,7 +1201,7 @@ function PracticesTab({data,setData,rackets,strings,stringSetups,venues,setVenue
                                 <div style={{width:10,height:10,borderRadius:2,background:z.color,flexShrink:0}}/>
                                 <div style={{width:72,fontSize:11,color:C.text,fontWeight:600,flexShrink:0}}>{z.label}</div>
                                 <div style={{width:52,fontSize:9,color:C.textMuted,flexShrink:0}}>{z.bpm}</div>
-                                <div style={{flex:1,background:"#1a1d24",borderRadius:3,height:18,overflow:"hidden"}}>
+                                <div style={{flex:1,background:"#e5e7eb",borderRadius:3,height:18,overflow:"hidden"}}>
                                   <div style={{width:`${(z.raw/total)*100}%`,height:"100%",background:z.color,borderRadius:3,minWidth:z.raw>0?3:0,display:"flex",alignItems:"center",justifyContent:"flex-end",paddingRight:4}}>
                                     {z.raw/total>0.12&&<span style={{fontSize:9,color:"#000",fontWeight:700}}>{Math.round(z.raw/total*100)}%</span>}
                                   </div>
@@ -1234,7 +1234,7 @@ function PracticesTab({data,setData,rackets,strings,stringSetups,venues,setVenue
                     </div>
                   ))}
                   {p.hasTrial&&p.trialRacketName&&(
-                    <div style={{background:"#1a1805",border:`1px solid #6b5b10`,borderRadius:8,padding:"10px 12px",marginBottom:8}}>
+                    <div style={{background:"#fffbeb",border:`1px solid #d97706`,borderRadius:8,padding:"10px 12px",marginBottom:8}}>
                       <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8}}>
                         <span style={{fontSize:11,color:C.yellow,fontWeight:700}}>⚔️ 試打評価</span>
                         <Badge color={{採用候補:"green",保留:"yellow",却下:"red"}[p.trialJudgment]||"gray"} sm>{p.trialJudgment}</Badge>
@@ -1250,7 +1250,7 @@ function PracticesTab({data,setData,rackets,strings,stringSetups,venues,setVenue
                         ))}
                         <span style={{fontSize:10,color:C.yellow,fontWeight:700}}>avg {((p.trialSpin+p.trialControl+p.trialPower+p.trialFeel+p.trialInfo)/5).toFixed(1)}</span>
                       </div>
-                      {p.trialNote&&<div style={{fontSize:11,color:C.textDim,lineHeight:1.6,background:"#111318",borderRadius:5,padding:"6px 10px",borderLeft:`2px solid #6b5b10`}}>{p.trialNote}</div>}
+                      {p.trialNote&&<div style={{fontSize:11,color:C.textDim,lineHeight:1.6,background:"#f0f0f5",borderRadius:5,padding:"6px 10px",borderLeft:`2px solid #6b5b10`}}>{p.trialNote}</div>}
                     </div>
                   )}
                   <div style={{display:"flex",gap:8,marginTop:10}}>
@@ -1430,7 +1430,7 @@ function ClaudeShareModal({onClose,data,toast}){
   };
 
   return (
-    <div style={{position:"fixed",inset:0,background:"#000c",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={e=>e.target===e.currentTarget&&onClose()}>
+    <div style={{position:"fixed",inset:0,background:"#0004",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={e=>e.target===e.currentTarget&&onClose()}>
       <div style={{background:C.panel,border:`1px solid ${C.purple}`,borderRadius:12,width:"100%",maxWidth:400,padding:20}} onClick={e=>e.stopPropagation()}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
           <span style={{fontSize:15,fontWeight:700,color:C.purple}}>📋 Claude共有</span>
@@ -1442,7 +1442,7 @@ function ClaudeShareModal({onClose,data,toast}){
           <button onClick={()=>selectAll(false)} style={{background:"none",border:`1px solid ${C.border}`,color:C.textDim,borderRadius:5,padding:"4px 10px",fontSize:10,cursor:"pointer"}}>全解除</button>
         </div>
         {catSizes.map(([k,label,size])=>(
-          <label key={k} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",background:sel[k]?"#130528":"transparent",border:`1px solid ${sel[k]?C.purple:C.border}`,borderRadius:7,marginBottom:4,cursor:"pointer"}}>
+          <label key={k} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",background:sel[k]?"#f5f3ff":"transparent",border:`1px solid ${sel[k]?C.purple:C.border}`,borderRadius:7,marginBottom:4,cursor:"pointer"}}>
             <input type="checkbox" checked={sel[k]} onChange={()=>toggle(k)} style={{accentColor:C.purple,width:18,height:18}}/>
             <span style={{flex:1,fontSize:13,color:sel[k]?C.text:C.textMuted,fontWeight:sel[k]?600:400}}>{label}</span>
             <span style={{fontSize:10,color:C.textMuted,fontFamily:"monospace"}}>{size>0?`${(size/1000).toFixed(1)}k`:"-"}</span>
@@ -1568,7 +1568,7 @@ function TrialsTab({data,setData,practices,rackets,strings,venues,setVenues,toas
   const Modal=({trial})=>{
     const [f,setF]=useState({...trial}); const s=k=>v=>setF(p=>({...p,[k]:v}));
     return (
-      <div style={{position:"fixed",inset:0,background:"#000c",zIndex:200,display:"flex",alignItems:"flex-start",justifyContent:"center",overflowY:"auto",padding:"20px 12px"}} onClick={e=>e.target===e.currentTarget&&setModal(null)}>
+      <div style={{position:"fixed",inset:0,background:"#0004",zIndex:200,display:"flex",alignItems:"flex-start",justifyContent:"center",overflowY:"auto",padding:"20px 12px"}} onClick={e=>e.target===e.currentTarget&&setModal(null)}>
         <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,width:"100%",maxWidth:540,padding:20}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
             <span style={{fontSize:14,fontWeight:700,color:C.text}}>🎾 試打ノート</span>
@@ -1618,7 +1618,7 @@ function TrialsTab({data,setData,practices,rackets,strings,venues,setVenues,toas
           <div style={{fontSize:11,color:C.accent,margin:"10px 0 8px",paddingBottom:5,borderBottom:`1px solid ${C.border}`}}>▶ 判定</div>
           <div style={{display:"flex",gap:8,marginBottom:14}}>
             {["採用候補","保留","却下"].map(j=>(
-              <button key={j} onClick={()=>s("judgment")(j)} style={{flex:1,background:f.judgment===j?({採用候補:"#052e1a",保留:"#2e2005",却下:"#2e0505"}[j]):"none",border:`1px solid ${f.judgment===j?({採用候補:C.accent,保留:C.yellow,却下:C.red}[j]):C.border}`,color:f.judgment===j?({採用候補:C.accent,保留:C.yellow,却下:C.red}[j]):C.textMuted,borderRadius:6,padding:"8px",fontSize:12,fontWeight:700,cursor:"pointer"}}>{j}</button>
+              <button key={j} onClick={()=>s("judgment")(j)} style={{flex:1,background:f.judgment===j?({採用候補:"#ecfdf5",保留:"#fffbeb",却下:"#fef2f2"}[j]):"none",border:`1px solid ${f.judgment===j?({採用候補:C.accent,保留:C.yellow,却下:C.red}[j]):C.border}`,color:f.judgment===j?({採用候補:C.accent,保留:C.yellow,却下:C.red}[j]):C.textMuted,borderRadius:6,padding:"8px",fontSize:12,fontWeight:700,cursor:"pointer"}}>{j}</button>
             ))}
           </div>
           <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
@@ -1649,8 +1649,8 @@ function TrialsTab({data,setData,practices,rackets,strings,venues,setVenues,toas
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
         <div><span style={{fontSize:12,color:C.accent,fontWeight:700}}>試打ノート</span><span style={{fontSize:11,color:C.textMuted,marginLeft:8}}>{hasFilter?`${filtered.length}/${allTrials.length}件`:allTrials.length+"件"}{practiceTrials.length>0?`（練習中${practiceTrials.length}件含む）`:""}</span></div>
         <div style={{display:"flex",gap:6}}>
-          {filtered.length>0&&<button onClick={()=>copyToClipboard(formatMultipleTrialsForClaude(filtered),toast,`${filtered.length}件コピー → Claudeに貼り付け`)} style={{background:"#130528",border:`1px solid ${C.purple}`,color:C.purple,borderRadius:6,padding:"8px 10px",fontSize:11,fontWeight:700,cursor:"pointer"}}>📋 {hasFilter?filtered.length+"件":"全件"}</button>}
-          <button onClick={()=>setModal({trial:blankTrial()})} style={{background:C.accent,border:"none",color:"#000",borderRadius:6,padding:"8px 14px",fontSize:13,fontWeight:700,cursor:"pointer"}}>＋ 追加</button>
+          {filtered.length>0&&<button onClick={()=>copyToClipboard(formatMultipleTrialsForClaude(filtered),toast,`${filtered.length}件コピー → Claudeに貼り付け`)} style={{background:"#f5f3ff",border:`1px solid ${C.purple}`,color:C.purple,borderRadius:6,padding:"8px 10px",fontSize:11,fontWeight:700,cursor:"pointer"}}>📋 {hasFilter?filtered.length+"件":"全件"}</button>}
+          <button onClick={()=>setModal({trial:blankTrial()})} style={{background:C.accent,border:"none",color:"#fff",borderRadius:6,padding:"8px 14px",fontSize:13,fontWeight:700,cursor:"pointer"}}>＋ 追加</button>
         </div>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"0 8px",marginBottom:10}}>
@@ -1665,7 +1665,7 @@ function TrialsTab({data,setData,practices,rackets,strings,venues,setVenues,toas
           const isOpen=expanded===t.id; const ac=avg(t); const ac2=parseFloat(ac)>=4?C.accent:parseFloat(ac)>=3?C.yellow:C.red;
           return (
             <div key={t.id} style={{borderBottom:i<filtered.length-1?`1px solid ${C.border}`:"none"}}>
-              <div onClick={()=>setExpanded(isOpen?null:t.id)} style={{display:"flex",alignItems:"center",gap:10,padding:"11px 14px",background:isOpen?"#0d0f18":"transparent",cursor:"pointer",borderLeft:isOpen?`3px solid ${t.fromPractice?C.blue:C.orange}`:"3px solid transparent",transition:"all 0.1s"}}>
+              <div onClick={()=>setExpanded(isOpen?null:t.id)} style={{display:"flex",alignItems:"center",gap:10,padding:"11px 14px",background:isOpen?"#f0f0f5":"transparent",cursor:"pointer",borderLeft:isOpen?`3px solid ${t.fromPractice?C.blue:C.orange}`:"3px solid transparent",transition:"all 0.1s"}}>
                 <div style={{minWidth:76,fontSize:10,color:C.textMuted,fontFamily:"monospace"}}>{t.date}</div>
                 <Badge color={jc[t.judgment]||"gray"} sm>{t.judgment}</Badge>
                 {t.fromPractice&&<Badge color="blue" sm>練習中</Badge>}
@@ -1680,7 +1680,7 @@ function TrialsTab({data,setData,practices,rackets,strings,venues,setVenues,toas
                 <div style={{color:C.textMuted,fontSize:10,transform:isOpen?"rotate(90deg)":"none",transition:"transform 0.2s"}}>▶</div>
               </div>
               {isOpen&&(
-                <div style={{padding:"12px 14px 14px",borderTop:`1px solid ${C.border}`,background:"#0c1018"}}>
+                <div style={{padding:"12px 14px 14px",borderTop:`1px solid ${C.border}`,background:"#f0f0f5"}}>
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
                     {[["ラケット",t.racketName||"—"],["縦糸",t.string||"—"],["横糸",t.stringCross||"同じ"],["テンション",t.tension||"—"],["気温",t.temp?`${t.temp}℃`:"—"],["場所",t.venue||"—"]].map(([k,v])=>(
                       <div key={k} style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:6,padding:"6px 10px"}}>
@@ -1764,7 +1764,7 @@ function RacketsTab({data,setData,toast}){
     const [f,setF]=useState({...item}); const s=k=>v=>setF(p=>({...p,[k]:v}));
     const fields=[["name","ラケット名","HEAD Boom Pro 2026"],["role","役割","次期エース候補"],["weight","重量","333.9g"],["balance","バランス","321.5mm"],["face","フェイス","98in²"],["beam","ビーム","薄ビーム"],["string","現在のストリング","Blast 1.25 / PTP 1.25"],["tension","テンション","43p"]];
     return (
-      <div style={{position:"fixed",inset:0,background:"#000c",zIndex:200,display:"flex",alignItems:"flex-start",justifyContent:"center",overflowY:"auto",padding:"20px 12px"}} onClick={e=>e.target===e.currentTarget&&setModal(null)}>
+      <div style={{position:"fixed",inset:0,background:"#0004",zIndex:200,display:"flex",alignItems:"flex-start",justifyContent:"center",overflowY:"auto",padding:"20px 12px"}} onClick={e=>e.target===e.currentTarget&&setModal(null)}>
         <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,width:"100%",maxWidth:500,padding:20}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
             <span style={{fontSize:14,fontWeight:700,color:C.text}}>ラケット</span>
@@ -1786,13 +1786,13 @@ function RacketsTab({data,setData,toast}){
       {cfm.el}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
         <span style={{fontSize:11,color:C.accent}}>ラケット一覧</span>
-        <button onClick={()=>setModal({item:{id:`r${Date.now()}`,name:"",role:"",status:"candidate",weight:"",balance:"",face:"",beam:"",string:"",tension:"",note:""}})} style={{background:C.accent,border:"none",color:"#000",borderRadius:5,padding:"4px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>＋ 追加</button>
+        <button onClick={()=>setModal({item:{id:`r${Date.now()}`,name:"",role:"",status:"candidate",weight:"",balance:"",face:"",beam:"",string:"",tension:"",note:""}})} style={{background:C.accent,border:"none",color:"#fff",borderRadius:5,padding:"4px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>＋ 追加</button>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:10}}>
         {data.map(r=>{
           const [sc,sl]=statusMap[r.status]||["gray","—"]; const on=expanded===r.id;
           return (
-            <div key={r.id} style={{background:on?"#131820":C.panel,border:`1px solid ${on?C.accent:C.border}`,borderRadius:8,padding:14,transition:"all 0.15s"}}>
+            <div key={r.id} style={{background:on?"#eff6ff":C.panel,border:`1px solid ${on?C.accent:C.border}`,borderRadius:8,padding:14,transition:"all 0.15s"}}>
               <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
                 <Badge color={sc}>{sl}</Badge>
                 <div><button onClick={()=>setModal({item:r})} style={{background:"none",border:"none",color:C.textMuted,cursor:"pointer",fontSize:13,marginRight:4}}>✏️</button><button onClick={()=>handleDelete(r.id)} style={{background:"none",border:"none",color:C.red,cursor:"pointer",fontSize:13}}>🗑</button></div>
@@ -1801,7 +1801,7 @@ function RacketsTab({data,setData,toast}){
               <div style={{fontSize:11,color:C.textMuted,marginBottom:10}}>{r.role}</div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5}}>
                 {[["重量",r.weight],["バランス",r.balance],["フェイス",r.face],["ビーム",r.beam]].map(([k,v])=>(
-                  <div key={k} style={{background:"#0d0f14",borderRadius:4,padding:"4px 8px"}}>
+                  <div key={k} style={{background:"#f0f0f5",borderRadius:4,padding:"4px 8px"}}>
                     <div style={{fontSize:9,color:C.textMuted}}>{k}</div>
                     <div style={{fontSize:11,color:C.textDim,fontWeight:600}}>{v||"—"}</div>
                   </div>
@@ -1849,7 +1849,7 @@ function StringsTab({data,setData,stringSetups,setStringSetups,toast}){
   const Modal=({item})=>{
     const [f,setF]=useState({...item}); const s=k=>v=>setF(p=>({...p,[k]:v}));
     return (
-      <div style={{position:"fixed",inset:0,background:"#000c",zIndex:200,display:"flex",alignItems:"flex-start",justifyContent:"center",overflowY:"auto",padding:"20px 12px"}} onClick={e=>e.target===e.currentTarget&&setModal(null)}>
+      <div style={{position:"fixed",inset:0,background:"#0004",zIndex:200,display:"flex",alignItems:"flex-start",justifyContent:"center",overflowY:"auto",padding:"20px 12px"}} onClick={e=>e.target===e.currentTarget&&setModal(null)}>
         <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,width:"100%",maxWidth:460,padding:20}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
             <span style={{fontSize:14,fontWeight:700,color:C.text}}>ストリング</span>
@@ -1875,7 +1875,7 @@ function StringsTab({data,setData,stringSetups,setStringSetups,toast}){
           <span style={{fontSize:11,color:C.accent}}>在庫リスト</span>
           <div style={{display:"flex",gap:8}}>
             <button onClick={()=>setShowAll(!showAll)} style={{background:"none",border:`1px solid ${C.border}`,color:C.textMuted,borderRadius:4,padding:"2px 10px",fontSize:11,cursor:"pointer"}}>{showAll?"除外分を隠す":`除外分も表示（${rejected.length}件）`}</button>
-            <button onClick={()=>setModal({item:{id:`s${Date.now()}`,name:"",qty:"1張り",status:"hold",note:""}})} style={{background:C.accent,border:"none",color:"#000",borderRadius:5,padding:"2px 10px",fontSize:11,fontWeight:700,cursor:"pointer"}}>＋</button>
+            <button onClick={()=>setModal({item:{id:`s${Date.now()}`,name:"",qty:"1張り",status:"hold",note:""}})} style={{background:C.accent,border:"none",color:"#fff",borderRadius:5,padding:"2px 10px",fontSize:11,fontWeight:700,cursor:"pointer"}}>＋</button>
           </div>
         </div>
         {list.map((s,i)=>(
@@ -1921,7 +1921,7 @@ function StringsTab({data,setData,stringSetups,setStringSetups,toast}){
               </div>
             ))}
             {!addingSetup?(
-              <button onClick={()=>setAddingSetup(true)} style={{background:C.accent,border:"none",color:"#000",borderRadius:5,padding:"5px 14px",fontSize:11,fontWeight:700,cursor:"pointer",marginTop:8}}>＋ 追加</button>
+              <button onClick={()=>setAddingSetup(true)} style={{background:C.accent,border:"none",color:"#fff",borderRadius:5,padding:"5px 14px",fontSize:11,fontWeight:700,cursor:"pointer",marginTop:8}}>＋ 追加</button>
             ):(
               <div style={{marginTop:8,background:C.panel2,borderRadius:8,padding:12}}>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 10px"}}>
@@ -1952,7 +1952,7 @@ function MeasurementsTab({data,setData,toast}){
   const Modal=({item})=>{
     const [f,setF]=useState({...item,current:String(item.current)}); const s=k=>v=>setF(p=>({...p,[k]:v}));
     return (
-      <div style={{position:"fixed",inset:0,background:"#000c",zIndex:200,display:"flex",alignItems:"flex-start",justifyContent:"center",overflowY:"auto",padding:"20px 12px"}} onClick={e=>e.target===e.currentTarget&&setModal(null)}>
+      <div style={{position:"fixed",inset:0,background:"#0004",zIndex:200,display:"flex",alignItems:"flex-start",justifyContent:"center",overflowY:"auto",padding:"20px 12px"}} onClick={e=>e.target===e.currentTarget&&setModal(null)}>
         <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,width:"100%",maxWidth:460,padding:20}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
             <span style={{fontSize:14,fontWeight:700,color:C.text}}>実測値</span>
@@ -1980,13 +1980,13 @@ function MeasurementsTab({data,setData,toast}){
       {cfm.el}
       <div style={{padding:"10px 14px",borderBottom:`1px solid ${C.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <span style={{fontSize:11,color:C.accent}}>実測値ログ</span>
-        <button onClick={()=>setModal({item:{id:`ms${Date.now()}`,racket:"",state:"",weight:"",balance:"",gripW:"",gripT:"",current:false}})} style={{background:C.accent,border:"none",color:"#000",borderRadius:5,padding:"2px 10px",fontSize:11,fontWeight:700,cursor:"pointer"}}>＋ 追加</button>
+        <button onClick={()=>setModal({item:{id:`ms${Date.now()}`,racket:"",state:"",weight:"",balance:"",gripW:"",gripT:"",current:false}})} style={{background:C.accent,border:"none",color:"#fff",borderRadius:5,padding:"2px 10px",fontSize:11,fontWeight:700,cursor:"pointer"}}>＋ 追加</button>
       </div>
       <div style={{overflowX:"auto"}}>
         <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-          <thead><tr style={{background:"#0d0f14"}}>{["ラケット","状態","重量","バランス","幅","厚",""].map((h,i)=><th key={i} style={{padding:"9px 12px",textAlign:"left",color:C.textMuted,fontSize:10,fontWeight:600,borderBottom:`1px solid ${C.border}`,whiteSpace:"nowrap"}}>{h}</th>)}</tr></thead>
+          <thead><tr style={{background:"#f0f0f5"}}>{["ラケット","状態","重量","バランス","幅","厚",""].map((h,i)=><th key={i} style={{padding:"9px 12px",textAlign:"left",color:C.textMuted,fontSize:10,fontWeight:600,borderBottom:`1px solid ${C.border}`,whiteSpace:"nowrap"}}>{h}</th>)}</tr></thead>
           <tbody>{data.map((m,i)=>(
-            <tr key={m.id} style={{background:m.current?"#0d1620":"transparent",borderBottom:`1px solid ${C.border}`}}>
+            <tr key={m.id} style={{background:m.current?"#eff6ff":"transparent",borderBottom:`1px solid ${C.border}`}}>
               <td style={{padding:"8px 12px",color:m.current?C.accent:C.textDim,fontWeight:m.current?700:400,whiteSpace:"nowrap"}}>{m.racket}</td>
               <td style={{padding:"8px 12px",color:C.textDim,fontSize:11}}>{m.state}{m.current&&<span style={{marginLeft:5,fontSize:9,color:C.accent,border:`1px solid ${C.accent}`,borderRadius:3,padding:"1px 4px"}}>現行</span>}</td>
               <td style={{padding:"8px 12px",color:C.text,fontFamily:"monospace",textAlign:"right"}}>{m.weight}</td>
@@ -2015,7 +2015,7 @@ function MentalTab({data,setData,toast}){
   const Modal=({item})=>{
     const [f,setF]=useState({...item}); const s=k=>v=>setF(p=>({...p,[k]:v}));
     return (
-      <div style={{position:"fixed",inset:0,background:"#000c",zIndex:200,display:"flex",alignItems:"flex-start",justifyContent:"center",overflowY:"auto",padding:"20px 12px"}} onClick={e=>e.target===e.currentTarget&&setModal(null)}>
+      <div style={{position:"fixed",inset:0,background:"#0004",zIndex:200,display:"flex",alignItems:"flex-start",justifyContent:"center",overflowY:"auto",padding:"20px 12px"}} onClick={e=>e.target===e.currentTarget&&setModal(null)}>
         <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,width:"100%",maxWidth:460,padding:20}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
             <span style={{fontSize:14,fontWeight:700,color:C.text}}>メンタルメモ</span>
@@ -2038,7 +2038,7 @@ function MentalTab({data,setData,toast}){
       {cfm.el}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:2}}>
         <span style={{fontSize:11,color:C.accent}}>メンタル管理</span>
-        <button onClick={()=>setModal({item:{id:`mn${Date.now()}`,category:"有効",tag:"green",title:"",content:""}})} style={{background:C.accent,border:"none",color:"#000",borderRadius:5,padding:"4px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>＋ 追加</button>
+        <button onClick={()=>setModal({item:{id:`mn${Date.now()}`,category:"有効",tag:"green",title:"",content:""}})} style={{background:C.accent,border:"none",color:"#fff",borderRadius:5,padding:"4px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>＋ 追加</button>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
         {data.map(m=>(
@@ -2056,7 +2056,7 @@ function MentalTab({data,setData,toast}){
         <div style={{fontSize:11,color:C.accent,marginBottom:10}}>試合中ルーティン（お経モード）</div>
         <div style={{display:"flex",gap:8}}>
           {["① 球をよく見る","② スタンスを広く・重心を落とす","③ 打点を前にちゃんと振り抜く"].map((s,i)=>(
-            <div key={i} style={{flex:1,background:"#0d1a10",border:`1px solid ${C.accentDim}`,borderRadius:6,padding:"9px 10px",fontSize:11,color:C.accent,textAlign:"center",fontWeight:600}}>{s}</div>
+            <div key={i} style={{flex:1,background:"#ecfdf5",border:`1px solid ${C.accentDim}`,borderRadius:6,padding:"9px 10px",fontSize:11,color:C.accent,textAlign:"center",fontWeight:600}}>{s}</div>
           ))}
         </div>
       </div>
@@ -2124,7 +2124,7 @@ function NextTab({data,setData,toast}){
     const addCl=()=>{if(newCl.trim()){setF(p=>({...p,checklist:[...p.checklist,{text:newCl.trim(),done:false}]}));setNewCl("");}};
     const rmCl=i=>setF(p=>({...p,checklist:p.checklist.filter((_,j)=>j!==i)}));
     return (
-      <div style={{position:"fixed",inset:0,background:"#000c",zIndex:200,display:"flex",alignItems:"flex-start",justifyContent:"center",overflowY:"auto",padding:"20px 12px"}} onClick={e=>e.target===e.currentTarget&&setModal(null)}>
+      <div style={{position:"fixed",inset:0,background:"#0004",zIndex:200,display:"flex",alignItems:"flex-start",justifyContent:"center",overflowY:"auto",padding:"20px 12px"}} onClick={e=>e.target===e.currentTarget&&setModal(null)}>
         <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,width:"100%",maxWidth:460,padding:20}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
             <span style={{fontSize:15,fontWeight:700,color:C.text}}>Nextアクション</span>
@@ -2149,7 +2149,7 @@ function NextTab({data,setData,toast}){
           </div>
           <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:16}}>
             <button onClick={()=>setModal(null)} style={{background:C.panel2,border:`1px solid ${C.border}`,color:C.textMuted,borderRadius:8,padding:"10px 20px",fontSize:13,cursor:"pointer"}}>キャンセル</button>
-            <button onClick={()=>handleSave(f)} style={{background:C.accent,border:"none",color:"#000",borderRadius:8,padding:"10px 20px",fontSize:13,fontWeight:700,cursor:"pointer"}}>保存</button>
+            <button onClick={()=>handleSave(f)} style={{background:C.accent,border:"none",color:"#fff",borderRadius:8,padding:"10px 20px",fontSize:13,fontWeight:700,cursor:"pointer"}}>保存</button>
           </div>
         </div>
       </div>
@@ -2163,9 +2163,9 @@ function NextTab({data,setData,toast}){
     const clDone=cl.filter(c=>c.done).length;
     const hasCl=cl.length>0;
     return (
-      <div style={{background:a.done?"#0a0c10":C.panel,border:`1px solid ${a.done?"#1a1d24":C.border}`,borderLeft:`4px solid ${a.done?C.textMuted:bc}`,borderRadius:10,padding:"12px 14px",opacity:a.done?0.5:1}}>
+      <div style={{background:a.done?"#f0f0f5":C.panel,border:`1px solid ${a.done?"#d1d5db":C.border}`,borderLeft:`4px solid ${a.done?C.textMuted:bc}`,borderRadius:10,padding:"12px 14px",opacity:a.done?0.5:1}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <button onClick={()=>toggleCheck(a.id)} style={{width:32,height:32,borderRadius:6,border:`2px solid ${a.done?C.accent:bc}`,background:a.done?C.accent:"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0,fontSize:16,color:"#000",fontWeight:700}}>{a.done?"✓":""}</button>
+          <button onClick={()=>toggleCheck(a.id)} style={{width:32,height:32,borderRadius:6,border:`2px solid ${a.done?C.accent:bc}`,background:a.done?C.accent:"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0,fontSize:16,color:"#fff",fontWeight:700}}>{a.done?"✓":""}</button>
           <div onClick={()=>!a.done&&setOpen(!open)} style={{flex:1,minWidth:0,cursor:hasCl&&!a.done?"pointer":"default"}}>
             <div style={{fontSize:14,color:a.done?C.textMuted:C.text,fontWeight:700,textDecoration:a.done?"line-through":"none"}}>{a.label}</div>
             {!a.done&&a.detail&&<div style={{fontSize:11,color:C.textMuted,marginTop:2}}>{a.detail}</div>}
@@ -2184,8 +2184,8 @@ function NextTab({data,setData,toast}){
         {open&&hasCl&&!a.done&&(
           <div style={{marginTop:10,marginLeft:42,display:"grid",gap:4}}>
             {cl.map((c,i)=>(
-              <div key={i} onClick={()=>toggleSubCheck(a.id,i)} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",background:c.done?"#0d1018":C.panel2,border:`1px solid ${C.border}`,borderRadius:6,cursor:"pointer"}}>
-                <div style={{width:22,height:22,borderRadius:4,border:`2px solid ${c.done?C.accent:C.border}`,background:c.done?C.accent:"transparent",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,color:"#000",fontWeight:700,flexShrink:0}}>{c.done?"✓":""}</div>
+              <div key={i} onClick={()=>toggleSubCheck(a.id,i)} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",background:c.done?"#ecfdf5":C.panel2,border:`1px solid ${C.border}`,borderRadius:6,cursor:"pointer"}}>
+                <div style={{width:22,height:22,borderRadius:4,border:`2px solid ${c.done?C.accent:C.border}`,background:c.done?C.accent:"transparent",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,color:"#fff",fontWeight:700,flexShrink:0}}>{c.done?"✓":""}</div>
                 <span style={{fontSize:13,color:c.done?C.textMuted:C.text,textDecoration:c.done?"line-through":"none"}}>{c.text}</span>
               </div>
             ))}
@@ -2202,7 +2202,7 @@ function NextTab({data,setData,toast}){
         <span style={{fontSize:14,color:C.accent,fontWeight:700}}>▶ Next Actions <span style={{color:C.textMuted,fontWeight:400}}>({pending.length})</span></span>
         <div style={{display:"flex",gap:6}}>
           <button onClick={()=>setShowTpl(!showTpl)} style={{background:C.panel,border:`1px solid ${C.purple}`,color:C.purple,borderRadius:6,padding:"8px 12px",fontSize:12,fontWeight:600,cursor:"pointer"}}>📋 テンプレ</button>
-          <button onClick={()=>setModal({item:{id:`nx${Date.now()}`,priority:"中",category:"検証",label:"",detail:"",done:false,doneAt:"",checklist:[]}})} style={{background:C.accent,border:"none",color:"#000",borderRadius:6,padding:"8px 14px",fontSize:13,fontWeight:700,cursor:"pointer"}}>＋ 追加</button>
+          <button onClick={()=>setModal({item:{id:`nx${Date.now()}`,priority:"中",category:"検証",label:"",detail:"",done:false,doneAt:"",checklist:[]}})} style={{background:C.accent,border:"none",color:"#fff",borderRadius:6,padding:"8px 14px",fontSize:13,fontWeight:700,cursor:"pointer"}}>＋ 追加</button>
         </div>
       </div>
       {showTpl&&(
@@ -2210,7 +2210,7 @@ function NextTab({data,setData,toast}){
           <div style={{fontSize:12,color:C.purple,fontWeight:600,marginBottom:10}}>📋 テンプレートから追加（1つのアクション内にチェックリスト生成）</div>
           <div style={{display:"grid",gap:8}}>
             {Object.entries(TEMPLATES).map(([name,tpl])=>(
-              <button key={name} onClick={()=>addTemplate(name)} style={{background:"#1a102e",border:`1px solid ${C.purple}`,color:C.text,borderRadius:8,padding:"12px 16px",fontSize:14,cursor:"pointer",fontWeight:600,textAlign:"left"}}>
+              <button key={name} onClick={()=>addTemplate(name)} style={{background:"#f5f3ff",border:`1px solid ${C.purple}`,color:C.text,borderRadius:8,padding:"12px 16px",fontSize:14,cursor:"pointer",fontWeight:600,textAlign:"left"}}>
                 {name}（{tpl.items.length}項目）
               </button>
             ))}
@@ -2255,33 +2255,33 @@ function ProfileTab({data,setData,toast}){
         <span style={{fontSize:11,color:C.textMuted}}>📋 パートナー向け取扱説明書</span>
         <button onClick={()=>setPartnerMode(false)} style={{background:C.panel,border:`1px solid ${C.border}`,color:C.textMuted,borderRadius:6,padding:"5px 12px",fontSize:11,cursor:"pointer"}}>✕ 閉じる</button>
       </div>
-      <div style={{background:"#0d1a10",border:`2px solid ${C.accent}`,borderRadius:14,padding:20,maxWidth:480,margin:"0 auto"}}>
+      <div style={{background:"#ecfdf5",border:`2px solid ${C.accent}`,borderRadius:14,padding:20,maxWidth:480,margin:"0 auto"}}>
         <div style={{textAlign:"center",marginBottom:16}}>
-          <div style={{fontSize:22,fontWeight:800,background:`linear-gradient(90deg,${C.accent},#60e0ff)`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>{data.name}</div>
+          <div style={{fontSize:22,fontWeight:800,background:`linear-gradient(90deg,${C.accent},#0891b2)`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>{data.name}</div>
           <div style={{fontSize:12,color:C.textMuted,marginTop:3}}>{data.level} · {data.career}</div>
         </div>
-        <div style={{background:"#071410",borderRadius:8,padding:"10px 14px",marginBottom:12}}>
+        <div style={{background:"#ecfdf5",borderRadius:8,padding:"10px 14px",marginBottom:12}}>
           <div style={{fontSize:10,color:C.accent,letterSpacing:"0.1em",marginBottom:5}}>🎾 プレースタイル</div>
           <div style={{fontSize:13,color:C.text,fontWeight:700,marginBottom:4}}>{data.playStyle}</div>
           <div style={{fontSize:11,color:C.textDim,lineHeight:1.7}}>{data.playStyleDetail}</div>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
-          <div style={{background:"#071410",borderRadius:8,padding:"10px 12px"}}>
+          <div style={{background:"#ecfdf5",borderRadius:8,padding:"10px 12px"}}>
             <div style={{fontSize:10,color:C.accent,marginBottom:5}}>✅ 強み</div>
             <div style={{fontSize:11,color:C.textDim,lineHeight:1.7}}>{data.strengths}</div>
           </div>
-          <div style={{background:"#071410",borderRadius:8,padding:"10px 12px"}}>
+          <div style={{background:"#ecfdf5",borderRadius:8,padding:"10px 12px"}}>
             <div style={{fontSize:10,color:C.yellow,marginBottom:5}}>⚠ 注意点</div>
             <div style={{fontSize:11,color:C.textDim,lineHeight:1.7}}>{data.weaknesses}</div>
           </div>
         </div>
-        <div style={{background:"#071410",borderRadius:8,padding:"12px 14px",marginBottom:10}}>
+        <div style={{background:"#ecfdf5",borderRadius:8,padding:"12px 14px",marginBottom:10}}>
           <div style={{fontSize:10,color:C.blue,letterSpacing:"0.1em",marginBottom:6}}>🤝 ダブルス担当 & フォーメーション</div>
           <div style={{fontSize:13,color:C.text,fontWeight:700,marginBottom:4}}>{data.partnerRole}</div>
           <div style={{fontSize:11,color:C.textDim,lineHeight:1.7}}>{data.partnerFormation}</div>
         </div>
         {[["✅ やってほしいこと",data.partnerDo,C.accent],["🚫 やめてほしいこと",data.partnerDont,C.red],["🧠 メンタルについて",data.partnerMental,C.purple],["📝 その他",data.partnerNote,C.textMuted]].map(([label,val,col])=>val?(
-          <div key={label} style={{background:"#071410",borderRadius:8,padding:"10px 14px",marginBottom:8}}>
+          <div key={label} style={{background:"#ecfdf5",borderRadius:8,padding:"10px 14px",marginBottom:8}}>
             <div style={{fontSize:10,color:col,letterSpacing:"0.08em",marginBottom:5}}>{label}</div>
             <div style={{fontSize:12,color:C.textDim,lineHeight:1.8,whiteSpace:"pre-line"}}>{val}</div>
           </div>
@@ -2296,7 +2296,7 @@ function ProfileTab({data,setData,toast}){
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <span style={{fontSize:11,color:C.accent}}>選手プロフィール</span>
         <div style={{display:"flex",gap:6}}>
-          <button onClick={()=>setPartnerMode(true)} style={{background:"#051828",border:`1px solid ${C.blue}`,color:C.blue,borderRadius:6,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>📋 取扱説明書を表示</button>
+          <button onClick={()=>setPartnerMode(true)} style={{background:"#eff6ff",border:`1px solid ${C.blue}`,color:C.blue,borderRadius:6,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>📋 取扱説明書を表示</button>
           {!editing&&<button onClick={()=>setEditing(true)} style={{background:C.panel,border:`1px solid ${C.border}`,color:C.textMuted,borderRadius:6,padding:"5px 12px",fontSize:11,cursor:"pointer"}}>✏️ 編集</button>}
         </div>
       </div>
@@ -2322,7 +2322,7 @@ function ProfileTab({data,setData,toast}){
           <Field label="🚫 やめてほしいこと" value={f.partnerDont||""} onChange={s("partnerDont")} multiline placeholder="・ポイント間の声かけは最小限&#10;・..."/>
           <Field label="🧠 メンタルについて" value={f.partnerMental||""} onChange={s("partnerMental")} multiline placeholder="試合中は沈黙がベスト..."/>
           <Field label="📝 その他パートナーへ" value={f.partnerNote||""} onChange={s("partnerNote")} multiline placeholder="序盤は動きが悪いが徐々に上がる..."/>
-          <div style={{fontSize:11,color:C.purple,margin:"14px 0 10px",paddingBottom:5,borderBottom:`1px solid #3d2060`}}>🔒 自己分析（本人のみ・取扱説明書には表示されません）</div>
+          <div style={{fontSize:11,color:C.purple,margin:"14px 0 10px",paddingBottom:5,borderBottom:`1px solid ${C.purple}`}}>🔒 自己分析（本人のみ・取扱説明書には表示されません）</div>
           <Field label="タイプ（MBTI等）" value={f.mbti||""} onChange={s("mbti")} placeholder="INTJ × 高O × 高H"/>
           <Field label="タイプの一言まとめ" value={f.mbtiSummary||""} onChange={s("mbtiSummary")} multiline placeholder="探索は反射・採用は熟考・報告は正直..."/>
           <Field label="タイプ × テニスへの影響" value={f.mbtiTennis||""} onChange={s("mbtiTennis")} multiline placeholder="INTJ：戦略的設計、原因を内因帰属..."/>
@@ -2333,7 +2333,7 @@ function ProfileTab({data,setData,toast}){
           <Field label="📓 個人メモ（自由記述）" value={f.personalNote||""} onChange={s("personalNote")} multiline placeholder="気づき、今後の課題など..."/>
           <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:16}}>
             <button onClick={handleCancel} style={{background:C.panel2,border:`1px solid ${C.border}`,color:C.textMuted,borderRadius:6,padding:"7px 16px",fontSize:12,cursor:"pointer"}}>キャンセル</button>
-            <button onClick={handleSave} style={{background:C.accent,border:"none",color:"#000",borderRadius:6,padding:"7px 16px",fontSize:12,fontWeight:700,cursor:"pointer"}}>保存</button>
+            <button onClick={handleSave} style={{background:C.accent,border:"none",color:"#fff",borderRadius:6,padding:"7px 16px",fontSize:12,fontWeight:700,cursor:"pointer"}}>保存</button>
           </div>
         </div>
       ):(
@@ -2380,41 +2380,41 @@ function ProfileTab({data,setData,toast}){
               <span style={{fontSize:11,color:C.blue}}>🤝 ダブルス取扱説明書（プレビュー）</span>
             </div>
             <div style={{display:"flex",gap:8,marginBottom:10,alignItems:"flex-start"}}>
-              <div style={{background:"#051828",borderRadius:8,padding:"8px 12px",flex:1}}>
+              <div style={{background:"#eff6ff",borderRadius:8,padding:"8px 12px",flex:1}}>
                 <div style={{fontSize:10,color:C.blue,marginBottom:3}}>担当</div>
                 <div style={{fontSize:13,color:C.text,fontWeight:700}}>{data.partnerRole||"—"}</div>
               </div>
-              <div style={{background:"#051828",borderRadius:8,padding:"8px 12px",flex:2}}>
+              <div style={{background:"#eff6ff",borderRadius:8,padding:"8px 12px",flex:2}}>
                 <div style={{fontSize:10,color:C.blue,marginBottom:3}}>フォーメーション</div>
                 <div style={{fontSize:11,color:C.textDim,lineHeight:1.6}}>{data.partnerFormation||"—"}</div>
               </div>
             </div>
             {[["✅ やってほしいこと",data.partnerDo,C.accent],["🚫 やめてほしいこと",data.partnerDont,C.red]].map(([label,val,col])=>(
-              <div key={label} style={{background:"#051828",borderRadius:8,padding:"10px 12px",marginBottom:8}}>
+              <div key={label} style={{background:"#eff6ff",borderRadius:8,padding:"10px 12px",marginBottom:8}}>
                 <div style={{fontSize:10,color:col,marginBottom:4}}>{label}</div>
                 <div style={{fontSize:11,color:C.textDim,lineHeight:1.8,whiteSpace:"pre-line"}}>{val||"—"}</div>
               </div>
             ))}
             <div style={{marginTop:4,textAlign:"center"}}>
-              <button onClick={()=>setPartnerMode(true)} style={{background:"#051828",border:`1px solid ${C.blue}`,color:C.blue,borderRadius:8,padding:"8px 20px",fontSize:12,fontWeight:700,cursor:"pointer"}}>📋 パートナーに見せる →</button>
+              <button onClick={()=>setPartnerMode(true)} style={{background:"#eff6ff",border:`1px solid ${C.blue}`,color:C.blue,borderRadius:8,padding:"8px 20px",fontSize:12,fontWeight:700,cursor:"pointer"}}>📋 パートナーに見せる →</button>
             </div>
           </div>
           {/* Self analysis - private */}
-          <div style={{background:C.panel,border:`1px solid #3d2060`,borderRadius:10,padding:16}}>
+          <div style={{background:C.panel,border:`1px solid ${C.purple}`,borderRadius:10,padding:16}}>
             <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:14}}>
               <span style={{fontSize:11,color:C.purple}}>🔒 自己分析</span>
-              <span style={{fontSize:10,color:"#6b4a8f",background:"#1a0a2e",borderRadius:4,padding:"2px 7px"}}>本人のみ</span>
+              <span style={{fontSize:10,color:"#7c3aed",background:"#f5f3ff",borderRadius:4,padding:"2px 7px"}}>本人のみ</span>
             </div>
             {/* MBTI badge + summary */}
-            <div style={{background:"#1a0a2e",border:`1px solid #3d2060`,borderRadius:8,padding:"12px 14px",marginBottom:10}}>
+            <div style={{background:"#f5f3ff",border:`1px solid ${C.purple}`,borderRadius:8,padding:"12px 14px",marginBottom:10}}>
               <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
-                <div style={{background:`linear-gradient(135deg,${C.purple},#60a5fa)`,borderRadius:6,padding:"4px 12px",fontSize:13,fontWeight:800,color:"#fff",letterSpacing:"0.05em"}}>{data.mbti||"—"}</div>
+                <div style={{background:`linear-gradient(135deg,${C.purple},#3b82f6)`,borderRadius:6,padding:"4px 12px",fontSize:13,fontWeight:800,color:"#fff",letterSpacing:"0.05em"}}>{data.mbti||"—"}</div>
               </div>
               <div style={{fontSize:11,color:"#c4b5fd",lineHeight:1.7}}>{data.mbtiSummary}</div>
             </div>
             {/* MBTI × Tennis */}
             {data.mbtiTennis&&(
-              <div style={{background:"#1a0a2e",borderRadius:8,padding:"10px 14px",marginBottom:10}}>
+              <div style={{background:"#f5f3ff",borderRadius:8,padding:"10px 14px",marginBottom:10}}>
                 <div style={{fontSize:10,color:C.purple,marginBottom:5}}>🎾 タイプ × テニスへの影響</div>
                 <div style={{fontSize:11,color:"#c4b5fd",lineHeight:1.8,whiteSpace:"pre-line"}}>{data.mbtiTennis}</div>
               </div>
@@ -2425,24 +2425,24 @@ function ProfileTab({data,setData,toast}){
                 <div style={{fontSize:10,color:C.red,marginBottom:5}}>⚡ 崩れるトリガー</div>
                 <div style={{fontSize:11,color:"#fca5a5",lineHeight:1.8,whiteSpace:"pre-line"}}>{data.mentalTriggers||"—"}</div>
               </div>
-              <div style={{background:"#0a1e0a",borderRadius:8,padding:"10px 12px"}}>
+              <div style={{background:"#ecfdf5",borderRadius:8,padding:"10px 12px"}}>
                 <div style={{fontSize:10,color:C.accent,marginBottom:5}}>🔄 立て直し方</div>
                 <div style={{fontSize:11,color:"#86efac",lineHeight:1.8,whiteSpace:"pre-line"}}>{data.mentalRecovery||"—"}</div>
               </div>
             </div>
             {/* Self strengths / weaknesses */}
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:data.personalNote?10:0}}>
-              <div style={{background:"#1a0a2e",borderRadius:8,padding:"10px 12px"}}>
+              <div style={{background:"#f5f3ff",borderRadius:8,padding:"10px 12px"}}>
                 <div style={{fontSize:10,color:C.purple,marginBottom:5}}>💪 内面的強み</div>
                 <div style={{fontSize:11,color:"#c4b5fd",lineHeight:1.8,whiteSpace:"pre-line"}}>{data.selfStrengths||"—"}</div>
               </div>
-              <div style={{background:"#1a0a2e",borderRadius:8,padding:"10px 12px"}}>
+              <div style={{background:"#f5f3ff",borderRadius:8,padding:"10px 12px"}}>
                 <div style={{fontSize:10,color:C.yellow,marginBottom:5}}>🩹 内面的課題</div>
                 <div style={{fontSize:11,color:"#fde68a",lineHeight:1.8,whiteSpace:"pre-line"}}>{data.selfWeaknesses||"—"}</div>
               </div>
             </div>
             {data.personalNote&&(
-              <div style={{background:"#1a0a2e",borderRadius:8,padding:"10px 14px"}}>
+              <div style={{background:"#f5f3ff",borderRadius:8,padding:"10px 14px"}}>
                 <div style={{fontSize:10,color:C.textMuted,marginBottom:4}}>📓 個人メモ</div>
                 <div style={{fontSize:11,color:C.textDim,lineHeight:1.8,whiteSpace:"pre-line"}}>{data.personalNote}</div>
               </div>
@@ -2669,7 +2669,7 @@ function HomeTab({next,setNext,tournaments,practices,trials,daysSinceExport,last
         </div>
         <div style={{display:"flex",gap:6,marginBottom:10}}>
           <input value={quickText} onChange={e=>setQuickText(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addQuick()} placeholder="やること を入力してEnter..." style={{flex:1,background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 12px",color:C.text,fontSize:13,outline:"none",fontFamily:"inherit"}}/>
-          <button onClick={addQuick} style={{background:C.accent,border:"none",color:"#000",borderRadius:8,padding:"10px 14px",fontSize:13,fontWeight:700,cursor:"pointer",flexShrink:0}}>＋</button>
+          <button onClick={addQuick} style={{background:C.accent,border:"none",color:"#fff",borderRadius:8,padding:"10px 14px",fontSize:13,fontWeight:700,cursor:"pointer",flexShrink:0}}>＋</button>
         </div>
         {pending.length===0&&<div style={{textAlign:"center",padding:"8px 0",color:C.textMuted,fontSize:12}}>全て完了！</div>}
         {pending.map(a=>{
@@ -2695,7 +2695,7 @@ function HomeTab({next,setNext,tournaments,practices,trials,daysSinceExport,last
 
       {/* Upcoming tournament */}
       {upcoming.length>0&&(
-        <div style={{background:"#0a1a10",border:`1px solid #1a3a20`,borderRadius:10,padding:14}}>
+        <div style={{background:"#ecfdf5",border:`1px solid ${C.accentDim}`,borderRadius:10,padding:14}}>
           <div style={{fontSize:12,color:C.accent,fontWeight:700,marginBottom:8}}>📅 次の大会</div>
           {upcoming.slice(0,2).map(t=>(
             <div key={t.id} style={{display:"flex",alignItems:"center",gap:10,marginBottom:4}}>
@@ -3039,14 +3039,14 @@ function TennisDB(){
         ::-webkit-scrollbar{width:4px;height:4px;}
         ::-webkit-scrollbar-track{background:${C.bg};}
         ::-webkit-scrollbar-thumb{background:${C.border};border-radius:2px;}
-        input,textarea,select{color-scheme:dark;}
+        input,textarea,select{color-scheme:light;}
         button:hover{opacity:0.82;}
       `}</style>
       {toast.el}
       {showClaudeShare&&<ClaudeShareModal onClose={()=>setShowClaudeShare(false)} data={{profile,rackets,strings,measurements,tournaments,practices,trials,mental,next}} toast={toast}/>}
       {quickTrial&&<QuickTrialMode rackets={rackets} stringSetups={stringSetups} strings={strings} trials={trials} setTrials={v=>{setTrials(v);}} practices={practices} setPractices={v=>{setPractices(v);}} cards={quickTrialCards} setCards={setQuickTrialCards} onClose={()=>setQuickTrial(false)} toast={toast}/>}
       {daysSinceExport>=3&&(
-        <div onClick={handleExport} style={{background:"#2e0505",border:"1px solid #b45252",borderRadius:8,padding:"10px 14px",marginBottom:12,display:"flex",alignItems:"center",gap:10,cursor:"pointer"}}>
+        <div onClick={handleExport} style={{background:"#fef2f2",border:"1px solid #dc2626",borderRadius:8,padding:"10px 14px",marginBottom:12,display:"flex",alignItems:"center",gap:10,cursor:"pointer"}}>
           <span style={{fontSize:16}}>⚠️</span>
           <div style={{flex:1}}>
             <div style={{fontSize:12,color:C.red,fontWeight:700}}>バックアップしてください</div>
@@ -3067,28 +3067,28 @@ function TennisDB(){
       )}
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,flexWrap:"wrap",gap:6}}>
         <div style={{minWidth:0}}>
-          <h1 style={{fontSize:19,fontWeight:800,letterSpacing:"-0.02em",background:`linear-gradient(90deg,${C.accent},#60e0ff)`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",margin:0}}>ゆっけ Tennis DB</h1>
+          <h1 style={{fontSize:19,fontWeight:800,letterSpacing:"-0.02em",background:`linear-gradient(90deg,${C.accent},#0891b2)`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",margin:0}}>ゆっけ Tennis DB</h1>
           <div style={{fontSize:10,color:C.textMuted,marginTop:2}}>
             {user?<span style={{color:syncing?"#fbbf24":"#60a5fa"}}>{syncing?"☁️ 同期中...":"☁️ "+user.email.split("@")[0]}</span>:<span style={{color:C.red}}>⚠ オフライン</span>}
             {" · "}大会 {tournaments.length} / 練習 {practices.length} / 試打 {trials.length} <span style={{color:"#444",marginLeft:4}}>v{APP_VERSION}</span>
           </div>
         </div>
         <div style={{display:"flex",gap:6,flexWrap:"wrap",justifyContent:"flex-end"}}>
-          <button onClick={()=>setShowAddMenu(true)} style={{background:C.accent,border:"none",color:"#000",borderRadius:6,padding:"6px 14px",fontSize:13,fontWeight:800,cursor:"pointer"}}>＋</button>
-          <button onClick={toggleLarge} style={{background:large?"#1a2e10":"#111318",border:`1px solid ${large?C.accent:C.border}`,color:large?C.accent:C.textMuted,borderRadius:6,padding:"6px 10px",fontSize:13,fontWeight:700,cursor:"pointer"}}>{large?"A↓":"A↑"}</button>
-          <button onClick={handleExport} style={{background:"#051828",border:`1px solid ${C.blue}`,color:C.blue,borderRadius:6,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>📤</button>
-          <button onClick={()=>setShowClaudeShare(true)} style={{background:"#130528",border:`1px solid ${C.purple}`,color:C.purple,borderRadius:6,padding:"6px 8px",fontSize:10,fontWeight:600,cursor:"pointer"}}>📋</button>
-          <button onClick={()=>importRef.current.click()} style={{background:"#0d1a10",border:`1px solid ${C.accentDim}`,color:C.accent,borderRadius:6,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>📥</button>
+          <button onClick={()=>setShowAddMenu(true)} style={{background:C.accent,border:"none",color:"#fff",borderRadius:6,padding:"6px 14px",fontSize:13,fontWeight:800,cursor:"pointer"}}>＋</button>
+          <button onClick={toggleLarge} style={{background:large?"#ecfdf5":"#ffffff",border:`1px solid ${large?C.accent:C.border}`,color:large?C.accent:C.textMuted,borderRadius:6,padding:"6px 10px",fontSize:13,fontWeight:700,cursor:"pointer"}}>{large?"A↓":"A↑"}</button>
+          <button onClick={handleExport} style={{background:"#eff6ff",border:`1px solid ${C.blue}`,color:C.blue,borderRadius:6,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>📤</button>
+          <button onClick={()=>setShowClaudeShare(true)} style={{background:"#f5f3ff",border:`1px solid ${C.purple}`,color:C.purple,borderRadius:6,padding:"6px 8px",fontSize:10,fontWeight:600,cursor:"pointer"}}>📋</button>
+          <button onClick={()=>importRef.current.click()} style={{background:"#ecfdf5",border:`1px solid ${C.accentDim}`,color:C.accent,borderRadius:6,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>📥</button>
           <input ref={importRef} type="file" accept=".json" onChange={handleImport} style={{display:"none"}}/>
           {user?
-            <button onClick={handleLogout} style={{background:"#1a1020",border:`1px solid ${C.purple}`,color:C.purple,borderRadius:6,padding:"6px 8px",fontSize:10,fontWeight:600,cursor:"pointer"}}>👤</button>
-            :<button onClick={handleLogin} style={{background:"#1a2810",border:`1px solid ${C.accent}`,color:C.accent,borderRadius:6,padding:"6px 8px",fontSize:10,fontWeight:600,cursor:"pointer"}}>☁️</button>
+            <button onClick={handleLogout} style={{background:"#f5f3ff",border:`1px solid ${C.purple}`,color:C.purple,borderRadius:6,padding:"6px 8px",fontSize:10,fontWeight:600,cursor:"pointer"}}>👤</button>
+            :<button onClick={handleLogin} style={{background:"#ecfdf5",border:`1px solid ${C.accent}`,color:C.accent,borderRadius:6,padding:"6px 8px",fontSize:10,fontWeight:600,cursor:"pointer"}}>☁️</button>
           }
         </div>
       </div>
       <div style={{display:"flex",gap:2,marginBottom:12,background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:3,flexWrap:"wrap"}}>
         {TABS.map(t=>(
-          <button key={t.id} onClick={()=>setTab(t.id)} style={{flex:"1 1 auto",background:tab===t.id?C.accent:"none",border:"none",color:tab===t.id?"#000":C.textMuted,borderRadius:5,padding:"7px 6px",fontSize:10,fontWeight:tab===t.id?700:400,cursor:"pointer",transition:"all 0.12s",whiteSpace:"nowrap"}}>{t.icon} {t.label}</button>
+          <button key={t.id} onClick={()=>setTab(t.id)} style={{flex:"1 1 auto",background:tab===t.id?C.accent:"none",border:"none",color:tab===t.id?"#fff":C.textMuted,borderRadius:5,padding:"7px 6px",fontSize:10,fontWeight:tab===t.id?700:400,cursor:"pointer",transition:"all 0.12s",whiteSpace:"nowrap"}}>{t.icon} {t.label}</button>
         ))}
       </div>
       <div style={{zoom:large?1.22:1}}>
