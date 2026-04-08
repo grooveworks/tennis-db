@@ -24,6 +24,7 @@
 <script type="text/babel">
 const { useState, useEffect, useRef } = React;
 
+const APP_VERSION="1.8.1"; // 2026/04/08
 const C = {
   bg:"#0a0c10", panel:"#111318", panel2:"#0d1018", panel3:"#0a0d14",
   border:"#1e2330", accent:"#00e5a0", accentDim:"#00b87a",
@@ -131,7 +132,7 @@ const StarRow=({label,value,onChange})=>(
 function useToast(){
   const [t,setT]=useState(null);
   const tRef=useRef(null);
-  const show=(msg,color=C.accent,onUndo=null)=>{if(tRef.current)clearTimeout(tRef.current);setT({msg,color,onUndo});tRef.current=setTimeout(()=>setT(null),onUndo?5000:2600);};
+  const show=(msg,color=C.accent,onUndo=null,duration=0)=>{if(tRef.current)clearTimeout(tRef.current);setT({msg,color,onUndo});tRef.current=setTimeout(()=>setT(null),duration||( onUndo?5000:2600));};
   const doUndo=()=>{if(t?.onUndo){t.onUndo();setT(null);}};
   const el=t?<div style={{position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",background:C.panel,border:`1px solid ${t.color}`,color:t.color,borderRadius:8,padding:"10px 20px",fontSize:13,fontWeight:600,zIndex:300,boxShadow:"0 4px 20px #0008",display:"flex",alignItems:"center",gap:12,whiteSpace:"nowrap"}}>
     <span>{t.msg}</span>
@@ -988,7 +989,7 @@ function TournamentsTab({data,setData,rackets,strings,stringSetups,venues,setVen
 }
 
 // ── PRACTICE TAB ──────────────────────────────────
-const blankPractice=()=>({id:`p${Date.now()}`,date:today(),venue:"",type:"スクール",duration:"90",racketName:"",stringSetup:"",tensionMain:"",tensionCross:"",temp:"",weather:"",physical:3,focus:"",coachNote:"",goodNote:"",improveNote:"",generalNote:"",calories:"",totalCalories:"",heartRateAvg:"",heartRateMax:"",timeRange:"",workoutLocation:"",difficulty:"",hrZone1:"",hrZone2:"",hrZone3:"",hrZone4:"",hrZone5:"",recoveryHR:"",hasTrial:false,trialRacketName:"",trialString:"",trialTension:"",trialSpin:3,trialControl:3,trialPower:3,trialFeel:3,trialInfo:3,trialJudgment:"保留",trialNote:""});
+const blankPractice=()=>({id:`p${Date.now()}`,date:today(),venue:"",type:"スクール",duration:"90",racketName:"",stringMain:"",stringCross:"",tensionMain:"",tensionCross:"",temp:"",weather:"",physical:3,focus:"",coachNote:"",goodNote:"",improveNote:"",generalNote:"",calories:"",totalCalories:"",heartRateAvg:"",heartRateMax:"",timeRange:"",workoutLocation:"",difficulty:"",hrZone1:"",hrZone2:"",hrZone3:"",hrZone4:"",hrZone5:"",recoveryHR:"",hasTrial:false,trialRacketName:"",trialString:"",trialStringCross:"",trialTensionMain:"",trialTensionCross:"",trialSpin:3,trialControl:3,trialPower:3,trialFeel:3,trialInfo:3,trialJudgment:"保留",trialNote:""});
 
 function PracticesTab({data,setData,rackets,strings,stringSetups,venues,setVenues,toast,quickAdd,onQuickAddDone}){
   const cfm=useConfirm();
@@ -1046,7 +1047,10 @@ function PracticesTab({data,setData,rackets,strings,stringSetups,venues,setVenue
               </div>
             </div>
           )}
-          <FSelect label="ストリングセッティング" value={f.stringSetup||""} onChange={s("stringSetup")} options={setupOpts}/>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 12px"}}>
+            <FSelect label="縦糸" value={f.stringMain||""} onChange={s("stringMain")} options={getStringOpts(strings)}/>
+            <FSelect label="横糸" value={f.stringCross||""} onChange={s("stringCross")} options={[{value:"",label:"-- 同じ --"},...getStringOpts(strings).slice(1)]}/>
+          </div>
           <TensionFields main={f.tensionMain||""} cross={f.tensionCross||""} onMainChange={s("tensionMain")} onCrossChange={s("tensionCross")}/>
           <div style={{fontSize:11,color:C.accent,margin:"8px 0 8px",paddingBottom:5,borderBottom:`1px solid ${C.border}`}}>▶ 内容・評価</div>
           <Stars label="フィジカルコンディション" value={f.physical} onChange={s("physical")}/>
@@ -1065,7 +1069,8 @@ function PracticesTab({data,setData,rackets,strings,stringSetups,venues,setVenue
             <div style={{background:"#1a1805",border:`1px solid #6b5b10`,borderRadius:8,padding:"12px 14px",marginBottom:10}}>
               <FSelect label="試打ラケット" value={f.trialRacketName||""} onChange={s("trialRacketName")} options={[{value:"",label:"-- ラケットを選択 --"},...rackets.map(r=>({value:r.name,label:r.name}))]}/>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 12px"}}>
-                <FSelect label="ストリング" value={f.trialString||""} onChange={s("trialString")} options={[{value:"",label:"-- 選択 --"},...strings.map(st=>({value:st.name,label:st.name}))]}/>
+                <FSelect label="縦糸" value={f.trialString||""} onChange={s("trialString")} options={getStringOpts(strings)}/>
+                <FSelect label="横糸" value={f.trialStringCross||""} onChange={s("trialStringCross")} options={[{value:"",label:"-- 同じ --"},...getStringOpts(strings).slice(1)]}/>
               </div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 12px"}}>
                 <Field label="テンション縦" value={f.trialTensionMain||""} onChange={s("trialTensionMain")} type="number" placeholder="46"/>
@@ -1215,7 +1220,7 @@ function PracticesTab({data,setData,rackets,strings,stringSetups,venues,setVenue
                     </div>
                   )}
                   <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:10}}>
-                    {[["ラケット",p.racketName||"—"],["セッティング",p.stringSetup||"—"],["時間",p.duration?`${p.duration}分`:"—"],["気温",p.temp?`${p.temp}℃`:"—"],["場所",p.venue||"—"],["種別",p.type||"—"]].map(([k,v])=>(
+                    {[["ラケット",p.racketName||"—"],["セッティング",[p.stringMain,p.stringCross].filter(Boolean).join(" / ")||p.stringSetup||"—"],["時間",p.duration?`${p.duration}分`:"—"],["気温",p.temp?`${p.temp}℃`:"—"],["場所",p.venue||"—"],["種別",p.type||"—"]].map(([k,v])=>(
                       <div key={k} style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:6,padding:"6px 10px"}}>
                         <div style={{fontSize:9,color:C.textMuted,marginBottom:2}}>{k}</div>
                         <div style={{fontSize:11,color:C.textDim,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{v}</div>
@@ -1335,7 +1340,7 @@ const claudeFormatters={
     list.forEach(p=>{
       const ten=fmtTen(p.tensionMain,p.tensionCross);
       l.push(`\n${p.date} ${p.type} ${p.duration||""}分 @${p.venue||"—"} ${p.temp?p.temp+"℃":""} [id:${p.id}]`);
-      if(p.racketName)l.push(`機材: ${p.racketName} / ${p.stringSetup||""} / ${ten!=="—"?ten+"p":""}`);
+      if(p.racketName)l.push(`機材: ${p.racketName} / ${[p.stringMain,p.stringCross].filter(Boolean).join(" / ")||p.stringSetup||""} / ${ten!=="—"?ten+"p":""}`);
       if(p.calories||p.heartRateAvg)l.push(`⌚ ${p.calories?p.calories+"kcal":""} HR:${p.heartRateAvg||"—"}/${p.heartRateMax||"—"}bpm`);
       if(p.focus)l.push(`テーマ: ${p.focus}`);
       if(p.goodNote)l.push(`良: ${p.goodNote}`);
@@ -1348,7 +1353,7 @@ const claudeFormatters={
   },
   trials:(list,practices)=>{
     const practiceTrials=(practices||[]).filter(p=>p.hasTrial&&p.trialRacketName).map(p=>({
-      id:`pt-${p.id}`,date:p.date,racketName:p.trialRacketName,string:p.trialString||"",stringCross:"",tensionMain:p.trialTension||"",tensionCross:"",temp:p.temp||"",venue:p.venue||"",
+      id:`pt-${p.id}`,date:p.date,racketName:p.trialRacketName,string:p.trialString||"",stringCross:p.trialStringCross||"",tensionMain:p.trialTensionMain||p.trialTension||"",tensionCross:p.trialTensionCross||"",temp:p.temp||"",venue:p.venue||"",
       judgment:p.trialJudgment||"保留",spin:p.trialSpin||3,control:p.trialControl||3,power:p.trialPower||3,feel:p.trialFeel||3,info:p.trialInfo||3,
       strokeNote:"",serveNote:"",volleyNote:"",generalNote:p.trialNote||"",sessions:[],fromPractice:true
     }));
@@ -1525,7 +1530,7 @@ const formatPracticeForClaude=(p)=>{
   const l=[
     `# 練習共有 [id:${p.id}]`,
     `${p.date} ${p.type} ${p.duration||""}分 @${p.venue||"—"} ${p.temp?p.temp+"℃":""}`,
-    `機材: ${p.racketName||"—"} / ${p.stringSetup||""} / ${ten!=="—"?ten+"p":""}`,
+    `機材: ${p.racketName||"—"} / ${[p.stringMain,p.stringCross].filter(Boolean).join(" / ")||p.stringSetup||""} / ${ten!=="—"?ten+"p":""}`,
   ];
   if(p.calories||p.heartRateAvg)l.push(`⌚ ${p.calories?p.calories+"kcal":""} HR:${p.heartRateAvg||"—"}/${p.heartRateMax||"—"}bpm`);
   if(p.focus)l.push(`テーマ: ${p.focus}`);
@@ -1554,7 +1559,7 @@ function TrialsTab({data,setData,practices,rackets,strings,venues,setVenues,toas
   const handleDelete=id=>cfm.ask("この記録を削除しますか？",()=>{persist(data.filter(t=>t.id!==id));setExpanded(null);toast.show("🗑 削除しました",C.red);});
   const avg=t=>((t.spin+t.control+t.power+t.feel+t.info)/5).toFixed(1);
   const practiceTrials=(practices||[]).filter(p=>p.hasTrial&&p.trialRacketName).map(p=>({
-    id:`pt-${p.id}`,date:p.date,racketName:p.trialRacketName,string:p.trialString||"",stringCross:"",tension:p.trialTension||"",temp:p.temp||"",venue:p.venue||"",
+    id:`pt-${p.id}`,date:p.date,racketName:p.trialRacketName,string:p.trialString||"",stringCross:p.trialStringCross||"",tensionMain:p.trialTensionMain||p.trialTension||"",tensionCross:p.trialTensionCross||"",temp:p.temp||"",venue:p.venue||"",
     judgment:p.trialJudgment||"保留",spin:p.trialSpin||3,control:p.trialControl||3,power:p.trialPower||3,feel:p.trialFeel||3,info:p.trialInfo||3,
     strokeNote:"",serveNote:"",volleyNote:"",generalNote:p.trialNote||"",sessions:[],fromPractice:true,practiceType:p.type
   }));
@@ -2452,7 +2457,7 @@ function ProfileTab({data,setData,toast}){
 
 // ── QUICK TRIAL MODE ──────────────────────────────
 // ── QUICK TRIAL MODE ──────────────────────────────
-function QuickTrialMode({rackets,stringSetups,strings,trials,setTrials,cards,setCards,onClose,toast}){
+function QuickTrialMode({rackets,stringSetups,strings,trials,setTrials,practices,setPractices,cards,setCards,onClose,toast}){
   const [selected,setSelected]=useState(null);
   const [adding,setAdding]=useState(false);
   const [addF,setAddF]=useState({racket:"",string:"",stringCross:"",tensionMain:"",tensionCross:""});
@@ -2484,11 +2489,21 @@ function QuickTrialMode({rackets,stringSetups,strings,trials,setTrials,cards,set
 
   const handleSave=()=>{
     const card=cards.find(c=>c.id===selected);if(!card)return;
-    const trial={id:`t${Date.now()}`,date:new Date().toLocaleDateString("ja-JP",{year:"numeric",month:"2-digit",day:"2-digit"}),racketName:card.racket,string:card.string||"",stringCross:card.stringCross||"",tensionMain:card.tensionMain||"",tensionCross:card.tensionCross||"",temp:"",venue:"",judgment:"保留",spin:eval_.spin,control:eval_.safety,power:eval_.power,feel:eval_.hold,info:eval_.info,strokeNote:eval_.goodShots.length>0?"良: "+eval_.goodShots.join(", "):"",serveNote:"",volleyNote:"",generalNote:eval_.memo,sessions:[]};
-    const updated=[trial,...(trials||[])];
-    setTrials(updated);save(KEYS.trials,updated);
+    const todayDate=new Date().toLocaleDateString("ja-JP",{year:"numeric",month:"2-digit",day:"2-digit"});
+    const trial={id:`t${Date.now()}`,date:todayDate,racketName:card.racket,string:card.string||"",stringCross:card.stringCross||"",tensionMain:card.tensionMain||"",tensionCross:card.tensionCross||"",temp:"",venue:"",judgment:"保留",spin:eval_.spin,control:eval_.safety,power:eval_.power,feel:eval_.hold,info:eval_.info,strokeNote:eval_.goodShots.length>0?"良: "+eval_.goodShots.join(", "):"",serveNote:"",volleyNote:"",generalNote:eval_.memo,sessions:[]};
+    const updatedTrials=[trial,...(trials||[])];
+    setTrials(updatedTrials);save(KEYS.trials,updatedTrials);
+    // 同じ日の練習レコードに自動紐づけ
+    const matchingPractices=(practices||[]).filter(p=>p.date===todayDate);
+    let linked=false;
+    if(matchingPractices.length>0){
+      const target=matchingPractices[0]; // 最新（先頭）
+      const updatedPractices=(practices||[]).map(p=>p.id===target.id?{...p,hasTrial:true,trialRacketName:card.racket,trialString:card.string||"",trialStringCross:card.stringCross||"",trialTensionMain:card.tensionMain||"",trialTensionCross:card.tensionCross||"",trialSpin:eval_.spin,trialControl:eval_.safety,trialPower:eval_.power,trialFeel:eval_.hold,trialInfo:eval_.info,trialJudgment:"保留",trialNote:eval_.memo}:p);
+      setPractices(updatedPractices);save(KEYS.practices,updatedPractices);
+      linked=true;
+    }
     persistCards(cards.filter(c=>c.id!==selected));
-    toast.show("✅ 試打タブに保存 → カード削除");
+    toast.show(linked?"✅ 試打タブに保存 → 練習と紐づけ":"✅ 試打タブに保存",C.accent,null,linked?4000:2600);
     setSelected(null);setEval({info:3,power:3,spin:3,hold:3,swing:3,safety:3,goodShots:[],memo:""});
   };
 
@@ -2723,7 +2738,7 @@ function SearchTab({tournaments,practices,rackets,stringSetups}){
       });
     });
     (practices||[]).forEach(p=>{
-      recs.push({type:"🏃",date:p.date,name:p.type||"練習",level:"",racket:p.racketName||"",setup:p.stringSetup||"",tension:fmtTension(p.tensionMain,p.tensionCross,p.tension),tensionMain:p.tensionMain||"",tensionCross:p.tensionCross||"",temp:p.temp||"",weather:p.weather||"",result:""});
+      recs.push({type:"🏃",date:p.date,name:p.type||"練習",level:"",racket:p.racketName||"",setup:[p.stringMain,p.stringCross].filter(Boolean).join(" / ")||p.stringSetup||"",tension:fmtTension(p.tensionMain,p.tensionCross,p.tension),tensionMain:p.tensionMain||"",tensionCross:p.tensionCross||"",temp:p.temp||"",weather:p.weather||"",result:""});
     });
     return recs.sort((a,b)=>(b.date||"").localeCompare(a.date||""));
   },[tournaments,practices]);
@@ -3005,7 +3020,7 @@ function TennisDB(){
       `}</style>
       {toast.el}
       {showClaudeShare&&<ClaudeShareModal onClose={()=>setShowClaudeShare(false)} data={{profile,rackets,strings,measurements,tournaments,practices,trials,mental,next}} toast={toast}/>}
-      {quickTrial&&<QuickTrialMode rackets={rackets} stringSetups={stringSetups} strings={strings} trials={trials} setTrials={v=>{setTrials(v);}} cards={quickTrialCards} setCards={setQuickTrialCards} onClose={()=>setQuickTrial(false)} toast={toast}/>}
+      {quickTrial&&<QuickTrialMode rackets={rackets} stringSetups={stringSetups} strings={strings} trials={trials} setTrials={v=>{setTrials(v);}} practices={practices} setPractices={v=>{setPractices(v);}} cards={quickTrialCards} setCards={setQuickTrialCards} onClose={()=>setQuickTrial(false)} toast={toast}/>}
       {daysSinceExport>=3&&(
         <div onClick={handleExport} style={{background:"#2e0505",border:"1px solid #b45252",borderRadius:8,padding:"10px 14px",marginBottom:12,display:"flex",alignItems:"center",gap:10,cursor:"pointer"}}>
           <span style={{fontSize:16}}>⚠️</span>
@@ -3031,7 +3046,7 @@ function TennisDB(){
           <h1 style={{fontSize:19,fontWeight:800,letterSpacing:"-0.02em",background:`linear-gradient(90deg,${C.accent},#60e0ff)`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",margin:0}}>ゆっけ Tennis DB</h1>
           <div style={{fontSize:10,color:C.textMuted,marginTop:2}}>
             {user?<span style={{color:syncing?"#fbbf24":"#60a5fa"}}>{syncing?"☁️ 同期中...":"☁️ "+user.email.split("@")[0]}</span>:<span style={{color:C.red}}>⚠ オフライン</span>}
-            {" · "}大会 {tournaments.length} / 練習 {practices.length} / 試打 {trials.length}
+            {" · "}大会 {tournaments.length} / 練習 {practices.length} / 試打 {trials.length} <span style={{color:"#444",marginLeft:4}}>v{APP_VERSION}</span>
           </div>
         </div>
         <div style={{display:"flex",gap:6,flexWrap:"wrap",justifyContent:"flex-end"}}>
