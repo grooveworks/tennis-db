@@ -22,9 +22,9 @@
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const { useState, useEffect, useRef } = React;
+const { useState, useEffect, useRef, useMemo } = React;
 
-const APP_VERSION="2.0.0"; // 2026/04/09 v2 data structure migration
+const APP_VERSION="2.0.1"; // 2026/04/09 v2 bugfix: useMemo import, measurements migration, sort fixes
 const C = {
   bg:"#f2f2f7", panel:"#ffffff", panel2:"#e8e8ed", panel3:"#dddde2",
   border:"#c7c7cc", accent:"#00b87a", accentDim:"#009963",
@@ -851,7 +851,7 @@ function TournamentsTab({data,setData,rackets,strings,stringSetups,venues,setVen
     if(t.overallResult==="優勝")byMonth[m].wins++;
     byMonth[m].results.push(t.overallResult);
   });
-  const months=Object.keys(byMonth).sort();
+  const months=Object.keys(byMonth).sort().reverse();
 
   // 直近5大会
   const recent5=data.slice(0,5);
@@ -1937,7 +1937,7 @@ function StringsTab({data,setData,stringSetups,setStringSetups,toast}){
   };
   const handleDeleteSetup=id=>cfm.ask("このセッティングを削除しますか？",()=>{persistSS((stringSetups||[]).filter(s=>s.id!==id));toast.show("🗑 削除しました",C.red);});
   const toggleArchiveSetup=s=>{persistSS((stringSetups||[]).map(x=>x.id===s.id?{...x,status:x.status==="archived"?"active":"archived"}:x));};
-  const handleSave=form=>{const isNew=!data.find(s=>s.id===form.id);persist(isNew?[...data,form]:data.map(s=>s.id===form.id?form:s));setModal(null);toast.show("✅ 更新しました");};
+  const handleSave=form=>{const isNew=!data.find(s=>s.id===form.id);persist(isNew?[form,...data]:data.map(s=>s.id===form.id?form:s));setModal(null);toast.show("✅ 更新しました");};
   const handleDelete=id=>cfm.ask("この記録を削除しますか？",()=>{persist(data.filter(s=>s.id!==id));toast.show("🗑 削除しました",C.red);});
   const ss={active:{color:C.accent,label:"使用中"},key:{color:C.yellow,label:"最有力"},hold:{color:C.textMuted,label:"保留"},rejected:{color:C.red,label:"除外"}};
   const rejected=data.filter(s=>s.status==="rejected");
@@ -3207,8 +3207,8 @@ function TennisDB(){
     });
     // 4. Measurements → racket.measurements[]
     r.forEach(rack=>{
-      if(!rack.measurements){
-        rack.measurements=ms.filter(m=>m.racket===rack.name||m.racketId===rack.id).map(m=>({...m,racketId:rack.id}));
+      if(!rack.measurements||rack.measurements.length===0){
+        rack.measurements=ms.filter(m=>m.racket===rack.name||m.racketId===rack.id||rack.name.includes(m.racket)||m.racket&&m.racket.includes(rack.name)).map(m=>({...m,racketId:rack.id}));
       }
     });
     // Sort trials
@@ -3216,6 +3216,22 @@ function TennisDB(){
     console.log("✅ v2 migration complete");
     lsSave("migrated_v2",true);
     return {...data,tournaments:t,practices:p,trials:tr,rackets:r};
+  };
+  // v2.1: Fix measurements integration (runs if v2 already ran but measurements weren't copied)
+  const fixMeasurements=(data)=>{
+    if(lsLoad("migrated_v2_measurements"))return data;
+    const r=[...(data.rackets||[])];
+    const ms=[...(data.measurements||[])];
+    if(ms.length===0){lsSave("migrated_v2_measurements",true);return data;}
+    r.forEach(rack=>{
+      if(!rack.measurements||rack.measurements.length===0){
+        rack.measurements=ms.filter(m=>m.racket===rack.name||m.racketId===rack.id||(m.racket&&rack.name.includes(m.racket))||(m.racket&&m.racket.includes(rack.name))).map(m=>({...m,racketId:rack.id}));
+      }
+    });
+    console.log("✅ v2.1 measurements fix complete");
+    lsSave("migrated_v2_measurements",true);
+    lsSave(KEYS.rackets,r);
+    return {...data,rackets:r};
   };
 
   // Load from localStorage first
@@ -3237,10 +3253,10 @@ function TennisDB(){
       quickTrialCards:local.quickTrialCards||[],
       opponents:local.opponents||[],
     };
-    const migrated=migrateToV2(raw);
+    const migrated=fixMeasurements(migrateToV2(raw));
     applyData(migrated);
     // Save migrated data
-    if(!lsLoad("migrated_v2_saved")){
+    if(!lsLoad("migrated_v2_saved")||!lsLoad("migrated_v2_measurements")){
       Object.entries(KEYS).forEach(([name,key])=>{
         if(migrated[name])lsSave(key,migrated[name]);
       });
