@@ -24,7 +24,7 @@
 <script type="text/babel">
 const { useState, useEffect, useRef, useMemo } = React;
 
-const APP_VERSION="2.0.1"; // 2026/04/09 v2 bugfix: useMemo import, measurements migration, sort fixes
+const APP_VERSION="2.0.2"; // 2026/04/09 string status 6-tier + grouped view string badges
 const C = {
   bg:"#f2f2f7", panel:"#ffffff", panel2:"#e8e8ed", panel3:"#dddde2",
   border:"#c7c7cc", accent:"#00b87a", accentDim:"#009963",
@@ -1619,6 +1619,8 @@ function TrialsTab({data,setData,practices,rackets,strings,venues,setVenues,toas
 
   // Grouped view: racket × string combination
   const getRacketStatus=(name)=>{const r=(rackets||[]).find(r=>r.name===name);return r?.status||"";};
+  const getStringStatus=(name)=>{const s=(strings||[]).find(s=>s.name===name);return s?.status||"";};
+  const stStatusMap={confirmed:{color:"green",label:"確定"},good:{color:"blue",label:"好印象"},testing:{color:"orange",label:"検証中"},candidate:{color:"purple",label:"候補"},hold:{color:"gray",label:"保留"},rejected:{color:"red",label:"除外"},active:{color:"green",label:"確定"},key:{color:"blue",label:"好印象"}};
   const groups=useMemo(()=>{
     const map={};
     filtered.forEach(t=>{
@@ -1660,16 +1662,29 @@ function TrialsTab({data,setData,practices,rackets,strings,venues,setVenues,toas
           {groups.map(g=>{
             const gKey=`${g.racket}|${g.stringMain}|${g.stringCross}`;
             const stLabel=[g.stringMain,g.stringCross].filter(Boolean).join(" / ");
+            const stMainStatus=getStringStatus(g.stringMain);
+            const stCrossStatus=g.stringCross?getStringStatus(g.stringCross):"";
             return (
               <div key={gKey} style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:10,overflow:"hidden"}}>
                 <div style={{padding:"10px 14px",borderBottom:`1px solid ${C.border}`,background:C.panel2}}>
                   <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
                     <span style={{fontSize:13,fontWeight:700,color:C.text}}>{g.racket}</span>
                     {g.status&&<Badge color={statusColor[g.status]||"gray"} sm>{statusLabel[g.status]||g.status}</Badge>}
-                    <Badge color={jc[g.latestJudgment]||"gray"} sm>{g.latestJudgment}</Badge>
-                    <span style={{fontSize:10,color:C.textMuted}}>{g.trials.length}回</span>
                   </div>
-                  <div style={{fontSize:11,color:C.textMuted,marginTop:3}}>{stLabel}</div>
+                  <div style={{display:"flex",alignItems:"center",gap:6,marginTop:4,flexWrap:"wrap"}}>
+                    <span style={{fontSize:11,color:C.textDim}}>{g.stringMain||"—"}</span>
+                    {stMainStatus&&stStatusMap[stMainStatus]&&<Badge color={stStatusMap[stMainStatus].color} sm>{stStatusMap[stMainStatus].label}</Badge>}
+                    {g.stringCross&&<>
+                      <span style={{fontSize:10,color:C.textMuted}}>/</span>
+                      <span style={{fontSize:11,color:C.textDim}}>{g.stringCross}</span>
+                      {stCrossStatus&&stStatusMap[stCrossStatus]&&<Badge color={stStatusMap[stCrossStatus].color} sm>{stStatusMap[stCrossStatus].label}</Badge>}
+                    </>}
+                  </div>
+                  <div style={{display:"flex",alignItems:"center",gap:8,marginTop:4}}>
+                    <span style={{fontSize:10,color:C.textMuted}}>組み合わせ:</span>
+                    <Badge color={jc[g.latestJudgment]||"gray"} sm>{g.latestJudgment}</Badge>
+                    <span style={{fontSize:10,color:C.textMuted}}>{g.trials.length}回試打</span>
+                  </div>
                 </div>
                 {g.trials.map((t,ti)=>{
                   const isOpen=expanded===t.id;const ac=avg(t);const ac2=parseFloat(ac)>=4?C.accent:parseFloat(ac)>=3?C.yellow:C.red;
@@ -1939,7 +1954,7 @@ function StringsTab({data,setData,stringSetups,setStringSetups,toast}){
   const toggleArchiveSetup=s=>{persistSS((stringSetups||[]).map(x=>x.id===s.id?{...x,status:x.status==="archived"?"active":"archived"}:x));};
   const handleSave=form=>{const isNew=!data.find(s=>s.id===form.id);persist(isNew?[form,...data]:data.map(s=>s.id===form.id?form:s));setModal(null);toast.show("✅ 更新しました");};
   const handleDelete=id=>cfm.ask("この記録を削除しますか？",()=>{persist(data.filter(s=>s.id!==id));toast.show("🗑 削除しました",C.red);});
-  const ss={active:{color:C.accent,label:"使用中"},key:{color:C.yellow,label:"最有力"},hold:{color:C.textMuted,label:"保留"},rejected:{color:C.red,label:"除外"}};
+  const ss={confirmed:{color:C.accent,label:"確定"},good:{color:"#2563eb",label:"好印象"},testing:{color:C.orange,label:"検証中"},candidate:{color:C.purple,label:"候補"},hold:{color:C.textMuted,label:"保留"},rejected:{color:C.red,label:"除外"},active:{color:C.accent,label:"確定"},key:{color:"#2563eb",label:"好印象"}};
   const rejected=data.filter(s=>s.status==="rejected");
   const list=showAll?data:data.filter(s=>s.status!=="rejected");
   const Modal=({item})=>{
@@ -1953,7 +1968,7 @@ function StringsTab({data,setData,stringSetups,setStringSetups,toast}){
           </div>
           <Field label="ストリング名" value={f.name||""} onChange={s("name")} placeholder="Babolat Blast 1.25"/>
           <Field label="在庫量" value={f.qty||""} onChange={s("qty")} placeholder="大量 / 1張り / 200m"/>
-          <FSelect label="ステータス" value={f.status||"hold"} onChange={s("status")} options={[{value:"active",label:"使用中"},{value:"key",label:"最有力"},{value:"hold",label:"保留"},{value:"rejected",label:"除外"}]}/>
+          <FSelect label="ステータス" value={f.status||"hold"} onChange={s("status")} options={[{value:"confirmed",label:"✅ 確定"},{value:"good",label:"👍 好印象"},{value:"testing",label:"🔬 検証中"},{value:"candidate",label:"💡 候補"},{value:"hold",label:"⏸ 保留"},{value:"rejected",label:"❌ 除外"}]}/>
           <Field label="メモ" value={f.note||""} onChange={s("note")} multiline placeholder="使用用途、評価など..."/>
           <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:14}}>
             <Btn onClick={()=>setModal(null)}>キャンセル</Btn>
