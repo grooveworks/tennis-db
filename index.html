@@ -24,11 +24,11 @@
 <script type="text/babel">
 const { useState, useEffect, useRef } = React;
 
-const APP_VERSION="1.9.0"; // 2026/04/08 Light Theme
+const APP_VERSION="1.9.1"; // 2026/04/08 Light Theme - darker muted text
 const C = {
   bg:"#f2f2f7", panel:"#ffffff", panel2:"#e8e8ed", panel3:"#dddde2",
   border:"#c7c7cc", accent:"#00b87a", accentDim:"#009963",
-  text:"#1a1a1a", textMuted:"#6b7280", textDim:"#9ca3af",
+  text:"#1a1a1a", textMuted:"#4b5563", textDim:"#6b7280",
   red:"#dc2626", yellow:"#d97706", blue:"#2563eb", purple:"#7c3aed", orange:"#ea580c",
 };
 
@@ -2528,7 +2528,7 @@ function QuickTrialMode({rackets,stringSetups,strings,trials,setTrials,practices
     setSelected(null);setEval({info:3,power:3,spin:3,hold:3,swing:3,safety:3,goodShots:[],memo:""});
   };
 
-  const bg="#f5f0e8",txt="#222",muted="#888",bdr="#ddd";
+  const bg="#f5f0e8",txt="#222",muted="#555",bdr="#ccc";
 
   // Evaluation view
   if(selected){
