@@ -24,7 +24,7 @@
 <script type="text/babel">
 const { useState, useEffect, useRef } = React;
 
-const APP_VERSION="1.8.3"; // 2026/04/08
+const APP_VERSION="1.8.4"; // 2026/04/08
 const C = {
   bg:"#0a0c10", panel:"#111318", panel2:"#0d1018", panel3:"#0a0d14",
   border:"#1e2330", accent:"#00e5a0", accentDim:"#00b87a",
@@ -2464,6 +2464,27 @@ function QuickTrialMode({rackets,stringSetups,strings,trials,setTrials,practices
   const [eval_,setEval]=useState({info:3,power:3,spin:3,hold:3,swing:3,safety:3,goodShots:[],memo:""});
 
   const persistCards=list=>{setCards(list);save(KEYS.quickTrialCards,list);};
+  const selectCard=id=>{
+    // 現在のカードにeval_を保存してから切り替え
+    if(selected){
+      persistCards(cards.map(c=>c.id===selected?{...c,eval:{info:eval_.info,power:eval_.power,spin:eval_.spin,hold:eval_.hold,swing:eval_.swing,safety:eval_.safety,goodShots:eval_.goodShots,memo:eval_.memo}}:c));
+    }
+    // 新しいカードのevalを読み込む
+    const card=cards.find(c=>c.id===id);
+    if(card?.eval){
+      setEval({...card.eval,goodShots:card.eval.goodShots||[]});
+    }else{
+      setEval({info:3,power:3,spin:3,hold:3,swing:3,safety:3,goodShots:[],memo:""});
+    }
+    setSelected(id);
+  };
+  const backToList=()=>{
+    // カードにeval_を保存してから一覧に戻る
+    if(selected){
+      persistCards(cards.map(c=>c.id===selected?{...c,eval:{info:eval_.info,power:eval_.power,spin:eval_.spin,hold:eval_.hold,swing:eval_.swing,safety:eval_.safety,goodShots:eval_.goodShots,memo:eval_.memo}}:c));
+    }
+    setSelected(null);
+  };
   const activeRackets=rackets.filter(r=>r.status!=="retired");
   const rOpts=[{value:"",label:"-- ラケット --"},...activeRackets.map(r=>({value:r.name,label:r.name}))];
   const statusColor={active:"#e74c3c",candidate:"#3498db",considering:"#95a5a6",support:"#27ae60"};
@@ -2516,7 +2537,7 @@ function QuickTrialMode({rackets,stringSetups,strings,trials,setTrials,practices
     return (
       <div style={{position:"fixed",inset:0,background:bg,zIndex:500,overflowY:"auto",fontFamily:"'Noto Sans JP',sans-serif"}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 16px",borderBottom:"1px solid "+bdr}}>
-          <button onClick={()=>setSelected(null)} style={{background:"none",border:"none",fontSize:14,color:txt,cursor:"pointer",fontWeight:600}}>← 一覧</button>
+          <button onClick={backToList} style={{background:"none",border:"none",fontSize:14,color:txt,cursor:"pointer",fontWeight:600}}>← 一覧</button>
           <span style={{fontSize:13,color:muted}}>試打ノート</span>
           <div style={{width:40}}></div>
         </div>
@@ -2549,7 +2570,7 @@ function QuickTrialMode({rackets,stringSetups,strings,trials,setTrials,practices
           </div>
           <div style={{marginBottom:20}}>
             <div style={{fontSize:16,fontWeight:700,color:txt,marginBottom:8}}>メモ（一言）</div>
-            <textarea value={eval_.memo} onChange={e=>setEval(p=>({...p,memo:e.target.value}))} placeholder="気づいたことを一言..." rows={3} style={{width:"100%",borderRadius:8,border:"1px solid "+bdr,padding:"12px",fontSize:14,fontFamily:"inherit",resize:"vertical",color:txt}}/>
+            <textarea value={eval_.memo} onChange={e=>setEval(p=>({...p,memo:e.target.value}))} placeholder="気づいたことを一言..." rows={3} style={{width:"100%",borderRadius:8,border:"1px solid "+bdr,padding:"12px",fontSize:14,fontFamily:"inherit",resize:"vertical",color:txt,background:"#fff"}}/>
           </div>
           <button onClick={handleSave} style={{width:"100%",background:sc,border:"none",borderRadius:10,padding:"14px",fontSize:16,fontWeight:700,color:"#fff",cursor:"pointer"}}>保存して試打タブに転送する</button>
         </div>
@@ -2572,8 +2593,11 @@ function QuickTrialMode({rackets,stringSetups,strings,trials,setTrials,practices
           </div>
         )}
         {cards.map(card=>(
-          <button key={card.id} onClick={()=>setSelected(card.id)} style={{display:"block",width:"100%",textAlign:"left",background:"#fff",border:"2px solid "+card.color+"30",borderLeft:"4px solid "+card.color,borderRadius:10,padding:"16px 20px",marginBottom:10,cursor:"pointer"}}>
-            <div style={{fontSize:18,fontWeight:800,color:card.color}}>{card.racket}</div>
+          <button key={card.id} onClick={()=>selectCard(card.id)} style={{display:"block",width:"100%",textAlign:"left",background:"#fff",border:"2px solid "+card.color+"30",borderLeft:"4px solid "+card.color,borderRadius:10,padding:"16px 20px",marginBottom:10,cursor:"pointer"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div style={{fontSize:18,fontWeight:800,color:card.color}}>{card.racket}</div>
+              {card.eval&&<span style={{fontSize:10,color:muted,background:"#eee",padding:"2px 8px",borderRadius:4}}>評価済み</span>}
+            </div>
             <div style={{fontSize:13,color:muted,marginTop:4}}>{[card.string,card.stringCross].filter(Boolean).join(" / ")}{card.tensionMain?" / "+fmtTension(card.tensionMain,card.tensionCross):""}</div>
           </button>
         ))}
