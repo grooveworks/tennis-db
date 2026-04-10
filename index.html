@@ -24,7 +24,7 @@
 <script type="text/babel">
 const { useState, useEffect, useRef, useMemo } = React;
 
-const APP_VERSION="2.0.4"; // 2026/04/09 P2: tab grouping, undo delete, badge icons
+const APP_VERSION="2.0.5"; // 2026/04/09 Fix: unit duplication, tab overflow
 const C = {
   bg:"#f2f2f7", panel:"#ffffff", panel2:"#e8e8ed", panel3:"#dddde2",
   border:"#c7c7cc", accent:"#00b87a", accentDim:"#009963",
@@ -1886,7 +1886,7 @@ function RacketsTab({data,setData,toast}){
                   <Badge color={sc} sm>{sl}</Badge>
                 </div>
                 {cur?(
-                  <div style={{fontSize:12,color:C.textMuted}}>{cur.weight?cur.weight+"g":"—"} / {cur.balance?cur.balance+"mm":"—"} / {cur.gripW&&cur.gripT?cur.gripW+"×"+cur.gripT+"mm":"—"}</div>
+                  <div style={{fontSize:12,color:C.textMuted}}>{cur.weight||"—"} / {cur.balance||"—"} / {cur.gripW&&cur.gripT?cur.gripW+"×"+cur.gripT:"—"}</div>
                 ):(
                   <div style={{fontSize:12,color:C.textMuted}}>{r.weight||"—"} / {r.balance||"—"}</div>
                 )}
@@ -1912,7 +1912,7 @@ function RacketsTab({data,setData,toast}){
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                       <div>
                         <div style={{fontSize:12,fontWeight:m.current?700:400,color:C.text}}>{m.state||"（状態未入力）"}{m.current?" ✅":""}</div>
-                        <div style={{fontSize:12,color:C.textMuted,marginTop:2}}>{m.weight?m.weight+"g":"—"} / {m.balance?m.balance+"mm":"—"} / {m.gripW&&m.gripT?m.gripW+"×"+m.gripT+"mm":"—"}</div>
+                        <div style={{fontSize:12,color:C.textMuted,marginTop:2}}>{m.weight||"—"} / {m.balance||"—"} / {m.gripW&&m.gripT?m.gripW+"×"+m.gripT:"—"}</div>
                       </div>
                       <div style={{display:"flex",gap:4}}>
                         <button onClick={()=>setMModal({rId:r.id,item:m})} style={{background:"none",border:"none",color:C.textMuted,cursor:"pointer",fontSize:14,padding:"10px 8px",minWidth:44,minHeight:44,display:"inline-flex",alignItems:"center",justifyContent:"center"}}>✏️</button>
@@ -3455,9 +3455,9 @@ function TennisDB(){
             <button key={t.id} onClick={()=>setTab(t.id)} style={{flex:"1 1 auto",background:tab===t.id?C.accent:"none",border:"none",color:tab===t.id?"#fff":C.textMuted,borderRadius:5,padding:"10px 6px",fontSize:12,fontWeight:tab===t.id?700:400,cursor:"pointer",transition:"all 0.12s",whiteSpace:"nowrap",minHeight:44}}>{t.icon} {t.label}</button>
           ))}
         </div>
-        <div style={{display:"flex",gap:2,background:C.panel2,border:`1px solid ${C.border}`,borderTop:"none",borderRadius:"0 0 8px 8px",padding:3}}>
+        <div style={{display:"flex",gap:2,background:C.panel2,border:`1px solid ${C.border}`,borderTop:"none",borderRadius:"0 0 8px 8px",padding:3,overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
           {TABS_SECONDARY.map(t=>(
-            <button key={t.id} onClick={()=>setTab(t.id)} style={{flex:"1 1 auto",background:tab===t.id?C.accent:"none",border:"none",color:tab===t.id?"#fff":C.textDim,borderRadius:5,padding:"8px 5px",fontSize:12,fontWeight:tab===t.id?700:400,cursor:"pointer",transition:"all 0.12s",whiteSpace:"nowrap",minHeight:40}}>{t.icon} {t.label}</button>
+            <button key={t.id} onClick={()=>setTab(t.id)} style={{flex:"0 0 auto",background:tab===t.id?C.accent:"none",border:"none",color:tab===t.id?"#fff":C.textDim,borderRadius:5,padding:"8px 8px",fontSize:12,fontWeight:tab===t.id?700:400,cursor:"pointer",transition:"all 0.12s",whiteSpace:"nowrap",minHeight:40}}>{t.icon} {t.label}</button>
           ))}
         </div>
       </div>
