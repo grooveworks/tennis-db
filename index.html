@@ -24,7 +24,7 @@
 <script type="text/babel">
 const { useState, useEffect, useRef, useMemo } = React;
 
-const APP_VERSION="2.0.7"; // 2026/04/10 Fix: tab overflow (icons removed), PC width 768px
+const APP_VERSION="2.0.8"; // 2026/04/10 Fix: remove maxWidth, full width on PC
 const C = {
   bg:"#f2f2f7", panel:"#ffffff", panel2:"#e8e8ed", panel3:"#dddde2",
   border:"#c7c7cc", accent:"#00b87a", accentDim:"#009963",
@@ -3395,7 +3395,7 @@ function TennisDB(){
   if(!ready) return <div style={{background:C.bg,minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",color:C.textMuted,fontFamily:"sans-serif"}}>読み込み中...</div>;
 
   return (
-    <div style={{minHeight:"100vh",background:C.bg,color:C.text,fontFamily:"'DM Sans','Noto Sans JP',sans-serif",padding:"16px 14px",maxWidth:768,margin:"0 auto"}}>
+    <div style={{minHeight:"100vh",background:C.bg,color:C.text,fontFamily:"'DM Sans','Noto Sans JP',sans-serif",padding:"16px 14px"}}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700;800&family=Noto+Sans+JP:wght@400;500;700&display=swap');
         *{box-sizing:border-box;margin:0;padding:0;}
