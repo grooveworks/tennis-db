@@ -24,7 +24,7 @@
 <script type="text/babel">
 const { useState, useEffect, useRef, useMemo } = React;
 
-const APP_VERSION="2.1.0"; // 2026/04/10 LinkedMatchId auto-set + manual unlink + UD dot fix
+const APP_VERSION="2.1.1"; // 2026/04/10 Manual link selection dropdown (practice + match)
 const C = {
   bg:"#f2f2f7", panel:"#ffffff", panel2:"#e8e8ed", panel3:"#dddde2",
   border:"#c7c7cc", accent:"#00b87a", accentDim:"#009963",
@@ -1546,7 +1546,7 @@ const copyToClipboard=async(text,toast,label)=>{
   }
 };
 
-function TrialsTab({data,setData,practices,rackets,strings,venues,setVenues,toast,quickAdd,onQuickAddDone}){
+function TrialsTab({data,setData,tournaments,practices,rackets,strings,venues,setVenues,toast,quickAdd,onQuickAddDone}){
   const cfm=useConfirm();
   const [expanded,setExpanded]=useState(null);
   const [modal,setModal]=useState(null);
@@ -1615,23 +1615,9 @@ function TrialsTab({data,setData,practices,rackets,strings,venues,setVenues,toas
               <button key={j} onClick={()=>s("judgment")(j)} style={{flex:1,background:f.judgment===j?({採用候補:"#ecfdf5",保留:"#fffbeb",却下:"#fef2f2"}[j]):"none",border:`1px solid ${f.judgment===j?({採用候補:C.accent,保留:C.yellow,却下:C.red}[j]):C.border}`,color:f.judgment===j?({採用候補:C.accent,保留:C.yellow,却下:C.red}[j]):C.textMuted,borderRadius:6,padding:"8px",fontSize:12,fontWeight:700,cursor:"pointer",minHeight:44}}>{j}</button>
             ))}
           </div>
-          <div style={{fontSize:12,color:C.textMuted,margin:"6px 0 8px",paddingBottom:5,borderBottom:`1px solid ${C.border}`}}>▶ リンク（自動設定・手動で解除可能）</div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 12px"}}>
-            <div style={{marginBottom:10}}>
-              <div style={{fontSize:12,color:C.textMuted,marginBottom:4}}>練習リンク</div>
-              <div style={{display:"flex",alignItems:"center",gap:6}}>
-                <span style={{fontSize:12,color:f.linkedPracticeId?C.blue:C.textMuted,flex:1}}>{f.linkedPracticeId?"リンク済":"なし"}</span>
-                {f.linkedPracticeId&&<button onClick={()=>s("linkedPracticeId")("")} style={{background:"none",border:`1px solid ${C.border}`,color:C.red,borderRadius:4,padding:"4px 10px",fontSize:12,cursor:"pointer",minHeight:36}}>解除</button>}
-              </div>
-            </div>
-            <div style={{marginBottom:10}}>
-              <div style={{fontSize:12,color:C.textMuted,marginBottom:4}}>試合リンク</div>
-              <div style={{display:"flex",alignItems:"center",gap:6}}>
-                <span style={{fontSize:12,color:f.linkedMatchId?C.purple:C.textMuted,flex:1}}>{f.linkedMatchId?"リンク済":"なし"}</span>
-                {f.linkedMatchId&&<button onClick={()=>s("linkedMatchId")("")} style={{background:"none",border:`1px solid ${C.border}`,color:C.red,borderRadius:4,padding:"4px 10px",fontSize:12,cursor:"pointer",minHeight:36}}>解除</button>}
-              </div>
-            </div>
-          </div>
+          <div style={{fontSize:12,color:C.textMuted,margin:"6px 0 8px",paddingBottom:5,borderBottom:`1px solid ${C.border}`}}>▶ リンク（自動設定・手動で変更可能）</div>
+          <FSelect label="練習リンク" value={f.linkedPracticeId||""} onChange={s("linkedPracticeId")} options={[{value:"",label:"— なし —"},...(practices||[]).slice(0,20).map(p=>({value:p.id,label:`${p.date} ${p.type||"練習"}${p.venue?" @ "+p.venue:""}`}))]}/>
+          <FSelect label="試合リンク" value={f.linkedMatchId||""} onChange={s("linkedMatchId")} options={[{value:"",label:"— なし —"},...(tournaments||[]).flatMap(trn=>(trn.matches||[]).map(m=>({value:m.id,label:`${trn.date} ${trn.name} ${m.round||""} vs ${m.opponent||"—"}`}))).slice(0,20)]}/>
           <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
             <Btn onClick={()=>setModal(null)}>キャンセル</Btn>
             <Btn onClick={()=>handleSave(f)} variant="primary">保存</Btn>
@@ -3514,7 +3500,7 @@ function TennisDB(){
       {tab==="opponents"&&<OpponentsTab data={opponents} setData={setOpponents} toast={toast}/>}
       {tab==="tournaments"&&<TournamentsTab data={tournaments} setData={setTournaments} rackets={rackets} strings={strings} stringSetups={stringSetups} trials={trials} venues={venues} setVenues={v=>{setVenues(v);save(KEYS.venues,v);}} toast={toast} quickAdd={quickAdd==="tournaments"} onQuickAddDone={()=>setQuickAdd(null)}/>}
       {tab==="practices"&&<PracticesTab data={practices} setData={setPractices} rackets={rackets} strings={strings} stringSetups={stringSetups} trials={trials} venues={venues} setVenues={v=>{setVenues(v);save(KEYS.venues,v);}} toast={toast} quickAdd={quickAdd==="practices"} onQuickAddDone={()=>setQuickAdd(null)}/>}
-      {tab==="trials"&&<TrialsTab data={trials} setData={setTrials} practices={practices} rackets={rackets} strings={strings} venues={venues} setVenues={v=>{setVenues(v);save(KEYS.venues,v);}} toast={toast} quickAdd={quickAdd==="trials"} onQuickAddDone={()=>setQuickAdd(null)}/>}
+      {tab==="trials"&&<TrialsTab data={trials} setData={setTrials} tournaments={tournaments} practices={practices} rackets={rackets} strings={strings} venues={venues} setVenues={v=>{setVenues(v);save(KEYS.venues,v);}} toast={toast} quickAdd={quickAdd==="trials"} onQuickAddDone={()=>setQuickAdd(null)}/>}
       {tab==="search"&&<SearchTab tournaments={tournaments} practices={practices} trials={trials} rackets={rackets} strings={strings} stringSetups={stringSetups} toast={toast}/>}
       {tab==="rackets"&&<RacketsTab data={rackets} setData={setRackets} toast={toast}/>}
       {tab==="strings"&&<StringsTab data={strings} setData={setStrings} stringSetups={stringSetups} setStringSetups={setStringSetups} toast={toast}/>}
