@@ -24,7 +24,7 @@
 <script type="text/babel">
 const { useState, useEffect, useRef, useMemo } = React;
 
-const APP_VERSION="2.2.1"; // 2026/04/11 Fix undefined fields in trial modal + export fallbacks
+const APP_VERSION="2.2.2"; // 2026/04/12 Shot eval: fore/back split atk/def + slice added (17 items)
 const C = {
   bg:"#f2f2f7", panel:"#ffffff", panel2:"#e8e8ed", panel3:"#dddde2",
   border:"#c7c7cc", accent:"#00b87a", accentDim:"#009963",
@@ -1275,7 +1275,7 @@ function PracticesTab({data,setData,rackets,strings,stringSetups,trials,venues,s
 }
 
 // ── TRIALS TAB ────────────────────────────────────
-const blankTrial=()=>({id:`t${Date.now()}`,date:today(),racketName:"",stringMain:"",stringCross:"",tensionMain:"",tensionCross:"",temp:"",venue:"",judgment:"保留",spin:3,power:3,control:3,info:3,maneuver:3,swingThrough:3,trajectory:3,stiffness:3,shotFore:3,shotBack:3,shotServe:3,shotVolley:3,shotReturn:3,confidence:3,strokeNote:"",serveNote:"",volleyNote:"",generalNote:"",sessions:[],linkedPracticeId:"",linkedMatchId:""});
+const blankTrial=()=>({id:`t${Date.now()}`,date:today(),racketName:"",stringMain:"",stringCross:"",tensionMain:"",tensionCross:"",temp:"",venue:"",judgment:"保留",spin:3,power:3,control:3,info:3,maneuver:3,swingThrough:3,trajectory:3,stiffness:3,shotForeAtk:3,shotForeDef:3,shotBackAtk:3,shotBackDef:3,shotSlice:3,shotServe:3,shotVolley:3,shotReturn:3,confidence:3,strokeNote:"",serveNote:"",volleyNote:"",generalNote:"",sessions:[],linkedPracticeId:"",linkedMatchId:""});
 const blankSession=()=>({id:`s${Date.now()}`,date:today(),temp:"",tensionMain:"",tensionCross:"",note:""});
 
 // ── CLAUDE SHARE ──────────────────────────────────
@@ -1366,7 +1366,7 @@ const claudeFormatters={
       if(hasNew){
         l.push(`スピン${t.spin}/推進力${t.power}/コントロール${t.control}/打感情報${t.info}/操作性${t.maneuver}/振り抜き${t.swingThrough} (avg ${avg}) ${t.temp?t.temp+"℃":""} ${t.venue||""}`);
         const tj=t.trajectory||3,sf=t.stiffness||3,cf=t.confidence||3;l.push(`弾道${tj}(${tj<=2?"低め":tj>=4?"高め":"中間"}) 打感${sf}(${sf<=2?"柔らかめ":sf>=4?"硬め":"中間"}) 安心感${cf}`);
-        const shots=[t.shotFore&&`フォア${t.shotFore}`,t.shotBack&&`バック${t.shotBack}`,t.shotServe&&`サーブ${t.shotServe}`,t.shotVolley&&`ボレー${t.shotVolley}`,t.shotReturn&&`リターン${t.shotReturn}`].filter(Boolean);
+        const shots=[t.shotForeAtk&&`フォア攻${t.shotForeAtk}`,t.shotForeDef&&`フォア守${t.shotForeDef}`,t.shotBackAtk&&`バック攻${t.shotBackAtk}`,t.shotBackDef&&`バック守${t.shotBackDef}`,t.shotSlice&&`スライス${t.shotSlice}`,t.shotServe&&`サーブ${t.shotServe}`,t.shotVolley&&`ボレー${t.shotVolley}`,t.shotReturn&&`リターン${t.shotReturn}`,t.shotFore&&`フォア${t.shotFore}(旧)`,t.shotBack&&`バック${t.shotBack}(旧)`].filter(Boolean);
         if(shots.length)l.push(`ショット: ${shots.join("/")}`);
       }else{
         l.push(`Sp${t.spin}/Co${t.control}/Pw${t.power}/Fe${t.feel||0}/In${t.info} (avg ${avg}) ${t.temp?t.temp+"℃":""} ${t.venue||""}`);
@@ -1474,7 +1474,7 @@ const formatTrialForClaude=t=>{
   if(hasNew){
     lines.push(`スピン${t.spin}/推進力${t.power}/コントロール${t.control}/打感情報${t.info}/操作性${t.maneuver}/振り抜き${t.swingThrough} (avg ${avg}) ${t.temp?t.temp+"℃":""} ${t.venue||""}`);
     const tj=t.trajectory||3,sf=t.stiffness||3,cf=t.confidence||3;lines.push(`弾道${tj}(${tj<=2?"低め":tj>=4?"高め":"中間"}) 打感${sf}(${sf<=2?"柔らかめ":sf>=4?"硬め":"中間"}) 安心感${cf}`);
-    const shots=[t.shotFore&&`フォア${t.shotFore}`,t.shotBack&&`バック${t.shotBack}`,t.shotServe&&`サーブ${t.shotServe}`,t.shotVolley&&`ボレー${t.shotVolley}`,t.shotReturn&&`リターン${t.shotReturn}`].filter(Boolean);
+    const shots=[t.shotForeAtk&&`フォア攻${t.shotForeAtk}`,t.shotForeDef&&`フォア守${t.shotForeDef}`,t.shotBackAtk&&`バック攻${t.shotBackAtk}`,t.shotBackDef&&`バック守${t.shotBackDef}`,t.shotSlice&&`スライス${t.shotSlice}`,t.shotServe&&`サーブ${t.shotServe}`,t.shotVolley&&`ボレー${t.shotVolley}`,t.shotReturn&&`リターン${t.shotReturn}`,t.shotFore&&`フォア${t.shotFore}(旧)`,t.shotBack&&`バック${t.shotBack}(旧)`].filter(Boolean);
     if(shots.length)lines.push(`ショット: ${shots.join("/")}`);
   }else{
     lines.push(`Sp${t.spin}/Co${t.control}/Pw${t.power}/Fe${t.feel||0}/In${t.info} (avg ${avg}) ${t.temp?t.temp+"℃":""} ${t.venue||""}`);
@@ -1609,7 +1609,7 @@ function TrialsTab({data,setData,tournaments,practices,rackets,strings,venues,se
           </div>
           <div style={{fontSize:12,color:C.accent,margin:"10px 0 10px",paddingBottom:5,borderBottom:`1px solid ${C.border}`}}>▶ ショット別</div>
           <div style={{background:C.panel2,borderRadius:8,padding:"12px 14px",marginBottom:12}}>
-            {[["🎾 フォア","shotFore"],["🔄 バック","shotBack"],["💥 サーブ","shotServe"],["🥅 ボレー","shotVolley"],["↩ リターン","shotReturn"]].map(([label,key])=>(
+            {[["🎾 フォア（攻撃）","shotForeAtk"],["🛡 フォア（守備）","shotForeDef"],["🔄 バック（攻撃）","shotBackAtk"],["🛡 バック（守備）","shotBackDef"],["↗ スライス","shotSlice"],["💥 サーブ","shotServe"],["🥅 ボレー","shotVolley"],["↩ リターン","shotReturn"]].map(([label,key])=>(
               <StarRow key={key} label={label} value={f[key]||3} onChange={s(key)}/>
             ))}
           </div>
@@ -1824,9 +1824,9 @@ function TrialsTab({data,setData,tournaments,practices,rackets,strings,venues,se
                         <span style={{fontSize:12,color:clr,fontWeight:700}}>{v}</span>
                       </div>);})}
                   </div>}
-                  {(t.shotFore||t.shotBack||t.shotServe||t.shotVolley||t.shotReturn)&&<div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 14px",marginBottom:10}}>
+                  {(t.shotForeAtk||t.shotForeDef||t.shotBackAtk||t.shotBackDef||t.shotSlice||t.shotServe||t.shotVolley||t.shotReturn||t.shotFore||t.shotBack)&&<div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 14px",marginBottom:10}}>
                     <div style={{fontSize:12,color:C.textMuted,marginBottom:8}}>ショット別</div>
-                    {[["🎾 フォア","shotFore"],["🔄 バック","shotBack"],["💥 サーブ","shotServe"],["🥅 ボレー","shotVolley"],["↩ リターン","shotReturn"]].map(([label,key])=>{
+                    {[["🎾 フォア（攻）","shotForeAtk"],["🛡 フォア（守）","shotForeDef"],["🔄 バック（攻）","shotBackAtk"],["🛡 バック（守）","shotBackDef"],["↗ スライス","shotSlice"],["💥 サーブ","shotServe"],["🥅 ボレー","shotVolley"],["↩ リターン","shotReturn"]].map(([label,key])=>{
                       const v=t[key];if(!v&&v!==0)return null;
                       return(
                       <div key={key} style={{display:"flex",alignItems:"center",gap:8,marginBottom:5}}>
@@ -2726,7 +2726,7 @@ function QuickTrialMode({rackets,stringSetups,strings,trials,setTrials,tournamen
   const [selected,setSelected]=useState(null);
   const [adding,setAdding]=useState(false);
   const [addF,setAddF]=useState({racket:"",stringMain:"",stringCross:"",tensionMain:"",tensionCross:""});
-  const [eval_,setEval]=useState({spin:3,power:3,control:3,info:3,maneuver:3,swingThrough:3,trajectory:3,stiffness:3,shotFore:3,shotBack:3,shotServe:3,shotVolley:3,shotReturn:3,confidence:3,memo:""});
+  const [eval_,setEval]=useState({spin:3,power:3,control:3,info:3,maneuver:3,swingThrough:3,trajectory:3,stiffness:3,shotForeAtk:3,shotForeDef:3,shotBackAtk:3,shotBackDef:3,shotSlice:3,shotServe:3,shotVolley:3,shotReturn:3,confidence:3,memo:""});
 
   const persistCards=list=>{setCards(list);save(KEYS.quickTrialCards,list);};
   const selectCard=id=>{
@@ -2737,9 +2737,9 @@ function QuickTrialMode({rackets,stringSetups,strings,trials,setTrials,tournamen
     // 新しいカードのevalを読み込む
     const card=cards.find(c=>c.id===id);
     if(card?.eval){
-      setEval({spin:3,power:3,control:3,info:3,maneuver:3,swingThrough:3,trajectory:3,stiffness:3,shotFore:3,shotBack:3,shotServe:3,shotVolley:3,shotReturn:3,confidence:3,memo:"",...card.eval});
+      setEval({spin:3,power:3,control:3,info:3,maneuver:3,swingThrough:3,trajectory:3,stiffness:3,shotForeAtk:3,shotForeDef:3,shotBackAtk:3,shotBackDef:3,shotSlice:3,shotServe:3,shotVolley:3,shotReturn:3,confidence:3,memo:"",...card.eval});
     }else{
-      setEval({spin:3,power:3,control:3,info:3,maneuver:3,swingThrough:3,trajectory:3,stiffness:3,shotFore:3,shotBack:3,shotServe:3,shotVolley:3,shotReturn:3,confidence:3,memo:""});
+      setEval({spin:3,power:3,control:3,info:3,maneuver:3,swingThrough:3,trajectory:3,stiffness:3,shotForeAtk:3,shotForeDef:3,shotBackAtk:3,shotBackDef:3,shotSlice:3,shotServe:3,shotVolley:3,shotReturn:3,confidence:3,memo:""});
     }
     setSelected(id);
   };
@@ -2776,8 +2776,11 @@ function QuickTrialMode({rackets,stringSetups,strings,trials,setTrials,tournamen
       {key:"stiffness",label:"打感",low:"柔らかい",high:"硬い"},
     ]},
     {title:"ショット別",desc:"高い方が良い",items:[
-      {key:"shotFore",label:"フォア",low:"",high:""},
-      {key:"shotBack",label:"バック",low:"",high:""},
+      {key:"shotForeAtk",label:"フォア（攻撃）",low:"",high:""},
+      {key:"shotForeDef",label:"フォア（守備）",low:"",high:""},
+      {key:"shotBackAtk",label:"バック（攻撃）",low:"",high:""},
+      {key:"shotBackDef",label:"バック（守備）",low:"",high:""},
+      {key:"shotSlice",label:"スライス",low:"",high:""},
       {key:"shotServe",label:"サーブ",low:"",high:""},
       {key:"shotVolley",label:"ボレー",low:"",high:""},
       {key:"shotReturn",label:"リターン",low:"",high:""},
@@ -2802,14 +2805,14 @@ function QuickTrialMode({rackets,stringSetups,strings,trials,setTrials,tournamen
         if(lastMatch)linkedMtchId=lastMatch.id;
       }
     });
-    const trial={id:`t${Date.now()}`,date:todayDate,racketName:card.racket,stringMain:card.stringMain||"",stringCross:card.stringCross||"",tensionMain:card.tensionMain||"",tensionCross:card.tensionCross||"",temp:matchingPractice?.temp||"",venue:matchingPractice?.venue||"",judgment:"保留",spin:eval_.spin,power:eval_.power,control:eval_.control,info:eval_.info,maneuver:eval_.maneuver,swingThrough:eval_.swingThrough,trajectory:eval_.trajectory,stiffness:eval_.stiffness,shotFore:eval_.shotFore,shotBack:eval_.shotBack,shotServe:eval_.shotServe,shotVolley:eval_.shotVolley,shotReturn:eval_.shotReturn,confidence:eval_.confidence,strokeNote:"",serveNote:"",volleyNote:"",generalNote:eval_.memo,sessions:[],linkedPracticeId:linkedPracId,linkedMatchId:linkedMtchId};
+    const trial={id:`t${Date.now()}`,date:todayDate,racketName:card.racket,stringMain:card.stringMain||"",stringCross:card.stringCross||"",tensionMain:card.tensionMain||"",tensionCross:card.tensionCross||"",temp:matchingPractice?.temp||"",venue:matchingPractice?.venue||"",judgment:"保留",spin:eval_.spin,power:eval_.power,control:eval_.control,info:eval_.info,maneuver:eval_.maneuver,swingThrough:eval_.swingThrough,trajectory:eval_.trajectory,stiffness:eval_.stiffness,shotForeAtk:eval_.shotForeAtk,shotForeDef:eval_.shotForeDef,shotBackAtk:eval_.shotBackAtk,shotBackDef:eval_.shotBackDef,shotSlice:eval_.shotSlice,shotServe:eval_.shotServe,shotVolley:eval_.shotVolley,shotReturn:eval_.shotReturn,confidence:eval_.confidence,strokeNote:"",serveNote:"",volleyNote:"",generalNote:eval_.memo,sessions:[],linkedPracticeId:linkedPracId,linkedMatchId:linkedMtchId};
     const updatedTrials=[trial,...(trials||[])];
     setTrials(updatedTrials);save(KEYS.trials,updatedTrials);
     let linked=!!matchingPractice||!!linkedMtchId;
     const linkMsg=linkedMtchId&&matchingPractice?"練習＋試合と紐づけ":linkedMtchId?"試合と紐づけ":matchingPractice?"練習と紐づけ":"";
     persistCards(cards.filter(c=>c.id!==selected));
     toast.show(linked?`✅ 試打タブに保存 → ${linkMsg}`:"✅ 試打タブに保存",C.accent,null,linked?4000:2600);
-    setSelected(null);setEval({spin:3,power:3,control:3,info:3,maneuver:3,swingThrough:3,trajectory:3,stiffness:3,shotFore:3,shotBack:3,shotServe:3,shotVolley:3,shotReturn:3,confidence:3,memo:""});
+    setSelected(null);setEval({spin:3,power:3,control:3,info:3,maneuver:3,swingThrough:3,trajectory:3,stiffness:3,shotForeAtk:3,shotForeDef:3,shotBackAtk:3,shotBackDef:3,shotSlice:3,shotServe:3,shotVolley:3,shotReturn:3,confidence:3,memo:""});
   };
 
   const bg="#f5f0e8",txt="#222",muted="#444",bdr="#bbb";
