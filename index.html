@@ -24,7 +24,7 @@
 <script type="text/babel">
 const { useState, useEffect, useRef, useMemo } = React;
 
-const APP_VERSION="2.1.2"; // 2026/04/10 Trial list layout fix (3-line card structure)
+const APP_VERSION="2.2.0"; // 2026/04/11 Trial card 14-item evaluation redesign
 const C = {
   bg:"#f2f2f7", panel:"#ffffff", panel2:"#e8e8ed", panel3:"#dddde2",
   border:"#c7c7cc", accent:"#00b87a", accentDim:"#009963",
@@ -1275,7 +1275,7 @@ function PracticesTab({data,setData,rackets,strings,stringSetups,trials,venues,s
 }
 
 // ── TRIALS TAB ────────────────────────────────────
-const blankTrial=()=>({id:`t${Date.now()}`,date:today(),racketName:"",stringMain:"",stringCross:"",tensionMain:"",tensionCross:"",temp:"",venue:"",judgment:"保留",spin:3,control:3,power:3,feel:3,info:3,strokeNote:"",serveNote:"",volleyNote:"",generalNote:"",sessions:[],linkedPracticeId:"",linkedMatchId:""});
+const blankTrial=()=>({id:`t${Date.now()}`,date:today(),racketName:"",stringMain:"",stringCross:"",tensionMain:"",tensionCross:"",temp:"",venue:"",judgment:"保留",spin:3,power:3,control:3,info:3,maneuver:3,swingThrough:3,trajectory:3,stiffness:3,shotFore:3,shotBack:3,shotServe:3,shotVolley:3,shotReturn:3,confidence:3,strokeNote:"",serveNote:"",volleyNote:"",generalNote:"",sessions:[],linkedPracticeId:"",linkedMatchId:""});
 const blankSession=()=>({id:`s${Date.now()}`,date:today(),temp:"",tensionMain:"",tensionCross:"",note:""});
 
 // ── CLAUDE SHARE ──────────────────────────────────
@@ -1360,9 +1360,17 @@ const claudeFormatters={
     const l=["# 試打ノート"];
     all.forEach(t=>{
       const ten=fmtTension(t.tensionMain,t.tensionCross,t.tension);
-      const avg=((t.spin+t.control+t.power+t.feel+t.info)/5).toFixed(1);
+      const hasNew=t.maneuver||t.swingThrough;
+      const avg=hasNew?((t.spin+t.power+t.control+t.info+(t.maneuver||3)+(t.swingThrough||3))/6).toFixed(1):((t.spin+(t.control||0)+t.power+(t.feel||0)+t.info)/5).toFixed(1);
       l.push(`\n## ${t.date} ${t.racketName||"—"} / ${t.stringMain||"—"}${t.stringCross?` × ${t.stringCross}`:""} / ${ten} → ${"採用候補"===t.judgment?"✓ 採用候補":"却下"===t.judgment?"× 却下":"- "+t.judgment}${t.linkedPracticeId?" [練習中]":""}${t.linkedMatchId?" [実戦]":""} [id:${t.id}]`);
-      l.push(`Sp${t.spin}/Co${t.control}/Pw${t.power}/Fe${t.feel}/In${t.info} (avg ${avg}) ${t.temp?t.temp+"℃":""} ${t.venue||""}`);
+      if(hasNew){
+        l.push(`スピン${t.spin}/推進力${t.power}/コントロール${t.control}/打感情報${t.info}/操作性${t.maneuver}/振り抜き${t.swingThrough} (avg ${avg}) ${t.temp?t.temp+"℃":""} ${t.venue||""}`);
+        l.push(`弾道${t.trajectory}(${t.trajectory<=2?"低め":t.trajectory>=4?"高め":"中間"}) 打感${t.stiffness}(${t.stiffness<=2?"柔らかめ":t.stiffness>=4?"硬め":"中間"}) 安心感${t.confidence}`);
+        const shots=[t.shotFore&&`フォア${t.shotFore}`,t.shotBack&&`バック${t.shotBack}`,t.shotServe&&`サーブ${t.shotServe}`,t.shotVolley&&`ボレー${t.shotVolley}`,t.shotReturn&&`リターン${t.shotReturn}`].filter(Boolean);
+        if(shots.length)l.push(`ショット: ${shots.join("/")}`);
+      }else{
+        l.push(`Sp${t.spin}/Co${t.control}/Pw${t.power}/Fe${t.feel||0}/In${t.info} (avg ${avg}) ${t.temp?t.temp+"℃":""} ${t.venue||""}`);
+      };
       if(t.strokeNote)l.push(`ストローク: ${t.strokeNote}`);
       if(t.serveNote)l.push(`サーブ: ${t.serveNote}`);
       if(t.volleyNote)l.push(`ボレー: ${t.volleyNote}`);
@@ -1460,9 +1468,17 @@ function ClaudeShareModal({onClose,data,toast}){
 
 const formatTrialForClaude=t=>{
   const ten=[t.tensionMain,t.tensionCross].filter(Boolean).join("/") || t.tension || "—";
-  const avg=((t.spin+t.control+t.power+t.feel+t.info)/5).toFixed(1);
-  const lines=[`## ${t.date} ${t.racketName||"—"} / ${t.stringMain||"—"}${t.stringCross?` × ${t.stringCross}`:""} / ${ten} → ${"採用候補"===t.judgment?"✓ 採用候補":"却下"===t.judgment?"× 却下":"- "+t.judgment}${t.linkedPracticeId?" [練習中]":""}${t.linkedMatchId?" [実戦]":""} [id:${t.id}]`,
-    `Sp${t.spin}/Co${t.control}/Pw${t.power}/Fe${t.feel}/In${t.info} (avg ${avg}) ${t.temp?t.temp+"℃":""} ${t.venue||""}`];
+  const hasNew=t.maneuver||t.swingThrough;
+  const avg=hasNew?((t.spin+t.power+t.control+t.info+(t.maneuver||3)+(t.swingThrough||3))/6).toFixed(1):((t.spin+(t.control||0)+t.power+(t.feel||0)+t.info)/5).toFixed(1);
+  const lines=[`## ${t.date} ${t.racketName||"—"} / ${t.stringMain||"—"}${t.stringCross?` × ${t.stringCross}`:""} / ${ten} → ${"採用候補"===t.judgment?"✓ 採用候補":"却下"===t.judgment?"× 却下":"- "+t.judgment}${t.linkedPracticeId?" [練習中]":""}${t.linkedMatchId?" [実戦]":""} [id:${t.id}]`];
+  if(hasNew){
+    lines.push(`スピン${t.spin}/推進力${t.power}/コントロール${t.control}/打感情報${t.info}/操作性${t.maneuver}/振り抜き${t.swingThrough} (avg ${avg}) ${t.temp?t.temp+"℃":""} ${t.venue||""}`);
+    lines.push(`弾道${t.trajectory}(${t.trajectory<=2?"低め":t.trajectory>=4?"高め":"中間"}) 打感${t.stiffness}(${t.stiffness<=2?"柔らかめ":t.stiffness>=4?"硬め":"中間"}) 安心感${t.confidence}`);
+    const shots=[t.shotFore&&`フォア${t.shotFore}`,t.shotBack&&`バック${t.shotBack}`,t.shotServe&&`サーブ${t.shotServe}`,t.shotVolley&&`ボレー${t.shotVolley}`,t.shotReturn&&`リターン${t.shotReturn}`].filter(Boolean);
+    if(shots.length)lines.push(`ショット: ${shots.join("/")}`);
+  }else{
+    lines.push(`Sp${t.spin}/Co${t.control}/Pw${t.power}/Fe${t.feel||0}/In${t.info} (avg ${avg}) ${t.temp?t.temp+"℃":""} ${t.venue||""}`);
+  }
   if(t.strokeNote)lines.push(`ストローク: ${t.strokeNote}`);
   if(t.serveNote)lines.push(`サーブ: ${t.serveNote}`);
   if(t.volleyNote)lines.push(`ボレー: ${t.volleyNote}`);
@@ -1555,7 +1571,7 @@ function TrialsTab({data,setData,tournaments,practices,rackets,strings,venues,se
   const persist=list=>{const s=[...list].sort((a,b)=>b.date.localeCompare(a.date));setData(s);save(KEYS.trials,s);};
   const handleSave=form=>{const isNew=!data.find(t=>t.id===form.id);persist(isNew?[form,...data]:data.map(t=>t.id===form.id?form:t));setModal(null);toast.show(isNew?"✅ 追加しました":"✅ 更新しました");};
   const handleDelete=id=>{const bk=[...data];cfm.ask("この記録を削除しますか？",()=>{persist(data.filter(t=>t.id!==id));setExpanded(null);toast.show("🗑 削除しました",C.red,()=>persist(bk));});};
-  const avg=t=>((t.spin+t.control+t.power+t.feel+t.info)/5).toFixed(1);
+  const avg=t=>{const s=t.spin||0,p=t.power||0,c=t.control||0,i=t.info||0,m=t.maneuver||0,sw=t.swingThrough||0;return m||sw?((s+p+c+i+m+sw)/6).toFixed(1):((s+p+c+(t.feel||0)+i)/5).toFixed(1);};
   const allTrials=[...data].sort((a,b)=>b.date.localeCompare(a.date));
   const linkedCount=(data||[]).filter(t=>t.linkedPracticeId||t.linkedMatchId).length;
 
@@ -1579,10 +1595,28 @@ function TrialsTab({data,setData,tournaments,practices,rackets,strings,venues,se
             <FSelect label="横糸" value={f.stringCross||""} onChange={s("stringCross")} options={[{value:"",label:"-- 同じ --"},...getStringOpts(strings).slice(1)]}/>
           </div>
           <TensionFields main={f.tensionMain||""} cross={f.tensionCross||""} onMainChange={s("tensionMain")} onCrossChange={s("tensionCross")}/>
-          <div style={{fontSize:12,color:C.accent,margin:"10px 0 10px",paddingBottom:5,borderBottom:`1px solid ${C.border}`}}>▶ 打感評価</div>
+          <div style={{fontSize:12,color:C.accent,margin:"10px 0 10px",paddingBottom:5,borderBottom:`1px solid ${C.border}`}}>▶ 性能評価（高い方が良い）</div>
           <div style={{background:C.panel2,borderRadius:8,padding:"12px 14px",marginBottom:12}}>
-            {[["🌀 スピン","spin"],["🎯 コントロール","control"],["💥 パワー","power"],["✋ フィール","feel"],["📡 打感情報量","info"]].map(([label,key])=>(
-              <StarRow key={key} label={label} value={f[key]} onChange={s(key)}/>
+            {[["🌀 スピン","spin"],["🚀 推進力","power"],["🎯 コントロール","control"],["📡 打感情報","info"],["🔧 操作性","maneuver"],["💨 振り抜き","swingThrough"]].map(([label,key])=>(
+              <StarRow key={key} label={label} value={f[key]||3} onChange={s(key)}/>
+            ))}
+          </div>
+          <div style={{fontSize:12,color:C.accent,margin:"10px 0 10px",paddingBottom:5,borderBottom:`1px solid ${C.border}`}}>▶ 特性（1↔5）</div>
+          <div style={{background:C.panel2,borderRadius:8,padding:"12px 14px",marginBottom:12}}>
+            {[["📐 弾道 (1低↔5高)","trajectory"],["🪨 打感 (1柔↔5硬)","stiffness"]].map(([label,key])=>(
+              <StarRow key={key} label={label} value={f[key]||3} onChange={s(key)}/>
+            ))}
+          </div>
+          <div style={{fontSize:12,color:C.accent,margin:"10px 0 10px",paddingBottom:5,borderBottom:`1px solid ${C.border}`}}>▶ ショット別</div>
+          <div style={{background:C.panel2,borderRadius:8,padding:"12px 14px",marginBottom:12}}>
+            {[["🎾 フォア","shotFore"],["🔄 バック","shotBack"],["💥 サーブ","shotServe"],["🥅 ボレー","shotVolley"],["↩ リターン","shotReturn"]].map(([label,key])=>(
+              <StarRow key={key} label={label} value={f[key]||3} onChange={s(key)}/>
+            ))}
+          </div>
+          <div style={{fontSize:12,color:C.accent,margin:"10px 0 10px",paddingBottom:5,borderBottom:`1px solid ${C.border}`}}>▶ 総合</div>
+          <div style={{background:C.panel2,borderRadius:8,padding:"12px 14px",marginBottom:12}}>
+            {[["🛡 安心感","confidence"]].map(([label,key])=>(
+              <StarRow key={key} label={label} value={f[key]||3} onChange={s(key)}/>
             ))}
           </div>
           <Field label="🎾 ストロークメモ" value={f.strokeNote||""} onChange={s("strokeNote")} multiline placeholder="フォア/バック、飛び、弾道..."/>
@@ -1765,15 +1799,53 @@ function TrialsTab({data,setData,tournaments,practices,rackets,strings,venues,se
                       <span style={{fontSize:12,color:C.textMuted}}>打感評価</span>
                       <span style={{fontSize:13,fontWeight:700,color:C.accent,fontFamily:"monospace"}}>平均 {ac}/5</span>
                     </div>
-                    {[["🌀 スピン","spin"],["🎯 コントロール","control"],["💥 パワー","power"],["✋ フィール","feel"],["📡 情報量","info"]].map(([label,key])=>(
+                    {[["🌀 スピン","spin"],["🚀 推進力","power"],["🎯 コントロール","control"],["📡 打感情報","info"],["🔧 操作性","maneuver"],["💨 振り抜き","swingThrough"]].map(([label,key])=>{
+                      const v=t[key];if(!v&&v!==0)return null;
+                      return(
                       <div key={key} style={{display:"flex",alignItems:"center",gap:8,marginBottom:5}}>
                         <span style={{fontSize:12,color:C.textMuted,minWidth:88}}>{label}</span>
                         <div style={{flex:1,background:C.border,borderRadius:3,height:6,overflow:"hidden"}}>
-                          <div style={{width:`${t[key]*20}%`,height:"100%",background:scColor(t[key]),borderRadius:3}}/>
+                          <div style={{width:`${v*20}%`,height:"100%",background:scColor(v),borderRadius:3}}/>
                         </div>
-                        <span style={{fontSize:12,color:scColor(t[key]),fontWeight:700}}>{t[key]}</span>
+                        <span style={{fontSize:12,color:scColor(v),fontWeight:700}}>{v}</span>
+                      </div>);})}
+                  </div>
+                  {(t.trajectory||t.stiffness)&&<div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 14px",marginBottom:10}}>
+                    <div style={{fontSize:12,color:C.textMuted,marginBottom:8}}>特性</div>
+                    {[["📐 弾道 (低↔高)","trajectory"],["🪨 打感 (柔↔硬)","stiffness"]].map(([label,key])=>{
+                      const v=t[key];if(!v&&v!==0)return null;
+                      const clr=v===3?"#888":v<=2?"#3498db":"#e67e22";
+                      return(
+                      <div key={key} style={{display:"flex",alignItems:"center",gap:8,marginBottom:5}}>
+                        <span style={{fontSize:12,color:C.textMuted,minWidth:110}}>{label}</span>
+                        <div style={{flex:1,background:C.border,borderRadius:3,height:6,overflow:"hidden"}}>
+                          <div style={{width:`${v*20}%`,height:"100%",background:clr,borderRadius:3}}/>
+                        </div>
+                        <span style={{fontSize:12,color:clr,fontWeight:700}}>{v}</span>
+                      </div>);})}
+                  </div>}
+                  {(t.shotFore||t.shotBack||t.shotServe||t.shotVolley||t.shotReturn)&&<div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 14px",marginBottom:10}}>
+                    <div style={{fontSize:12,color:C.textMuted,marginBottom:8}}>ショット別</div>
+                    {[["🎾 フォア","shotFore"],["🔄 バック","shotBack"],["💥 サーブ","shotServe"],["🥅 ボレー","shotVolley"],["↩ リターン","shotReturn"]].map(([label,key])=>{
+                      const v=t[key];if(!v&&v!==0)return null;
+                      return(
+                      <div key={key} style={{display:"flex",alignItems:"center",gap:8,marginBottom:5}}>
+                        <span style={{fontSize:12,color:C.textMuted,minWidth:88}}>{label}</span>
+                        <div style={{flex:1,background:C.border,borderRadius:3,height:6,overflow:"hidden"}}>
+                          <div style={{width:`${v*20}%`,height:"100%",background:scColor(v),borderRadius:3}}/>
+                        </div>
+                        <span style={{fontSize:12,color:scColor(v),fontWeight:700}}>{v}</span>
+                      </div>);})}
+                  </div>}
+                  {t.confidence&&<div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 14px",marginBottom:10}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      <span style={{fontSize:12,color:C.textMuted,minWidth:88}}>🛡 安心感</span>
+                      <div style={{flex:1,background:C.border,borderRadius:3,height:6,overflow:"hidden"}}>
+                        <div style={{width:`${t.confidence*20}%`,height:"100%",background:scColor(t.confidence),borderRadius:3}}/>
                       </div>
-                    ))}
+                      <span style={{fontSize:12,color:scColor(t.confidence),fontWeight:700}}>{t.confidence}</span>
+                    </div>
+                  </div>}
                   </div>
                   {[["🎾 ストローク",t.strokeNote],["🏐 サーブ",t.serveNote],["🥅 ボレー",t.volleyNote],["📝 総括",t.generalNote]].filter(([,v])=>v).map(([l,v])=>(
                     <div key={l} style={{marginBottom:7}}>
@@ -2655,27 +2727,27 @@ function QuickTrialMode({rackets,stringSetups,strings,trials,setTrials,tournamen
   const [selected,setSelected]=useState(null);
   const [adding,setAdding]=useState(false);
   const [addF,setAddF]=useState({racket:"",stringMain:"",stringCross:"",tensionMain:"",tensionCross:""});
-  const [eval_,setEval]=useState({info:3,power:3,spin:3,hold:3,swing:3,safety:3,goodShots:[],memo:""});
+  const [eval_,setEval]=useState({spin:3,power:3,control:3,info:3,maneuver:3,swingThrough:3,trajectory:3,stiffness:3,shotFore:3,shotBack:3,shotServe:3,shotVolley:3,shotReturn:3,confidence:3,memo:""});
 
   const persistCards=list=>{setCards(list);save(KEYS.quickTrialCards,list);};
   const selectCard=id=>{
     // 現在のカードにeval_を保存してから切り替え
     if(selected){
-      persistCards(cards.map(c=>c.id===selected?{...c,eval:{info:eval_.info,power:eval_.power,spin:eval_.spin,hold:eval_.hold,swing:eval_.swing,safety:eval_.safety,goodShots:eval_.goodShots,memo:eval_.memo}}:c));
+      persistCards(cards.map(c=>c.id===selected?{...c,eval:{...eval_}}:c));
     }
     // 新しいカードのevalを読み込む
     const card=cards.find(c=>c.id===id);
     if(card?.eval){
-      setEval({...card.eval,goodShots:card.eval.goodShots||[]});
+      setEval({spin:3,power:3,control:3,info:3,maneuver:3,swingThrough:3,trajectory:3,stiffness:3,shotFore:3,shotBack:3,shotServe:3,shotVolley:3,shotReturn:3,confidence:3,memo:"",...card.eval});
     }else{
-      setEval({info:3,power:3,spin:3,hold:3,swing:3,safety:3,goodShots:[],memo:""});
+      setEval({spin:3,power:3,control:3,info:3,maneuver:3,swingThrough:3,trajectory:3,stiffness:3,shotFore:3,shotBack:3,shotServe:3,shotVolley:3,shotReturn:3,confidence:3,memo:""});
     }
     setSelected(id);
   };
   const backToList=()=>{
     // カードにeval_を保存してから一覧に戻る
     if(selected){
-      persistCards(cards.map(c=>c.id===selected?{...c,eval:{info:eval_.info,power:eval_.power,spin:eval_.spin,hold:eval_.hold,swing:eval_.swing,safety:eval_.safety,goodShots:eval_.goodShots,memo:eval_.memo}}:c));
+      persistCards(cards.map(c=>c.id===selected?{...c,eval:{...eval_}}:c));
     }
     setSelected(null);
   };
@@ -2691,16 +2763,31 @@ function QuickTrialMode({rackets,stringSetups,strings,trials,setTrials,tournamen
     setAddF({racket:"",stringMain:"",stringCross:"",tensionMain:"",tensionCross:""});setAdding(false);
   };
 
-  const criteria=[
-    {key:"info",label:"打感情報",sub:"手に来る情報量"},
-    {key:"power",label:"飛び",sub:"推進力・飛距離"},
-    {key:"spin",label:"スピン",sub:"回転のかかり"},
-    {key:"hold",label:"ホールド",sub:"掴む・乗る感覚"},
-    {key:"swing",label:"振り抜き",sub:"スイングの抜け"},
-    {key:"safety",label:"安心感",sub:"振り切れるか"},
+  const criteriaGroups=[
+    {title:"性能評価",desc:"高い方が良い",items:[
+      {key:"spin",label:"スピン",low:"弱い",high:"強い"},
+      {key:"power",label:"推進力",low:"飛ばない",high:"飛ぶ"},
+      {key:"control",label:"コントロール",low:"散る",high:"狙える"},
+      {key:"info",label:"打感情報",low:"感じない",high:"クリア"},
+      {key:"maneuver",label:"操作性",low:"重い",high:"軽快"},
+      {key:"swingThrough",label:"振り抜き",low:"悪い",high:"良い"},
+    ]},
+    {title:"特性",desc:"中央が基準",items:[
+      {key:"trajectory",label:"弾道の高さ",low:"低い",high:"高い"},
+      {key:"stiffness",label:"打感",low:"柔らかい",high:"硬い"},
+    ]},
+    {title:"ショット別",desc:"高い方が良い",items:[
+      {key:"shotFore",label:"フォア",low:"",high:""},
+      {key:"shotBack",label:"バック",low:"",high:""},
+      {key:"shotServe",label:"サーブ",low:"",high:""},
+      {key:"shotVolley",label:"ボレー",low:"",high:""},
+      {key:"shotReturn",label:"リターン",low:"",high:""},
+    ]},
+    {title:"総合",desc:"",items:[
+      {key:"confidence",label:"安心感",low:"不安",high:"振り切れる"},
+    ]},
   ];
 
-  const toggleShot=s=>{setEval(p=>({...p,goodShots:p.goodShots.includes(s)?p.goodShots.filter(x=>x!==s):[...p.goodShots,s]}));};
 
   const handleSave=()=>{
     const card=cards.find(c=>c.id===selected);if(!card)return;
@@ -2716,14 +2803,14 @@ function QuickTrialMode({rackets,stringSetups,strings,trials,setTrials,tournamen
         if(lastMatch)linkedMtchId=lastMatch.id;
       }
     });
-    const trial={id:`t${Date.now()}`,date:todayDate,racketName:card.racket,stringMain:card.stringMain||"",stringCross:card.stringCross||"",tensionMain:card.tensionMain||"",tensionCross:card.tensionCross||"",temp:matchingPractice?.temp||"",venue:matchingPractice?.venue||"",judgment:"保留",spin:eval_.spin,control:eval_.safety,power:eval_.power,feel:eval_.hold,info:eval_.info,strokeNote:eval_.goodShots.length>0?"良: "+eval_.goodShots.join(", "):"",serveNote:"",volleyNote:"",generalNote:eval_.memo,sessions:[],linkedPracticeId:linkedPracId,linkedMatchId:linkedMtchId};
+    const trial={id:`t${Date.now()}`,date:todayDate,racketName:card.racket,stringMain:card.stringMain||"",stringCross:card.stringCross||"",tensionMain:card.tensionMain||"",tensionCross:card.tensionCross||"",temp:matchingPractice?.temp||"",venue:matchingPractice?.venue||"",judgment:"保留",spin:eval_.spin,power:eval_.power,control:eval_.control,info:eval_.info,maneuver:eval_.maneuver,swingThrough:eval_.swingThrough,trajectory:eval_.trajectory,stiffness:eval_.stiffness,shotFore:eval_.shotFore,shotBack:eval_.shotBack,shotServe:eval_.shotServe,shotVolley:eval_.shotVolley,shotReturn:eval_.shotReturn,confidence:eval_.confidence,strokeNote:"",serveNote:"",volleyNote:"",generalNote:eval_.memo,sessions:[],linkedPracticeId:linkedPracId,linkedMatchId:linkedMtchId};
     const updatedTrials=[trial,...(trials||[])];
     setTrials(updatedTrials);save(KEYS.trials,updatedTrials);
     let linked=!!matchingPractice||!!linkedMtchId;
     const linkMsg=linkedMtchId&&matchingPractice?"練習＋試合と紐づけ":linkedMtchId?"試合と紐づけ":matchingPractice?"練習と紐づけ":"";
     persistCards(cards.filter(c=>c.id!==selected));
     toast.show(linked?`✅ 試打タブに保存 → ${linkMsg}`:"✅ 試打タブに保存",C.accent,null,linked?4000:2600);
-    setSelected(null);setEval({info:3,power:3,spin:3,hold:3,swing:3,safety:3,goodShots:[],memo:""});
+    setSelected(null);setEval({spin:3,power:3,control:3,info:3,maneuver:3,swingThrough:3,trajectory:3,stiffness:3,shotFore:3,shotBack:3,shotServe:3,shotVolley:3,shotReturn:3,confidence:3,memo:""});
   };
 
   const bg="#f5f0e8",txt="#222",muted="#444",bdr="#bbb";
@@ -2744,28 +2831,28 @@ function QuickTrialMode({rackets,stringSetups,strings,trials,setTrials,tournamen
           <div style={{fontSize:13,color:"rgba(255,255,255,0.8)",marginTop:4}}>{[card?.stringMain,card?.stringCross].filter(Boolean).join(" / ")}{card?.tensionMain?" / "+fmtTension(card?.tensionMain,card?.tensionCross):""}</div>
         </div>
         <div style={{padding:"0 16px 20px"}}>
-          {criteria.map(c=>(
-            <div key={c.key} style={{marginBottom:20}}>
-              <div style={{display:"flex",alignItems:"baseline",gap:8,marginBottom:8}}>
-                <span style={{fontSize:16,fontWeight:700,color:txt}}>{c.label}</span>
-                <span style={{fontSize:12,color:muted}}>{c.sub}</span>
+          {criteriaGroups.map(grp=>(
+            <div key={grp.title} style={{marginBottom:16}}>
+              <div style={{display:"flex",alignItems:"baseline",gap:8,marginBottom:10,borderBottom:"1px solid "+bdr,paddingBottom:6}}>
+                <span style={{fontSize:15,fontWeight:800,color:txt}}>{grp.title}</span>
+                {grp.desc&&<span style={{fontSize:11,color:muted}}>{grp.desc}</span>}
               </div>
-              <div style={{display:"flex",gap:8}}>
-                {[1,2,3,4,5].map(n=>(
-                  <button key={n} onClick={()=>setEval(p=>({...p,[c.key]:n}))} style={{width:56,height:48,borderRadius:8,border:"2px solid "+(eval_[c.key]===n?sc:bdr),background:eval_[c.key]===n?sc:"#fff",color:eval_[c.key]===n?"#fff":muted,fontSize:18,fontWeight:700,cursor:"pointer"}}>{n}</button>
-                ))}
-              </div>
+              {grp.items.map(c=>(
+                <div key={c.key} style={{marginBottom:16}}>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
+                    <span style={{fontSize:15,fontWeight:700,color:txt}}>{c.label}</span>
+                  </div>
+                  <div style={{display:"flex",alignItems:"center",gap:6}}>
+                    {c.low&&<span style={{fontSize:10,color:muted,minWidth:44,textAlign:"right"}}>{c.low}</span>}
+                    {[1,2,3,4,5].map(n=>(
+                      <button key={n} onClick={()=>setEval(p=>({...p,[c.key]:n}))} style={{flex:1,height:44,borderRadius:8,border:"2px solid "+(eval_[c.key]===n?sc:bdr),background:eval_[c.key]===n?sc:"#fff",color:eval_[c.key]===n?"#fff":muted,fontSize:17,fontWeight:700,cursor:"pointer"}}>{n}</button>
+                    ))}
+                    {c.high&&<span style={{fontSize:10,color:muted,minWidth:44}}>{c.high}</span>}
+                  </div>
+                </div>
+              ))}
             </div>
           ))}
-          <div style={{marginBottom:20}}>
-            <div style={{fontSize:16,fontWeight:700,color:txt,marginBottom:8}}>良かったショット</div>
-            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-              {["フォア","バック","ボレー","サーブ"].map(s=>{
-                const on=eval_.goodShots.includes(s);
-                return <button key={s} onClick={()=>toggleShot(s)} style={{padding:"10px 20px",borderRadius:8,border:"2px solid "+(on?sc:bdr),background:on?sc:"#fff",color:on?"#fff":txt,fontSize:14,fontWeight:600,cursor:"pointer"}}>{s}</button>;
-              })}
-            </div>
-          </div>
           <div style={{marginBottom:20}}>
             <div style={{fontSize:16,fontWeight:700,color:txt,marginBottom:8}}>メモ（一言）</div>
             <textarea value={eval_.memo} onChange={e=>setEval(p=>({...p,memo:e.target.value}))} placeholder="気づいたことを一言..." rows={3} style={{width:"100%",borderRadius:8,border:"1px solid "+bdr,padding:"12px",fontSize:14,fontFamily:"inherit",resize:"vertical",color:txt,background:"#fff"}}/>
