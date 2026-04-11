@@ -24,7 +24,7 @@
 <script type="text/babel">
 const { useState, useEffect, useRef, useMemo } = React;
 
-const APP_VERSION="2.2.0"; // 2026/04/11 Trial card 14-item evaluation redesign
+const APP_VERSION="2.2.1"; // 2026/04/11 Fix undefined fields in trial modal + export fallbacks
 const C = {
   bg:"#f2f2f7", panel:"#ffffff", panel2:"#e8e8ed", panel3:"#dddde2",
   border:"#c7c7cc", accent:"#00b87a", accentDim:"#009963",
@@ -1365,7 +1365,7 @@ const claudeFormatters={
       l.push(`\n## ${t.date} ${t.racketName||"—"} / ${t.stringMain||"—"}${t.stringCross?` × ${t.stringCross}`:""} / ${ten} → ${"採用候補"===t.judgment?"✓ 採用候補":"却下"===t.judgment?"× 却下":"- "+t.judgment}${t.linkedPracticeId?" [練習中]":""}${t.linkedMatchId?" [実戦]":""} [id:${t.id}]`);
       if(hasNew){
         l.push(`スピン${t.spin}/推進力${t.power}/コントロール${t.control}/打感情報${t.info}/操作性${t.maneuver}/振り抜き${t.swingThrough} (avg ${avg}) ${t.temp?t.temp+"℃":""} ${t.venue||""}`);
-        l.push(`弾道${t.trajectory}(${t.trajectory<=2?"低め":t.trajectory>=4?"高め":"中間"}) 打感${t.stiffness}(${t.stiffness<=2?"柔らかめ":t.stiffness>=4?"硬め":"中間"}) 安心感${t.confidence}`);
+        const tj=t.trajectory||3,sf=t.stiffness||3,cf=t.confidence||3;l.push(`弾道${tj}(${tj<=2?"低め":tj>=4?"高め":"中間"}) 打感${sf}(${sf<=2?"柔らかめ":sf>=4?"硬め":"中間"}) 安心感${cf}`);
         const shots=[t.shotFore&&`フォア${t.shotFore}`,t.shotBack&&`バック${t.shotBack}`,t.shotServe&&`サーブ${t.shotServe}`,t.shotVolley&&`ボレー${t.shotVolley}`,t.shotReturn&&`リターン${t.shotReturn}`].filter(Boolean);
         if(shots.length)l.push(`ショット: ${shots.join("/")}`);
       }else{
@@ -1473,7 +1473,7 @@ const formatTrialForClaude=t=>{
   const lines=[`## ${t.date} ${t.racketName||"—"} / ${t.stringMain||"—"}${t.stringCross?` × ${t.stringCross}`:""} / ${ten} → ${"採用候補"===t.judgment?"✓ 採用候補":"却下"===t.judgment?"× 却下":"- "+t.judgment}${t.linkedPracticeId?" [練習中]":""}${t.linkedMatchId?" [実戦]":""} [id:${t.id}]`];
   if(hasNew){
     lines.push(`スピン${t.spin}/推進力${t.power}/コントロール${t.control}/打感情報${t.info}/操作性${t.maneuver}/振り抜き${t.swingThrough} (avg ${avg}) ${t.temp?t.temp+"℃":""} ${t.venue||""}`);
-    lines.push(`弾道${t.trajectory}(${t.trajectory<=2?"低め":t.trajectory>=4?"高め":"中間"}) 打感${t.stiffness}(${t.stiffness<=2?"柔らかめ":t.stiffness>=4?"硬め":"中間"}) 安心感${t.confidence}`);
+    const tj=t.trajectory||3,sf=t.stiffness||3,cf=t.confidence||3;lines.push(`弾道${tj}(${tj<=2?"低め":tj>=4?"高め":"中間"}) 打感${sf}(${sf<=2?"柔らかめ":sf>=4?"硬め":"中間"}) 安心感${cf}`);
     const shots=[t.shotFore&&`フォア${t.shotFore}`,t.shotBack&&`バック${t.shotBack}`,t.shotServe&&`サーブ${t.shotServe}`,t.shotVolley&&`ボレー${t.shotVolley}`,t.shotReturn&&`リターン${t.shotReturn}`].filter(Boolean);
     if(shots.length)lines.push(`ショット: ${shots.join("/")}`);
   }else{
@@ -1576,7 +1576,7 @@ function TrialsTab({data,setData,tournaments,practices,rackets,strings,venues,se
   const linkedCount=(data||[]).filter(t=>t.linkedPracticeId||t.linkedMatchId).length;
 
   const Modal=({trial})=>{
-    const [f,setF]=useState({...trial}); const s=k=>v=>setF(p=>({...p,[k]:v}));
+    const [f,setF]=useState({...blankTrial(),...trial}); const s=k=>v=>setF(p=>({...p,[k]:v}));
     return (
       <div style={{position:"fixed",inset:0,background:"#0004",zIndex:200,display:"flex",alignItems:"flex-start",justifyContent:"center",overflowY:"auto",padding:"20px 12px"}} onClick={e=>e.target===e.currentTarget&&setModal(null)}>
         <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,width:"100%",maxWidth:540,padding:20}}>
