@@ -1846,7 +1846,6 @@ function TrialsTab({data,setData,tournaments,practices,rackets,strings,venues,se
                       <span style={{fontSize:12,color:scColor(t.confidence),fontWeight:700}}>{t.confidence}</span>
                     </div>
                   </div>}
-                  </div>
                   {[["🎾 ストローク",t.strokeNote],["🏐 サーブ",t.serveNote],["🥅 ボレー",t.volleyNote],["📝 総括",t.generalNote]].filter(([,v])=>v).map(([l,v])=>(
                     <div key={l} style={{marginBottom:7}}>
                       <div style={{fontSize:12,color:C.textMuted,marginBottom:3}}>{l}</div>
