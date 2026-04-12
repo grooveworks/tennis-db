@@ -18,7 +18,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;bac
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script type="text/babel">
-const APP_VERSION="3.0.0";
+const APP_VERSION="3.0.1";
 const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
 // ── COLORS ────────────────────────────────────────
@@ -106,7 +106,8 @@ class ErrorBoundary extends React.Component{
 }
 
 // ── HELPERS ────────────────────────────────────────
-const fmtDate=d=>{if(!d)return"—";const p=d.split("-");return`${parseInt(p[1])}/${parseInt(p[2])}`};
+const normDate=d=>{if(!d)return"";const s=String(d);const m=s.match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);if(!m)return s;return`${m[1]}-${m[2].padStart(2,"0")}-${m[3].padStart(2,"0")}`;};
+const fmtDate=d=>{if(!d)return"—";const m=String(d).match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);if(!m)return String(d);return`${parseInt(m[2])}/${parseInt(m[3])}`;};
 const fmtTension=(m,c)=>{if(!m&&!c)return"—";if(m&&c&&m!==c)return`${m}/${c}p`;if(m)return`${m}p`;return"—";};
 const daysBetween=(a,b)=>Math.floor((b-a)/(1000*60*60*24));
 const today=()=>new Date().toISOString().split("T")[0];
@@ -133,9 +134,9 @@ function HomeTab({next,setNext,tournaments,practices,trials,daysSinceExport,onEx
 
   const pendingNext=(next||[]).filter(n=>!n.done).slice(0,3);
   const todayStr=today();
-  const futureTournaments=(tournaments||[]).filter(t=>t.date>=todayStr).sort((a,b)=>a.date.localeCompare(b.date));
-  const futurePractices=(practices||[]).filter(p=>p.date>=todayStr).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,2);
-  const pastTournaments=(tournaments||[]).filter(t=>t.date<todayStr).slice(0,2);
+  const futureTournaments=(tournaments||[]).filter(t=>normDate(t.date)>=todayStr).sort((a,b)=>normDate(a.date).localeCompare(normDate(b.date)));
+  const futurePractices=(practices||[]).filter(p=>normDate(p.date)>=todayStr).sort((a,b)=>normDate(a.date).localeCompare(normDate(b.date))).slice(0,2);
+  const pastTournaments=(tournaments||[]).filter(t=>normDate(t.date)<todayStr).slice(0,2);
 
   return(
     <div style={{padding:12}}>
