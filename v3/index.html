@@ -18,7 +18,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;bac
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script type="text/babel">
-const APP_VERSION="3.0.1";
+const APP_VERSION="3.0.2";
 const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
 // ── COLORS ────────────────────────────────────────
@@ -110,7 +110,7 @@ const normDate=d=>{if(!d)return"";const s=String(d);const m=s.match(/(\d{4})[\/\
 const fmtDate=d=>{if(!d)return"—";const m=String(d).match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);if(!m)return String(d);return`${parseInt(m[2])}/${parseInt(m[3])}`;};
 const fmtTension=(m,c)=>{if(!m&&!c)return"—";if(m&&c&&m!==c)return`${m}/${c}p`;if(m)return`${m}p`;return"—";};
 const daysBetween=(a,b)=>Math.floor((b-a)/(1000*60*60*24));
-const today=()=>new Date().toISOString().split("T")[0];
+const today=()=>{const d=new Date();return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;}
 const resultColor=r=>{const w={"優勝":"green","準優勝":"yellow","予選突破":"blue","準決勝敗退":"orange","決勝敗退":"orange"};return w[r]||"gray";};
 const nextBadgeCat=c=>{const m={検証:"green",準備:"blue",買い物:"yellow",チェックリスト:"gray"};return m[c]||"gray";};
 
@@ -223,7 +223,7 @@ function HomeTab({next,setNext,tournaments,practices,trials,daysSinceExport,onEx
       {/* Export warning */}
       {daysSinceExport>=3&&(
         <div onClick={onExport} style={{marginTop:10,padding:"8px 12px",background:"#fef2f2",borderRadius:6,fontSize:11,color:C.red,textAlign:"center",cursor:"pointer",fontWeight:500}}>
-          📤 最終バックアップ: {daysSinceExport}日前 — タップしてエクスポート
+          📤 {daysSinceExport>=365?"このデバイスでバックアップ未実施":`最終バックアップ: ${daysSinceExport}日前`} — タップしてエクスポート
         </div>
       )}
 
