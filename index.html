@@ -24,7 +24,7 @@
 <script type="text/babel">
 const { useState, useEffect, useRef, useMemo } = React;
 
-const APP_VERSION="2.2.2"; // 2026/04/12 Shot eval: fore/back split atk/def + slice added (17 items)
+const APP_VERSION="2.2.3"; // 2026/04/13 Fix: TournamentDetail trials prop chain (linked trials now display in match detail)
 const C = {
   bg:"#f2f2f7", panel:"#ffffff", panel2:"#e8e8ed", panel3:"#dddde2",
   border:"#c7c7cc", accent:"#00b87a", accentDim:"#009963",
@@ -714,7 +714,7 @@ function TournamentModal({tournament,onSave,onClose,rackets,strings,stringSetups
 }
 
 // ── TOURNAMENT DETAIL ─────────────────────────────
-function TournamentDetail({trn,onEdit,onDelete,onUpdate,rackets,strings,stringSetups,toast}){
+function TournamentDetail({trn,onEdit,onDelete,onUpdate,rackets,strings,stringSetups,trials,toast}){
   const cfm=useConfirm();
   const [expandedMatch,setExpandedMatch]=useState(null);
   const [matchModal,setMatchModal]=useState(null);
@@ -1006,7 +1006,7 @@ function TournamentsTab({data,setData,rackets,strings,stringSetups,trials,venues
                 </div>
                 <div style={{color:C.textMuted,fontSize:12,transform:isOpen?"rotate(90deg)":"none",transition:"transform 0.2s",flexShrink:0}}>▶</div>
               </div>
-              {isOpen&&<TournamentDetail trn={trn} onEdit={()=>setModal({tournament:trn})} onDelete={()=>handleDelete(trn.id)} onUpdate={handleUpdate} rackets={rackets} strings={strings} stringSetups={stringSetups} toast={toast}/>}
+              {isOpen&&<TournamentDetail trn={trn} onEdit={()=>setModal({tournament:trn})} onDelete={()=>handleDelete(trn.id)} onUpdate={handleUpdate} rackets={rackets} strings={strings} stringSetups={stringSetups} trials={trials} toast={toast}/>}
             </div>
           );
         })}
