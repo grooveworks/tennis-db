@@ -1073,8 +1073,8 @@ function PracticesTab({data,setData,rackets,strings,stringSetups,trials,venues,s
   const cfm=useConfirm();
   const [expanded,setExpanded]=useState(null);
   const [modal,setModal]=useState(null);
-  const [collapsedMonths,setCollapsedMonths]=useState({});
-  const toggleMonth=m=>setCollapsedMonths(prev=>({...prev,[m]:!prev[m]}));
+  const [expandedMonths,setExpandedMonths]=useState(()=>{try{return JSON.parse(localStorage.getItem("yuke-practice-months")||"{}");} catch{return {};}});
+  const toggleMonth=m=>{const next={...expandedMonths,[m]:!expandedMonths[m]};setExpandedMonths(next);try{localStorage.setItem("yuke-practice-months",JSON.stringify(next));}catch{}};
   useEffect(()=>{if(quickAdd){setModal({practice:blankPractice()});onQuickAddDone();}},[quickAdd]);
   useEffect(()=>{if(initialExpand){setExpanded(initialExpand);if(onExpandDone)onExpandDone();}},[initialExpand]);
   const typeIcon={スクール:"🏫",自主練:"🎾",球出し:"🏐",練習試合:"⚔️",フィジカル:"💪"};
@@ -1202,13 +1202,13 @@ function PracticesTab({data,setData,rackets,strings,stringSetups,trials,venues,s
       {(()=>{
         const months={};data.forEach(p=>{const mk=p.date?p.date.substring(0,7):"????/??";if(!months[mk])months[mk]=[];months[mk].push(p);});
         return Object.keys(months).sort((a,b)=>b.localeCompare(a)).map(mk=>{
-          const items=months[mk];const parts=mk.split("/");const label=`${parts[0]}年${parseInt(parts[1])}月`;const isColl=collapsedMonths[mk];
+          const items=months[mk];const parts=mk.split("/");const label=`${parts[0]}年${parseInt(parts[1])}月`;const isExp=expandedMonths[mk];
           return (<div key={mk} style={{marginBottom:8}}>
-            <div onClick={()=>toggleMonth(mk)} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",background:C.panel2,border:`1px solid ${C.border}`,borderRadius:6,cursor:"pointer",marginBottom:isColl?0:4}}>
+            <div onClick={()=>toggleMonth(mk)} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",background:C.panel2,border:`1px solid ${C.border}`,borderRadius:6,cursor:"pointer",marginBottom:isExp?4:0}}>
               <span style={{fontSize:13,color:C.text,fontWeight:700,flex:1}}>{label} ({items.length}件)</span>
-              <span style={{fontSize:12,color:C.textMuted}}>{isColl?"▶":"▼"}</span>
+              <span style={{fontSize:12,color:C.textMuted}}>{isExp?"▼":"▶"}</span>
             </div>
-            {!isColl&&(<div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,overflow:"hidden"}}>
+            {isExp&&(<div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,overflow:"hidden"}}>
               {items.map((p,i)=>{
           const isOpen=expanded===p.id;
           return (
