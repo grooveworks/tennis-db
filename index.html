@@ -24,7 +24,7 @@
 <script type="text/babel">
 const { useState, useEffect, useRef, useMemo } = React;
 
-const APP_VERSION="2.2.6"; // 2026/04/13 Final v2: monthly grouping, paste import, home links, opponent linking, trial linking, stats refine, B16 fix
+const APP_VERSION="2.2.7"; // 2026/04/14 Opponent dropdown, auto-reg, name cascade, paste import, monthly grouping
 const C = {
   bg:"#f2f2f7", panel:"#ffffff", panel2:"#e8e8ed", panel3:"#dddde2",
   border:"#c7c7cc", accent:"#00b87a", accentDim:"#009963",
@@ -524,9 +524,14 @@ function GameTracker({ match, onChange }) {
 }
 
 // ── MATCH RECORD MODAL ────────────────────────────
-function MatchModal({match,mode,onSave,onClose,rackets,strings,stringSetups}){
+function MatchModal({match,mode,onSave,onClose,rackets,strings,stringSetups,opponents,onNewOpponent}){
   const [f,setF]=useState({...match}); const s=k=>v=>setF(p=>({...p,[k]:v}));
+  const [newOpp,setNewOpp]=useState(false);
+  const [newOppName,setNewOppName]=useState("");
   const isAdd=mode==="add";
+  const oppOpts=[{value:"",label:"-- 未選択 --"},...(opponents||[]).map(o=>({value:o.name,label:o.name+(o.nickname?` (${o.nickname})`:"")})),{value:"__new__",label:"＋ 新規登録"}];
+  const handleOppChange=v=>{if(v==="__new__"){setNewOpp(true);s("opponent")("");}else{setNewOpp(false);setNewOppName("");s("opponent")(v);}};
+  const handleSaveWrap=()=>{if(newOpp&&newOppName.trim()){s("opponent")(newOppName.trim());if(onNewOpponent)onNewOpponent(newOppName.trim());const updated={...f,opponent:newOppName.trim()};onSave(updated);return;}onSave(f);};
   return (
     <div style={{position:"fixed",inset:0,background:"#0004",zIndex:300,display:"flex",alignItems:"flex-start",justifyContent:"center",overflowY:"auto",padding:"20px 12px"}} onClick={e=>e.target===e.currentTarget&&onClose()}>
       <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,width:"100%",maxWidth:480,padding:20}}>
@@ -537,7 +542,8 @@ function MatchModal({match,mode,onSave,onClose,rackets,strings,stringSetups}){
         {isAdd?(
           <>
             <FSelect label="ラウンド" value={f.round} onChange={s("round")} options={[{value:"1回戦",label:"1回戦"},{value:"2回戦",label:"2回戦"},{value:"3回戦",label:"3回戦"},{value:"準々決勝",label:"準々決勝"},{value:"準決勝",label:"準決勝"},{value:"決勝",label:"決勝"},{value:"予選",label:"予選"},{value:"エキシビション",label:"エキシビション"}]}/>
-            <Field label="対戦相手（任意）" value={f.opponent} onChange={s("opponent")} placeholder="相手の名前やハンドル名"/>
+            <FSelect label="対戦相手" value={newOpp?"__new__":(f.opponent||"")} onChange={handleOppChange} options={oppOpts}/>
+            {newOpp&&<Field label="新しい相手の名前" value={newOppName} onChange={setNewOppName} placeholder="名前を入力（例: ヤスアキさん、不明_0425等）"/>}
             <FSelect label="使用ラケット" value={f.racketName||""} onChange={s("racketName")} options={getRacketOpts(rackets)}/>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 12px"}}>
               <FSelect label="縦糸" value={f.stringMain||""} onChange={s("stringMain")} options={getStringOpts(strings)}/>
@@ -554,7 +560,8 @@ function MatchModal({match,mode,onSave,onClose,rackets,strings,stringSetups}){
               <FSelect label="ラウンド" value={f.round} onChange={s("round")} options={[{value:"1回戦",label:"1回戦"},{value:"2回戦",label:"2回戦"},{value:"3回戦",label:"3回戦"},{value:"準々決勝",label:"準々決勝"},{value:"準決勝",label:"準決勝"},{value:"決勝",label:"決勝"},{value:"予選",label:"予選"},{value:"エキシビション",label:"エキシビション"}]}/>
               <FSelect label="結果" value={f.result} onChange={s("result")} options={[{value:"勝利",label:"🎉 勝利"},{value:"敗北",label:"❌ 敗北"},{value:"棄権",label:"棄権"}]}/>
             </div>
-            <Field label="対戦相手（任意）" value={f.opponent} onChange={s("opponent")} placeholder="相手の名前やハンドル名"/>
+            <FSelect label="対戦相手" value={newOpp?"__new__":(f.opponent||"")} onChange={handleOppChange} options={oppOpts}/>
+            {newOpp&&<Field label="新しい相手の名前" value={newOppName} onChange={setNewOppName} placeholder="名前を入力（例: ヤスアキさん、不明_0425等）"/>}
             <FSelect label="使用ラケット" value={f.racketName||""} onChange={s("racketName")} options={getRacketOpts(rackets)}/>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 12px"}}>
               <FSelect label="縦糸" value={f.stringMain||""} onChange={s("stringMain")} options={getStringOpts(strings)}/>
@@ -572,7 +579,7 @@ function MatchModal({match,mode,onSave,onClose,rackets,strings,stringSetups}){
         )}
         <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:14}}>
           <Btn onClick={onClose}>キャンセル</Btn>
-          <Btn onClick={()=>onSave(f)} variant="primary">保存</Btn>
+          <Btn onClick={handleSaveWrap} variant="primary">保存</Btn>
         </div>
       </div>
     </div>
@@ -720,7 +727,7 @@ function TournamentModal({tournament,onSave,onClose,rackets,strings,stringSetups
 }
 
 // ── TOURNAMENT DETAIL ─────────────────────────────
-function TournamentDetail({trn,onEdit,onDelete,onUpdate,rackets,strings,stringSetups,trials,opponents,toast}){
+function TournamentDetail({trn,onEdit,onDelete,onUpdate,rackets,strings,stringSetups,trials,opponents,onNewOpponent,toast}){
   const cfm=useConfirm();
   const [expandedMatch,setExpandedMatch]=useState(null);
   const [matchModal,setMatchModal]=useState(null);
@@ -817,7 +824,7 @@ function TournamentDetail({trn,onEdit,onDelete,onUpdate,rackets,strings,stringSe
         {toast&&<Btn onClick={()=>copyToClipboard(formatTournamentAllForClaude(trn),toast,"大会全体 → Claudeに貼り付け")}>📋 全試合</Btn>}
         <Btn onClick={onDelete} variant="danger">🗑</Btn>
       </div>
-      {matchModal&&<MatchModal match={matchModal.match} mode={matchModal.mode||"edit"} onSave={saveMatch} onClose={()=>setMatchModal(null)} rackets={rackets} strings={strings} stringSetups={stringSetups}/>}
+      {matchModal&&<MatchModal match={matchModal.match} mode={matchModal.mode||"edit"} onSave={saveMatch} onClose={()=>setMatchModal(null)} rackets={rackets} strings={strings} stringSetups={stringSetups} opponents={opponents} onNewOpponent={onNewOpponent}/>}
     </div>
   );
 }
@@ -827,7 +834,7 @@ const resultColor=r=>r==="優勝"?"green":r==="準優勝"?"blue":r==="予選突�
 const typeLabel={singles:"S",doubles:"D",mixed:"Mix"};
 const typeColor={singles:"gray",doubles:"blue",mixed:"purple"};
 
-function TournamentsTab({data,setData,rackets,strings,stringSetups,trials,opponents,venues,setVenues,toast,quickAdd,onQuickAddDone,initialExpand,onExpandDone}){
+function TournamentsTab({data,setData,rackets,strings,stringSetups,trials,opponents,onNewOpponent,venues,setVenues,toast,quickAdd,onQuickAddDone,initialExpand,onExpandDone}){
   const cfm=useConfirm();
   const [expanded,setExpanded]=useState(null);
   const [modal,setModal]=useState(null);
@@ -1055,7 +1062,7 @@ function TournamentsTab({data,setData,rackets,strings,stringSetups,trials,oppone
                 </div>
                 <div style={{color:C.textMuted,fontSize:12,transform:isOpen?"rotate(90deg)":"none",transition:"transform 0.2s",flexShrink:0}}>▶</div>
               </div>
-              {isOpen&&<TournamentDetail trn={trn} onEdit={()=>setModal({tournament:trn})} onDelete={()=>handleDelete(trn.id)} onUpdate={handleUpdate} rackets={rackets} strings={strings} stringSetups={stringSetups} trials={trials} opponents={opponents} toast={toast}/>}
+              {isOpen&&<TournamentDetail trn={trn} onEdit={()=>setModal({tournament:trn})} onDelete={()=>handleDelete(trn.id)} onUpdate={handleUpdate} rackets={rackets} strings={strings} stringSetups={stringSetups} trials={trials} opponents={opponents} onNewOpponent={onNewOpponent} toast={toast}/>}
             </div>
           );
         })}
@@ -2984,12 +2991,27 @@ function QuickTrialMode({rackets,stringSetups,strings,trials,setTrials,tournamen
 }
 
 // ── OPPONENTS TAB ─────────────────────────────────
-function OpponentsTab({data,setData,toast}){
+function OpponentsTab({data,setData,tournaments,setTournaments,toast}){
   const cfm=useConfirm();
   const [modal,setModal]=useState(null);
   const [expanded,setExpanded]=useState(null);
   const persist=list=>{setData(list);save(KEYS.opponents,list);};
-  const handleSave=form=>{const isNew=!data.find(o=>o.id===form.id);persist(isNew?[...data,form]:data.map(o=>o.id===form.id?form:o));setModal(null);toast.show("✅ 更新しました");};
+  const handleSave=form=>{
+    const isNew=!data.find(o=>o.id===form.id);
+    const old=data.find(o=>o.id===form.id);
+    // Cascade name change to all matches
+    if(!isNew&&old&&old.name!==form.name&&old.name){
+      const updated=(tournaments||[]).map(t=>{
+        const newMatches=(t.matches||[]).map(m=>m.opponent===old.name?{...m,opponent:form.name}:m);
+        const hasChange=newMatches.some((m,i)=>m!==(t.matches||[])[i]);
+        return hasChange?{...t,matches:newMatches}:t;
+      });
+      const changed=updated.some((t,i)=>t!==tournaments[i]);
+      if(changed){setTournaments(updated);save(KEYS.tournaments,updated);}
+    }
+    persist(isNew?[...data,form]:data.map(o=>o.id===form.id?form:o));
+    setModal(null);toast.show("✅ 更新しました");
+  };
   const handleDelete=id=>{const bk=[...data];cfm.ask("この対戦相手を削除しますか？",()=>{persist(data.filter(o=>o.id!==id));setExpanded(null);toast.show("🗑 削除しました",C.red,()=>persist(bk));});};
   const Modal=({item})=>{
     const [f,setF]=useState({...item}); const s=k=>v=>setF(p=>({...p,[k]:v}));
@@ -3039,7 +3061,8 @@ function OpponentsTab({data,setData,toast}){
               <div style={{marginTop:8,paddingTop:8,borderTop:`1px solid ${C.border}`}}>
                 {o.strengths&&<div style={{marginBottom:6}}><span style={{fontSize:12,color:C.accent}}>強み: </span><span style={{fontSize:12,color:C.textDim,lineHeight:1.7}}>{o.strengths}</span></div>}
                 {o.weaknesses&&<div style={{marginBottom:6}}><span style={{fontSize:12,color:C.red}}>弱み: </span><span style={{fontSize:12,color:C.textDim,lineHeight:1.7}}>{o.weaknesses}</span></div>}
-                {o.notes&&<div><span style={{fontSize:12,color:C.blue}}>メモ: </span><span style={{fontSize:12,color:C.textDim,lineHeight:1.7}}>{o.notes}</span></div>}
+                {o.notes&&<div style={{marginBottom:6}}><span style={{fontSize:12,color:C.blue}}>メモ: </span><span style={{fontSize:12,color:C.textDim,lineHeight:1.7}}>{o.notes}</span></div>}
+                {(()=>{const matches=[];(tournaments||[]).forEach(t=>(t.matches||[]).forEach(m=>{if(m.opponent===o.name)matches.push({...m,trnName:t.name,trnDate:t.date});}));return matches.length>0?(<div style={{marginTop:8}}><div style={{fontSize:12,color:C.purple,fontWeight:600,marginBottom:4}}>📋 対戦履歴 ({matches.length}試合)</div>{matches.map((m,i)=>(<div key={i} style={{display:"flex",gap:6,alignItems:"center",fontSize:12,marginBottom:2}}><span style={{color:C.textMuted,fontFamily:"monospace",minWidth:70}}>{m.trnDate}</span><Badge color={m.result==="勝利"?"green":"red"} sm>{m.result}</Badge><span style={{color:C.textMuted}}>{m.trnName} {m.round}</span><span style={{color:C.textDim,fontFamily:"monospace"}}>{(m.setScores||[]).join(", ")}</span></div>))}</div>):null;})()}
               </div>
             )}
           </div>
@@ -3558,6 +3581,34 @@ function TennisDB(){
     }catch(e){console.error("tournament restore error:",e);}
   },[syncing,user]);
 
+  // One-time: auto-register opponents from existing match data
+  useEffect(()=>{
+    if(syncing||!user)return;
+    try{
+      if(!localStorage.getItem("yuke-auto-opponents-v227")){
+        const names=new Set();
+        (tournaments||[]).forEach(t=>(t.matches||[]).forEach(m=>{if(m.opponent&&m.opponent.trim())names.add(m.opponent.trim());}));
+        const existing=new Set((opponents||[]).map(o=>o.name));
+        const toAdd=[...names].filter(n=>!existing.has(n)).map(n=>({id:`opp${Date.now()}${Math.random().toString(36).slice(2,6)}`,name:n,nickname:"",playStyle:"",strengths:"",weaknesses:"",matchHistory:[],notes:"",lastMet:""}));
+        if(toAdd.length>0){
+          const updated=[...opponents,...toAdd];
+          setOpponents(updated);save(KEYS.opponents,updated);
+          toast.show("🆚 対戦相手 "+toAdd.length+"人を自動登録");
+        }
+        localStorage.setItem("yuke-auto-opponents-v227","true");
+      }
+    }catch(e){console.error("opponent auto-reg error:",e);}
+  },[syncing,user]);
+
+  const addOpponent=(name)=>{
+    if(!name||!name.trim())return;
+    const trimmed=name.trim();
+    if((opponents||[]).some(o=>o.name===trimmed))return;
+    const newOpp={id:`opp${Date.now()}${Math.random().toString(36).slice(2,6)}`,name:trimmed,nickname:"",playStyle:"",strengths:"",weaknesses:"",matchHistory:[],notes:"",lastMet:""};
+    const updated=[...opponents,newOpp];
+    setOpponents(updated);save(KEYS.opponents,updated);
+  };
+
   const handleLogin=async()=>{
     try{
       const provider=new firebase.auth.GoogleAuthProvider();
@@ -3765,8 +3816,8 @@ function TennisDB(){
       <div style={{zoom:large?1.22:1}}>
       {tab==="home"&&<HomeTab next={next} setNext={setNext} tournaments={tournaments} practices={practices} trials={trials} daysSinceExport={daysSinceExport} lastExport={lastExport} onExport={handleExport} onRecord={t=>{if(t==="trials"){setQuickTrial(true);}else{setTab(t);setQuickAdd(t);}}} onGoToNext={()=>setTab("next")} onNavigate={navigateTo} toast={toast}/>}
       {tab==="profile"&&<ProfileTab data={profile} setData={setProfile} toast={toast}/>}
-      {tab==="opponents"&&<OpponentsTab data={opponents} setData={setOpponents} toast={toast}/>}
-      {tab==="tournaments"&&<TournamentsTab data={tournaments} setData={setTournaments} rackets={rackets} strings={strings} stringSetups={stringSetups} trials={trials} opponents={opponents} venues={venues} setVenues={v=>{setVenues(v);save(KEYS.venues,v);}} toast={toast} quickAdd={quickAdd==="tournaments"} onQuickAddDone={()=>setQuickAdd(null)} initialExpand={pendingExpand} onExpandDone={()=>setPendingExpand(null)}/>}
+      {tab==="opponents"&&<OpponentsTab data={opponents} setData={setOpponents} tournaments={tournaments} setTournaments={setTournaments} toast={toast}/>}
+      {tab==="tournaments"&&<TournamentsTab data={tournaments} setData={setTournaments} rackets={rackets} strings={strings} stringSetups={stringSetups} trials={trials} opponents={opponents} onNewOpponent={addOpponent} venues={venues} setVenues={v=>{setVenues(v);save(KEYS.venues,v);}} toast={toast} quickAdd={quickAdd==="tournaments"} onQuickAddDone={()=>setQuickAdd(null)} initialExpand={pendingExpand} onExpandDone={()=>setPendingExpand(null)}/>}
       {tab==="practices"&&<PracticesTab data={practices} setData={setPractices} rackets={rackets} strings={strings} stringSetups={stringSetups} trials={trials} venues={venues} setVenues={v=>{setVenues(v);save(KEYS.venues,v);}} toast={toast} quickAdd={quickAdd==="practices"} onQuickAddDone={()=>setQuickAdd(null)} initialExpand={pendingExpand} onExpandDone={()=>setPendingExpand(null)}/>}
       {tab==="trials"&&<TrialsTab data={trials} setData={setTrials} tournaments={tournaments} practices={practices} rackets={rackets} strings={strings} venues={venues} setVenues={v=>{setVenues(v);save(KEYS.venues,v);}} toast={toast} quickAdd={quickAdd==="trials"} onQuickAddDone={()=>setQuickAdd(null)}/>}
       {tab==="search"&&<SearchTab tournaments={tournaments} practices={practices} trials={trials} rackets={rackets} strings={strings} stringSetups={stringSetups} toast={toast}/>}
