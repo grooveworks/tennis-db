@@ -24,7 +24,7 @@
 <script type="text/babel">
 const { useState, useEffect, useRef, useMemo } = React;
 
-const APP_VERSION="2.2.4"; // 2026/04/13 dedup merge + import undo + gcal fix
+const APP_VERSION="2.2.5"; // 2026/04/13 merge dedup by date, import undo, p_gcal cleanup, tournament restore, B16 overflow fix, trials prop fix
 const C = {
   bg:"#f2f2f7", panel:"#ffffff", panel2:"#e8e8ed", panel3:"#dddde2",
   border:"#c7c7cc", accent:"#00b87a", accentDim:"#009963",
@@ -714,7 +714,7 @@ function TournamentModal({tournament,onSave,onClose,rackets,strings,stringSetups
 }
 
 // ── TOURNAMENT DETAIL ─────────────────────────────
-function TournamentDetail({trn,onEdit,onDelete,onUpdate,rackets,strings,stringSetups,toast}){
+function TournamentDetail({trn,onEdit,onDelete,onUpdate,rackets,strings,stringSetups,trials,toast}){
   const cfm=useConfirm();
   const [expandedMatch,setExpandedMatch]=useState(null);
   const [matchModal,setMatchModal]=useState(null);
@@ -781,24 +781,22 @@ function TournamentDetail({trn,onEdit,onDelete,onUpdate,rackets,strings,stringSe
           const mc=m.mental>=4?C.accent:m.mental>=3?C.yellow:C.red;
           return (
             <div key={m.id} style={{borderBottom:i<(trn.matches||[]).length-1?`1px solid ${C.border}`:"none"}}>
-              <div onClick={()=>setExpandedMatch(isOpen?null:m.id)} style={{display:"flex",alignItems:"center",gap:8,padding:"10px 14px",background:isOpen?"#f0f0f5":"transparent",cursor:"pointer",borderLeft:isOpen?`3px solid ${C.blue}`:"3px solid transparent",transition:"all 0.1s"}}>
+              <div onClick={()=>setExpandedMatch(isOpen?null:m.id)} style={{display:"flex",alignItems:"center",gap:4,padding:"10px 10px",background:isOpen?"#f0f0f5":"transparent",cursor:"pointer",borderLeft:isOpen?`3px solid ${C.blue}`:"3px solid transparent",transition:"all 0.1s",flexWrap:"wrap"}}>
                 <Badge color={roundColor[m.round]||"gray"} sm>{m.round}</Badge>
                 <Badge color={m.result==="勝利"?"green":"red"} sm>{m.result==="勝利"?"勝利✓":"敗北"}</Badge>
-                <div style={{flex:1,minWidth:0}}>
-                  <span style={{fontSize:12,color:C.text,fontWeight:600}}>{m.opponent||"（相手未入力）"}</span>
-                  <span style={{fontSize:12,color:C.textMuted,marginLeft:8,fontFamily:"monospace"}}>{(m.setScores||[]).join(", ")||"—"}</span>
+                <div style={{flex:1,minWidth:60,overflow:"hidden"}}>
+                  <span style={{fontSize:12,color:C.text,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",display:"block"}}>{m.opponent||"（相手未入力）"}</span>
                 </div>
+                <span style={{fontSize:11,color:C.textMuted,fontFamily:"monospace",whiteSpace:"nowrap"}}>{(m.setScores||[]).join(", ")||"—"}</span>
                 {/* Game flow mini */}
-                <div style={{display:"flex",gap:2,flexShrink:0}}>
-                  {games.slice(0,10).map((g,gi)=>(
-                    <div key={gi} style={{width:7,height:12,borderRadius:1,background:g.winner==="me"?C.accent:C.red}}/>
-                  ))}
-                  {games.length>10&&<span style={{fontSize:12,color:C.textMuted}}>+{games.length-10}</span>}
-                </div>
-                {games.length>0&&<div style={{fontSize:12,fontFamily:"monospace",color:C.textMuted,minWidth:32,textAlign:"right"}}>{score.me}-{score.opp}</div>}
-                {/* Mental bar */}
                 <div style={{display:"flex",gap:1,flexShrink:0}}>
-                  {[1,2,3,4,5].map(n=><div key={n} style={{width:3,height:12,borderRadius:1,background:n<=m.mental?mc:C.border}}/>)}
+                  {games.slice(0,10).map((g,gi)=>(
+                    <div key={gi} style={{width:5,height:8,borderRadius:1,background:g.winner==="me"?C.accent:C.red}}/>
+                  ))}
+                </div>
+                {games.length>0&&<div style={{fontSize:11,fontFamily:"monospace",color:C.textMuted,textAlign:"right"}}>{score.me}-{score.opp}</div>}
+                <div style={{display:"flex",gap:1,flexShrink:0}}>
+                  {[1,2,3,4,5].map(n=><div key={n} style={{width:2,height:10,borderRadius:1,background:n<=m.mental?mc:C.border}}/>)}
                 </div>
                 <div style={{color:C.textMuted,fontSize:12,transform:isOpen?"rotate(90deg)":"none",transition:"transform 0.2s"}}>▶</div>
               </div>
@@ -1006,7 +1004,7 @@ function TournamentsTab({data,setData,rackets,strings,stringSetups,trials,venues
                 </div>
                 <div style={{color:C.textMuted,fontSize:12,transform:isOpen?"rotate(90deg)":"none",transition:"transform 0.2s",flexShrink:0}}>▶</div>
               </div>
-              {isOpen&&<TournamentDetail trn={trn} onEdit={()=>setModal({tournament:trn})} onDelete={()=>handleDelete(trn.id)} onUpdate={handleUpdate} rackets={rackets} strings={strings} stringSetups={stringSetups} toast={toast}/>}
+              {isOpen&&<TournamentDetail trn={trn} onEdit={()=>setModal({tournament:trn})} onDelete={()=>handleDelete(trn.id)} onUpdate={handleUpdate} rackets={rackets} strings={strings} stringSetups={stringSetups} trials={trials} toast={toast}/>}
             </div>
           );
         })}
@@ -3263,13 +3261,12 @@ function TennisDB(){
   const [stringSetups,setStringSetups]=useState([]);
   const [quickTrialCards,setQuickTrialCards]=useState([]);
   const [opponents,setOpponents]=useState([]);
+  const [importSnapshot,setImportSnapshot]=useState(null);
   const [large,setLarge]=useState(()=>{try{return localStorage.getItem("yuke-fs")==="large";}catch{return false;}});
   const [user,setUser]=useState(null);
   const [authReady,setAuthReady]=useState(false);
   const [syncing,setSyncing]=useState(false);
   const importRef=useRef();
-  const importSnapshotRef=useRef(null);
-  const [canUndoImport,setCanUndoImport]=useState(false);
   const toast=useToast();
 
   const toggleLarge=()=>setLarge(v=>{const n=!v;try{localStorage.setItem("yuke-fs",n?"large":"normal");}catch{}return n;});
@@ -3394,21 +3391,6 @@ function TennisDB(){
     };
     const migrated=fixMeasurements(migrateToV2(raw));
     applyData(migrated);
-    // v2.2.4 one-time fix: restore deleted tournaments + remove gcal duplicates (2026/04/13)
-    if(!lsLoad("fix_gcal_v224")){
-      let trns=migrated.tournaments||[];let prcs=migrated.practices||[];
-      const restoreIfMissing=[
-        {date:"2026/04/25",name:"インスピシングルス中上級",level:"中上級",type:"singles",venue:"ジャクパ狭山"},
-        {date:"2026/04/26",name:"所沢市民大会ベテランシングルス",level:"ベテラン",type:"singles",venue:""},
-        {date:"2026/04/29",name:"インスピシングルス中上級",level:"中上級",type:"singles",venue:"インスピリッツ"}
-      ];
-      restoreIfMissing.forEach(r=>{if(!trns.some(t=>t.date===r.date&&t.name===r.name)){trns=[...trns,{id:"trn"+Date.now()+Math.random().toString(36).slice(2,6),...r,racketName:"",stringMain:"",stringCross:"",tensionMain:"",tensionCross:"",temp:"",weather:"",overallResult:"",generalNote:"",matches:[]}];}});
-      trns=trns.filter(t=>!t.id.startsWith("trn_gcal_"));
-      prcs=prcs.filter(p=>!p.id.startsWith("p_gcal_"));
-      setTournaments(ds(trns));lsSave(KEYS.tournaments,trns);save(KEYS.tournaments,trns);
-      setPractices(ds(prcs));lsSave(KEYS.practices,prcs);save(KEYS.practices,prcs);
-      lsSave("fix_gcal_v224",true);
-    }
     // Save migrated data
     if(!lsLoad("migrated_v2_saved")||!lsLoad("migrated_v2_measurements")){
       Object.entries(KEYS).forEach(([name,key])=>{
@@ -3432,21 +3414,6 @@ function TennisDB(){
           Object.entries(KEYS).forEach(([name,key])=>{
             if(cloud[key]){merged[name]=cloud[key];lsSave(key,cloud[key]);}
           });
-          // v2.2.4 one-time fix for cloud data
-          if(!lsLoad("fix_gcal_v224_cloud")){
-            let ctrns=merged.tournaments||[];let cprcs=merged.practices||[];
-            const restoreIfMissing=[
-              {date:"2026/04/25",name:"インスピシングルス中上級",level:"中上級",type:"singles",venue:"ジャクパ狭山"},
-              {date:"2026/04/26",name:"所沢市民大会ベテランシングルス",level:"ベテラン",type:"singles",venue:""},
-              {date:"2026/04/29",name:"インスピシングルス中上級",level:"中上級",type:"singles",venue:"インスピリッツ"}
-            ];
-            restoreIfMissing.forEach(r=>{if(!ctrns.some(t=>t.date===r.date&&t.name===r.name)){ctrns=[...ctrns,{id:"trn"+Date.now()+Math.random().toString(36).slice(2,6),...r,racketName:"",stringMain:"",stringCross:"",tensionMain:"",tensionCross:"",temp:"",weather:"",overallResult:"",generalNote:"",matches:[]}];}});
-            ctrns=ctrns.filter(t=>!t.id.startsWith("trn_gcal_"));
-            cprcs=cprcs.filter(p=>!p.id.startsWith("p_gcal_"));
-            merged.tournaments=ctrns;merged.practices=cprcs;
-            save(KEYS.tournaments,ctrns);save(KEYS.practices,cprcs);
-            lsSave("fix_gcal_v224_cloud",true);
-          }
           applyData(merged);
           setSyncing(false);
           toast.show("☁️ クラウドから同期しました");
@@ -3487,6 +3454,39 @@ function TennisDB(){
     return ()=>unsub();
   },[]);
 
+  // One-time cleanup v2.2.5: remove p_gcal_ practices + restore 3 tournaments
+  useEffect(()=>{
+    if(syncing||!user)return;
+    try{
+      if(!localStorage.getItem("yuke-cleaned-pgcal-v225")){
+        const pNow=[...practices];
+        const pClean=pNow.filter(p=>!p.id.startsWith("p_gcal_"));
+        if(pClean.length<pNow.length){
+          setPractices(pClean);save(KEYS.practices,pClean);
+          toast.show("🧹 重複練習 "+(pNow.length-pClean.length)+"件を削除");
+        }
+        localStorage.setItem("yuke-cleaned-pgcal-v225","true");
+      }
+    }catch(e){console.error("p_gcal cleanup error:",e);}
+    try{
+      if(!localStorage.getItem("yuke-restored-trn-v225")){
+        const toRestore=[
+          {id:"trn_r_0425",date:"2026/04/25",name:"インスピシングルス中上級",level:"中上級",type:"singles",venue:"ジャクパ狭山",racketName:"",stringMain:"",stringCross:"",tensionMain:"",tensionCross:"",temp:"",weather:"",overallResult:"",generalNote:"",matches:[]},
+          {id:"trn_r_0426",date:"2026/04/26",name:"所沢市民大会ベテランシングルス",level:"ベテラン",type:"singles",venue:"",racketName:"",stringMain:"",stringCross:"",tensionMain:"",tensionCross:"",temp:"",weather:"",overallResult:"",generalNote:"",matches:[]},
+          {id:"trn_r_0429",date:"2026/04/29",name:"インスピシングルス中上級",level:"中上級",type:"singles",venue:"インスピリッツ",racketName:"",stringMain:"",stringCross:"",tensionMain:"",tensionCross:"",temp:"",weather:"",overallResult:"",generalNote:"",matches:[]},
+        ];
+        const tNow=[...tournaments];
+        const toAdd=toRestore.filter(r=>!tNow.some(t=>t.date===r.date));
+        if(toAdd.length>0){
+          const updated=[...tNow,...toAdd].sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+          setTournaments(updated);save(KEYS.tournaments,updated);
+          toast.show("🔄 大会 "+toAdd.length+"件を復元");
+        }
+        localStorage.setItem("yuke-restored-trn-v225","true");
+      }
+    }catch(e){console.error("tournament restore error:",e);}
+  },[syncing,user]);
+
   const handleLogin=async()=>{
     try{
       const provider=new firebase.auth.GoogleAuthProvider();
@@ -3515,32 +3515,30 @@ function TennisDB(){
     reader.onload=ev=>{
       try{
         const d=JSON.parse(ev.target.result);
-        // Save snapshot before import for undo
-        importSnapshotRef.current={tournaments:[...tournaments],practices:[...practices],trials:[...trials],rackets:[...rackets],strings:[...strings],measurements:[...measurements],mental:[...mental],next:[...next],profile:{...profile},venues:[...venues],stringSetups:[...stringSetups]};
-        // merge: idベース + 日付ベース重複判定
-        const merge=(existing,incoming,dupKeys)=>{
+        // Save snapshot for undo
+        const snap={tournaments:[...tournaments],practices:[...practices],trials:[...trials],rackets:[...rackets],strings:[...strings],measurements:[...measurements],mental:[...mental],next:[...next],profile:{...profile},venues:[...venues],stringSetups:[...stringSetups],opponents:[...opponents]};
+        setImportSnapshot(snap);
+        // Date-based dedup merge
+        const merge=(existing,incoming,dupKey)=>{
           if(!Array.isArray(incoming))return incoming;
           const map=new Map(existing.map(item=>[item.id,item]));
           incoming.forEach(item=>{
-            if(dupKeys){
-              const dup=[...map.values()].find(e=>dupKeys.every(k=>e[k]&&item[k]&&String(e[k])===String(item[k])));
-              if(dup&&!map.has(item.id)){
-                map.set(dup.id,{...dup,...item,id:dup.id});
-                return;
-              }
-            }
-            map.set(item.id,{...map.get(item.id),...item});
+            if(map.has(item.id)){map.set(item.id,{...map.get(item.id),...item});return;}
+            if(dupKey){const dup=existing.find(e=>dupKey(e,item));if(dup)return;}
+            map.set(item.id,item);
           });
           return [...map.values()].sort((a,b)=>(b.date||"").localeCompare(a.date||""));
         };
-        const apply=(key,getter,setter,stoKey,dupKeys)=>{
+        const trnDup=(a,b)=>a.date&&b.date&&a.name&&b.name&&a.date===b.date&&a.name===b.name;
+        const pracDup=(a,b)=>a.date&&b.date&&a.venue&&b.venue&&a.date===b.date&&a.venue===b.venue;
+        const apply=(key,getter,setter,stoKey,dupKey)=>{
           if(d[key]){
-            const merged=Array.isArray(d[key])?merge(getter,d[key],dupKeys):({...getter,...d[key]});
+            const merged=Array.isArray(d[key])?merge(getter,d[key],dupKey):({...getter,...d[key]});
             setter(merged);save(stoKey,merged);
           }
         };
-        apply("tournaments",tournaments,setTournaments,KEYS.tournaments,["date","name"]);
-        apply("practices",practices,setPractices,KEYS.practices,["date","venue"]);
+        apply("tournaments",tournaments,setTournaments,KEYS.tournaments,trnDup);
+        apply("practices",practices,setPractices,KEYS.practices,pracDup);
         apply("trials",trials,setTrials,KEYS.trials);
         apply("rackets",rackets,setRackets,KEYS.rackets);
         apply("strings",strings,setStrings,KEYS.strings);
@@ -3550,20 +3548,29 @@ function TennisDB(){
         apply("profile",profile,setProfile,KEYS.profile);
         apply("venues",venues,setVenues,KEYS.venues);
         apply("stringSetups",stringSetups,setStringSetups,KEYS.stringSetups);
-        setCanUndoImport(true);
-        toast.show("📥 インポート完了 · ↩️で元に戻せます");
+        toast.show("📥 インポート完了（↩️で取消可能）");
       }catch{toast.show("❌ 読み込み失敗",C.red);}
     };
     reader.readAsText(file);e.target.value="";
   };
-  const handleUndoImport=()=>{
-    const snap=importSnapshotRef.current;
-    if(!snap){toast.show("❌ 元に戻せるデータがありません",C.red);return;}
-    applyData(snap);
-    Object.entries(KEYS).forEach(([name,key])=>{if(snap[name])save(key,snap[name]);});
-    importSnapshotRef.current=null;
-    setCanUndoImport(false);
-    toast.show("↩️ インポート前の状態に戻しました");
+  const handleImportUndo=()=>{
+    if(!importSnapshot)return;
+    const s=importSnapshot;
+    const restoreArr=(arr,setter,key)=>{setter(arr);save(key,arr);};
+    restoreArr(s.tournaments,setTournaments,KEYS.tournaments);
+    restoreArr(s.practices,setPractices,KEYS.practices);
+    restoreArr(s.trials,setTrials,KEYS.trials);
+    restoreArr(s.rackets,setRackets,KEYS.rackets);
+    restoreArr(s.strings,setStrings,KEYS.strings);
+    restoreArr(s.measurements,setMeasurements,KEYS.measurements);
+    restoreArr(s.mental,setMental,KEYS.mental);
+    restoreArr(s.next,setNext,KEYS.next);
+    setProfile(s.profile);save(KEYS.profile,s.profile);
+    restoreArr(s.venues,setVenues,KEYS.venues);
+    restoreArr(s.stringSetups,setStringSetups,KEYS.stringSetups);
+    restoreArr(s.opponents,setOpponents,KEYS.opponents);
+    setImportSnapshot(null);
+    toast.show("↩️ インポートを取り消しました");
   };
 
   if(!ready) return <div style={{background:C.bg,minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",color:C.textMuted,fontFamily:"sans-serif"}}>読み込み中...</div>;
@@ -3616,7 +3623,7 @@ function TennisDB(){
           <button onClick={handleExport} style={{background:"#eff6ff",border:`1px solid ${C.blue}`,color:C.blue,borderRadius:6,padding:"6px 12px",fontSize:12,fontWeight:600,cursor:"pointer"}}>📤</button>
           <button onClick={()=>setShowClaudeShare(true)} style={{background:"#f5f3ff",border:`1px solid ${C.purple}`,color:C.purple,borderRadius:6,padding:"6px 8px",fontSize:12,fontWeight:600,cursor:"pointer"}}>📋</button>
           <button onClick={()=>importRef.current.click()} style={{background:"#ecfdf5",border:`1px solid ${C.accentDim}`,color:C.accent,borderRadius:6,padding:"6px 12px",fontSize:12,fontWeight:600,cursor:"pointer"}}>📥</button>
-          {canUndoImport&&<button onClick={handleUndoImport} style={{background:"#fffbeb",border:"1px solid #d97706",color:"#b45309",borderRadius:6,padding:"6px 8px",fontSize:12,fontWeight:600,cursor:"pointer"}}>↩️</button>}
+          {importSnapshot&&<button onClick={handleImportUndo} style={{background:"#fef2f2",border:`1px solid ${C.red}`,color:C.red,borderRadius:6,padding:"6px 8px",fontSize:12,fontWeight:600,cursor:"pointer"}}>↩️</button>}
           <input ref={importRef} type="file" accept=".json" onChange={handleImport} style={{display:"none"}}/>
           {user?
             <button onClick={handleLogout} style={{background:"#f5f3ff",border:`1px solid ${C.purple}`,color:C.purple,borderRadius:6,padding:"6px 8px",fontSize:12,fontWeight:600,cursor:"pointer"}}>👤</button>
