@@ -18,7 +18,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;bac
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script type="text/babel">
-const APP_VERSION="3.1.0"; // Phase 2A: Sessions tab
+const APP_VERSION="3.1.1"; // Phase 2A: Sessions collapsible + Home 5-item limit + date picker
 const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
 // ── COLORS ────────────────────────────────────────
@@ -123,7 +123,7 @@ const Field=({label,value,onChange,multiline,placeholder,type="text"})=>(
   <div style={{marginBottom:10}}>
     {label&&<div style={{fontSize:12,color:C.textMuted,letterSpacing:"0.08em",marginBottom:4}}>{label}</div>}
     {multiline?<textarea value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} rows={3} style={{width:"100%",background:C.panel2,border:`1px solid ${C.border}`,borderRadius:6,padding:"10px 12px",color:C.text,fontSize:13,resize:"vertical",fontFamily:"inherit",outline:"none"}}/>
-    :<input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} style={{width:"100%",background:C.panel2,border:`1px solid ${C.border}`,borderRadius:6,padding:"10px 12px",color:C.text,fontSize:13,fontFamily:"inherit",outline:"none",minHeight:44}}/>}
+    :<input type={type} value={type==="date"?normDate(value||""):value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} style={{width:"100%",background:C.panel2,border:`1px solid ${C.border}`,borderRadius:6,padding:"10px 12px",color:C.text,fontSize:13,fontFamily:"inherit",outline:"none",minHeight:44}}/>}
   </div>
 );
 const FSelect=({label,value,onChange,options})=>(
@@ -220,12 +220,29 @@ const RatingRow=({item,value,onChange})=>(
   </div>
 );
 
+// ── SESSION ROW (reusable) ─────────────────────────
+const typeIcon=t=>({tournament:"🏆",practice:"🏃",trial:"🎾"}[t]||"📋");
+const SessionRow=({item,onSelect})=>(
+  <div onClick={onSelect} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",background:C.panel,borderRadius:8,marginBottom:4,cursor:"pointer",border:`1px solid ${C.border}`}}>
+    <span style={{fontSize:18}}>{typeIcon(item.type)}</span>
+    <div style={{flex:1,minWidth:0}}>
+      <div style={{fontSize:13,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.title}</div>
+      <div style={{fontSize:11,color:C.textMuted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{fmtDate(item.date)} · {item.racket||""} {item.sub||""}</div>
+    </div>
+    {item.result&&<Badge color={resultColor(item.result)} sm>{item.result}</Badge>}
+    {item.judgment&&<Badge color={item.judgment==="採用候補"?"green":item.judgment==="却下"?"red":"gray"} sm>{item.judgment}</Badge>}
+    {item.matchCount>0&&<span style={{fontSize:10,color:C.textMuted}}>{item.matchCount}試合</span>}
+  </div>
+);
+
 // ── SESSIONS TAB ──────────────────────────────────
 function SessionsTab({tournaments,setTournaments,practices,setPractices,trials,setTrials,rackets,strings,stringSetups,venues,setVenues,opponents,toast,uid,pendingRecord,onPendingRecordDone}){
   const[filter,setFilter]=useState("all");
   const[selected,setSelected]=useState(null); // {type,id}
   const[modal,setModal]=useState(null); // {type:"tournament"|"practice"|"trial",data}
   const[matchModal,setMatchModal]=useState(null);
+  const[expandedMonths,setExpandedMonths]=useState(()=>{try{return JSON.parse(localStorage.getItem("yuke-sessions-months")||"{}");} catch{return {};}});
+  const toggleMonth=m=>{const next={...expandedMonths,[m]:!expandedMonths[m]};setExpandedMonths(next);try{localStorage.setItem("yuke-sessions-months",JSON.stringify(next));}catch{}};
 
   // Handle pending record from Home tab
   useEffect(()=>{
@@ -247,19 +264,36 @@ function SessionsTab({tournaments,setTournaments,practices,setPractices,trials,s
 
   const filtered=filter==="all"?allItems:allItems.filter(i=>i.type==={tournament:"tournament",practice:"practice",trial:"trial"}[filter]);
 
-  // Group by month
+  // Group by month, with year-tier for 12+ months ago
+  const oneYearAgo=useMemo(()=>{const d=new Date();d.setFullYear(d.getFullYear()-1);return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;},[]);
+
   const grouped=useMemo(()=>{
-    const g={};
+    const months={};
     filtered.forEach(item=>{
       const nd=normDate(item.date);
       const mk=nd?nd.substring(0,7):"不明";
-      if(!g[mk])g[mk]=[];
-      g[mk].push(item);
+      if(!months[mk])months[mk]=[];
+      months[mk].push(item);
     });
-    return Object.entries(g).sort((a,b)=>b[0].localeCompare(a[0]));
-  },[filtered]);
+    const sortedKeys=Object.keys(months).sort((a,b)=>b.localeCompare(a));
+    const recentMonths=[];
+    const oldYears={};
+    sortedKeys.forEach(mk=>{
+      if(mk==="不明"||mk>=oneYearAgo){
+        recentMonths.push({key:mk,type:"month",items:months[mk]});
+      }else{
+        const yr=mk.substring(0,4);
+        if(!oldYears[yr])oldYears[yr]={key:yr,type:"year",months:[],totalCount:0};
+        oldYears[yr].months.push({key:mk,items:months[mk]});
+        oldYears[yr].totalCount+=months[mk].length;
+      }
+    });
+    const oldYearsSorted=Object.values(oldYears).sort((a,b)=>b.key.localeCompare(a.key));
+    return[...recentMonths,...oldYearsSorted];
+  },[filtered,oneYearAgo]);
 
   const fmtMonth=m=>{if(m==="不明")return"日付不明";const[y,mo]=m.split("-");return`${y}年${parseInt(mo)}月`;};
+  const isExpanded=k=>!!expandedMonths[k];
 
   // Save handlers
   const saveTournament=(t,isNew)=>{
@@ -304,9 +338,6 @@ function SessionsTab({tournaments,setTournaments,practices,setPractices,trials,s
   const deleteTrial=id=>{if(!confirm("この試打を削除しますか？"))return;const updated=trials.filter(t=>t.id!==id);setTrials(updated);save(KEYS.trials,updated,uid);setSelected(null);toast.show("削除しました",C.red);};
   const deleteMatch=(trn,matchId)=>{if(!confirm("この試合を削除しますか？"))return;const updated={...trn,matches:(trn.matches||[]).filter(m=>m.id!==matchId)};setTournaments(tournaments.map(t=>t.id===trn.id?updated:t));save(KEYS.tournaments,tournaments.map(t=>t.id===trn.id?updated:t),uid);toast.show("試合を削除しました",C.red);};
 
-  // Icon helpers
-  const typeIcon=t=>({tournament:"🏆",practice:"🏃",trial:"🎾"}[t]||"📋");
-
   // Detail view
   if(selected){
     const item=allItems.find(i=>i.id===selected.id&&i.type===selected.type);
@@ -336,25 +367,35 @@ function SessionsTab({tournaments,setTournaments,practices,setPractices,trials,s
         <button onClick={()=>setModal({type:"tournament",data:blankTournament(),isNew:true})} style={{padding:"6px 12px",borderRadius:6,background:C.accent,color:"#fff",border:"none",fontSize:12,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap"}}>＋ 記録</button>
       </div>
 
-      {/* Monthly groups */}
+      {/* Collapsible groups */}
       {grouped.length===0&&<div style={{textAlign:"center",padding:40,color:C.textMuted,fontSize:13}}>レコードがありません</div>}
-      {grouped.map(([month,items])=>(
-        <div key={month} style={{marginBottom:16}}>
-          <div style={{fontSize:12,fontWeight:600,color:C.textMuted,marginBottom:6,paddingLeft:4}}>{fmtMonth(month)} ({items.length})</div>
-          {items.map(item=>(
-            <div key={item.type+item.id} onClick={()=>setSelected({type:item.type,id:item.id})} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",background:C.panel,borderRadius:8,marginBottom:4,cursor:"pointer",border:`1px solid ${C.border}`}}>
-              <span style={{fontSize:18}}>{typeIcon(item.type)}</span>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:13,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.title}</div>
-                <div style={{fontSize:11,color:C.textMuted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{fmtDate(item.date)} · {item.racket||""} {item.sub||""}</div>
+      {grouped.map(group=>{
+        if(group.type==="month"){
+          return(<div key={group.key} style={{marginBottom:8}}>
+            <div onClick={()=>toggleMonth(group.key)} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",background:C.panel2,border:`1px solid ${C.border}`,borderRadius:6,cursor:"pointer",marginBottom:isExpanded(group.key)?4:0}}>
+              <span style={{fontSize:13,fontWeight:700,color:C.text,flex:1}}>{fmtMonth(group.key)} ({group.items.length}件)</span>
+              <span style={{fontSize:12,color:C.textMuted}}>{isExpanded(group.key)?"▼":"▶"}</span>
+            </div>
+            {isExpanded(group.key)&&group.items.map(item=><SessionRow key={item.type+item.id} item={item} onSelect={()=>setSelected({type:item.type,id:item.id})}/>)}
+          </div>);
+        }
+        // Year tier
+        return(<div key={group.key} style={{marginBottom:8}}>
+          <div onClick={()=>toggleMonth(group.key)} style={{display:"flex",alignItems:"center",gap:8,padding:"10px 12px",background:C.panel3,border:`1px solid ${C.border}`,borderRadius:6,cursor:"pointer",marginBottom:isExpanded(group.key)?4:0}}>
+            <span style={{fontSize:14,fontWeight:700,color:C.text,flex:1}}>{group.key}年 ({group.totalCount}件)</span>
+            <span style={{fontSize:12,color:C.textMuted}}>{isExpanded(group.key)?"▼":"▶"}</span>
+          </div>
+          {isExpanded(group.key)&&group.months.map(mo=>(
+            <div key={mo.key} style={{marginBottom:4,marginLeft:12}}>
+              <div onClick={()=>toggleMonth(mo.key)} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",background:C.panel2,border:`1px solid ${C.border}`,borderRadius:5,cursor:"pointer",marginBottom:isExpanded(mo.key)?4:0}}>
+                <span style={{fontSize:12,fontWeight:600,color:C.textMuted,flex:1}}>{fmtMonth(mo.key)} ({mo.items.length}件)</span>
+                <span style={{fontSize:11,color:C.textMuted}}>{isExpanded(mo.key)?"▼":"▶"}</span>
               </div>
-              {item.result&&<Badge color={resultColor(item.result)} sm>{item.result}</Badge>}
-              {item.judgment&&<Badge color={item.judgment==="採用候補"?"green":item.judgment==="却下"?"red":"gray"} sm>{item.judgment}</Badge>}
-              {item.matchCount>0&&<span style={{fontSize:10,color:C.textMuted}}>{item.matchCount}試合</span>}
+              {isExpanded(mo.key)&&mo.items.map(item=><SessionRow key={item.type+item.id} item={item} onSelect={()=>setSelected({type:item.type,id:item.id})}/>)}
             </div>
           ))}
-        </div>
-      ))}
+        </div>);
+      })}
 
       {/* Record Modal */}
       {modal&&modal.type==="tournament"&&<RecordTournamentModal data={modal.data} isNew={modal.isNew!==false} onSave={saveTournament} onClose={()=>setModal(null)} rackets={rackets} strings={strings} venues={venues}/>}
@@ -370,7 +411,7 @@ function RecordTournamentModal({data,isNew,onSave,onClose,rackets,strings,venues
   const s=k=>v=>setF(p=>({...p,[k]:v}));
   const handleRacketChange=name=>{setF(p=>({...p,racketName:name,...autoFillFromRacket(name,rackets)}));};
   return <Modal title={isNew?"🏆 大会を記録":"🏆 大会を編集"} onClose={onClose}>
-    <Field label="日付" value={f.date} onChange={s("date")} placeholder="2026/04/15"/>
+    <Field label="日付" value={f.date} onChange={s("date")} type="date"/>
     <Field label="大会名" value={f.name} onChange={s("name")} placeholder="インスピ 中上級S"/>
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 10px"}}>
       <FSelect label="レベル" value={f.level} onChange={s("level")} options={LEVEL_OPTS}/>
@@ -400,7 +441,7 @@ function RecordPracticeModal({data,isNew,onSave,onClose,rackets,strings,venues})
   const s=k=>v=>setF(p=>({...p,[k]:v}));
   const handleRacketChange=name=>{setF(p=>({...p,racketName:name,...autoFillFromRacket(name,rackets)}));};
   return <Modal title={isNew?"🏃 練習を記録":"🏃 練習を編集"} onClose={onClose}>
-    <Field label="日付" value={f.date} onChange={s("date")} placeholder="2026/04/15"/>
+    <Field label="日付" value={f.date} onChange={s("date")} type="date"/>
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 10px"}}>
       <Field label="会場" value={f.venue||""} onChange={s("venue")} placeholder="会場名"/>
       <FSelect label="タイプ" value={f.type||""} onChange={s("type")} options={PRACTICE_TYPE_OPTS}/>
@@ -431,7 +472,7 @@ function RecordTrialModal({data,isNew,onSave,onClose,rackets,strings}){
   const s=k=>v=>setF(p=>({...p,[k]:v}));
   const handleRacketChange=name=>{setF(p=>({...p,racketName:name,...autoFillFromRacket(name,rackets)}));};
   return <Modal title={isNew?"🎾 試打を記録":"🎾 試打を編集"} onClose={onClose}>
-    <Field label="日付" value={f.date} onChange={s("date")} placeholder="2026/04/15"/>
+    <Field label="日付" value={f.date} onChange={s("date")} type="date"/>
     <FSelect label="ラケット" value={f.racketName||""} onChange={handleRacketChange} options={getRacketOpts(rackets)}/>
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 10px"}}>
       <FSelect label="縦糸" value={f.stringMain||""} onChange={s("stringMain")} options={getStringOpts(strings)}/>
@@ -640,7 +681,7 @@ function TrialDetailView({t,onBack,onEdit,onDelete}){
 }
 
 // ── HOME TAB ──────────────────────────────────────
-function HomeTab({next,setNext,tournaments,practices,trials,daysSinceExport,onExport,onRecord,onGoToNext,toast,uid}){
+function HomeTab({next,setNext,tournaments,practices,trials,daysSinceExport,onExport,onRecord,onGoToNext,onGoToSessions,toast,uid}){
   const undoRef=useRef(null);
   const toggleNext=(id)=>{
     const item=next.find(n=>n.id===id);
@@ -659,8 +700,15 @@ function HomeTab({next,setNext,tournaments,practices,trials,daysSinceExport,onEx
 
   const pendingNext=(next||[]).filter(n=>!n.done).slice(0,3);
   const todayStr=today();
-  const futureTournaments=(tournaments||[]).filter(t=>normDate(t.date)>=todayStr).sort((a,b)=>normDate(a.date).localeCompare(normDate(b.date)));
-  const futurePractices=(practices||[]).filter(p=>normDate(p.date)>=todayStr).sort((a,b)=>normDate(a.date).localeCompare(normDate(b.date))).slice(0,2);
+  const oneMonthLater=(()=>{const d=new Date();d.setMonth(d.getMonth()+1);return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;})();
+  const upcomingEvents=useMemo(()=>{
+    const items=[];
+    (tournaments||[]).filter(t=>{const nd=normDate(t.date);return nd>=todayStr&&nd<=oneMonthLater;}).forEach(t=>items.push({type:"tournament",id:t.id,date:t.date,label:`🏆 ${t.name||"大会"}`,sub:[t.racketName,t.stringMain&&t.stringCross?`${t.stringMain}+${t.stringCross}`:t.stringMain,fmtTension(t.tensionMain,t.tensionCross)].filter(Boolean).join(" / ")||"機材未設定",result:t.overallResult}));
+    (practices||[]).filter(p=>{const nd=normDate(p.date);return nd>=todayStr&&nd<=oneMonthLater;}).forEach(p=>items.push({type:"practice",id:p.id,date:p.date,label:`🏃 ${p.type||"練習"} @ ${p.venue||""}`,sub:`${p.duration||""}分`}));
+    return items.sort((a,b)=>normDate(a.date).localeCompare(normDate(b.date)));
+  },[tournaments,practices,todayStr,oneMonthLater]);
+  const upcomingDisplay=upcomingEvents.slice(0,5);
+  const upcomingMore=upcomingEvents.length-5;
   const pastTournaments=(tournaments||[]).filter(t=>normDate(t.date)<todayStr).slice(0,2);
 
   return(
@@ -696,33 +744,22 @@ function HomeTab({next,setNext,tournaments,practices,trials,daysSinceExport,onEx
         </div>
       )}
 
-      {/* Next tournament */}
-      {futureTournaments.length>0&&(
+      {/* Upcoming events (1 month, max 5) */}
+      {upcomingDisplay.length>0&&(
         <>
-          <div style={{fontSize:11,color:C.accent,fontWeight:600,letterSpacing:"0.05em",marginBottom:4}}>次の試合</div>
-          {futureTournaments.slice(0,1).map(t=>(
-            <div key={t.id} style={{background:C.panel,border:`1px solid ${C.border}`,borderLeft:`3px solid ${C.accent}`,borderRadius:"0 8px 8px 0",padding:"8px 10px",marginBottom:10}}>
-              <div style={{fontSize:12,fontWeight:600,color:C.text}}>{fmtDate(t.date)} {t.name||"（大会名未入力）"}</div>
-              <div style={{fontSize:10,color:C.textMuted,marginTop:2}}>
-                {[t.racketName,t.stringMain&&t.stringCross?`${t.stringMain}+${t.stringCross}`:t.stringMain,fmtTension(t.tensionMain,t.tensionCross)].filter(Boolean).join(" / ")||"機材未設定"}
+          <div style={{fontSize:11,color:C.accent,fontWeight:600,letterSpacing:"0.05em",marginBottom:4}}>今後の予定</div>
+          {upcomingDisplay.map((ev,i)=>(
+            <div key={ev.type+ev.id} style={{background:C.panel,border:`1px solid ${C.border}`,borderLeft:ev.type==="tournament"?`3px solid ${C.accent}`:"none",borderRadius:ev.type==="tournament"?"0 8px 8px 0":"8px",padding:"6px 10px",marginBottom:4}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <span style={{fontSize:12,fontWeight:500,color:C.text}}>{fmtDate(ev.date)} {ev.label}</span>
+                {ev.result&&<Badge color={resultColor(ev.result)} sm>{ev.result}</Badge>}
               </div>
+              {ev.sub&&<div style={{fontSize:10,color:C.textMuted,marginTop:1}}>{ev.sub}</div>}
             </div>
           ))}
-        </>
-      )}
-
-      {/* Next practices */}
-      {futurePractices.length>0&&(
-        <>
-          <div style={{fontSize:11,color:C.accent,fontWeight:600,letterSpacing:"0.05em",marginBottom:4}}>次の練習</div>
-          {futurePractices.map(p=>(
-            <div key={p.id} style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"6px 10px",marginBottom:4}}>
-              <div style={{display:"flex",justifyContent:"space-between"}}>
-                <span style={{fontSize:12,fontWeight:500,color:C.text}}>{fmtDate(p.date)} {p.venue||""}</span>
-                <span style={{fontSize:10,color:C.textMuted}}>{p.type||""}</span>
-              </div>
-            </div>
-          ))}
+          {upcomingMore>0&&(
+            <button onClick={onGoToSessions} style={{fontSize:11,color:C.accent,background:"none",border:"none",cursor:"pointer",padding:"4px 0",fontWeight:500}}>他{upcomingMore}件を見る → Sessions</button>
+          )}
           <div style={{marginBottom:10}}/>
         </>
       )}
@@ -894,7 +931,7 @@ function TennisDB(){
       </div>
       <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
         <ErrorBoundary label="ホーム">
-          {tab==="home"&&<HomeTab next={next} setNext={setNext} tournaments={tournaments} practices={practices} trials={trials} daysSinceExport={daysSinceExport} onExport={handleExport} onRecord={handleRecord} onGoToNext={()=>setTab("plan")} toast={toast} uid={uid}/>}
+          {tab==="home"&&<HomeTab next={next} setNext={setNext} tournaments={tournaments} practices={practices} trials={trials} daysSinceExport={daysSinceExport} onExport={handleExport} onRecord={handleRecord} onGoToNext={()=>setTab("plan")} onGoToSessions={()=>setTab("sessions")} toast={toast} uid={uid}/>}
         </ErrorBoundary>
         <ErrorBoundary label="Sessions">
           {tab==="sessions"&&<SessionsTab tournaments={tournaments} setTournaments={setTournaments} practices={practices} setPractices={setPractices} trials={trials} setTrials={setTrials} rackets={rackets} strings={strings} stringSetups={stringSetups} venues={venues} setVenues={setVenues} opponents={opponents} toast={toast} uid={uid} pendingRecord={pendingRecord} onPendingRecordDone={()=>setPendingRecord(null)}/>}
