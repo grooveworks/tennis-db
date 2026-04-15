@@ -2,61 +2,62 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="theme-color" content="#f2f2f7">
-<title>ゆっけ Tennis DB v3</title>
-<link rel="manifest" href="manifest.json">
+<title>Tennis DB v3</title>
 <style>
-  *{margin:0;padding:0;box-sizing:border-box}
-  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f2f2f7;color:#1a1a1a;-webkit-font-smoothing:antialiased;padding-bottom:60px}
-  input,select,textarea,button{font-family:inherit}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;background:#f2f2f7;color:#1a1a1a;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+#root{min-height:100dvh;display:flex;flex-direction:column}
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
-<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-</head>
-<body>
-<div id="root"></div>
 <script type="text/babel">
-const {useState,useEffect,useRef,useCallback} = React;
+const APP_VERSION="3.1.0"; // Phase 2A: Sessions tab
+const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
-const APP_VERSION="3.0.0-alpha.1";
-
-// ── COLOR SYSTEM (v2 identical) ──────────────────
-const C = {
-  bg:"#f2f2f7", panel:"#ffffff", panel2:"#e8e8ed", panel3:"#dddde2",
-  border:"#c7c7cc", accent:"#00b87a", accentDim:"#009963",
-  text:"#1a1a1a", textMuted:"#374151", textDim:"#4b5563",
-  red:"#dc2626", yellow:"#d97706", blue:"#2563eb", purple:"#7c3aed", orange:"#ea580c",
+// ── COLORS ────────────────────────────────────────
+const C={
+  bg:"#f2f2f7",panel:"#ffffff",panel2:"#e8e8ed",panel3:"#dddde2",
+  border:"#c7c7cc",accent:"#00b87a",accentDim:"#009963",
+  text:"#1a1a1a",textMuted:"#374151",textDim:"#4b5563",
+  red:"#ef4444",yellow:"#f59e0b",blue:"#3b82f6",purple:"#8b5cf6",orange:"#f97316",
+};
+const Badge=({color="gray",children,sm})=>{
+  const m={green:["#e6f9f0",C.accent],red:["#fef2f2",C.red],yellow:["#fffbeb","#b45309"],blue:["#eff6ff",C.blue],gray:["#f3f4f6","#374151"],orange:["#fff7ed",C.orange]};
+  const[bg,fg]=m[color]||m.gray;
+  return <span style={{display:"inline-block",fontSize:sm?9:10,padding:sm?"1px 5px":"2px 7px",borderRadius:3,fontWeight:600,background:bg,color:fg,whiteSpace:"nowrap"}}>{children}</span>;
 };
 
-// ── FIREBASE (v2 identical) ──────────────────────
+// ── FIREBASE ──────────────────────────────────────
 const firebaseConfig={apiKey:"AIzaSyAXWAtHjBOi31FoNXZiAwW-A7ywZcDY2mM",authDomain:"tennis-db-ca9ae.firebaseapp.com",projectId:"tennis-db-ca9ae",storageBucket:"tennis-db-ca9ae.firebasestorage.app",messagingSenderId:"1031131288345",appId:"1:1031131288345:web:2adcb9f2eeafa5801ceb88"};
 const fbApp=firebase.initializeApp(firebaseConfig);
 const fbAuth=firebase.auth();
 const fbDb=firebase.firestore();
 fbDb.enablePersistence({synchronizeTabs:true}).catch(()=>{});
 
-// ── STORAGE (v2 identical) ───────────────────────
+// ── STORAGE ───────────────────────────────────────
 const KEYS={tournaments:"tournaments",practices:"practices",trials:"trials",rackets:"rackets",strings:"strings",measurements:"measurements",mental:"mental",next:"next",profile:"profile",venues:"venues",stringSetups:"stringSetups",quickTrialCards:"quickTrialCards",opponents:"opponents"};
 const LS_PREFIX="yuke-";
 const lsLoad=k=>{try{const v=localStorage.getItem(LS_PREFIX+k+"-v1");if(v)return JSON.parse(v);}catch(_){}return null;};
 const lsSave=(k,d)=>{try{localStorage.setItem(LS_PREFIX+k+"-v1",JSON.stringify(d));}catch(_){}};
-const _saveTimers={};
-const save=(k,d)=>{
+const ds=arr=>[...arr].sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+
+let _saveTimers={};
+const save=(k,d,uid)=>{
   lsSave(k,d);
-  const user=fbAuth.currentUser;
-  if(!user)return;
-  if(_saveTimers[k])clearTimeout(_saveTimers[k]);
+  if(!uid)return;
+  clearTimeout(_saveTimers[k]);
   _saveTimers[k]=setTimeout(()=>{
-    fbDb.collection("users").doc(user.uid).collection("data").doc(k).set({items:Array.isArray(d)?d:null,obj:Array.isArray(d)?null:d,updatedAt:firebase.firestore.FieldValue.serverTimestamp()}).catch(e=>console.error("Firestore save error:",k,e));
+    fbDb.collection("users").doc(uid).collection("data").doc(k).set({items:Array.isArray(d)?d:null,obj:Array.isArray(d)?null:d,updatedAt:firebase.firestore.FieldValue.serverTimestamp()}).catch(e=>console.error("Firestore save error:",k,e));
   },800);
 };
+
 const cloudLoadAll=async(uid)=>{
   try{
     const snap=await fbDb.collection("users").doc(uid).collection("data").get();
@@ -65,359 +66,861 @@ const cloudLoadAll=async(uid)=>{
     return result;
   }catch(e){console.error("Firestore load error:",e);return null;}
 };
-const today=()=>new Date().toLocaleDateString("ja-JP",{year:"numeric",month:"2-digit",day:"2-digit"});
 
-// ── TOAST ────────────────────────────────────────
+// ── EXPORT ────────────────────────────────────────
+const exportAll=async data=>{
+  const json=JSON.stringify({version:30,exportedAt:new Date().toISOString(),...data},null,2);
+  const d=new Date().toLocaleDateString("ja-JP",{year:"numeric",month:"2-digit",day:"2-digit"}).replace(/\//g,"-");
+  const fname=`tennis_db_v3_${d}.json`;
+  const file=new File([json],fname,{type:"application/json"});
+  if(navigator.share&&navigator.canShare&&navigator.canShare({files:[file]})){
+    try{await navigator.share({files:[file],title:"Tennis DB バックアップ"});return "shared";}catch(e){if(e.name==="AbortError")return "cancelled";}
+  }
+  const b=new Blob([json],{type:"application/json"});const u=URL.createObjectURL(b);const a=document.createElement("a");a.href=u;a.download=fname;a.click();URL.revokeObjectURL(u);return "downloaded";
+};
+
+// ── TOAST ─────────────────────────────────────────
 function useToast(){
-  const [t,setT]=useState(null);
-  const tRef=useRef(null);
-  const show=(msg,color=C.accent,onUndo=null,duration=0)=>{if(tRef.current)clearTimeout(tRef.current);setT({msg,color,onUndo});tRef.current=setTimeout(()=>setT(null),duration||(onUndo?5000:2600));};
-  const el=t?<div style={{position:"fixed",bottom:70,left:"50%",transform:"translateX(-50%)",background:C.panel,border:`1px solid ${t.color}`,color:t.color,borderRadius:8,padding:"10px 20px",fontSize:13,fontWeight:600,zIndex:600,boxShadow:"0 4px 20px #0008",display:"flex",alignItems:"center",gap:12,whiteSpace:"nowrap"}}>
-    <span>{t.msg}</span>
-    {t.onUndo&&<button onClick={()=>{t.onUndo();setT(null);}} style={{background:t.color,border:"none",color:"#fff",borderRadius:4,padding:"5px 12px",fontSize:12,fontWeight:700,cursor:"pointer"}}>元に戻す</button>}
-  </div>:null;
-  return {show,el};
+  const[msg,setMsg]=useState(null);
+  const t=useRef(null);
+  const show=(text,color)=>{clearTimeout(t.current);setMsg({text,color:color||C.accent});t.current=setTimeout(()=>setMsg(null),2500);};
+  const el=msg?<div style={{position:"fixed",bottom:80,left:"50%",transform:"translateX(-50%)",background:msg.color||C.accent,color:"#fff",padding:"8px 20px",borderRadius:8,fontSize:13,fontWeight:600,zIndex:9999,boxShadow:"0 2px 12px rgba(0,0,0,0.15)",whiteSpace:"nowrap"}}>{msg.text}</div>:null;
+  return{show,el};
 }
 
-// ── ERROR BOUNDARY ───────────────────────────────
-class ErrorBoundary extends React.Component {
+// ── ERROR BOUNDARY ────────────────────────────────
+class ErrorBoundary extends React.Component{
   constructor(props){super(props);this.state={hasError:false,error:null};}
-  static getDerivedStateFromError(error){return {hasError:true,error};}
-  componentDidCatch(error,info){console.error(`[ErrorBoundary:${this.props.name}]`,error,info);}
+  static getDerivedStateFromError(error){return{hasError:true,error};}
+  componentDidCatch(error,info){console.error("ErrorBoundary caught:",this.props.label,error,info);}
   render(){
     if(this.state.hasError){
-      return (
-        <div style={{padding:24,textAlign:"center",color:C.textMuted}}>
-          <div style={{fontSize:28,marginBottom:12}}>⚠️</div>
-          <div style={{fontSize:14,fontWeight:600,color:C.red,marginBottom:8}}>
-            {this.props.name||"このセクション"}でエラーが発生しました
-          </div>
-          <div style={{fontSize:12,color:C.textMuted,marginBottom:16,lineHeight:1.6}}>
-            他のタブは正常に動作しています
-          </div>
-          <button onClick={()=>this.setState({hasError:false,error:null})} style={{background:C.accent,border:"none",color:"#fff",borderRadius:6,padding:"10px 20px",fontSize:13,fontWeight:700,cursor:"pointer"}}>
-            リトライ
-          </button>
-          <details style={{marginTop:12,fontSize:11,color:C.textMuted,textAlign:"left"}}>
-            <summary style={{cursor:"pointer"}}>エラー詳細</summary>
-            <pre style={{marginTop:6,padding:8,background:C.panel2,borderRadius:4,overflow:"auto",maxHeight:120,fontSize:10}}>{this.state.error?.toString()}</pre>
-          </details>
-        </div>
-      );
+      return <div style={{padding:24,textAlign:"center"}}>
+        <div style={{fontSize:14,color:C.red,fontWeight:600,marginBottom:8}}>「{this.props.label}」でエラーが発生しました</div>
+        <div style={{fontSize:11,color:C.textMuted,marginBottom:12,wordBreak:"break-all"}}>{String(this.state.error)}</div>
+        <button onClick={()=>this.setState({hasError:false,error:null})} style={{background:C.accent,color:"#fff",border:"none",borderRadius:6,padding:"8px 20px",fontSize:13,fontWeight:600,cursor:"pointer"}}>リトライ</button>
+      </div>;
     }
     return this.props.children;
   }
 }
 
-// ── TAB PLACEHOLDERS ─────────────────────────────
-function HomeTab({tournaments,practices,trials,next}){
-  const todayStr=today();
-  const upcoming=(tournaments||[]).filter(t=>t.date>=todayStr).sort((a,b)=>a.date.localeCompare(b.date));
-  const pending=(next||[]).filter(n=>!n.done).slice(0,5);
-  return (
-    <div style={{padding:"0 16px"}}>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:16}}>
-        {[["🏆","大会を記録"],["🏃","練習を記録"],["🎾","試打を記録"]].map(([icon,label])=>(
-          <button key={label} style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:10,padding:"20px 8px",textAlign:"center",cursor:"pointer"}}>
-            <div style={{fontSize:22,marginBottom:4}}>{icon}</div>
-            <div style={{fontSize:12,color:C.text,fontWeight:700}}>{label}</div>
-          </button>
-        ))}
-      </div>
-      {pending.length>0&&(
-        <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:10,padding:14,marginBottom:12}}>
-          <div style={{fontSize:13,color:C.accent,fontWeight:700,marginBottom:8}}>▶ Next Actions</div>
-          {pending.map(n=>(
-            <div key={n.id} style={{fontSize:12,color:C.textDim,padding:"6px 0",borderBottom:`1px solid ${C.panel2}`}}>
-              {n.label}
-            </div>
-          ))}
-        </div>
-      )}
-      {upcoming.length>0&&(
-        <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:10,padding:14,marginBottom:12}}>
-          <div style={{fontSize:13,color:C.blue,fontWeight:700,marginBottom:8}}>📅 次の大会</div>
-          {upcoming.slice(0,3).map(t=>(
-            <div key={t.id} style={{fontSize:12,color:C.textDim,padding:"6px 0"}}>
-              {t.date} — {t.name}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
+// ── HELPERS ────────────────────────────────────────
+const normDate=d=>{if(!d)return"";const s=String(d);const m=s.match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);if(!m)return s;return`${m[1]}-${m[2].padStart(2,"0")}-${m[3].padStart(2,"0")}`;};
+const fmtDate=d=>{if(!d)return"—";const m=String(d).match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);if(!m)return String(d);return`${parseInt(m[2])}/${parseInt(m[3])}`;};
+const fmtTension=(m,c)=>{if(!m&&!c)return"—";if(m&&c&&m!==c)return`${m}/${c}p`;if(m)return`${m}p`;return"—";};
+const daysBetween=(a,b)=>Math.floor((b-a)/(1000*60*60*24));
+const today=()=>{const d=new Date();return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;}
+const resultColor=r=>{const w={"優勝":"green","準優勝":"yellow","予選突破":"blue","準決勝敗退":"orange","決勝敗退":"orange"};return w[r]||"gray";};
+const nextBadgeCat=c=>{const m={検証:"green",準備:"blue",買い物:"yellow",チェックリスト:"gray"};return m[c]||"gray";};
 
-function SessionsTab({tournaments,practices,trials}){
-  const all=[
-    ...(tournaments||[]).map(t=>({...t,_type:"tournament",_date:t.date,_icon:"🏆",_label:t.name})),
-    ...(practices||[]).map(p=>({...p,_type:"practice",_date:p.date,_icon:"🏃",_label:`${p.type||"練習"} @ ${p.venue||"—"}`})),
-    ...(trials||[]).map(t=>({...t,_type:"trial",_date:t.date,_icon:"🎾",_label:`${t.racketName||"—"} / ${t.stringMain||"—"}`})),
-  ].sort((a,b)=>(b._date||"").localeCompare(a._date||""));
-  return (
-    <div style={{padding:"0 16px"}}>
-      <div style={{fontSize:12,color:C.accent,marginBottom:10}}>Sessions ({all.length}件)</div>
-      {all.slice(0,30).map(item=>(
-        <div key={item.id} style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 12px",marginBottom:4,display:"flex",alignItems:"center",gap:8}}>
-          <span style={{fontSize:16}}>{item._icon}</span>
-          <div style={{flex:1,overflow:"hidden"}}>
-            <div style={{fontSize:12,fontWeight:600,color:C.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{item._label}</div>
-            <div style={{fontSize:11,color:C.textMuted}}>{item._date}</div>
-          </div>
-          {item._type==="tournament"&&item.overallResult&&(
-            <span style={{fontSize:11,color:item.overallResult==="優勝"?C.accent:C.textMuted,fontWeight:600}}>{item.overallResult}</span>
-          )}
-        </div>
-      ))}
-      {all.length>30&&<div style={{fontSize:12,color:C.textMuted,textAlign:"center",padding:12}}>他 {all.length-30}件</div>}
+// ── FORM COMPONENTS ──────────────────────────────
+const Btn=({onClick,children,variant="default",style:ext={},disabled})=>{
+  const s={default:{background:C.panel,border:`1px solid ${C.border}`,color:C.text},primary:{background:C.accent,border:`1px solid ${C.accent}`,color:"#fff",fontWeight:700},danger:{background:"#fef2f2",border:"1px solid #dc2626",color:C.red},ghost:{background:"none",border:"none",color:C.textMuted}};
+  return <button onClick={onClick} disabled={disabled} style={{...(s[variant]||s.default),borderRadius:6,padding:"10px 16px",fontSize:13,cursor:disabled?"not-allowed":"pointer",minHeight:44,opacity:disabled?.5:1,...ext}}>{children}</button>;
+};
+const Field=({label,value,onChange,multiline,placeholder,type="text"})=>(
+  <div style={{marginBottom:10}}>
+    {label&&<div style={{fontSize:12,color:C.textMuted,letterSpacing:"0.08em",marginBottom:4}}>{label}</div>}
+    {multiline?<textarea value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} rows={3} style={{width:"100%",background:C.panel2,border:`1px solid ${C.border}`,borderRadius:6,padding:"10px 12px",color:C.text,fontSize:13,resize:"vertical",fontFamily:"inherit",outline:"none"}}/>
+    :<input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} style={{width:"100%",background:C.panel2,border:`1px solid ${C.border}`,borderRadius:6,padding:"10px 12px",color:C.text,fontSize:13,fontFamily:"inherit",outline:"none",minHeight:44}}/>}
+  </div>
+);
+const FSelect=({label,value,onChange,options})=>(
+  <div style={{marginBottom:10}}>
+    {label&&<div style={{fontSize:12,color:C.textMuted,letterSpacing:"0.08em",marginBottom:4}}>{label}</div>}
+    <select value={value} onChange={e=>onChange(e.target.value)} style={{width:"100%",background:C.panel2,border:`1px solid ${C.border}`,borderRadius:6,padding:"10px 12px",color:C.text,fontSize:13,fontFamily:"inherit",outline:"none",cursor:"pointer",minHeight:44}}>
+      {options.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
+    </select>
+  </div>
+);
+const TensionFields=({main,cross,onMainChange,onCrossChange})=>(
+  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 10px"}}>
+    <Field label="テンション縦" value={main||""} onChange={onMainChange} type="number" placeholder="46"/>
+    <Field label="テンション横" value={cross||""} onChange={onCrossChange} type="number" placeholder="43"/>
+  </div>
+);
+const Modal=({title,onClose,children})=>(
+  <div style={{position:"fixed",inset:0,zIndex:1000,background:"rgba(0,0,0,0.4)",display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+    <div style={{background:C.panel,borderRadius:"16px 16px 0 0",width:"100%",maxWidth:500,maxHeight:"90dvh",overflow:"auto",padding:16}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+        <span style={{fontSize:16,fontWeight:600}}>{title}</span>
+        <button onClick={onClose} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:C.textMuted,padding:4}}>×</button>
+      </div>
+      {children}
     </div>
-  );
-}
+  </div>
+);
 
-function GearTab({rackets,strings,stringSetups}){
-  return (
-    <div style={{padding:"0 16px"}}>
-      <div style={{fontSize:12,color:C.accent,marginBottom:10}}>Gear</div>
-      <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:10,padding:14,marginBottom:12}}>
-        <div style={{fontSize:13,fontWeight:700,color:C.text,marginBottom:8}}>🎾 ラケット ({(rackets||[]).length})</div>
-        {(rackets||[]).map(r=>(
-          <div key={r.id} style={{fontSize:12,color:C.textDim,padding:"4px 0"}}>{r.name} — {r.status||"active"}</div>
-        ))}
-      </div>
-      <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:10,padding:14,marginBottom:12}}>
-        <div style={{fontSize:13,fontWeight:700,color:C.text,marginBottom:8}}>🧵 ストリング ({(strings||[]).length})</div>
-        {(strings||[]).map(s=>(
-          <div key={s.id} style={{fontSize:12,color:C.textDim,padding:"4px 0"}}>{s.name} — {s.status||"—"}</div>
-        ))}
-      </div>
-    </div>
-  );
-}
+// ── MASTER OPTIONS ────────────────────────────────
+const getRacketOpts=rackets=>[{value:"",label:"-- ラケット --"},...(rackets||[]).filter(r=>r.status!=="retired").map(r=>({value:r.name,label:r.name}))];
+const getStringOpts=strings=>[{value:"",label:"-- ストリング --"},...(strings||[]).filter(s=>s.status!=="rejected").map(s=>({value:s.name,label:s.name}))];
+const RESULT_OPTS=[{value:"",label:"--"},{value:"優勝",label:"優勝"},{value:"準優勝",label:"準優勝"},{value:"予選突破",label:"予選突破"},{value:"準決勝敗退",label:"準決勝敗退"},{value:"決勝敗退",label:"決勝敗退"},{value:"予選敗退",label:"予選敗退"},{value:"敗退",label:"敗退"}];
+const TYPE_OPTS=[{value:"singles",label:"シングルス"},{value:"doubles",label:"ダブルス"},{value:"mixed",label:"ミックスダブルス"}];
+const LEVEL_OPTS=[{value:"",label:"--"},{value:"中級",label:"中級"},{value:"中上級",label:"中上級"},{value:"オープン",label:"オープン"},{value:"市民大会",label:"市民大会"},{value:"草トー",label:"草トー"},{value:"交流戦",label:"交流戦"}];
+const JUDGMENT_OPTS=[{value:"採用候補",label:"✓ 採用候補"},{value:"保留",label:"- 保留"},{value:"却下",label:"× 却下"}];
+const PRACTICE_TYPE_OPTS=[{value:"スクール",label:"スクール"},{value:"練習会",label:"練習会"},{value:"自主練",label:"自主練"},{value:"試合形式",label:"試合形式"},{value:"レッスン",label:"レッスン"},{value:"その他",label:"その他"}];
 
-function PlanTab({next,opponents}){
-  const pending=(next||[]).filter(n=>!n.done);
-  return (
-    <div style={{padding:"0 16px"}}>
-      <div style={{fontSize:12,color:C.accent,marginBottom:10}}>Plan</div>
-      <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:10,padding:14,marginBottom:12}}>
-        <div style={{fontSize:13,fontWeight:700,color:C.text,marginBottom:8}}>▶ Next ({pending.length}件)</div>
-        {pending.slice(0,10).map(n=>(
-          <div key={n.id} style={{fontSize:12,color:C.textDim,padding:"4px 0",display:"flex",gap:6}}>
-            <span style={{color:n.priority==="高"?C.red:n.priority==="中"?C.yellow:C.textMuted,fontWeight:700,minWidth:20}}>{n.priority}</span>
-            {n.label}
-          </div>
-        ))}
-      </div>
-      <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:10,padding:14}}>
-        <div style={{fontSize:13,fontWeight:700,color:C.text,marginBottom:8}}>🆚 対戦相手 ({(opponents||[]).length}人)</div>
-        {(opponents||[]).map(o=>(
-          <div key={o.id} style={{fontSize:12,color:C.textDim,padding:"4px 0"}}>{o.name}{o.nickname?` (${o.nickname})`:""}</div>
-        ))}
-      </div>
-    </div>
-  );
-}
+// ── BLANK RECORDS ─────────────────────────────────
+const blankTournament=()=>({id:`trn${Date.now()}`,date:today(),name:"",level:"中上級",type:"singles",venue:"",racketName:"",stringMain:"",stringCross:"",tensionMain:"",tensionCross:"",temp:"",weather:"",overallResult:"",generalNote:"",matches:[]});
+const blankMatch=(trn)=>({id:`mr${Date.now()}`,round:`${((trn?.matches)||[]).length+1}回戦`,opponent:"",opponent2:"",racketName:trn?.racketName||"",stringMain:trn?.stringMain||"",stringCross:trn?.stringCross||"",tensionMain:trn?.tensionMain||"",tensionCross:trn?.tensionCross||"",result:"勝利",setScores:[],mental:3,physical:3,mentalNote:"",techNote:"",opponentNote:"",note:"",games:[],changeovers:[]});
+const blankPractice=()=>({id:`p${Date.now()}`,date:today(),venue:"",type:"スクール",duration:"90",racketName:"",stringMain:"",stringCross:"",tensionMain:"",tensionCross:"",temp:"",weather:"",physical:3,focus:"",coachNote:"",goodNote:"",improveNote:"",generalNote:"",calories:"",totalCalories:"",heartRateAvg:"",heartRateMax:"",timeRange:"",workoutLocation:"",difficulty:"",hrZone1:"",hrZone2:"",hrZone3:"",hrZone4:"",hrZone5:"",recoveryHR:""});
+const blankTrial=()=>({id:`t${Date.now()}`,date:today(),racketName:"",stringMain:"",stringCross:"",tensionMain:"",tensionCross:"",temp:"",venue:"",judgment:"保留",spin:3,power:3,control:3,info:3,maneuver:3,swingThrough:3,trajectory:3,stiffness:3,shotForeAtk:3,shotForeDef:3,shotBackAtk:3,shotBackDef:3,shotSlice:3,shotServe:3,shotVolley:3,shotReturn:3,confidence:3,strokeNote:"",serveNote:"",volleyNote:"",generalNote:"",sessions:[],linkedPracticeId:"",linkedMatchId:""});
 
-function InsightsTab({tournaments,practices,trials,mental,profile}){
-  const wins=(tournaments||[]).flatMap(t=>(t.matches||[]).filter(m=>m.result==="勝利")).length;
-  const losses=(tournaments||[]).flatMap(t=>(t.matches||[]).filter(m=>m.result==="敗北")).length;
-  return (
-    <div style={{padding:"0 16px"}}>
-      <div style={{fontSize:12,color:C.accent,marginBottom:10}}>Insights</div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:12}}>
-        {[["大会",(tournaments||[]).length],["練習",(practices||[]).length],["試打",(trials||[]).length]].map(([label,count])=>(
-          <div key={label} style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"12px 10px",textAlign:"center"}}>
-            <div style={{fontSize:20,fontWeight:800,color:C.accent}}>{count}</div>
-            <div style={{fontSize:11,color:C.textMuted}}>{label}</div>
-          </div>
-        ))}
-      </div>
-      <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:14,marginBottom:12}}>
-        <div style={{fontSize:13,fontWeight:700,color:C.text,marginBottom:6}}>戦績</div>
-        <div style={{fontSize:14,color:C.textDim}}>{wins}勝 {losses}敗</div>
-      </div>
-      <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:14}}>
-        <div style={{fontSize:13,fontWeight:700,color:C.text,marginBottom:6}}>🧠 メンタル ({(mental||[]).length}件)</div>
-        {(mental||[]).slice(0,5).map(m=>(
-          <div key={m.id} style={{fontSize:12,color:C.textDim,padding:"4px 0"}}>{m.title}</div>
-        ))}
-      </div>
-    </div>
-  );
-}
+// ── RACKET AUTO-FILL ──────────────────────────────
+const autoFillFromRacket=(racketName,rackets,stringSetups)=>{
+  const rac=(rackets||[]).find(r=>r.name===racketName);
+  if(!rac)return{};
+  const result={};
+  if(rac.string){
+    const parts=rac.string.split("/").map(s=>s.trim());
+    if(parts[0])result.stringMain=parts[0];
+    if(parts[1])result.stringCross=parts[1];
+  }
+  if(rac.tension){
+    const tm=rac.tension.match(/(\d+)/);
+    if(tm)result.tensionMain=tm[1];
+    const tc=rac.tension.match(/\/(\d+)/)||rac.tension.match(/(\d+)p/);
+    if(tc)result.tensionCross=tc[1];
+  }
+  return result;
+};
 
-// ── TAB BAR ──────────────────────────────────────
-const TABS=[
-  {id:"home",icon:"🏠",label:"ホーム"},
-  {id:"sessions",icon:"📋",label:"Sessions"},
-  {id:"gear",icon:"🔧",label:"Gear"},
-  {id:"plan",icon:"📝",label:"Plan"},
-  {id:"insights",icon:"📊",label:"Insights"},
+// ── TRIAL CARD ITEMS ──────────────────────────────
+const PERF_ITEMS=[
+  {key:"spin",label:"スピン",low:"弱い",high:"強い"},
+  {key:"power",label:"推進力",low:"飛ばない",high:"飛ぶ"},
+  {key:"control",label:"コントロール",low:"散る",high:"狙える"},
+  {key:"info",label:"打感情報",low:"感じない",high:"クリア"},
+  {key:"maneuver",label:"操作性",low:"重い",high:"軽快"},
+  {key:"swingThrough",label:"振り抜き",low:"悪い",high:"良い"},
 ];
+const CHAR_ITEMS=[
+  {key:"trajectory",label:"弾道の高さ",low:"低い",high:"高い"},
+  {key:"stiffness",label:"打感",low:"柔らかい",high:"硬い"},
+];
+const SHOT_ITEMS=[
+  {key:"shotForeAtk",label:"フォア（攻撃）"},{key:"shotForeDef",label:"フォア（守備）"},
+  {key:"shotBackAtk",label:"バック（攻撃）"},{key:"shotBackDef",label:"バック（守備）"},
+  {key:"shotSlice",label:"スライス"},{key:"shotServe",label:"サーブ"},
+  {key:"shotVolley",label:"ボレー"},{key:"shotReturn",label:"リターン"},
+];
+const CONF_ITEM={key:"confidence",label:"安心感",low:"不安",high:"振り切れる"};
 
-function TabBar({active,onChange}){
-  return (
-    <div style={{position:"fixed",bottom:0,left:0,right:0,background:C.panel,borderTop:`1px solid ${C.border}`,display:"flex",zIndex:100,minHeight:56,paddingBottom:"env(safe-area-inset-bottom)"}}>
-      {TABS.map(t=>(
-        <button key={t.id} onClick={()=>onChange(t.id)} style={{flex:1,background:"none",border:"none",cursor:"pointer",padding:"6px 0 4px",display:"flex",flexDirection:"column",alignItems:"center",gap:2,color:active===t.id?C.accent:C.textMuted,transition:"color 0.15s"}}>
-          <span style={{fontSize:20}}>{t.icon}</span>
-          <span style={{fontSize:10,fontWeight:active===t.id?700:400}}>{t.label}</span>
-        </button>
+const RatingRow=({item,value,onChange})=>(
+  <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}>
+    <span style={{fontSize:11,color:C.textMuted,minWidth:90,textAlign:"right"}}>{item.low||""}</span>
+    <span style={{fontSize:12,fontWeight:500,minWidth:80,textAlign:"center"}}>{item.label}</span>
+    <div style={{display:"flex",gap:2,flex:1}}>
+      {[1,2,3,4,5].map(v=>(
+        <button key={v} onClick={()=>onChange(v)} style={{flex:1,height:32,borderRadius:4,border:`1px solid ${v===value?C.accent:C.border}`,background:v===value?"#e6f9f0":C.panel,color:v===value?C.accent:C.textMuted,fontSize:12,fontWeight:v===value?700:400,cursor:"pointer"}}>{v}</button>
       ))}
+    </div>
+    <span style={{fontSize:11,color:C.textMuted,minWidth:50}}>{item.high||""}</span>
+  </div>
+);
+
+// ── SESSIONS TAB ──────────────────────────────────
+function SessionsTab({tournaments,setTournaments,practices,setPractices,trials,setTrials,rackets,strings,stringSetups,venues,setVenues,opponents,toast,uid,pendingRecord,onPendingRecordDone}){
+  const[filter,setFilter]=useState("all");
+  const[selected,setSelected]=useState(null); // {type,id}
+  const[modal,setModal]=useState(null); // {type:"tournament"|"practice"|"trial",data}
+  const[matchModal,setMatchModal]=useState(null);
+
+  // Handle pending record from Home tab
+  useEffect(()=>{
+    if(pendingRecord){
+      const blanks={tournaments:{type:"tournament",data:blankTournament(),isNew:true},practices:{type:"practice",data:blankPractice(),isNew:true},trials:{type:"trial",data:blankTrial(),isNew:true}};
+      if(blanks[pendingRecord])setModal(blanks[pendingRecord]);
+      if(onPendingRecordDone)onPendingRecordDone();
+    }
+  },[pendingRecord]);
+
+  // Build unified timeline
+  const allItems=useMemo(()=>{
+    const items=[];
+    (tournaments||[]).forEach(t=>items.push({type:"tournament",id:t.id,date:t.date,title:t.name||"（大会名未入力）",sub:`${t.level||""} ${t.type==="singles"?"S":t.type==="doubles"?"D":"Mix"}`,result:t.overallResult,racket:t.racketName,st:`${t.stringMain||""}${t.stringCross?"/"+t.stringCross:""}`,tension:fmtTension(t.tensionMain,t.tensionCross),matchCount:(t.matches||[]).length,data:t}));
+    (practices||[]).forEach(p=>items.push({type:"practice",id:p.id,date:p.date,title:`${p.type||"練習"} @ ${p.venue||"未入力"}`,sub:`${p.duration||""}分`,racket:p.racketName,st:`${p.stringMain||""}${p.stringCross?"/"+p.stringCross:""}`,tension:fmtTension(p.tensionMain,p.tensionCross),data:p}));
+    (trials||[]).forEach(t=>items.push({type:"trial",id:t.id,date:t.date,title:`${t.racketName||"未入力"}`,sub:`${t.stringMain||""}${t.stringCross?"/"+t.stringCross:""} ${fmtTension(t.tensionMain,t.tensionCross)}`,judgment:t.judgment,data:t}));
+    return items.sort((a,b)=>(normDate(b.date)||"").localeCompare(normDate(a.date)||""));
+  },[tournaments,practices,trials]);
+
+  const filtered=filter==="all"?allItems:allItems.filter(i=>i.type==={tournament:"tournament",practice:"practice",trial:"trial"}[filter]);
+
+  // Group by month
+  const grouped=useMemo(()=>{
+    const g={};
+    filtered.forEach(item=>{
+      const nd=normDate(item.date);
+      const mk=nd?nd.substring(0,7):"不明";
+      if(!g[mk])g[mk]=[];
+      g[mk].push(item);
+    });
+    return Object.entries(g).sort((a,b)=>b[0].localeCompare(a[0]));
+  },[filtered]);
+
+  const fmtMonth=m=>{if(m==="不明")return"日付不明";const[y,mo]=m.split("-");return`${y}年${parseInt(mo)}月`;};
+
+  // Save handlers
+  const saveTournament=(t,isNew)=>{
+    const updated=isNew?[t,...tournaments]:tournaments.map(x=>x.id===t.id?t:x);
+    setTournaments(updated);save(KEYS.tournaments,updated,uid);
+    setModal(null);
+    toast.show(isNew?"🏆 大会を記録しました":"🏆 更新しました");
+  };
+  const savePractice=(p,isNew)=>{
+    const updated=isNew?[p,...practices]:practices.map(x=>x.id===p.id?p:x);
+    setPractices(updated);save(KEYS.practices,updated,uid);
+    setModal(null);
+    toast.show(isNew?"🏃 練習を記録しました":"🏃 更新しました");
+  };
+  const saveTrial=(t,isNew)=>{
+    // Auto-link to same-day practice
+    if(isNew&&!t.linkedPracticeId){
+      const sameDayP=(practices||[]).find(p=>normDate(p.date)===normDate(t.date));
+      if(sameDayP)t.linkedPracticeId=sameDayP.id;
+    }
+    if(isNew&&!t.linkedMatchId){
+      const sameDayT=(tournaments||[]).find(tr=>normDate(tr.date)===normDate(t.date));
+      if(sameDayT&&(sameDayT.matches||[]).length>0)t.linkedMatchId=sameDayT.matches[sameDayT.matches.length-1].id;
+    }
+    const updated=isNew?[t,...trials]:trials.map(x=>x.id===t.id?t:x);
+    setTrials(updated);save(KEYS.trials,updated,uid);
+    setModal(null);
+    toast.show(isNew?"🎾 試打を記録しました":"🎾 更新しました");
+  };
+  const saveMatch=(trn,match,isNew)=>{
+    const matches=isNew?[...(trn.matches||[]),match]:(trn.matches||[]).map(m=>m.id===match.id?match:m);
+    const updated={...trn,matches};
+    setTournaments(tournaments.map(t=>t.id===trn.id?updated:t));
+    save(KEYS.tournaments,tournaments.map(t=>t.id===trn.id?updated:t),uid);
+    setMatchModal(null);
+    toast.show(isNew?"試合を追加しました":"試合を更新しました");
+  };
+
+  // Delete handlers
+  const deleteTournament=id=>{if(!confirm("この大会を削除しますか？"))return;const updated=tournaments.filter(t=>t.id!==id);setTournaments(updated);save(KEYS.tournaments,updated,uid);setSelected(null);toast.show("削除しました",C.red);};
+  const deletePractice=id=>{if(!confirm("この練習を削除しますか？"))return;const updated=practices.filter(p=>p.id!==id);setPractices(updated);save(KEYS.practices,updated,uid);setSelected(null);toast.show("削除しました",C.red);};
+  const deleteTrial=id=>{if(!confirm("この試打を削除しますか？"))return;const updated=trials.filter(t=>t.id!==id);setTrials(updated);save(KEYS.trials,updated,uid);setSelected(null);toast.show("削除しました",C.red);};
+  const deleteMatch=(trn,matchId)=>{if(!confirm("この試合を削除しますか？"))return;const updated={...trn,matches:(trn.matches||[]).filter(m=>m.id!==matchId)};setTournaments(tournaments.map(t=>t.id===trn.id?updated:t));save(KEYS.tournaments,tournaments.map(t=>t.id===trn.id?updated:t),uid);toast.show("試合を削除しました",C.red);};
+
+  // Icon helpers
+  const typeIcon=t=>({tournament:"🏆",practice:"🏃",trial:"🎾"}[t]||"📋");
+
+  // Detail view
+  if(selected){
+    const item=allItems.find(i=>i.id===selected.id&&i.type===selected.type);
+    if(!item)return <div style={{padding:16}}><button onClick={()=>setSelected(null)} style={{background:"none",border:"none",color:C.accent,fontSize:13,cursor:"pointer"}}>← 戻る</button><div style={{marginTop:12,color:C.textMuted}}>レコードが見つかりません</div></div>;
+
+    if(selected.type==="tournament"){
+      return <TournamentDetailView trn={item.data} onBack={()=>setSelected(null)} onEdit={()=>setModal({type:"tournament",data:item.data})} onDelete={()=>deleteTournament(item.data.id)} onAddMatch={()=>setMatchModal({trn:item.data,match:blankMatch(item.data),isNew:true})} onEditMatch={(m)=>setMatchModal({trn:item.data,match:m,isNew:false})} onDeleteMatch={(mId)=>deleteMatch(item.data,mId)} trials={trials} modal={matchModal} onSaveMatch={(m,isNew)=>saveMatch(item.data,m,isNew)} onCloseMatch={()=>setMatchModal(null)} toast={toast}/>;
+    }
+    if(selected.type==="practice"){
+      const linkedTrials=(trials||[]).filter(t=>t.linkedPracticeId===item.data.id);
+      return <PracticeDetailView p={item.data} onBack={()=>setSelected(null)} onEdit={()=>setModal({type:"practice",data:item.data})} onDelete={()=>deletePractice(item.data.id)} linkedTrials={linkedTrials} onTrialTap={t=>setSelected({type:"trial",id:t.id})}/>;
+    }
+    if(selected.type==="trial"){
+      return <TrialDetailView t={item.data} onBack={()=>setSelected(null)} onEdit={()=>setModal({type:"trial",data:item.data})} onDelete={()=>deleteTrial(item.data.id)}/>;
+    }
+  }
+
+  // List view
+  return(
+    <div style={{padding:12}}>
+      {/* Filter */}
+      <div style={{display:"flex",gap:6,marginBottom:12,overflowX:"auto"}}>
+        {[["all","全て"],["tournament","🏆 大会"],["practice","🏃 練習"],["trial","🎾 試打"]].map(([k,l])=>(
+          <button key={k} onClick={()=>setFilter(k)} style={{padding:"6px 14px",borderRadius:20,border:`1px solid ${filter===k?C.accent:C.border}`,background:filter===k?"#e6f9f0":C.panel,color:filter===k?C.accent:C.textMuted,fontSize:12,fontWeight:filter===k?600:400,cursor:"pointer",whiteSpace:"nowrap"}}>{l}</button>
+        ))}
+        <div style={{flex:1}}/>
+        <button onClick={()=>setModal({type:"tournament",data:blankTournament(),isNew:true})} style={{padding:"6px 12px",borderRadius:6,background:C.accent,color:"#fff",border:"none",fontSize:12,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap"}}>＋ 記録</button>
+      </div>
+
+      {/* Monthly groups */}
+      {grouped.length===0&&<div style={{textAlign:"center",padding:40,color:C.textMuted,fontSize:13}}>レコードがありません</div>}
+      {grouped.map(([month,items])=>(
+        <div key={month} style={{marginBottom:16}}>
+          <div style={{fontSize:12,fontWeight:600,color:C.textMuted,marginBottom:6,paddingLeft:4}}>{fmtMonth(month)} ({items.length})</div>
+          {items.map(item=>(
+            <div key={item.type+item.id} onClick={()=>setSelected({type:item.type,id:item.id})} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",background:C.panel,borderRadius:8,marginBottom:4,cursor:"pointer",border:`1px solid ${C.border}`}}>
+              <span style={{fontSize:18}}>{typeIcon(item.type)}</span>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:13,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.title}</div>
+                <div style={{fontSize:11,color:C.textMuted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{fmtDate(item.date)} · {item.racket||""} {item.sub||""}</div>
+              </div>
+              {item.result&&<Badge color={resultColor(item.result)} sm>{item.result}</Badge>}
+              {item.judgment&&<Badge color={item.judgment==="採用候補"?"green":item.judgment==="却下"?"red":"gray"} sm>{item.judgment}</Badge>}
+              {item.matchCount>0&&<span style={{fontSize:10,color:C.textMuted}}>{item.matchCount}試合</span>}
+            </div>
+          ))}
+        </div>
+      ))}
+
+      {/* Record Modal */}
+      {modal&&modal.type==="tournament"&&<RecordTournamentModal data={modal.data} isNew={modal.isNew!==false} onSave={saveTournament} onClose={()=>setModal(null)} rackets={rackets} strings={strings} venues={venues}/>}
+      {modal&&modal.type==="practice"&&<RecordPracticeModal data={modal.data} isNew={modal.isNew!==false} onSave={savePractice} onClose={()=>setModal(null)} rackets={rackets} strings={strings} venues={venues}/>}
+      {modal&&modal.type==="trial"&&<RecordTrialModal data={modal.data} isNew={modal.isNew!==false} onSave={saveTrial} onClose={()=>setModal(null)} rackets={rackets} strings={strings}/>}
     </div>
   );
 }
 
-// ── MAIN APP ─────────────────────────────────────
-function TennisDB(){
-  const toast=useToast();
-  const [user,setUser]=useState(null);
-  const [loading,setLoading]=useState(true);
-  const [tab,setTab]=useState("home");
+// ── RECORD MODALS ─────────────────────────────────
+function RecordTournamentModal({data,isNew,onSave,onClose,rackets,strings,venues}){
+  const[f,setF]=useState({...data});
+  const s=k=>v=>setF(p=>({...p,[k]:v}));
+  const handleRacketChange=name=>{setF(p=>({...p,racketName:name,...autoFillFromRacket(name,rackets)}));};
+  return <Modal title={isNew?"🏆 大会を記録":"🏆 大会を編集"} onClose={onClose}>
+    <Field label="日付" value={f.date} onChange={s("date")} placeholder="2026/04/15"/>
+    <Field label="大会名" value={f.name} onChange={s("name")} placeholder="インスピ 中上級S"/>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 10px"}}>
+      <FSelect label="レベル" value={f.level} onChange={s("level")} options={LEVEL_OPTS}/>
+      <FSelect label="種別" value={f.type} onChange={s("type")} options={TYPE_OPTS}/>
+    </div>
+    <Field label="会場" value={f.venue||""} onChange={s("venue")} placeholder="会場名"/>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 10px"}}>
+      <Field label="気温" value={f.temp||""} onChange={s("temp")} placeholder="℃"/>
+      <Field label="天候" value={f.weather||""} onChange={s("weather")} placeholder="晴れ"/>
+    </div>
+    <FSelect label="ラケット" value={f.racketName||""} onChange={handleRacketChange} options={getRacketOpts(rackets)}/>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 10px"}}>
+      <FSelect label="縦糸" value={f.stringMain||""} onChange={s("stringMain")} options={getStringOpts(strings)}/>
+      <FSelect label="横糸" value={f.stringCross||""} onChange={s("stringCross")} options={getStringOpts(strings)}/>
+    </div>
+    <TensionFields main={f.tensionMain} cross={f.tensionCross} onMainChange={s("tensionMain")} onCrossChange={s("tensionCross")}/>
+    <FSelect label="結果" value={f.overallResult||""} onChange={s("overallResult")} options={RESULT_OPTS}/>
+    <Field label="メモ" value={f.generalNote||""} onChange={s("generalNote")} multiline placeholder="全体の振り返り..."/>
+    <div style={{display:"flex",gap:8,marginTop:12}}>
+      <Btn variant="primary" onClick={()=>onSave(f,isNew)} style={{flex:1}}>{isNew?"記録する":"更新する"}</Btn>
+    </div>
+  </Modal>;
+}
 
-  // State (v2 identical keys)
-  const [tournaments,setTournaments]=useState([]);
-  const [practices,setPractices]=useState([]);
-  const [trials,setTrials]=useState([]);
-  const [rackets,setRackets]=useState([]);
-  const [strings,setStrings]=useState([]);
-  const [stringSetups,setStringSetups]=useState([]);
-  const [measurements,setMeasurements]=useState([]);
-  const [mental,setMental]=useState([]);
-  const [next,setNext]=useState([]);
-  const [profile,setProfile]=useState({});
-  const [venues,setVenues]=useState([]);
-  const [quickTrialCards,setQuickTrialCards]=useState([]);
-  const [opponents,setOpponents]=useState([]);
+function RecordPracticeModal({data,isNew,onSave,onClose,rackets,strings,venues}){
+  const[f,setF]=useState({...data});
+  const s=k=>v=>setF(p=>({...p,[k]:v}));
+  const handleRacketChange=name=>{setF(p=>({...p,racketName:name,...autoFillFromRacket(name,rackets)}));};
+  return <Modal title={isNew?"🏃 練習を記録":"🏃 練習を編集"} onClose={onClose}>
+    <Field label="日付" value={f.date} onChange={s("date")} placeholder="2026/04/15"/>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 10px"}}>
+      <Field label="会場" value={f.venue||""} onChange={s("venue")} placeholder="会場名"/>
+      <FSelect label="タイプ" value={f.type||""} onChange={s("type")} options={PRACTICE_TYPE_OPTS}/>
+    </div>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 10px"}}>
+      <Field label="時間(分)" value={f.duration||""} onChange={s("duration")} type="number" placeholder="90"/>
+      <Field label="気温" value={f.temp||""} onChange={s("temp")} placeholder="℃"/>
+    </div>
+    <FSelect label="ラケット" value={f.racketName||""} onChange={handleRacketChange} options={getRacketOpts(rackets)}/>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 10px"}}>
+      <FSelect label="縦糸" value={f.stringMain||""} onChange={s("stringMain")} options={getStringOpts(strings)}/>
+      <FSelect label="横糸" value={f.stringCross||""} onChange={s("stringCross")} options={getStringOpts(strings)}/>
+    </div>
+    <TensionFields main={f.tensionMain} cross={f.tensionCross} onMainChange={s("tensionMain")} onCrossChange={s("tensionCross")}/>
+    <Field label="フォーカス" value={f.focus||""} onChange={s("focus")} placeholder="今日の重点ポイント"/>
+    <Field label="コーチメモ" value={f.coachNote||""} onChange={s("coachNote")} multiline placeholder="コーチから言われたこと"/>
+    <Field label="よかった点" value={f.goodNote||""} onChange={s("goodNote")} multiline placeholder=""/>
+    <Field label="改善点" value={f.improveNote||""} onChange={s("improveNote")} multiline placeholder=""/>
+    <Field label="メモ" value={f.generalNote||""} onChange={s("generalNote")} multiline placeholder=""/>
+    <div style={{display:"flex",gap:8,marginTop:12}}>
+      <Btn variant="primary" onClick={()=>onSave(f,isNew)} style={{flex:1}}>{isNew?"記録する":"更新する"}</Btn>
+    </div>
+  </Modal>;
+}
 
-  // Auth + data load (v2 identical flow)
-  useEffect(()=>{
-    const unsub=fbAuth.onAuthStateChanged(async(u)=>{
-      if(u){
-        setUser(u);
-        // Load from Firestore first, fallback to localStorage
-        const cloud=await cloudLoadAll(u.uid);
-        if(cloud){
-          const s=(k,setter,def)=>{const v=cloud[k];if(v){setter(v);lsSave(k,v);}else{const ls=lsLoad(k);if(ls)setter(ls);}};
-          s(KEYS.tournaments,setTournaments,[]);
-          s(KEYS.practices,setPractices,[]);
-          s(KEYS.trials,setTrials,[]);
-          s(KEYS.rackets,setRackets,[]);
-          s(KEYS.strings,setStrings,[]);
-          s(KEYS.stringSetups,setStringSetups,[]);
-          s(KEYS.measurements,setMeasurements,[]);
-          s(KEYS.mental,setMental,[]);
-          s(KEYS.next,setNext,[]);
-          s(KEYS.profile,setProfile,{});
-          s(KEYS.venues,setVenues,[]);
-          s(KEYS.quickTrialCards,setQuickTrialCards,[]);
-          s(KEYS.opponents,setOpponents,[]);
-        } else {
-          // Fallback: localStorage only
-          setTournaments(lsLoad(KEYS.tournaments)||[]);
-          setPractices(lsLoad(KEYS.practices)||[]);
-          setTrials(lsLoad(KEYS.trials)||[]);
-          setRackets(lsLoad(KEYS.rackets)||[]);
-          setStrings(lsLoad(KEYS.strings)||[]);
-          setStringSetups(lsLoad(KEYS.stringSetups)||[]);
-          setMeasurements(lsLoad(KEYS.measurements)||[]);
-          setMental(lsLoad(KEYS.mental)||[]);
-          setNext(lsLoad(KEYS.next)||[]);
-          setProfile(lsLoad(KEYS.profile)||{});
-          setVenues(lsLoad(KEYS.venues)||[]);
-          setQuickTrialCards(lsLoad(KEYS.quickTrialCards)||[]);
-          setOpponents(lsLoad(KEYS.opponents)||[]);
-        }
-      } else {
-        setUser(null);
-      }
-      setLoading(false);
-    });
-    return ()=>unsub();
-  },[]);
+function RecordTrialModal({data,isNew,onSave,onClose,rackets,strings}){
+  const[f,setF]=useState({...data});
+  const s=k=>v=>setF(p=>({...p,[k]:v}));
+  const handleRacketChange=name=>{setF(p=>({...p,racketName:name,...autoFillFromRacket(name,rackets)}));};
+  return <Modal title={isNew?"🎾 試打を記録":"🎾 試打を編集"} onClose={onClose}>
+    <Field label="日付" value={f.date} onChange={s("date")} placeholder="2026/04/15"/>
+    <FSelect label="ラケット" value={f.racketName||""} onChange={handleRacketChange} options={getRacketOpts(rackets)}/>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 10px"}}>
+      <FSelect label="縦糸" value={f.stringMain||""} onChange={s("stringMain")} options={getStringOpts(strings)}/>
+      <FSelect label="横糸" value={f.stringCross||""} onChange={s("stringCross")} options={getStringOpts(strings)}/>
+    </div>
+    <TensionFields main={f.tensionMain} cross={f.tensionCross} onMainChange={s("tensionMain")} onCrossChange={s("tensionCross")}/>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 10px"}}>
+      <Field label="気温" value={f.temp||""} onChange={s("temp")} placeholder="℃"/>
+      <Field label="会場" value={f.venue||""} onChange={s("venue")} placeholder=""/>
+    </div>
+    <div style={{fontSize:12,fontWeight:600,color:C.text,marginTop:8,marginBottom:6}}>パフォーマンス評価</div>
+    {PERF_ITEMS.map(item=><RatingRow key={item.key} item={item} value={f[item.key]||3} onChange={v=>s(item.key)(v)}/>)}
+    <div style={{fontSize:12,fontWeight:600,color:C.text,marginTop:8,marginBottom:6}}>特性（方向スケール）</div>
+    {CHAR_ITEMS.map(item=><RatingRow key={item.key} item={item} value={f[item.key]||3} onChange={v=>s(item.key)(v)}/>)}
+    <div style={{fontSize:12,fontWeight:600,color:C.text,marginTop:8,marginBottom:6}}>ショット別評価</div>
+    {SHOT_ITEMS.map(item=><RatingRow key={item.key} item={item} value={f[item.key]||3} onChange={v=>s(item.key)(v)}/>)}
+    <div style={{fontSize:12,fontWeight:600,color:C.text,marginTop:8,marginBottom:6}}>総合</div>
+    <RatingRow item={CONF_ITEM} value={f.confidence||3} onChange={v=>s("confidence")(v)}/>
+    <div style={{display:"flex",gap:6,marginTop:8}}>
+      {JUDGMENT_OPTS.map(j=>(
+        <button key={j.value} onClick={()=>s("judgment")(j.value)} style={{flex:1,padding:"8px 4px",borderRadius:6,border:`1px solid ${f.judgment===j.value?C.accent:C.border}`,background:f.judgment===j.value?"#e6f9f0":C.panel,color:f.judgment===j.value?C.accent:C.textMuted,fontSize:12,fontWeight:f.judgment===j.value?700:400,cursor:"pointer"}}>{j.label}</button>
+      ))}
+    </div>
+    <Field label="ストロークメモ" value={f.strokeNote||""} onChange={s("strokeNote")} multiline placeholder=""/>
+    <Field label="サーブメモ" value={f.serveNote||""} onChange={s("serveNote")} multiline placeholder=""/>
+    <Field label="ボレーメモ" value={f.volleyNote||""} onChange={s("volleyNote")} multiline placeholder=""/>
+    <Field label="メモ" value={f.generalNote||""} onChange={s("generalNote")} multiline placeholder=""/>
+    <div style={{display:"flex",gap:8,marginTop:12}}>
+      <Btn variant="primary" onClick={()=>onSave(f,isNew)} style={{flex:1}}>{isNew?"記録する":"更新する"}</Btn>
+    </div>
+  </Modal>;
+}
 
-  // Login
-  const handleLogin=async()=>{
-    try{
-      const provider=new firebase.auth.GoogleAuthProvider();
-      await fbAuth.signInWithPopup(provider);
-    }catch(e){
-      try{await fbAuth.signInWithRedirect(new firebase.auth.GoogleAuthProvider());}catch(e2){toast.show("❌ ログイン失敗",C.red);}
+// ── MATCH MODAL ───────────────────────────────────
+function MatchRecordModal({match,isNew,trn,onSave,onClose}){
+  const[f,setF]=useState({...match});
+  const s=k=>v=>setF(p=>({...p,[k]:v}));
+  const addSet=()=>setF(p=>({...p,setScores:[...(p.setScores||[]),"6-"]}));
+  return <Modal title={isNew?"試合を追加":`${f.round} を編集`} onClose={onClose}>
+    <Field label="ラウンド" value={f.round||""} onChange={s("round")} placeholder="1回戦"/>
+    <Field label="対戦相手" value={f.opponent||""} onChange={s("opponent")} placeholder=""/>
+    <FSelect label="結果" value={f.result||""} onChange={s("result")} options={[{value:"勝利",label:"勝利"},{value:"敗退",label:"敗退"}]}/>
+    <div style={{fontSize:12,color:C.textMuted,marginBottom:4}}>セットスコア</div>
+    <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:8}}>
+      {(f.setScores||[]).map((sc,i)=>(
+        <input key={i} value={sc} onChange={e=>{const ss=[...(f.setScores||[])];ss[i]=e.target.value;setF(p=>({...p,setScores:ss}));}} style={{width:60,background:C.panel2,border:`1px solid ${C.border}`,borderRadius:4,padding:"6px 8px",fontSize:13,textAlign:"center"}} placeholder="6-4"/>
+      ))}
+      <button onClick={addSet} style={{width:36,height:36,borderRadius:4,border:`1px solid ${C.border}`,background:C.panel,cursor:"pointer",fontSize:16,color:C.textMuted}}>+</button>
+    </div>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 10px"}}>
+      <div style={{marginBottom:10}}>
+        <div style={{fontSize:12,color:C.textMuted,marginBottom:4}}>メンタル (1-5)</div>
+        <div style={{display:"flex",gap:2}}>{[1,2,3,4,5].map(v=><button key={v} onClick={()=>s("mental")(v)} style={{flex:1,height:36,borderRadius:4,border:`1px solid ${f.mental===v?C.accent:C.border}`,background:f.mental===v?"#e6f9f0":C.panel,color:f.mental===v?C.accent:C.textMuted,fontSize:13,fontWeight:f.mental===v?700:400,cursor:"pointer"}}>{v}</button>)}</div>
+      </div>
+      <div style={{marginBottom:10}}>
+        <div style={{fontSize:12,color:C.textMuted,marginBottom:4}}>フィジカル (1-5)</div>
+        <div style={{display:"flex",gap:2}}>{[1,2,3,4,5].map(v=><button key={v} onClick={()=>s("physical")(v)} style={{flex:1,height:36,borderRadius:4,border:`1px solid ${f.physical===v?C.accent:C.border}`,background:f.physical===v?"#e6f9f0":C.panel,color:f.physical===v?C.accent:C.textMuted,fontSize:13,fontWeight:f.physical===v?700:400,cursor:"pointer"}}>{v}</button>)}</div>
+      </div>
+    </div>
+    <Field label="メンタルメモ" value={f.mentalNote||""} onChange={s("mentalNote")} multiline placeholder=""/>
+    <Field label="技術メモ" value={f.techNote||""} onChange={s("techNote")} multiline placeholder=""/>
+    <Field label="相手メモ" value={f.opponentNote||""} onChange={s("opponentNote")} multiline placeholder=""/>
+    <Field label="メモ" value={f.note||""} onChange={s("note")} multiline placeholder=""/>
+    <Btn variant="primary" onClick={()=>onSave(f,isNew)} style={{width:"100%",marginTop:8}}>{isNew?"追加":"更新"}</Btn>
+  </Modal>;
+}
+
+// ── DETAIL VIEWS ──────────────────────────────────
+const DetailHeader=({icon,title,date,onBack,onEdit,onDelete})=>(
+  <div style={{marginBottom:12}}>
+    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+      <button onClick={onBack} style={{background:"none",border:"none",color:C.accent,fontSize:13,cursor:"pointer",padding:0}}>← 戻る</button>
+      <div style={{flex:1}}/>
+      <Btn onClick={onEdit} style={{padding:"4px 12px",fontSize:11}}>編集</Btn>
+      <Btn variant="danger" onClick={onDelete} style={{padding:"4px 12px",fontSize:11}}>削除</Btn>
+    </div>
+    <div style={{display:"flex",alignItems:"center",gap:8}}>
+      <span style={{fontSize:24}}>{icon}</span>
+      <div>
+        <div style={{fontSize:16,fontWeight:600}}>{title}</div>
+        <div style={{fontSize:12,color:C.textMuted}}>{fmtDate(date)}</div>
+      </div>
+    </div>
+  </div>
+);
+const InfoRow=({label,value})=>value?<div style={{display:"flex",gap:8,fontSize:13,marginBottom:4}}><span style={{color:C.textMuted,minWidth:80}}>{label}</span><span style={{fontWeight:500}}>{value}</span></div>:null;
+
+function TournamentDetailView({trn,onBack,onEdit,onDelete,onAddMatch,onEditMatch,onDeleteMatch,trials,modal,onSaveMatch,onCloseMatch,toast}){
+  const linkedTrials=(trials||[]).filter(t=>t.linkedMatchId&&(trn.matches||[]).some(m=>m.id===t.linkedMatchId));
+  return(
+    <div style={{padding:12}}>
+      <DetailHeader icon="🏆" title={trn.name||"（大会名未入力）"} date={trn.date} onBack={onBack} onEdit={onEdit} onDelete={onDelete}/>
+      {trn.overallResult&&<div style={{marginBottom:8}}><Badge color={resultColor(trn.overallResult)}>{trn.overallResult}</Badge></div>}
+      <div style={{background:C.panel,borderRadius:8,padding:12,marginBottom:8,border:`1px solid ${C.border}`}}>
+        <InfoRow label="レベル" value={trn.level}/>
+        <InfoRow label="種別" value={trn.type==="singles"?"シングルス":trn.type==="doubles"?"ダブルス":"ミックス"}/>
+        <InfoRow label="会場" value={trn.venue}/>
+        <InfoRow label="ラケット" value={trn.racketName}/>
+        <InfoRow label="ST" value={`${trn.stringMain||""}${trn.stringCross?"/"+trn.stringCross:""}`}/>
+        <InfoRow label="テンション" value={fmtTension(trn.tensionMain,trn.tensionCross)}/>
+        <InfoRow label="気温" value={trn.temp?trn.temp+"℃":""}/>
+        {trn.generalNote&&<div style={{fontSize:12,color:C.textDim,marginTop:6,whiteSpace:"pre-wrap"}}>{trn.generalNote}</div>}
+      </div>
+      {/* Matches */}
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+        <span style={{fontSize:14,fontWeight:600}}>試合 ({(trn.matches||[]).length})</span>
+        <button onClick={onAddMatch} style={{background:C.accent,border:"none",color:"#fff",borderRadius:5,padding:"4px 12px",fontSize:12,fontWeight:600,cursor:"pointer"}}>＋ 試合追加</button>
+      </div>
+      {(trn.matches||[]).map(m=>(
+        <div key={m.id} style={{background:C.panel,borderRadius:6,padding:10,marginBottom:4,border:`1px solid ${C.border}`,cursor:"pointer"}} onClick={()=>onEditMatch(m)}>
+          <div style={{display:"flex",alignItems:"center",gap:6}}>
+            <Badge color={m.result==="勝利"?"green":"red"} sm>{m.result||"—"}</Badge>
+            <span style={{fontSize:13,fontWeight:500}}>{m.round}</span>
+            <span style={{fontSize:12,color:C.textMuted}}>vs {m.opponent||"（未入力）"}</span>
+            <span style={{fontSize:12,color:C.textMuted,marginLeft:"auto"}}>{(m.setScores||[]).join(", ")}</span>
+          </div>
+          {(m.mentalNote||m.techNote||m.note)&&<div style={{fontSize:11,color:C.textDim,marginTop:4,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.mentalNote||m.techNote||m.note}</div>}
+        </div>
+      ))}
+      {linkedTrials.length>0&&<div style={{marginTop:12}}>
+        <div style={{fontSize:12,fontWeight:600,color:C.textMuted,marginBottom:4}}>実戦投入試打</div>
+        {linkedTrials.map(t=><div key={t.id} style={{fontSize:12,color:C.purple,padding:4}}>🎾 {t.racketName} {t.stringMain||""} {fmtTension(t.tensionMain,t.tensionCross)} — {t.judgment}</div>)}
+      </div>}
+      {modal&&<MatchRecordModal match={modal.match} isNew={modal.isNew} trn={modal.trn} onSave={onSaveMatch} onClose={onCloseMatch}/>}
+    </div>
+  );
+}
+
+function PracticeDetailView({p,onBack,onEdit,onDelete,linkedTrials,onTrialTap}){
+  return(
+    <div style={{padding:12}}>
+      <DetailHeader icon="🏃" title={`${p.type||"練習"} @ ${p.venue||"未入力"}`} date={p.date} onBack={onBack} onEdit={onEdit} onDelete={onDelete}/>
+      <div style={{background:C.panel,borderRadius:8,padding:12,marginBottom:8,border:`1px solid ${C.border}`}}>
+        <InfoRow label="タイプ" value={p.type}/>
+        <InfoRow label="会場" value={p.venue}/>
+        <InfoRow label="時間" value={p.duration?p.duration+"分":""}/>
+        <InfoRow label="ラケット" value={p.racketName}/>
+        <InfoRow label="ST" value={`${p.stringMain||""}${p.stringCross?"/"+p.stringCross:""}`}/>
+        <InfoRow label="テンション" value={fmtTension(p.tensionMain,p.tensionCross)}/>
+        <InfoRow label="気温" value={p.temp?p.temp+"℃":""}/>
+        <InfoRow label="フィジカル" value={p.physical?`${p.physical}/5`:""}/>
+      </div>
+      {(p.focus||p.coachNote||p.goodNote||p.improveNote||p.generalNote)&&<div style={{background:C.panel,borderRadius:8,padding:12,marginBottom:8,border:`1px solid ${C.border}`}}>
+        {p.focus&&<div style={{fontSize:12,marginBottom:4}}><span style={{color:C.textMuted}}>フォーカス:</span> {p.focus}</div>}
+        {p.coachNote&&<div style={{fontSize:12,marginBottom:4}}><span style={{color:C.textMuted}}>コーチ:</span> {p.coachNote}</div>}
+        {p.goodNote&&<div style={{fontSize:12,marginBottom:4}}><span style={{color:C.accent}}>✅ よかった:</span> {p.goodNote}</div>}
+        {p.improveNote&&<div style={{fontSize:12,marginBottom:4}}><span style={{color:C.orange}}>🔧 改善:</span> {p.improveNote}</div>}
+        {p.generalNote&&<div style={{fontSize:12,color:C.textDim,whiteSpace:"pre-wrap"}}>{p.generalNote}</div>}
+      </div>}
+      {/* Apple Watch */}
+      {(p.heartRateAvg||p.calories)&&<div style={{background:C.panel,borderRadius:8,padding:12,marginBottom:8,border:`1px solid ${C.border}`}}>
+        <div style={{fontSize:12,fontWeight:600,marginBottom:4}}>Apple Watch</div>
+        <InfoRow label="HR平均" value={p.heartRateAvg?p.heartRateAvg+"bpm":""}/>
+        <InfoRow label="HR最大" value={p.heartRateMax?p.heartRateMax+"bpm":""}/>
+        <InfoRow label="カロリー" value={p.calories?p.calories+"kcal":""}/>
+        <InfoRow label="合計" value={p.totalCalories?p.totalCalories+"kcal":""}/>
+        <InfoRow label="時間帯" value={p.timeRange}/>
+      </div>}
+      {/* Linked Trials */}
+      {linkedTrials.length>0&&<div>
+        <div style={{fontSize:12,fontWeight:600,color:C.textMuted,marginBottom:4}}>練習中の試打 ({linkedTrials.length})</div>
+        {linkedTrials.map(t=>(
+          <div key={t.id} onClick={()=>onTrialTap(t)} style={{background:C.panel,borderRadius:6,padding:8,marginBottom:4,border:`1px solid ${C.border}`,cursor:"pointer"}}>
+            <div style={{fontSize:12,fontWeight:500}}>🎾 {t.racketName} {t.stringMain||""} {fmtTension(t.tensionMain,t.tensionCross)}</div>
+            <Badge color={t.judgment==="採用候補"?"green":t.judgment==="却下"?"red":"gray"} sm>{t.judgment}</Badge>
+          </div>
+        ))}
+      </div>}
+    </div>
+  );
+}
+
+function TrialDetailView({t,onBack,onEdit,onDelete}){
+  return(
+    <div style={{padding:12}}>
+      <DetailHeader icon="🎾" title={t.racketName||"（未入力）"} date={t.date} onBack={onBack} onEdit={onEdit} onDelete={onDelete}/>
+      <div style={{marginBottom:8}}><Badge color={t.judgment==="採用候補"?"green":t.judgment==="却下"?"red":"gray"}>{t.judgment}</Badge></div>
+      <div style={{background:C.panel,borderRadius:8,padding:12,marginBottom:8,border:`1px solid ${C.border}`}}>
+        <InfoRow label="ラケット" value={t.racketName}/>
+        <InfoRow label="縦糸" value={t.stringMain}/>
+        <InfoRow label="横糸" value={t.stringCross}/>
+        <InfoRow label="テンション" value={fmtTension(t.tensionMain,t.tensionCross)}/>
+        <InfoRow label="気温" value={t.temp?t.temp+"℃":""}/>
+        <InfoRow label="会場" value={t.venue}/>
+      </div>
+      {/* 17-item evaluation display */}
+      <div style={{background:C.panel,borderRadius:8,padding:12,marginBottom:8,border:`1px solid ${C.border}`}}>
+        <div style={{fontSize:12,fontWeight:600,marginBottom:6}}>パフォーマンス評価</div>
+        {PERF_ITEMS.map(item=><div key={item.key} style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:2}}><span style={{color:C.textMuted}}>{item.label}</span><span style={{fontWeight:600,color:t[item.key]>=4?C.accent:t[item.key]<=2?C.red:C.text}}>{t[item.key]||"—"}</span></div>)}
+        <div style={{fontSize:12,fontWeight:600,marginTop:8,marginBottom:6}}>特性</div>
+        {CHAR_ITEMS.map(item=><div key={item.key} style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:2}}><span style={{color:C.textMuted}}>{item.label}</span><span>{item.low} ← {t[item.key]||3} → {item.high}</span></div>)}
+        <div style={{fontSize:12,fontWeight:600,marginTop:8,marginBottom:6}}>ショット別</div>
+        {SHOT_ITEMS.map(item=><div key={item.key} style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:2}}><span style={{color:C.textMuted}}>{item.label}</span><span style={{fontWeight:600,color:t[item.key]>=4?C.accent:t[item.key]<=2?C.red:C.text}}>{t[item.key]||"—"}</span></div>)}
+        <div style={{fontSize:12,fontWeight:600,marginTop:8,marginBottom:6}}>総合</div>
+        <div style={{display:"flex",justifyContent:"space-between",fontSize:13}}><span style={{color:C.textMuted}}>安心感</span><span style={{fontWeight:700,color:t.confidence>=4?C.accent:t.confidence<=2?C.red:C.text}}>{t.confidence||"—"}</span></div>
+      </div>
+      {/* Notes */}
+      {(t.strokeNote||t.serveNote||t.volleyNote||t.generalNote)&&<div style={{background:C.panel,borderRadius:8,padding:12,border:`1px solid ${C.border}`}}>
+        {t.strokeNote&&<div style={{fontSize:12,marginBottom:4}}><span style={{color:C.textMuted}}>ストローク:</span> {t.strokeNote}</div>}
+        {t.serveNote&&<div style={{fontSize:12,marginBottom:4}}><span style={{color:C.textMuted}}>サーブ:</span> {t.serveNote}</div>}
+        {t.volleyNote&&<div style={{fontSize:12,marginBottom:4}}><span style={{color:C.textMuted}}>ボレー:</span> {t.volleyNote}</div>}
+        {t.generalNote&&<div style={{fontSize:12,color:C.textDim,whiteSpace:"pre-wrap"}}>{t.generalNote}</div>}
+      </div>}
+    </div>
+  );
+}
+
+// ── HOME TAB ──────────────────────────────────────
+function HomeTab({next,setNext,tournaments,practices,trials,daysSinceExport,onExport,onRecord,onGoToNext,toast,uid}){
+  const undoRef=useRef(null);
+  const toggleNext=(id)=>{
+    const item=next.find(n=>n.id===id);
+    if(!item)return;
+    if(!item.done){
+      const updated=next.map(n=>n.id===id?{...n,done:true,doneAt:new Date().toISOString()}:n);
+      setNext(updated);save(KEYS.next,updated,uid);
+      undoRef.current=id;
+      toast.show("✅ 完了");
+      setTimeout(()=>{if(undoRef.current===id)undoRef.current=null;},5000);
+    }else{
+      const updated=next.map(n=>n.id===id?{...n,done:false,doneAt:null}:n);
+      setNext(updated);save(KEYS.next,updated,uid);
     }
   };
 
-  // Loading screen
-  if(loading){
-    return <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",color:C.accent,fontSize:14}}>読み込み中...</div>;
-  }
+  const pendingNext=(next||[]).filter(n=>!n.done).slice(0,3);
+  const todayStr=today();
+  const futureTournaments=(tournaments||[]).filter(t=>normDate(t.date)>=todayStr).sort((a,b)=>normDate(a.date).localeCompare(normDate(b.date)));
+  const futurePractices=(practices||[]).filter(p=>normDate(p.date)>=todayStr).sort((a,b)=>normDate(a.date).localeCompare(normDate(b.date))).slice(0,2);
+  const pastTournaments=(tournaments||[]).filter(t=>normDate(t.date)<todayStr).slice(0,2);
 
-  // Login screen
-  if(!user){
-    return (
-      <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100vh",gap:16}}>
-        <div style={{fontSize:24,fontWeight:800,color:C.accent}}>🎾 Tennis DB v3</div>
-        <div style={{fontSize:12,color:C.textMuted}}>ゆっけ専用テニス管理アプリ</div>
-        <button onClick={handleLogin} style={{background:C.accent,border:"none",color:"#fff",borderRadius:8,padding:"14px 32px",fontSize:14,fontWeight:700,cursor:"pointer",marginTop:12}}>
-          Googleでログイン
-        </button>
+  return(
+    <div style={{padding:12}}>
+      {/* Big 3 buttons */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:14}}>
+        {[["🏆","大会を記録","tournaments"],["🏃","練習を記録","practices"],["🎾","試打を記録","trials"]].map(([icon,label,t])=>(
+          <button key={t} onClick={()=>onRecord(t)} style={{background:C.accent,color:"#fff",border:"none",borderRadius:10,padding:"14px 6px",textAlign:"center",fontSize:13,fontWeight:600,cursor:"pointer",minHeight:56,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:2}}>
+            <span style={{fontSize:22}}>{icon}</span>
+            <span>{label}</span>
+          </button>
+        ))}
       </div>
-    );
-  }
 
-  // Data props
-  const data={tournaments,practices,trials,rackets,strings,stringSetups,measurements,mental,next,profile,venues,quickTrialCards,opponents};
-
-  return (
-    <div style={{maxWidth:960,margin:"0 auto",paddingTop:8}}>
-      {toast.el}
-      {/* Header */}
-      <div style={{padding:"8px 16px 12px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-        <div>
-          <div style={{fontSize:16,fontWeight:800,color:C.accent}}>🎾 Tennis DB</div>
-          <div style={{fontSize:11,color:C.textMuted}}>
-            大会 {tournaments.length} / 練習 {practices.length} / 試打 {trials.length}
-            <span style={{color:"#999",marginLeft:6}}>v{APP_VERSION}</span>
-          </div>
+      {/* Next actions */}
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+        <span style={{fontSize:11,color:C.accent,fontWeight:600,letterSpacing:"0.05em"}}>Next actions</span>
+        <button onClick={onGoToNext} style={{fontSize:10,color:C.accent,background:"none",border:"none",cursor:"pointer",fontWeight:500}}>全て見る →</button>
+      </div>
+      {pendingNext.length===0?(
+        <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:14,textAlign:"center",fontSize:12,color:C.textMuted,marginBottom:10}}>未完了のアクションはありません</div>
+      ):(
+        <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"6px 10px",marginBottom:10}}>
+          {pendingNext.map((n,i)=>(
+            <div key={n.id} onClick={()=>toggleNext(n.id)} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderBottom:i<pendingNext.length-1?`0.5px solid ${C.border}`:"none",cursor:"pointer"}}>
+              <div style={{width:20,height:20,border:`1.5px solid ${n.done?C.accent:C.border}`,borderRadius:4,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",background:n.done?C.accent:"none"}}>
+                {n.done&&<span style={{color:"#fff",fontSize:12,fontWeight:700}}>✓</span>}
+              </div>
+              <span style={{fontSize:12,color:C.text,flex:1}}>{n.label||n.detail||"—"}</span>
+              {n.category&&<Badge color={nextBadgeCat(n.category)} sm>{n.category}</Badge>}
+            </div>
+          ))}
         </div>
-        <button onClick={()=>fbAuth.signOut()} style={{background:"none",border:`1px solid ${C.border}`,color:C.textMuted,borderRadius:6,padding:"6px 12px",fontSize:11,cursor:"pointer"}}>
-          ログアウト
-        </button>
+      )}
+
+      {/* Next tournament */}
+      {futureTournaments.length>0&&(
+        <>
+          <div style={{fontSize:11,color:C.accent,fontWeight:600,letterSpacing:"0.05em",marginBottom:4}}>次の試合</div>
+          {futureTournaments.slice(0,1).map(t=>(
+            <div key={t.id} style={{background:C.panel,border:`1px solid ${C.border}`,borderLeft:`3px solid ${C.accent}`,borderRadius:"0 8px 8px 0",padding:"8px 10px",marginBottom:10}}>
+              <div style={{fontSize:12,fontWeight:600,color:C.text}}>{fmtDate(t.date)} {t.name||"（大会名未入力）"}</div>
+              <div style={{fontSize:10,color:C.textMuted,marginTop:2}}>
+                {[t.racketName,t.stringMain&&t.stringCross?`${t.stringMain}+${t.stringCross}`:t.stringMain,fmtTension(t.tensionMain,t.tensionCross)].filter(Boolean).join(" / ")||"機材未設定"}
+              </div>
+            </div>
+          ))}
+        </>
+      )}
+
+      {/* Next practices */}
+      {futurePractices.length>0&&(
+        <>
+          <div style={{fontSize:11,color:C.accent,fontWeight:600,letterSpacing:"0.05em",marginBottom:4}}>次の練習</div>
+          {futurePractices.map(p=>(
+            <div key={p.id} style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"6px 10px",marginBottom:4}}>
+              <div style={{display:"flex",justifyContent:"space-between"}}>
+                <span style={{fontSize:12,fontWeight:500,color:C.text}}>{fmtDate(p.date)} {p.venue||""}</span>
+                <span style={{fontSize:10,color:C.textMuted}}>{p.type||""}</span>
+              </div>
+            </div>
+          ))}
+          <div style={{marginBottom:10}}/>
+        </>
+      )}
+
+      {/* Recent tournaments */}
+      {pastTournaments.length>0&&(
+        <>
+          <div style={{fontSize:11,color:C.accent,fontWeight:600,letterSpacing:"0.05em",marginBottom:4}}>最近の大会</div>
+          {pastTournaments.map(t=>(
+            <div key={t.id} style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"6px 10px",marginBottom:4}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <div>
+                  <span style={{fontSize:12,fontWeight:500,color:C.text}}>{fmtDate(t.date)} {t.name||"—"}</span>
+                  {t.overallResult&&<Badge color={resultColor(t.overallResult)} sm>{t.overallResult}</Badge>}
+                </div>
+                <span style={{fontSize:10,color:C.textMuted}}>{(t.matches||[]).length}試合</span>
+              </div>
+            </div>
+          ))}
+        </>
+      )}
+
+      {/* Export warning */}
+      {daysSinceExport>=3&&(
+        <div onClick={onExport} style={{marginTop:10,padding:"8px 12px",background:"#fef2f2",borderRadius:6,fontSize:11,color:C.red,textAlign:"center",cursor:"pointer",fontWeight:500}}>
+          📤 {daysSinceExport>=365?"このデバイスでバックアップ未実施":`最終バックアップ: ${daysSinceExport}日前`} — タップしてエクスポート
+        </div>
+      )}
+
+      {/* Stats summary */}
+      <div style={{marginTop:12,display:"flex",gap:6,justifyContent:"center",flexWrap:"wrap"}}>
+        {[["大会",(tournaments||[]).length],["練習",(practices||[]).length],["試打",(trials||[]).length]].map(([l,v])=>(
+          <div key={l} style={{background:C.panel2,borderRadius:6,padding:"4px 10px",fontSize:10,color:C.textMuted}}>{l} {v}件</div>
+        ))}
+        <div style={{background:C.panel2,borderRadius:6,padding:"4px 10px",fontSize:10,color:C.textMuted}}>v{APP_VERSION}</div>
       </div>
-
-      {/* Tab content */}
-      {tab==="home"&&(
-        <ErrorBoundary name="ホーム">
-          <HomeTab tournaments={tournaments} practices={practices} trials={trials} next={next}/>
-        </ErrorBoundary>
-      )}
-      {tab==="sessions"&&(
-        <ErrorBoundary name="Sessions">
-          <SessionsTab tournaments={tournaments} practices={practices} trials={trials}/>
-        </ErrorBoundary>
-      )}
-      {tab==="gear"&&(
-        <ErrorBoundary name="Gear">
-          <GearTab rackets={rackets} strings={strings} stringSetups={stringSetups}/>
-        </ErrorBoundary>
-      )}
-      {tab==="plan"&&(
-        <ErrorBoundary name="Plan">
-          <PlanTab next={next} opponents={opponents}/>
-        </ErrorBoundary>
-      )}
-      {tab==="insights"&&(
-        <ErrorBoundary name="Insights">
-          <InsightsTab tournaments={tournaments} practices={practices} trials={trials} mental={mental} profile={profile}/>
-        </ErrorBoundary>
-      )}
-
-      {/* Tab bar */}
-      <TabBar active={tab} onChange={setTab}/>
     </div>
   );
 }
 
+// ── PLACEHOLDER TABS ──────────────────────────────
+const PlaceholderTab=({name,icon,count})=>(
+  <div style={{padding:24,textAlign:"center"}}>
+    <div style={{fontSize:36,marginBottom:8}}>{icon}</div>
+    <div style={{fontSize:16,fontWeight:500,color:C.text,marginBottom:4}}>{name}</div>
+    <div style={{fontSize:12,color:C.textMuted,marginBottom:8}}>Phase 2で実装予定{count!=null?` · ${count}件のデータあり`:""}</div>
+    <div style={{fontSize:11,color:C.textDim}}>v2のデータはFirestore経由で共有されています</div>
+  </div>
+);
+
+// ── TAB BAR ───────────────────────────────────────
+function TabBar({tab,setTab}){
+  const tabs=[
+    {id:"home",icon:"🏠",label:"ホーム"},
+    {id:"sessions",icon:"📋",label:"Sessions"},
+    {id:"gear",icon:"🔧",label:"Gear"},
+    {id:"plan",icon:"📝",label:"Plan"},
+    {id:"insights",icon:"📊",label:"Insights"},
+  ];
+  return(
+    <div style={{display:"flex",borderTop:`1px solid ${C.border}`,background:C.panel,flexShrink:0}}>
+      {tabs.map(t=>(
+        <button key={t.id} onClick={()=>setTab(t.id)} style={{flex:1,background:tab===t.id?"rgba(0,184,122,0.08)":"none",border:"none",color:tab===t.id?C.accent:C.textMuted,padding:"6px 4px",fontSize:12,fontWeight:tab===t.id?600:400,cursor:"pointer",minHeight:48,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:1}}>
+          <span style={{fontSize:20}}>{t.icon}</span>
+          <span>{t.label}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ── MAIN APP ──────────────────────────────────────
+function TennisDB(){
+  const[tab,setTab]=useState("home");
+  const[uid,setUid]=useState(null);
+  const[loading,setLoading]=useState(true);
+  const toast=useToast();
+
+  const[tournaments,setTournaments]=useState(()=>lsLoad(KEYS.tournaments)||[]);
+  const[practices,setPractices]=useState(()=>lsLoad(KEYS.practices)||[]);
+  const[trials,setTrials]=useState(()=>lsLoad(KEYS.trials)||[]);
+  const[rackets,setRackets]=useState(()=>lsLoad(KEYS.rackets)||[]);
+  const[strings,setStrings]=useState(()=>lsLoad(KEYS.strings)||[]);
+  const[stringSetups,setStringSetups]=useState(()=>lsLoad(KEYS.stringSetups)||[]);
+  const[mental,setMental]=useState(()=>lsLoad(KEYS.mental)||[]);
+  const[next,setNext]=useState(()=>lsLoad(KEYS.next)||[]);
+  const[profile,setProfile]=useState(()=>lsLoad(KEYS.profile)||{});
+  const[venues,setVenues]=useState(()=>lsLoad(KEYS.venues)||[]);
+  const[opponents,setOpponents]=useState(()=>lsLoad(KEYS.opponents)||[]);
+  const[measurements,setMeasurements]=useState(()=>lsLoad(KEYS.measurements)||[]);
+  const[quickTrialCards,setQuickTrialCards]=useState(()=>lsLoad(KEYS.quickTrialCards)||[]);
+
+  const[lastExport,setLastExport]=useState(()=>lsLoad("lastExport")||null);
+  const daysSinceExport=lastExport?daysBetween(new Date(lastExport),new Date()):999;
+
+  useEffect(()=>{
+    const unsub=fbAuth.onAuthStateChanged(async user=>{
+      if(user){
+        setUid(user.uid);
+        try{
+          const cloud=await cloudLoadAll(user.uid);
+          if(cloud){
+            const setters={tournaments:setTournaments,practices:setPractices,trials:setTrials,rackets:setRackets,strings:setStrings,stringSetups:setStringSetups,mental:setMental,next:setNext,profile:setProfile,venues:setVenues,opponents:setOpponents,measurements:setMeasurements,quickTrialCards:setQuickTrialCards};
+            Object.entries(KEYS).forEach(([name,key])=>{
+              if(cloud[key]!=null){
+                const val=cloud[key];
+                lsSave(key,val);
+                if(setters[name]){
+                  if(Array.isArray(val)&&val[0]?.date){setters[name](ds(val));}
+                  else{setters[name](val);}
+                }
+              }
+            });
+          }
+        }catch(e){console.error("Cloud load failed:",e);}
+        const dataRef=fbDb.collection("users").doc(user.uid).collection("data");
+        dataRef.onSnapshot(snap=>{
+          snap.docChanges().forEach(change=>{
+            if(change.type==="modified"){
+              const key=change.doc.id;const d=change.doc.data();const val=d.items||d.obj;
+              if(!val)return;
+              const name=Object.entries(KEYS).find(([,v])=>v===key)?.[0];
+              if(!name)return;
+              lsSave(key,val);
+              const setters={tournaments:setTournaments,practices:setPractices,trials:setTrials,rackets:setRackets,strings:setStrings,stringSetups:setStringSetups,mental:setMental,next:setNext,profile:setProfile,venues:setVenues,opponents:setOpponents,measurements:setMeasurements,quickTrialCards:setQuickTrialCards};
+              if(setters[name]){
+                if(Array.isArray(val)&&val[0]?.date){setters[name](ds(val));}
+                else{setters[name](val);}
+              }
+            }
+          });
+        });
+      }else{
+        fbAuth.signInAnonymously().catch(()=>{});
+      }
+      setLoading(false);
+    });
+    return()=>unsub();
+  },[]);
+
+  const handleExport=async()=>{
+    const data={tournaments,practices,trials,rackets,strings,stringSetups,mental,next,profile,venues,opponents,measurements,quickTrialCards};
+    const result=await exportAll(data);
+    if(result!=="cancelled"){
+      const now=new Date().toISOString();
+      setLastExport(now);lsSave("lastExport",now);
+      toast.show("📤 エクスポート完了");
+    }
+  };
+
+  const[pendingRecord,setPendingRecord]=useState(null);
+  const handleRecord=(type)=>{
+    setPendingRecord(type);
+    setTab("sessions");
+  };
+
+  if(loading){
+    return <div style={{display:"flex",alignItems:"center",justifyContent:"center",minHeight:"100dvh",flexDirection:"column",gap:8}}>
+      <div style={{fontSize:24}}>🎾</div>
+      <div style={{fontSize:13,color:C.textMuted}}>Tennis DB v3 を読み込み中...</div>
+    </div>;
+  }
+
+  return(
+    <div style={{display:"flex",flexDirection:"column",minHeight:"100dvh",background:C.bg}}>
+      <div style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:"8px 14px",display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0}}>
+        <span style={{fontSize:16,fontWeight:600,color:C.accent}}>Tennis DB</span>
+        <span style={{fontSize:10,color:C.textMuted}}>v{APP_VERSION}{uid?" · 同期中":""}</span>
+      </div>
+      <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
+        <ErrorBoundary label="ホーム">
+          {tab==="home"&&<HomeTab next={next} setNext={setNext} tournaments={tournaments} practices={practices} trials={trials} daysSinceExport={daysSinceExport} onExport={handleExport} onRecord={handleRecord} onGoToNext={()=>setTab("plan")} toast={toast} uid={uid}/>}
+        </ErrorBoundary>
+        <ErrorBoundary label="Sessions">
+          {tab==="sessions"&&<SessionsTab tournaments={tournaments} setTournaments={setTournaments} practices={practices} setPractices={setPractices} trials={trials} setTrials={setTrials} rackets={rackets} strings={strings} stringSetups={stringSetups} venues={venues} setVenues={setVenues} opponents={opponents} toast={toast} uid={uid} pendingRecord={pendingRecord} onPendingRecordDone={()=>setPendingRecord(null)}/>}
+        </ErrorBoundary>
+        <ErrorBoundary label="Gear">
+          {tab==="gear"&&<PlaceholderTab name="Gear" icon="🔧" count={(rackets||[]).length+(strings||[]).length}/>}
+        </ErrorBoundary>
+        <ErrorBoundary label="Plan">
+          {tab==="plan"&&<PlaceholderTab name="Plan" icon="📝" count={(next||[]).length+(opponents||[]).length}/>}
+        </ErrorBoundary>
+        <ErrorBoundary label="Insights">
+          {tab==="insights"&&<PlaceholderTab name="Insights" icon="📊"/>}
+        </ErrorBoundary>
+      </div>
+      <TabBar tab={tab} setTab={setTab}/>
+      {toast.el}
+    </div>
+  );
+}
+
+const _cw=console.warn;
+console.warn=(...a)=>{if(typeof a[0]==="string"&&a[0].includes("in-browser Babel"))return;_cw.apply(console,a);};
 ReactDOM.createRoot(document.getElementById("root")).render(<TennisDB/>);
 </script>
+</head>
+<body>
+<div id="root"></div>
 </body>
 </html>
