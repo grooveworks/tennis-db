@@ -468,18 +468,23 @@ const GameBar=({games})=>{
   if(!games?.length)return null;
   return <div style={{display:"flex",gap:1}}>
     {games.map((g,i)=><div key={i} style={{width:8,height:8,borderRadius:1,background:g.winner==="me"?C.accent:C.red}}/>)}
+  </div>;
+};
 
 // ── HOME TAB ──────────────────────────────────────
 function HomeTab({next,setNext,tournaments,practices,trials,daysSinceExport,lastExport,onExport,onRecord,onGoToSessions,onGoToPlan,toast}){
   const undoRef=useRef(null);
   const todayStr=today();
+  // Next Actions: top 3 undone
   const nextItems=useMemo(()=>(next||[]).filter(n=>!n.done).slice(0,3),[next]);
   const toggleNext=id=>{
-    const prev=[...(next||[])];undoRef.current=prev;
+    const prev=[...(next||[])];
+    undoRef.current=prev;
     const updated=prev.map(n=>n.id===id?{...n,done:true,doneAt:todayStr}:n);
     setNext(updated);save(KEYS.next,updated);
     toast.show("✅ 完了",C.accent,()=>{if(undoRef.current){setNext(undoRef.current);save(KEYS.next,undoRef.current);undoRef.current=null;}});
   };
+  // Upcoming events: tournaments + practices within 1 month, max 5
   const upcomingItems=useMemo(()=>{
     const items=[];
     const oneMonth=new Date();oneMonth.setMonth(oneMonth.getMonth()+1);
@@ -490,9 +495,11 @@ function HomeTab({next,setNext,tournaments,practices,trials,daysSinceExport,last
   },[tournaments,practices,todayStr]);
   const displayUpcoming=upcomingItems.slice(0,5);
   const overflowCount=upcomingItems.length-5;
+  // Past tournaments: 5 most recent before today
   const pastTournaments=useMemo(()=>(tournaments||[]).filter(t=>normDate(t.date)<todayStr).slice(0,5),[tournaments,todayStr]);
 
   return <div style={{padding:10}}>
+    {/* Big 3 Buttons */}
     <div style={{display:"flex",gap:8,marginBottom:10}}>
       {[["🏆","大会を記録","tournaments"],["🏃","練習を記録","practices"],["🎾","試打を記録","trials"]].map(([icon,label,type])=>
         <button key={type} onClick={()=>onRecord(type)} style={{flex:1,height:56,borderRadius:10,background:C.accent,border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:2}}>
@@ -500,10 +507,14 @@ function HomeTab({next,setNext,tournaments,practices,trials,daysSinceExport,last
         </button>
       )}
     </div>
+
+    {/* Backup Warning */}
     {daysSinceExport>=3&&<div onClick={onExport} style={{background:C.redBg,border:`1px solid ${C.red}`,borderRadius:8,padding:10,marginBottom:10,cursor:"pointer"}}>
       <div style={{fontSize:12,fontWeight:700,color:C.red}}>⚠️ バックアップしてください（{daysSinceExport>=365?"未実施":`${daysSinceExport}日前`}）</div>
       <div style={{fontSize:11,color:"#fca5a5"}}>{lastExport?`最終: ${new Date(lastExport).toLocaleDateString("ja-JP")}`:"まだバックアップしていません"}（タップで📤）</div>
     </div>}
+
+    {/* Next Actions */}
     {nextItems.length>0&&<Card>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
         <span style={{fontSize:12,fontWeight:700,color:C.textMuted}}>▶ Next Actions</span>
@@ -513,12 +524,15 @@ function HomeTab({next,setNext,tournaments,practices,trials,daysSinceExport,last
         <div style={{width:20,height:20,borderRadius:4,border:`2px solid ${C.accent}`,flexShrink:0}}/>
         <div style={{minWidth:0,flex:1}}>
           <div style={{fontSize:12,fontWeight:600,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{n.label}</div>
+          {n.category&&<Badge color={n.priority==="最高"?"green":n.priority==="高"?"blue":"yellow"} sm>{n.category}</Badge>}
         </div>
       </div>)}
     </Card>}
+
+    {/* Upcoming Events */}
     {displayUpcoming.length>0&&<Card>
       <div style={{fontSize:12,fontWeight:700,color:C.textMuted,marginBottom:8}}>📅 今後の予定</div>
-      {displayUpcoming.map((item,i)=><div key={i} onClick={onGoToSessions} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 0",cursor:"pointer",borderBottom:i<displayUpcoming.length-1?`1px solid ${C.border}22`:"none"}}>
+      {displayUpcoming.map((item,i)=><div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 0",borderBottom:i<displayUpcoming.length-1?`1px solid ${C.border}22`:"none"}}>
         <span style={{fontSize:14}}>{item.type==="tournament"?"🏆":"🏃"}</span>
         <div style={{flex:1,minWidth:0}}>
           <div style={{fontSize:12,fontWeight:600,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.name}{item.level?" ("+item.level+")":""}</div>
@@ -528,6 +542,8 @@ function HomeTab({next,setNext,tournaments,practices,trials,daysSinceExport,last
       </div>)}
       {overflowCount>0&&<button onClick={onGoToSessions} style={{background:"none",border:"none",color:C.accent,fontSize:11,fontWeight:600,cursor:"pointer",marginTop:6}}>他{overflowCount}件を見る → Sessions</button>}
     </Card>}
+
+    {/* Recent Tournaments */}
     {pastTournaments.length>0&&<Card>
       <div style={{fontSize:12,fontWeight:700,color:C.textMuted,marginBottom:8}}>🏆 最近の大会</div>
       {pastTournaments.map(t=><div key={t.id} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 0",borderBottom:`1px solid ${C.border}22`}}>
@@ -538,6 +554,8 @@ function HomeTab({next,setNext,tournaments,practices,trials,daysSinceExport,last
         {t.overallResult&&<Badge color={RESULT_BADGE[t.overallResult]||"gray"}>{t.overallResult}</Badge>}
       </div>)}
     </Card>}
+
+    {/* Stats summary */}
     <Card style={{background:C.panel2}}>
       <div style={{display:"flex",justifyContent:"space-around",textAlign:"center"}}>
         {[["大会",(tournaments||[]).length,"🏆"],["練習",(practices||[]).length,"🏃"],["試打",(trials||[]).length,"🎾"]].map(([l,n,ic])=>
@@ -670,51 +688,6 @@ function SessionsTab({tournaments,setTournaments,practices,setPractices,trials,s
     {modal&&<RecordModal type={modal.type} data={modal.data} isNew={modal.isNew} rackets={rackets} strings={strings} stringSetups={stringSetups} venues={venues} onAddVenue={v=>{const nv=[...(venues||[]),v];setVenues(nv);save(KEYS.venues,nv);}} onSave={form=>handleSave(modal.type,form)} onClose={()=>setModal(null)}/>}
   </div>;
 }
-    {expandedMonths[month.key]&&<div style={{padding:"4px 8px"}}>{month.items.map(renderItem)}</div>}
-  </div>;
-
-  return <div style={{padding:10}}>
-    {/* Filter + Jump selector */}
-    <div style={{display:"flex",gap:4,marginBottom:8,flexWrap:"wrap",alignItems:"center"}}>
-      {[["all","全て"],["tournaments","🏆 大会"],["practices","🏃 練習"],["trials","🎾 試打"]].map(([k,l])=>
-        <button key={k} onClick={()=>setFilter(k)} style={{padding:"6px 12px",borderRadius:6,border:`1px solid ${filter===k?C.accent:C.border}`,background:filter===k?C.accentBg:C.panel,color:filter===k?C.accent:C.textMuted,fontSize:11,fontWeight:600,cursor:"pointer"}}>{l}</button>
-      )}
-      <select value={jumpValue} onChange={e=>handleJump(e.target.value)} style={{marginLeft:"auto",padding:"6px 8px",borderRadius:6,border:`1px solid ${C.border}`,background:C.panel,color:C.text,fontSize:11,fontFamily:"inherit",cursor:"pointer",minHeight:32}}>
-        <option value="">📅 月を選択...</option>
-        {grouped.jumpByYear.map(([year,months])=><optgroup key={year} label={`${year}年`}>
-          {months.map(ym=>{const mm=parseInt(ym.split("-")[1]);const count=allItems.filter(i=>{const nd=normDate(i.date);return nd.startsWith(ym);}).length;return<option key={ym} value={ym}>{mm}月 ({count}件)</option>;})}
-        </optgroup>)}
-      </select>
-    </div>
-
-    {/* Recent 3 months */}
-    {grouped.recent.map(month=>renderMonthHeader(month))}
-
-    {/* Past data toggle */}
-    {grouped.pastCount>0&&!showPast&&<button onClick={()=>setShowPast(true)} style={{width:"100%",padding:12,borderRadius:8,background:C.panel2,border:`1px solid ${C.border}`,color:C.textMuted,fontSize:12,fontWeight:600,cursor:"pointer",marginTop:4}}>
-      📂 過去のデータを表示（{grouped.pastCount}件）
-    </button>}
-
-    {/* Past data: year > month 2-tier */}
-    {showPast&&grouped.past.map(year=><div key={year.key} style={{marginBottom:4,marginTop:4}}>
-      <div onClick={()=>toggleYear(year.key)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 10px",background:C.panel2,borderRadius:8,cursor:"pointer",border:`1px solid ${C.border}`}}>
-        <span style={{fontSize:13,fontWeight:600,color:C.textMuted}}>{year.label}</span>
-        <span style={{fontSize:11,color:C.textMuted}}>({Object.values(year.months).reduce((s,m)=>s+m.items.length,0)}件) {expandedYears[year.key]?"▼":"▶"}</span>
-      </div>
-      {expandedYears[year.key]&&<div style={{paddingLeft:8}}>
-        {Object.values(year.months).sort((a,b)=>b.key.localeCompare(a.key)).map(month=>renderMonthHeader(month,true))}
-      </div>}
-    </div>)}
-
-    {showPast&&<button onClick={()=>setShowPast(false)} style={{width:"100%",padding:8,borderRadius:6,background:"none",border:`1px solid ${C.border}`,color:C.textMuted,fontSize:11,cursor:"pointer",marginTop:4}}>
-      ▲ 過去のデータを閉じる
-    </button>}
-
-    {allItems.length===0&&<div style={{textAlign:"center",padding:40,color:C.textMuted,fontSize:13}}>データがありません</div>}
-
-    {modal&&<RecordModal type={modal.type} data={modal.data} isNew={modal.isNew} rackets={rackets} strings={strings} stringSetups={stringSetups} venues={venues} onAddVenue={v=>{const nv=[...(venues||[]),v];setVenues(nv);save(KEYS.venues,nv);}} onSave={form=>handleSave(modal.type,form)} onClose={()=>setModal(null)}/>}
-  </div>;
-}
 
 // ── RECORD MODAL (unified) ────────────────────────
 function RecordModal({type,data,isNew,rackets,strings,stringSetups,venues,onAddVenue,onSave,onClose}){
@@ -781,8 +754,6 @@ function TabBar({tab,setTab}){
     </button>)}
   </div>;
 }
-
-// ── MAIN APP ──────────────────────────────────────
 
 // ── MAIN APP (v2-style: no login blocking) ────────
 function TennisDB(){
