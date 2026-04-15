@@ -13,7 +13,7 @@
 const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
 // ── APP ───────────────────────────────────────────
-const APP_VERSION="3.2.0"; // 2026/04/16 Full rebuild from scratch
+const APP_VERSION="3.2.1"; // 2026/04/16 Auth fix + Sessions B+C + Badge colors + Error recovery
 const font="-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif";
 const C={bg:"#f2f2f7",panel:"#fff",panel2:"#f5f5f7",border:"#e0e0e4",text:"#1a1a1a",textMuted:"#8e8e93",textDim:"#aaa",accent:"#00b87a",accentBg:"rgba(0,184,122,0.08)",red:"#dc2626",redBg:"#fef2f2",blue:"#2563eb",blueBg:"rgba(37,99,235,0.08)",yellow:"#f59e0b",yellowBg:"rgba(245,158,11,0.08)",purple:"#7c3aed",purpleBg:"rgba(124,58,237,0.08)",green:"#00b87a",greenBg:"rgba(0,184,122,0.08)"};
 const Badge=({children,color="gray",sm})=>{const cc={green:C.accent,blue:C.blue,yellow:C.yellow,red:C.red,gray:C.textMuted,purple:C.purple};const c=cc[color]||color;return<span style={{display:"inline-block",fontSize:sm?9:10,fontWeight:700,color:c,background:`${c}15`,border:`1px solid ${c}30`,borderRadius:4,padding:sm?"1px 4px":"2px 6px",lineHeight:1.4}}>{children}</span>;};
@@ -90,6 +90,7 @@ const scColor=v=>v>=4?C.accent:v>=3?C.yellow:C.red;
 const MENTAL_LABELS={1:"最悪",2:"崩れ",3:"普通",4:"集中",5:"ゾーン"};
 const PHYSICAL_LABELS={1:"限界",2:"辛い",3:"普通",4:"良好",5:"万全"};
 const RESULT_COLORS={優勝:C.accent,準優勝:C.blue,決勝敗退:C.blue,準決勝敗退:C.yellow,敗退:C.red,予選敗退:C.red};
+const RESULT_BADGE={優勝:"green",準優勝:"blue",決勝敗退:"blue",準決勝敗退:"yellow",敗退:"red",予選敗退:"red"};
 
 // ── SHARED COMPONENTS ─────────────────────────────
 function ConfirmDialog({message,onYes,onNo}){
@@ -467,23 +468,18 @@ const GameBar=({games})=>{
   if(!games?.length)return null;
   return <div style={{display:"flex",gap:1}}>
     {games.map((g,i)=><div key={i} style={{width:8,height:8,borderRadius:1,background:g.winner==="me"?C.accent:C.red}}/>)}
-  </div>;
-};
 
 // ── HOME TAB ──────────────────────────────────────
 function HomeTab({next,setNext,tournaments,practices,trials,daysSinceExport,lastExport,onExport,onRecord,onGoToSessions,onGoToPlan,toast}){
   const undoRef=useRef(null);
   const todayStr=today();
-  // Next Actions: top 3 undone
   const nextItems=useMemo(()=>(next||[]).filter(n=>!n.done).slice(0,3),[next]);
   const toggleNext=id=>{
-    const prev=[...(next||[])];
-    undoRef.current=prev;
+    const prev=[...(next||[])];undoRef.current=prev;
     const updated=prev.map(n=>n.id===id?{...n,done:true,doneAt:todayStr}:n);
     setNext(updated);save(KEYS.next,updated);
     toast.show("✅ 完了",C.accent,()=>{if(undoRef.current){setNext(undoRef.current);save(KEYS.next,undoRef.current);undoRef.current=null;}});
   };
-  // Upcoming events: tournaments + practices within 1 month, max 5
   const upcomingItems=useMemo(()=>{
     const items=[];
     const oneMonth=new Date();oneMonth.setMonth(oneMonth.getMonth()+1);
@@ -494,11 +490,9 @@ function HomeTab({next,setNext,tournaments,practices,trials,daysSinceExport,last
   },[tournaments,practices,todayStr]);
   const displayUpcoming=upcomingItems.slice(0,5);
   const overflowCount=upcomingItems.length-5;
-  // Past tournaments: 5 most recent before today
   const pastTournaments=useMemo(()=>(tournaments||[]).filter(t=>normDate(t.date)<todayStr).slice(0,5),[tournaments,todayStr]);
 
   return <div style={{padding:10}}>
-    {/* Big 3 Buttons */}
     <div style={{display:"flex",gap:8,marginBottom:10}}>
       {[["🏆","大会を記録","tournaments"],["🏃","練習を記録","practices"],["🎾","試打を記録","trials"]].map(([icon,label,type])=>
         <button key={type} onClick={()=>onRecord(type)} style={{flex:1,height:56,borderRadius:10,background:C.accent,border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:2}}>
@@ -506,14 +500,10 @@ function HomeTab({next,setNext,tournaments,practices,trials,daysSinceExport,last
         </button>
       )}
     </div>
-
-    {/* Backup Warning */}
     {daysSinceExport>=3&&<div onClick={onExport} style={{background:C.redBg,border:`1px solid ${C.red}`,borderRadius:8,padding:10,marginBottom:10,cursor:"pointer"}}>
       <div style={{fontSize:12,fontWeight:700,color:C.red}}>⚠️ バックアップしてください（{daysSinceExport>=365?"未実施":`${daysSinceExport}日前`}）</div>
       <div style={{fontSize:11,color:"#fca5a5"}}>{lastExport?`最終: ${new Date(lastExport).toLocaleDateString("ja-JP")}`:"まだバックアップしていません"}（タップで📤）</div>
     </div>}
-
-    {/* Next Actions */}
     {nextItems.length>0&&<Card>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
         <span style={{fontSize:12,fontWeight:700,color:C.textMuted}}>▶ Next Actions</span>
@@ -523,15 +513,12 @@ function HomeTab({next,setNext,tournaments,practices,trials,daysSinceExport,last
         <div style={{width:20,height:20,borderRadius:4,border:`2px solid ${C.accent}`,flexShrink:0}}/>
         <div style={{minWidth:0,flex:1}}>
           <div style={{fontSize:12,fontWeight:600,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{n.label}</div>
-          {n.category&&<Badge color={n.priority==="最高"?"green":n.priority==="高"?"blue":"yellow"} sm>{n.category}</Badge>}
         </div>
       </div>)}
     </Card>}
-
-    {/* Upcoming Events */}
     {displayUpcoming.length>0&&<Card>
       <div style={{fontSize:12,fontWeight:700,color:C.textMuted,marginBottom:8}}>📅 今後の予定</div>
-      {displayUpcoming.map((item,i)=><div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 0",borderBottom:i<displayUpcoming.length-1?`1px solid ${C.border}22`:"none"}}>
+      {displayUpcoming.map((item,i)=><div key={i} onClick={onGoToSessions} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 0",cursor:"pointer",borderBottom:i<displayUpcoming.length-1?`1px solid ${C.border}22`:"none"}}>
         <span style={{fontSize:14}}>{item.type==="tournament"?"🏆":"🏃"}</span>
         <div style={{flex:1,minWidth:0}}>
           <div style={{fontSize:12,fontWeight:600,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.name}{item.level?" ("+item.level+")":""}</div>
@@ -541,8 +528,6 @@ function HomeTab({next,setNext,tournaments,practices,trials,daysSinceExport,last
       </div>)}
       {overflowCount>0&&<button onClick={onGoToSessions} style={{background:"none",border:"none",color:C.accent,fontSize:11,fontWeight:600,cursor:"pointer",marginTop:6}}>他{overflowCount}件を見る → Sessions</button>}
     </Card>}
-
-    {/* Recent Tournaments */}
     {pastTournaments.length>0&&<Card>
       <div style={{fontSize:12,fontWeight:700,color:C.textMuted,marginBottom:8}}>🏆 最近の大会</div>
       {pastTournaments.map(t=><div key={t.id} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 0",borderBottom:`1px solid ${C.border}22`}}>
@@ -550,11 +535,9 @@ function HomeTab({next,setNext,tournaments,practices,trials,daysSinceExport,last
           <div style={{fontSize:12,fontWeight:600,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.name}</div>
           <div style={{fontSize:10,color:C.textMuted}}>{fmtDateFull(t.date)} · {(t.matches||[]).length}試合</div>
         </div>
-        {t.overallResult&&<Badge color={RESULT_COLORS[t.overallResult]?"green":"gray"}>{t.overallResult}</Badge>}
+        {t.overallResult&&<Badge color={RESULT_BADGE[t.overallResult]||"gray"}>{t.overallResult}</Badge>}
       </div>)}
     </Card>}
-
-    {/* Stats summary */}
     <Card style={{background:C.panel2}}>
       <div style={{display:"flex",justifyContent:"space-around",textAlign:"center"}}>
         {[["大会",(tournaments||[]).length,"🏆"],["練習",(practices||[]).length,"🏃"],["試打",(trials||[]).length,"🎾"]].map(([l,n,ic])=>
@@ -565,15 +548,14 @@ function HomeTab({next,setNext,tournaments,practices,trials,daysSinceExport,last
   </div>;
 }
 
-// ── SESSIONS TAB ──────────────────────────────────
+// ── SESSIONS TAB (B+C: 3 months default + jump selector) ──
 function SessionsTab({tournaments,setTournaments,practices,setPractices,trials,setTrials,rackets,strings,stringSetups,venues,setVenues,opponents,toast,pendingRecord,onPendingRecordDone}){
   const[filter,setFilter]=useState("all");
-  const[selected,setSelected]=useState(null); // {type,id}
   const[modal,setModal]=useState(null);
   const[expandedMonths,setExpandedMonths]=useState(()=>{try{const v=localStorage.getItem("yuke-session-months");return v?JSON.parse(v):{};}catch{return{};}});
-  const[expandedYears,setExpandedYears]=useState({});
+  const[showAllMonths,setShowAllMonths]=useState(false);
+  const[jumpTarget,setJumpTarget]=useState("");
 
-  // Pending record from Home → open modal
   useEffect(()=>{
     if(pendingRecord){
       setModal({type:pendingRecord,isNew:true,data:pendingRecord==="tournaments"?{id:genId(),date:today(),name:"",level:"",type:"singles",venue:"",racketName:"",stringSetup:"",tension:"",temp:"",overallResult:"",generalNote:"",matches:[]}:pendingRecord==="practices"?{id:genId(),date:today(),type:"",venue:"",duration:"",racketName:"",stringSetup:"",tension:"",temp:"",focus:"",coachNote:"",goodNote:"",improveNote:"",generalNote:""}:{id:genId(),date:today(),racketName:"",stringMain:"",stringCross:"",tensionMain:"",tensionCross:"",temp:"",venue:"",judgment:"",spin:0,control:0,power:0,feel:0,info:0,maneuver:0,swingThrough:0,trajectory:0,stiffness:0,shotForeAtk:0,shotForeDef:0,shotBackAtk:0,shotBackDef:0,shotSlice:0,shotServe:0,shotVolley:0,shotReturn:0,confidence:0,generalNote:""}});
@@ -581,13 +563,11 @@ function SessionsTab({tournaments,setTournaments,practices,setPractices,trials,s
     }
   },[pendingRecord]);
 
-  // Save expanded state to localStorage
   useEffect(()=>{try{localStorage.setItem("yuke-session-months",JSON.stringify(expandedMonths));}catch{}},[expandedMonths]);
 
   const toggleMonth=key=>{setExpandedMonths(prev=>({...prev,[key]:!prev[key]}));};
-  const toggleYear=key=>{setExpandedYears(prev=>({...prev,[key]:!prev[key]}));};
 
-  // Build timeline items
+  // Build all items
   const allItems=useMemo(()=>{
     let items=[];
     if(filter==="all"||filter==="tournaments")(tournaments||[]).forEach(t=>items.push({type:"tournament",id:t.id,date:t.date,data:t}));
@@ -596,39 +576,47 @@ function SessionsTab({tournaments,setTournaments,practices,setPractices,trials,s
     return items.sort((a,b)=>(normDate(b.date)||"").localeCompare(normDate(a.date)||""));
   },[tournaments,practices,trials,filter]);
 
-  // Group by month, with 2-tier for >12 months ago
-  const grouped=useMemo(()=>{
-    const now=new Date();
-    const cutoff=new Date(now.getFullYear()-1,now.getMonth(),1);
-    const months={};
-    const years={};
+  // Group by year-month
+  const allMonths=useMemo(()=>{
+    const monthMap={};
     allItems.forEach(item=>{
-      const nd=normDate(item.date);
-      const m=nd.match(/(\d{4})-(\d{2})/);
-      if(!m)return;
+      const nd=normDate(item.date);const m=nd.match(/(\d{4})-(\d{2})/);if(!m)return;
       const ym=`${m[1]}-${m[2]}`;
-      const d=new Date(parseInt(m[1]),parseInt(m[2])-1,1);
-      if(d>=cutoff){
-        if(!months[ym])months[ym]={label:`${parseInt(m[1])}年${parseInt(m[2])}月`,items:[],key:ym};
-        months[ym].items.push(item);
-      }else{
-        const y=m[1];
-        if(!years[y])years[y]={label:`${y}年`,months:{},key:y};
-        if(!years[y].months[ym])years[y].months[ym]={label:`${parseInt(m[2])}月`,items:[],key:ym};
-        years[y].months[ym].items.push(item);
-      }
+      if(!monthMap[ym])monthMap[ym]={label:`${parseInt(m[1])}年${parseInt(m[2])}月`,items:[],key:ym};
+      monthMap[ym].items.push(item);
     });
-    return{months:Object.values(months).sort((a,b)=>b.key.localeCompare(a.key)),years:Object.values(years).sort((a,b)=>b.key.localeCompare(a.key))};
+    return Object.values(monthMap).sort((a,b)=>b.key.localeCompare(a.key));
   },[allItems]);
 
-  // Render a single item row
+  // B+C: Show only 3 most recent months by default, or all if toggled / jumped
+  const recentMonths=allMonths.slice(0,3);
+  const olderMonths=allMonths.slice(3);
+  const displayMonths=showAllMonths?allMonths:recentMonths;
+
+  // Jump selector options
+  const jumpOptions=useMemo(()=>[{value:"",label:"📅 月を選択してジャンプ"},...allMonths.map(m=>({value:m.key,label:`${m.label} (${m.items.length}件)`}))]
+  ,[allMonths]);
+
+  // Handle jump
+  const handleJump=ym=>{
+    if(!ym)return;
+    setShowAllMonths(true);
+    setExpandedMonths(prev=>({...prev,[ym]:true}));
+    setJumpTarget(ym);
+    // Scroll to target after render
+    setTimeout(()=>{
+      const el=document.getElementById("month-"+ym);
+      if(el)el.scrollIntoView({behavior:"smooth",block:"start"});
+    },100);
+  };
+
   const renderItem=item=>{
     const d=item.data;
     const icon=item.type==="tournament"?"🏆":item.type==="practice"?"🏃":"🎾";
     const title=item.type==="tournament"?d.name:item.type==="practice"?(d.type||"練習")+(d.venue?" @ "+d.venue:""):`${d.racketName||""}${d.stringMain?" / "+d.stringMain:""}`;
     const sub=item.type==="tournament"?`${d.level||""} · ${(d.matches||[]).length}試合`:item.type==="practice"?`${d.duration?d.duration+"分":""}${d.focus?" · "+d.focus:""}`:d.judgment||"";
-    const badge=item.type==="tournament"&&d.overallResult?<Badge color={RESULT_COLORS[d.overallResult]?"green":"gray"}>{d.overallResult}</Badge>:item.type==="trial"&&d.judgment?<Badge color={d.judgment==="採用候補"?"green":d.judgment==="保留"?"yellow":"red"} sm>{d.judgment}</Badge>:null;
-    return <div key={item.id} onClick={()=>setSelected(selected?.id===item.id?null:{type:item.type,id:item.id})} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 0",cursor:"pointer",borderBottom:`1px solid ${C.border}22`}}>
+    const badge=item.type==="tournament"&&d.overallResult?<Badge color={RESULT_BADGE[d.overallResult]||"gray"}>{d.overallResult}</Badge>:item.type==="trial"&&d.judgment?<Badge color={d.judgment==="採用候補"?"green":d.judgment==="保留"?"yellow":"red"} sm>{d.judgment}</Badge>:null;
+    return <div key={item.id} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 0",borderBottom:`1px solid ${C.border}22`}}>
       <span style={{fontSize:16,flexShrink:0}}>{icon}</span>
       <div style={{flex:1,minWidth:0}}>
         <div style={{fontSize:12,fontWeight:600,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{title}</div>
@@ -639,7 +627,6 @@ function SessionsTab({tournaments,setTournaments,practices,setPractices,trials,s
     </div>;
   };
 
-  // Save handlers
   const handleSave=(type,form)=>{
     if(type==="tournaments"){
       const arr=ds(form.id&&tournaments.find(t=>t.id===form.id)?tournaments.map(t=>t.id===form.id?form:t):[form,...(tournaments||[])]);
@@ -651,20 +638,22 @@ function SessionsTab({tournaments,setTournaments,practices,setPractices,trials,s
       const arr=ds(form.id&&trials.find(t=>t.id===form.id)?trials.map(t=>t.id===form.id?form:t):[form,...(trials||[])]);
       setTrials(arr);save(KEYS.trials,arr);
     }
-    setModal(null);
-    toast.show("💾 保存しました");
+    setModal(null);toast.show("💾 保存しました");
   };
 
   return <div style={{padding:10}}>
-    {/* Filter */}
-    <div style={{display:"flex",gap:4,marginBottom:10}}>
+    {/* Filter + Jump Selector */}
+    <div style={{display:"flex",gap:4,marginBottom:6}}>
       {[["all","全て"],["tournaments","🏆 大会"],["practices","🏃 練習"],["trials","🎾 試打"]].map(([k,l])=>
-        <button key={k} onClick={()=>setFilter(k)} style={{padding:"6px 12px",borderRadius:6,border:`1px solid ${filter===k?C.accent:C.border}`,background:filter===k?C.accentBg:C.panel,color:filter===k?C.accent:C.textMuted,fontSize:11,fontWeight:600,cursor:"pointer"}}>{l}</button>
+        <button key={k} onClick={()=>setFilter(k)} style={{padding:"6px 10px",borderRadius:6,border:`1px solid ${filter===k?C.accent:C.border}`,background:filter===k?C.accentBg:C.panel,color:filter===k?C.accent:C.textMuted,fontSize:11,fontWeight:600,cursor:"pointer"}}>{l}</button>
       )}
     </div>
+    <select value="" onChange={e=>handleJump(e.target.value)} style={{width:"100%",padding:"8px 10px",borderRadius:6,border:`1px solid ${C.border}`,background:C.panel,color:C.text,fontSize:12,marginBottom:8,cursor:"pointer",minHeight:40}}>
+      {jumpOptions.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
+    </select>
 
-    {/* Recent months (2-tier) */}
-    {grouped.months.map(month=><div key={month.key} style={{marginBottom:4}}>
+    {/* Month headers */}
+    {displayMonths.map(month=><div key={month.key} id={"month-"+month.key} style={{marginBottom:4}}>
       <div onClick={()=>toggleMonth(month.key)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 10px",background:C.panel,borderRadius:8,cursor:"pointer",border:`1px solid ${C.border}`}}>
         <span style={{fontSize:13,fontWeight:600,color:C.text}}>{month.label}</span>
         <span style={{fontSize:11,color:C.textMuted}}>({month.items.length}件) {expandedMonths[month.key]?"▼":"▶"}</span>
@@ -672,26 +661,57 @@ function SessionsTab({tournaments,setTournaments,practices,setPractices,trials,s
       {expandedMonths[month.key]&&<div style={{padding:"4px 8px"}}>{month.items.map(renderItem)}</div>}
     </div>)}
 
-    {/* Older years */}
-    {grouped.years.map(year=><div key={year.key} style={{marginBottom:4}}>
+    {/* Show older / collapse */}
+    {!showAllMonths&&olderMonths.length>0&&<button onClick={()=>setShowAllMonths(true)} style={{width:"100%",padding:12,borderRadius:8,background:C.panel2,border:`1px solid ${C.border}`,color:C.textMuted,fontSize:12,fontWeight:600,cursor:"pointer",marginTop:8}}>📂 過去のデータを表示（{olderMonths.length}ヶ月分）</button>}
+    {showAllMonths&&olderMonths.length>0&&<button onClick={()=>setShowAllMonths(false)} style={{width:"100%",padding:10,borderRadius:8,background:"none",border:`1px solid ${C.border}`,color:C.textMuted,fontSize:11,cursor:"pointer",marginTop:8}}>▲ 直近3ヶ月のみ表示</button>}
+
+    {allItems.length===0&&<div style={{textAlign:"center",padding:40,color:C.textMuted,fontSize:13}}>データがありません</div>}
+
+    {modal&&<RecordModal type={modal.type} data={modal.data} isNew={modal.isNew} rackets={rackets} strings={strings} stringSetups={stringSetups} venues={venues} onAddVenue={v=>{const nv=[...(venues||[]),v];setVenues(nv);save(KEYS.venues,nv);}} onSave={form=>handleSave(modal.type,form)} onClose={()=>setModal(null)}/>}
+  </div>;
+}
+    {expandedMonths[month.key]&&<div style={{padding:"4px 8px"}}>{month.items.map(renderItem)}</div>}
+  </div>;
+
+  return <div style={{padding:10}}>
+    {/* Filter + Jump selector */}
+    <div style={{display:"flex",gap:4,marginBottom:8,flexWrap:"wrap",alignItems:"center"}}>
+      {[["all","全て"],["tournaments","🏆 大会"],["practices","🏃 練習"],["trials","🎾 試打"]].map(([k,l])=>
+        <button key={k} onClick={()=>setFilter(k)} style={{padding:"6px 12px",borderRadius:6,border:`1px solid ${filter===k?C.accent:C.border}`,background:filter===k?C.accentBg:C.panel,color:filter===k?C.accent:C.textMuted,fontSize:11,fontWeight:600,cursor:"pointer"}}>{l}</button>
+      )}
+      <select value={jumpValue} onChange={e=>handleJump(e.target.value)} style={{marginLeft:"auto",padding:"6px 8px",borderRadius:6,border:`1px solid ${C.border}`,background:C.panel,color:C.text,fontSize:11,fontFamily:"inherit",cursor:"pointer",minHeight:32}}>
+        <option value="">📅 月を選択...</option>
+        {grouped.jumpByYear.map(([year,months])=><optgroup key={year} label={`${year}年`}>
+          {months.map(ym=>{const mm=parseInt(ym.split("-")[1]);const count=allItems.filter(i=>{const nd=normDate(i.date);return nd.startsWith(ym);}).length;return<option key={ym} value={ym}>{mm}月 ({count}件)</option>;})}
+        </optgroup>)}
+      </select>
+    </div>
+
+    {/* Recent 3 months */}
+    {grouped.recent.map(month=>renderMonthHeader(month))}
+
+    {/* Past data toggle */}
+    {grouped.pastCount>0&&!showPast&&<button onClick={()=>setShowPast(true)} style={{width:"100%",padding:12,borderRadius:8,background:C.panel2,border:`1px solid ${C.border}`,color:C.textMuted,fontSize:12,fontWeight:600,cursor:"pointer",marginTop:4}}>
+      📂 過去のデータを表示（{grouped.pastCount}件）
+    </button>}
+
+    {/* Past data: year > month 2-tier */}
+    {showPast&&grouped.past.map(year=><div key={year.key} style={{marginBottom:4,marginTop:4}}>
       <div onClick={()=>toggleYear(year.key)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 10px",background:C.panel2,borderRadius:8,cursor:"pointer",border:`1px solid ${C.border}`}}>
         <span style={{fontSize:13,fontWeight:600,color:C.textMuted}}>{year.label}</span>
         <span style={{fontSize:11,color:C.textMuted}}>({Object.values(year.months).reduce((s,m)=>s+m.items.length,0)}件) {expandedYears[year.key]?"▼":"▶"}</span>
       </div>
       {expandedYears[year.key]&&<div style={{paddingLeft:8}}>
-        {Object.values(year.months).sort((a,b)=>b.key.localeCompare(a.key)).map(month=><div key={month.key} style={{marginTop:4}}>
-          <div onClick={()=>toggleMonth(month.key)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 10px",background:C.panel,borderRadius:6,cursor:"pointer",border:`1px solid ${C.border}88`}}>
-            <span style={{fontSize:12,fontWeight:600,color:C.text}}>{month.label}</span>
-            <span style={{fontSize:10,color:C.textMuted}}>({month.items.length}件) {expandedMonths[month.key]?"▼":"▶"}</span>
-          </div>
-          {expandedMonths[month.key]&&<div style={{padding:"4px 8px"}}>{month.items.map(renderItem)}</div>}
-        </div>)}
+        {Object.values(year.months).sort((a,b)=>b.key.localeCompare(a.key)).map(month=>renderMonthHeader(month,true))}
       </div>}
     </div>)}
 
+    {showPast&&<button onClick={()=>setShowPast(false)} style={{width:"100%",padding:8,borderRadius:6,background:"none",border:`1px solid ${C.border}`,color:C.textMuted,fontSize:11,cursor:"pointer",marginTop:4}}>
+      ▲ 過去のデータを閉じる
+    </button>}
+
     {allItems.length===0&&<div style={{textAlign:"center",padding:40,color:C.textMuted,fontSize:13}}>データがありません</div>}
 
-    {/* Simple modal for new records */}
     {modal&&<RecordModal type={modal.type} data={modal.data} isNew={modal.isNew} rackets={rackets} strings={strings} stringSetups={stringSetups} venues={venues} onAddVenue={v=>{const nv=[...(venues||[]),v];setVenues(nv);save(KEYS.venues,nv);}} onSave={form=>handleSave(modal.type,form)} onClose={()=>setModal(null)}/>}
   </div>;
 }
@@ -763,22 +783,24 @@ function TabBar({tab,setTab}){
 }
 
 // ── MAIN APP ──────────────────────────────────────
+
+// ── MAIN APP (v2-style: no login blocking) ────────
 function TennisDB(){
   const toast=useToast();
   const cfm=useConfirm();
-  const[loading,setLoading]=useState(true);
-  const[authReady,setAuthReady]=useState(false);
-  const[uid,setUid]=useState(null);
+  const[ready,setReady]=useState(false);
+  const[user,setUser]=useState(null);
+  const[syncing,setSyncing]=useState(false);
   const[tab,setTab]=useState("home");
-  const[large,setLarge]=useState(false); // A↑ mode
+  const[large,setLarge]=useState(false);
   const[showDataMenu,setShowDataMenu]=useState(false);
   const[showClaudeShare,setShowClaudeShare]=useState(false);
   const[pasteImport,setPasteImport]=useState(false);
   const[pasteText,setPasteText]=useState("");
   const importSnapshot=useRef(null);
   const[pendingRecord,setPendingRecord]=useState(null);
+  const[loginError,setLoginError]=useState("");
 
-  // Data states
   const[tournaments,setTournaments]=useState([]);
   const[practices,setPractices]=useState([]);
   const[trials,setTrials]=useState([]);
@@ -807,185 +829,168 @@ function TennisDB(){
     if(data.profile)setProfile(data.profile);
   };
 
-  // Auth + data loading
+  // Initial load: always from localStorage first (never blocks)
+  useEffect(()=>{
+    const raw={};
+    Object.entries(KEYS).forEach(([name,key])=>{raw[name]=lsLoad(key)||INIT[name]||[];});
+    raw.profile=lsLoad("profile")||INIT.profile;
+    const migrated=fixMeasurements(migrateToV2(raw));
+    migrated.tournaments=restoreIfMissing(migrated.tournaments||[]);
+    applyData(migrated);
+    setReady(true);
+  },[]);
+
+  // Auth listener: cloud sync when logged in
   useEffect(()=>{
     const unsub=fbAuth.onAuthStateChanged(async u=>{
+      setUser(u);
       if(u){
-        setUid(u.uid);
-        // Load from Firestore first, fallback to localStorage
+        setSyncing(true);
         try{
           const cloud=await cloudLoadAll(u.uid);
           if(cloud&&Object.keys(cloud).length>0){
-            let raw={};
-            Object.entries(KEYS).forEach(([name,key])=>{raw[name]=cloud[key]||lsLoad(key)||INIT[name]||[];});
-            if(cloud.profile)raw.profile=cloud.profile;
-            else if(lsLoad("profile"))raw.profile=lsLoad("profile");
-            else raw.profile=INIT.profile;
-            const migrated=fixMeasurements(migrateToV2(raw));
-            migrated.tournaments=restoreIfMissing(migrated.tournaments||[]);
-            applyData(migrated);
-            // Sync to localStorage
-            Object.entries(KEYS).forEach(([name,key])=>{if(migrated[name])lsSave(key,migrated[name]);});
-            lsSave("profile",migrated.profile);
+            const merged={};
+            Object.entries(KEYS).forEach(([name,key])=>{
+              if(cloud[key]){merged[name]=cloud[key];lsSave(key,cloud[key]);}
+            });
+            if(cloud.profile){merged.profile=cloud.profile;lsSave("profile",cloud.profile);}
+            applyData(merged);
+            toast.show("☁️ クラウドから同期しました");
           }else{
-            // First load or empty Firestore - use INIT
-            applyData(INIT);
-            Object.entries(KEYS).forEach(([name,key])=>{if(INIT[name])lsSave(key,INIT[name]);});
-            lsSave("profile",INIT.profile);
-            await cloudSaveAll(u.uid,{...Object.fromEntries(Object.entries(KEYS).map(([name,key])=>[key,INIT[name]||[]])),profile:INIT.profile});
+            // No cloud data → push local to cloud
+            const allLocal={};
+            Object.entries(KEYS).forEach(([name,key])=>{allLocal[key]=lsLoad(key);});
+            allLocal.profile=lsLoad("profile");
+            const hasLocal=Object.values(allLocal).some(v=>v!==null);
+            if(hasLocal){
+              await cloudSaveAll(u.uid,allLocal);
+              toast.show("☁️ ローカルデータをクラウドに移行しました");
+            }
           }
         }catch(e){
-          console.error("Cloud load failed, using localStorage",e);
-          const raw={};
-          Object.entries(KEYS).forEach(([name,key])=>{raw[name]=lsLoad(key)||INIT[name]||[];});
-          raw.profile=lsLoad("profile")||INIT.profile;
-          const migrated=fixMeasurements(migrateToV2(raw));
-          migrated.tournaments=restoreIfMissing(migrated.tournaments||[]);
-          applyData(migrated);
+          console.error("Cloud sync error:",e);
+          toast.show("⚠️ クラウド同期エラー（ローカルデータで動作中）",C.yellow);
         }
-        // Auto-generate opponents
-        if(!lsLoad("auto-opponents-v227")){
-          const updatedOpps=autoOpponents(tournaments,opponents);
-          if(updatedOpps.length>opponents.length){setOpponents(updatedOpps);save(KEYS.opponents,updatedOpps);}
-          lsSave("auto-opponents-v227",true);
-        }
+        setSyncing(false);
         // Realtime listener
-        const dataRef=fbDb.collection("users").doc(u.uid).collection("data");
-        dataRef.onSnapshot(snap=>{
-          snap.docChanges().forEach(change=>{
-            if(change.type==="modified"){
-              const key=change.doc.id;
-              const data=change.doc.data();
-              const val=data.items||data.obj;
-              if(!val)return;
-              const name=Object.entries(KEYS).find(([_,v])=>v===key)?.[0];
-              if(!name)return;
-              lsSave(key,val);
-              const setters={tournaments:setTournaments,practices:setPractices,trials:setTrials,rackets:setRackets,strings:setStrings,stringSetups:setStringSetups,mental:setMental,next:setNext,venues:setVenues,opponents:setOpponents,measurements:setMeasurements,quickTrialCards:setQuickTrialCards};
-              if(setters[name]){
-                if(Array.isArray(val)&&val[0]?.date)setters[name](ds(val));
-                else setters[name](val);
+        try{
+          const dataRef=fbDb.collection("users").doc(u.uid).collection("data");
+          dataRef.onSnapshot(snap=>{
+            snap.docChanges().forEach(change=>{
+              if(change.type==="modified"){
+                const key=change.doc.id;const data=change.doc.data();const val=data.items||data.obj;
+                if(!val)return;
+                const name=Object.entries(KEYS).find(([,v])=>v===key)?.[0];
+                if(!name)return;
+                lsSave(key,val);
+                const setters={tournaments:setTournaments,practices:setPractices,trials:setTrials,rackets:setRackets,strings:setStrings,stringSetups:setStringSetups,mental:setMental,next:setNext,venues:setVenues,opponents:setOpponents,measurements:setMeasurements,quickTrialCards:setQuickTrialCards};
+                if(setters[name]){if(Array.isArray(val)&&val[0]?.date)setters[name](ds(val));else setters[name](val);}
               }
-            }
+            });
           });
-        });
-      }else{
-        // Not logged in → show login
-        setUid(null);
+        }catch(e){console.error("Snapshot listener error:",e);}
+        // Auto-opponents
+        if(!lsLoad("auto-opponents-v227")){
+          try{
+            const updatedOpps=autoOpponents(tournaments,opponents);
+            if(updatedOpps.length>(opponents||[]).length){setOpponents(updatedOpps);save(KEYS.opponents,updatedOpps);}
+            lsSave("auto-opponents-v227",true);
+          }catch(e){console.error("Auto-opponents error:",e);}
+        }
       }
-      setAuthReady(true);
-      setLoading(false);
     });
     return()=>unsub();
   },[]);
 
-  // Export
   const handleExport=async()=>{
     const data={tournaments,practices,trials,rackets,strings,stringSetups,mental,next,profile,venues,opponents,measurements,quickTrialCards};
     const result=await exportAll(data);
     if(result!=="cancelled"){
-      const now=new Date().toISOString();
-      setLastExport(now);
+      const now=new Date().toISOString();setLastExport(now);
       try{localStorage.setItem("yuke-last-export",now);}catch{}
       toast.show("📤 エクスポート完了");
     }
   };
-
-  // Import (file)
   const handleImport=()=>{
     const inp=document.createElement("input");inp.type="file";inp.accept=".json";
     inp.onchange=async e=>{
       try{
-        const text=await e.target.files[0].text();
-        const data=JSON.parse(text);
+        const text=await e.target.files[0].text();const data=JSON.parse(text);
         importSnapshot.current={tournaments,practices,trials,rackets,strings,stringSetups,mental,next,profile,venues,opponents,measurements,quickTrialCards};
         const current={tournaments,practices,trials,rackets,strings,stringSetups,mental,next,profile,venues,opponents,measurements,quickTrialCards};
-        const merged=mergeData(current,data);
-        applyData(merged);
+        const merged=mergeData(current,data);applyData(merged);
         Object.entries(KEYS).forEach(([name,key])=>{if(merged[name])save(key,merged[name]);});
         if(merged.profile)save("profile",merged.profile);
-        toast.show(`📥 ${Object.values(data).filter(Array.isArray).reduce((s,a)=>s+a.length,0)}件インポート`,C.blue);
+        toast.show(`📥 インポート完了`,C.blue);
       }catch(err){toast.show("❌ インポートエラー: "+err.message,C.red);}
     };
     inp.click();
   };
-
-  // Import (paste)
   const handlePasteImport=()=>{
     try{
       const data=JSON.parse(pasteText);
       importSnapshot.current={tournaments,practices,trials,rackets,strings,stringSetups,mental,next,profile,venues,opponents,measurements,quickTrialCards};
       const current={tournaments,practices,trials,rackets,strings,stringSetups,mental,next,profile,venues,opponents,measurements,quickTrialCards};
-      const merged=mergeData(current,data);
-      applyData(merged);
+      const merged=mergeData(current,data);applyData(merged);
       Object.entries(KEYS).forEach(([name,key])=>{if(merged[name])save(key,merged[name]);});
       if(merged.profile)save("profile",merged.profile);
-      setPasteImport(false);setPasteText("");
-      toast.show("📥 貼り付けインポート完了",C.blue);
+      setPasteImport(false);setPasteText("");toast.show("📥 貼り付けインポート完了",C.blue);
     }catch(err){toast.show("❌ JSONエラー: "+err.message,C.red);}
   };
-
-  // Import undo
   const handleImportUndo=()=>{
     if(!importSnapshot.current)return;
     applyData(importSnapshot.current);
     Object.entries(KEYS).forEach(([name,key])=>{if(importSnapshot.current[name])save(key,importSnapshot.current[name]);});
-    importSnapshot.current=null;
-    toast.show("↩️ インポートを元に戻しました",C.yellow);
+    importSnapshot.current=null;toast.show("↩️ インポートを元に戻しました",C.yellow);
   };
-
-  // Record from home
-  const handleRecord=type=>{
-    setPendingRecord(type);
-    setTab("sessions");
-  };
-
-  // Login
+  const handleRecord=type=>{setPendingRecord(type);setTab("sessions");};
   const handleLogin=async()=>{
+    setLoginError("");
     try{
       const provider=new firebase.auth.GoogleAuthProvider();
       await fbAuth.signInWithPopup(provider);
     }catch(e){
       if(e.code==="auth/popup-blocked"){
         try{await fbAuth.signInWithRedirect(new firebase.auth.GoogleAuthProvider());}
-        catch(e2){toast.show("❌ ログイン失敗",C.red);}
+        catch(e2){setLoginError("ログイン失敗: "+e2.message);toast.show("❌ ログイン失敗",C.red);}
+      }else{
+        setLoginError("ログイン失敗: "+e.message);
+        toast.show("❌ ログイン失敗: "+e.message,C.red);
       }
     }
   };
+  const handleLogout=async()=>{await fbAuth.signOut();toast.show("ログアウトしました");};
 
-  if(loading)return<div style={{display:"flex",alignItems:"center",justifyContent:"center",minHeight:"100dvh",flexDirection:"column",gap:8}}>
-    <div style={{fontSize:24}}>🎾</div>
-    <div style={{fontSize:13,color:C.textMuted}}>Tennis DB v3 を読み込み中...</div>
-  </div>;
-
-  if(authReady&&!uid)return<div style={{display:"flex",alignItems:"center",justifyContent:"center",minHeight:"100dvh",flexDirection:"column",gap:16,padding:20}}>
-    <div style={{fontSize:40}}>🎾</div>
-    <div style={{fontSize:20,fontWeight:700,color:C.accent}}>Tennis DB</div>
-    <div style={{fontSize:12,color:C.textMuted}}>v{APP_VERSION}</div>
-    <button onClick={handleLogin} style={{padding:"14px 32px",borderRadius:10,background:C.accent,border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>☁️ Googleでログイン</button>
-  </div>;
+  if(!ready)return<div style={{background:C.bg,minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",color:C.textMuted}}>読み込み中...</div>;
 
   return <div style={{display:"flex",flexDirection:"column",minHeight:"100dvh",background:C.bg,zoom:large?1.22:1}}>
     {/* Header */}
     <div style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:"8px 14px",display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0}}>
       <div style={{display:"flex",alignItems:"center",gap:8}}>
         <span style={{fontSize:16,fontWeight:600,color:C.accent}}>Tennis DB</span>
-        <span style={{fontSize:10,color:C.textMuted}}>v{APP_VERSION}{uid?" · 同期中":""}</span>
+        <span style={{fontSize:10,color:C.textMuted}}>v{APP_VERSION}{syncing?" · 同期中...":user?" · ☁️":""}</span>
       </div>
       <div style={{display:"flex",gap:6}}>
-        <button onClick={()=>setLarge(!large)} style={{background:"none",border:`1px solid ${large?C.accent:C.border}`,borderRadius:6,padding:"4px 8px",fontSize:11,color:large?C.accent:C.textMuted,cursor:"pointer",fontWeight:600}}>A↑</button>
+        <button onClick={()=>setLarge(!large)} style={{background:"none",border:`1px solid ${large?C.accent:C.border}`,borderRadius:6,padding:"4px 8px",fontSize:11,color:large?C.accent:C.textMuted,cursor:"pointer",fontWeight:600}}>{large?"A↓":"A↑"}</button>
         <button onClick={()=>setShowDataMenu(!showDataMenu)} style={{background:"none",border:`1px solid ${C.border}`,borderRadius:6,padding:"4px 8px",fontSize:12,cursor:"pointer"}}>📤</button>
-        <button onClick={()=>fbAuth.signOut()} style={{background:"none",border:`1px solid ${C.border}`,borderRadius:6,padding:"4px 8px",fontSize:12,cursor:"pointer"}}>👤</button>
+        {user?<button onClick={handleLogout} style={{background:"#f5f3ff",border:`1px solid ${C.purple}`,color:C.purple,borderRadius:6,padding:"4px 8px",fontSize:12,cursor:"pointer",fontWeight:600}}>👤</button>
+        :<button onClick={handleLogin} style={{background:"#ecfdf5",border:`1px solid ${C.accent}`,color:C.accent,borderRadius:6,padding:"4px 8px",fontSize:12,cursor:"pointer",fontWeight:600}}>☁️</button>}
       </div>
     </div>
+
+    {/* Login error banner */}
+    {loginError&&<div style={{background:C.redBg,border:`1px solid ${C.red}`,padding:"8px 14px",display:"flex",alignItems:"center",gap:8}}>
+      <span style={{fontSize:12,color:C.red,flex:1}}>{loginError}</span>
+      <button onClick={()=>setLoginError("")} style={{background:"none",border:"none",color:C.red,cursor:"pointer",fontSize:14}}>✕</button>
+    </div>}
 
     {/* Data Menu */}
     {showDataMenu&&<div style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:10,display:"flex",gap:6,flexWrap:"wrap"}}>
       <button onClick={()=>{handleExport();setShowDataMenu(false);}} style={{padding:"6px 12px",borderRadius:6,background:C.accentBg,border:`1px solid ${C.accent}`,color:C.accent,fontSize:11,fontWeight:600,cursor:"pointer"}}>📤 エクスポート</button>
-      <button onClick={()=>{handleImport();setShowDataMenu(false);}} style={{padding:"6px 12px",borderRadius:6,background:C.blueBg,border:`1px solid ${C.blue}`,color:C.blue,fontSize:11,fontWeight:600,cursor:"pointer"}}>📥 JSONインポート</button>
-      <button onClick={()=>{setPasteImport(true);setShowDataMenu(false);}} style={{padding:"6px 12px",borderRadius:6,background:C.purpleBg,border:`1px solid ${C.purple}`,color:C.purple,fontSize:11,fontWeight:600,cursor:"pointer"}}>📋→📥 貼り付け</button>
-      <button onClick={()=>{setShowClaudeShare(true);setShowDataMenu(false);}} style={{padding:"6px 12px",borderRadius:6,background:C.yellowBg,border:`1px solid ${C.yellow}`,color:C.yellow,fontSize:11,fontWeight:600,cursor:"pointer"}}>📋 Claude共有</button>
-      {importSnapshot.current&&<button onClick={()=>{handleImportUndo();setShowDataMenu(false);}} style={{padding:"6px 12px",borderRadius:6,background:C.redBg,border:`1px solid ${C.red}`,color:C.red,fontSize:11,fontWeight:600,cursor:"pointer"}}>↩️ インポート取消</button>}
+      <button onClick={()=>{handleImport();setShowDataMenu(false);}} style={{padding:"6px 12px",borderRadius:6,background:C.blueBg,border:`1px solid ${C.blue}`,color:C.blue,fontSize:11,fontWeight:600,cursor:"pointer"}}>📥 JSON</button>
+      <button onClick={()=>{setPasteImport(true);setShowDataMenu(false);}} style={{padding:"6px 12px",borderRadius:6,background:C.purpleBg,border:`1px solid ${C.purple}`,color:C.purple,fontSize:11,fontWeight:600,cursor:"pointer"}}>📋→📥</button>
+      <button onClick={()=>{setShowClaudeShare(true);setShowDataMenu(false);}} style={{padding:"6px 12px",borderRadius:6,background:C.yellowBg,border:`1px solid ${C.yellow}`,color:C.yellow,fontSize:11,fontWeight:600,cursor:"pointer"}}>📋 Claude</button>
+      {importSnapshot.current&&<button onClick={()=>{handleImportUndo();setShowDataMenu(false);}} style={{padding:"6px 12px",borderRadius:6,background:C.redBg,border:`1px solid ${C.red}`,color:C.red,fontSize:11,fontWeight:600,cursor:"pointer"}}>↩️ 取消</button>}
     </div>}
 
     {/* Content */}
@@ -1007,10 +1012,8 @@ function TennisDB(){
       </ErrorBoundary>
     </div>
 
-    {/* Tab Bar */}
     <TabBar tab={tab} setTab={setTab}/>
 
-    {/* Modals & overlays */}
     {showClaudeShare&&<ClaudeShareModal onClose={()=>setShowClaudeShare(false)} data={{tournaments,practices,trials,rackets,strings,stringSetups,mental,next,profile,venues,opponents,measurements,quickTrialCards}} toast={toast}/>}
     {pasteImport&&<div style={{position:"fixed",inset:0,background:"#0008",zIndex:400,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
       <div style={{background:C.panel,borderRadius:12,padding:20,width:"100%",maxWidth:400}}>
