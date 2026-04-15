@@ -2,61 +2,51 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<title>Tennis DB v3</title>
+<meta name="theme-color" content="#f2f2f7">
+<title>ゆっけ Tennis DB v3</title>
+<link rel="manifest" href="manifest.json">
 <style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;background:#f2f2f7;color:#1a1a1a;-webkit-font-smoothing:antialiased;overflow-x:hidden}
-#root{min-height:100dvh;display:flex;flex-direction:column}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f2f2f7;color:#1a1a1a;-webkit-font-smoothing:antialiased;padding-bottom:60px}
+  input,select,textarea,button{font-family:inherit}
 </style>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 </head>
 <body>
 <div id="root"></div>
-<script>
-(function(){var w=console.warn;console.warn=function(){if(arguments[0]&&typeof arguments[0]==='string'&&arguments[0].indexOf('in-browser Babel')!==-1)return;w.apply(console,arguments);};})();
-</script>
 <script type="text/babel">
-const APP_VERSION="3.0.0";
-const {useState,useEffect,useRef,useCallback,useMemo}=React;
+const {useState,useEffect,useRef,useCallback} = React;
 
-// ── COLORS（v2完全一致）─────────────────────────────
-const C={
-  bg:"#f2f2f7",panel:"#ffffff",panel2:"#e8e8ed",panel3:"#dddde2",
-  border:"#c7c7cc",accent:"#00b87a",accentDim:"#009963",
-  text:"#1a1a1a",textMuted:"#374151",textDim:"#4b5563",
-  red:"#dc2626",yellow:"#d97706",blue:"#2563eb",purple:"#7c3aed",orange:"#ea580c",
-};
-const Badge=({color="gray",children,sm})=>{
-  const m={green:["#e6f9f0",C.accent],red:["#fef2f2",C.red],yellow:["#fffbeb","#b45309"],blue:["#eff6ff",C.blue],gray:["#f3f4f6","#374151"],orange:["#fff7ed",C.orange],purple:["#f5f3ff",C.purple]};
-  const[bg,fg]=m[color]||m.gray;
-  return <span style={{display:"inline-block",fontSize:sm?9:10,padding:sm?"1px 5px":"2px 7px",borderRadius:3,fontWeight:600,background:bg,color:fg,whiteSpace:"nowrap"}}>{children}</span>;
+const APP_VERSION="3.0.0-alpha.1";
+
+// ── COLOR SYSTEM (v2 identical) ──────────────────
+const C = {
+  bg:"#f2f2f7", panel:"#ffffff", panel2:"#e8e8ed", panel3:"#dddde2",
+  border:"#c7c7cc", accent:"#00b87a", accentDim:"#009963",
+  text:"#1a1a1a", textMuted:"#374151", textDim:"#4b5563",
+  red:"#dc2626", yellow:"#d97706", blue:"#2563eb", purple:"#7c3aed", orange:"#ea580c",
 };
 
-// ── FIREBASE（v2完全一致）─────────────────────────────
+// ── FIREBASE (v2 identical) ──────────────────────
 const firebaseConfig={apiKey:"AIzaSyAXWAtHjBOi31FoNXZiAwW-A7ywZcDY2mM",authDomain:"tennis-db-ca9ae.firebaseapp.com",projectId:"tennis-db-ca9ae",storageBucket:"tennis-db-ca9ae.firebasestorage.app",messagingSenderId:"1031131288345",appId:"1:1031131288345:web:2adcb9f2eeafa5801ceb88"};
 const fbApp=firebase.initializeApp(firebaseConfig);
 const fbAuth=firebase.auth();
 const fbDb=firebase.firestore();
 fbDb.enablePersistence({synchronizeTabs:true}).catch(()=>{});
 
-// ── STORAGE（v2完全一致）─────────────────────────────
+// ── STORAGE (v2 identical) ───────────────────────
 const KEYS={tournaments:"tournaments",practices:"practices",trials:"trials",rackets:"rackets",strings:"strings",measurements:"measurements",mental:"mental",next:"next",profile:"profile",venues:"venues",stringSetups:"stringSetups",quickTrialCards:"quickTrialCards",opponents:"opponents"};
 const LS_PREFIX="yuke-";
 const lsLoad=k=>{try{const v=localStorage.getItem(LS_PREFIX+k+"-v1");if(v)return JSON.parse(v);}catch(_){}return null;};
 const lsSave=(k,d)=>{try{localStorage.setItem(LS_PREFIX+k+"-v1",JSON.stringify(d));}catch(_){}};
-
-// ── ds()（v2完全一致：null対応あり）───────────────────
-const ds=(a)=>a?[...a].sort((x,y)=>(y.date||"").localeCompare(x.date||"")):null;
-
-// ── save()（v2完全一致：fbAuth.currentUserを使用）─────
 const _saveTimers={};
 const save=(k,d)=>{
   lsSave(k,d);
@@ -67,8 +57,6 @@ const save=(k,d)=>{
     fbDb.collection("users").doc(user.uid).collection("data").doc(k).set({items:Array.isArray(d)?d:null,obj:Array.isArray(d)?null:d,updatedAt:firebase.firestore.FieldValue.serverTimestamp()}).catch(e=>console.error("Firestore save error:",k,e));
   },800);
 };
-
-// ── cloudLoadAll（v2完全一致）─────────────────────────
 const cloudLoadAll=async(uid)=>{
   try{
     const snap=await fbDb.collection("users").doc(uid).collection("data").get();
@@ -77,389 +65,354 @@ const cloudLoadAll=async(uid)=>{
     return result;
   }catch(e){console.error("Firestore load error:",e);return null;}
 };
+const today=()=>new Date().toLocaleDateString("ja-JP",{year:"numeric",month:"2-digit",day:"2-digit"});
 
-// ── cloudSaveAll（v2完全一致：初回移行用）─────────────
-const cloudSaveAll=async(uid,allData)=>{
-  const batch=fbDb.batch();
-  Object.entries(KEYS).forEach(([name,key])=>{
-    if(allData[name]){
-      const ref=fbDb.collection("users").doc(uid).collection("data").doc(key);
-      batch.set(ref,{items:Array.isArray(allData[name])?allData[name]:null,obj:Array.isArray(allData[name])?null:allData[name],updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
-    }
-  });
-  await batch.commit();
-};
-
-// ── EXPORT ────────────────────────────────────────
-const exportAll=async data=>{
-  const json=JSON.stringify({version:30,exportedAt:new Date().toISOString(),...data},null,2);
-  const d=new Date().toLocaleDateString("ja-JP",{year:"numeric",month:"2-digit",day:"2-digit"}).replace(/\//g,"-");
-  const fname=`tennis_db_v3_${d}.json`;
-  const file=new File([json],fname,{type:"application/json"});
-  if(navigator.share&&navigator.canShare&&navigator.canShare({files:[file]})){
-    try{await navigator.share({files:[file],title:"Tennis DB バックアップ"});return "shared";}catch(e){if(e.name==="AbortError")return "cancelled";}
-  }
-  const b=new Blob([json],{type:"application/json"});const u=URL.createObjectURL(b);const a=document.createElement("a");a.href=u;a.download=fname;a.click();URL.revokeObjectURL(u);return "downloaded";
-};
-
-// ── TOAST ─────────────────────────────────────────
+// ── TOAST ────────────────────────────────────────
 function useToast(){
-  const[msg,setMsg]=useState(null);
-  const t=useRef(null);
-  const show=(text,color)=>{clearTimeout(t.current);setMsg({text,color:color||C.accent});t.current=setTimeout(()=>setMsg(null),2500);};
-  const el=msg?<div style={{position:"fixed",bottom:80,left:"50%",transform:"translateX(-50%)",background:msg.color||C.accent,color:"#fff",padding:"8px 20px",borderRadius:8,fontSize:13,fontWeight:600,zIndex:9999,boxShadow:"0 2px 12px rgba(0,0,0,0.15)",whiteSpace:"nowrap"}}>{msg.text}</div>:null;
-  return{show,el};
+  const [t,setT]=useState(null);
+  const tRef=useRef(null);
+  const show=(msg,color=C.accent,onUndo=null,duration=0)=>{if(tRef.current)clearTimeout(tRef.current);setT({msg,color,onUndo});tRef.current=setTimeout(()=>setT(null),duration||(onUndo?5000:2600));};
+  const el=t?<div style={{position:"fixed",bottom:70,left:"50%",transform:"translateX(-50%)",background:C.panel,border:`1px solid ${t.color}`,color:t.color,borderRadius:8,padding:"10px 20px",fontSize:13,fontWeight:600,zIndex:600,boxShadow:"0 4px 20px #0008",display:"flex",alignItems:"center",gap:12,whiteSpace:"nowrap"}}>
+    <span>{t.msg}</span>
+    {t.onUndo&&<button onClick={()=>{t.onUndo();setT(null);}} style={{background:t.color,border:"none",color:"#fff",borderRadius:4,padding:"5px 12px",fontSize:12,fontWeight:700,cursor:"pointer"}}>元に戻す</button>}
+  </div>:null;
+  return {show,el};
 }
 
-// ── ERROR BOUNDARY ────────────────────────────────
-class ErrorBoundary extends React.Component{
+// ── ERROR BOUNDARY ───────────────────────────────
+class ErrorBoundary extends React.Component {
   constructor(props){super(props);this.state={hasError:false,error:null};}
-  static getDerivedStateFromError(error){return{hasError:true,error};}
-  componentDidCatch(error,info){console.error("ErrorBoundary caught:",this.props.label,error,info);}
+  static getDerivedStateFromError(error){return {hasError:true,error};}
+  componentDidCatch(error,info){console.error(`[ErrorBoundary:${this.props.name}]`,error,info);}
   render(){
     if(this.state.hasError){
-      return <div style={{padding:24,textAlign:"center"}}>
-        <div style={{fontSize:14,color:C.red,fontWeight:600,marginBottom:8}}>「{this.props.label}」でエラーが発生しました</div>
-        <div style={{fontSize:11,color:C.textMuted,marginBottom:12,wordBreak:"break-all"}}>{String(this.state.error)}</div>
-        <button onClick={()=>this.setState({hasError:false,error:null})} style={{background:C.accent,color:"#fff",border:"none",borderRadius:6,padding:"8px 20px",fontSize:13,fontWeight:600,cursor:"pointer"}}>リトライ</button>
-      </div>;
+      return (
+        <div style={{padding:24,textAlign:"center",color:C.textMuted}}>
+          <div style={{fontSize:28,marginBottom:12}}>⚠️</div>
+          <div style={{fontSize:14,fontWeight:600,color:C.red,marginBottom:8}}>
+            {this.props.name||"このセクション"}でエラーが発生しました
+          </div>
+          <div style={{fontSize:12,color:C.textMuted,marginBottom:16,lineHeight:1.6}}>
+            他のタブは正常に動作しています
+          </div>
+          <button onClick={()=>this.setState({hasError:false,error:null})} style={{background:C.accent,border:"none",color:"#fff",borderRadius:6,padding:"10px 20px",fontSize:13,fontWeight:700,cursor:"pointer"}}>
+            リトライ
+          </button>
+          <details style={{marginTop:12,fontSize:11,color:C.textMuted,textAlign:"left"}}>
+            <summary style={{cursor:"pointer"}}>エラー詳細</summary>
+            <pre style={{marginTop:6,padding:8,background:C.panel2,borderRadius:4,overflow:"auto",maxHeight:120,fontSize:10}}>{this.state.error?.toString()}</pre>
+          </details>
+        </div>
+      );
     }
     return this.props.children;
   }
 }
 
-// ── HELPERS ────────────────────────────────────────
-// today()：v2完全一致。"2026/04/13" 形式（スラッシュ区切り）
-const today=()=>new Date().toLocaleDateString("ja-JP",{year:"numeric",month:"2-digit",day:"2-digit"});
-// normDate()：v3新設。任意の日付形式を"2026-04-13"に正規化（比較用）
-const normDate=d=>{if(!d)return"";const s=String(d);const m=s.match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);if(!m)return s;return`${m[1]}-${m[2].padStart(2,"0")}-${m[3].padStart(2,"0")}`;};
-// fmtDate()：v3新設。日付を"4/13"形式で表示
-const fmtDate=d=>{if(!d)return"—";const m=String(d).match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);if(!m)return String(d);return`${parseInt(m[2])}/${parseInt(m[3])}`;};
-const fmtTension=(m,c)=>{if(!m&&!c)return"—";if(m&&c&&m!==c)return`${m}/${c}p`;if(m)return`${m}p`;return"—";};
-const daysBetween=(a,b)=>Math.floor((b-a)/(1000*60*60*24));
-const resultColor=r=>{const w={"優勝":"green","準優勝":"yellow","予選突破":"blue","準決勝敗退":"orange","決勝敗退":"orange","予選敗退":"red","敗退":"red"};return w[r]||"gray";};
-const nextBadgeCat=c=>{const m={検証:"green",準備:"blue",買い物:"yellow",チェックリスト:"gray"};return m[c]||"gray";};
-
-// ── HOME TAB ──────────────────────────────────────
-function HomeTab({next,setNext,tournaments,practices,trials,daysSinceExport,onExport,onRecord,onGoToNext,toast}){
-  const toggleNext=(id)=>{
-    const item=next.find(n=>n.id===id);
-    if(!item)return;
-    const updated=next.map(n=>n.id===id?{...n,done:!n.done,doneAt:!n.done?new Date().toISOString():null}:n);
-    setNext(updated);save(KEYS.next,updated);
-    if(!item.done)toast.show("✅ 完了");
-  };
-
-  const pendingNext=(next||[]).filter(n=>!n.done).slice(0,3);
-  const todayNorm=normDate(today());
-  const futureTournaments=(tournaments||[]).filter(t=>normDate(t.date)>=todayNorm).sort((a,b)=>normDate(a.date).localeCompare(normDate(b.date)));
-  const futurePractices=(practices||[]).filter(p=>normDate(p.date)>=todayNorm).sort((a,b)=>normDate(a.date).localeCompare(normDate(b.date))).slice(0,2);
-  const pastTournaments=(tournaments||[]).filter(t=>normDate(t.date)<todayNorm).slice(0,2);
-
-  return(
-    <div style={{padding:12}}>
-      {/* 大きな3ボタン */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:14}}>
-        {[["🏆","大会を記録","tournaments"],["🏃","練習を記録","practices"],["🎾","試打を記録","trials"]].map(([icon,label,t])=>(
-          <button key={t} onClick={()=>onRecord(t)} style={{background:C.accent,color:"#fff",border:"none",borderRadius:10,padding:"14px 6px",textAlign:"center",fontSize:13,fontWeight:600,cursor:"pointer",minHeight:56,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:2}}>
-            <span style={{fontSize:22}}>{icon}</span>
-            <span>{label}</span>
+// ── TAB PLACEHOLDERS ─────────────────────────────
+function HomeTab({tournaments,practices,trials,next}){
+  const todayStr=today();
+  const upcoming=(tournaments||[]).filter(t=>t.date>=todayStr).sort((a,b)=>a.date.localeCompare(b.date));
+  const pending=(next||[]).filter(n=>!n.done).slice(0,5);
+  return (
+    <div style={{padding:"0 16px"}}>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:16}}>
+        {[["🏆","大会を記録"],["🏃","練習を記録"],["🎾","試打を記録"]].map(([icon,label])=>(
+          <button key={label} style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:10,padding:"20px 8px",textAlign:"center",cursor:"pointer"}}>
+            <div style={{fontSize:22,marginBottom:4}}>{icon}</div>
+            <div style={{fontSize:12,color:C.text,fontWeight:700}}>{label}</div>
           </button>
         ))}
       </div>
-
-      {/* Next actions */}
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
-        <span style={{fontSize:11,color:C.accent,fontWeight:600,letterSpacing:"0.05em"}}>Next actions</span>
-        <button onClick={onGoToNext} style={{fontSize:10,color:C.accent,background:"none",border:"none",cursor:"pointer",fontWeight:500}}>全て見る →</button>
-      </div>
-      {pendingNext.length===0?(
-        <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:14,textAlign:"center",fontSize:12,color:C.textMuted,marginBottom:10}}>未完了のアクションはありません</div>
-      ):(
-        <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"6px 10px",marginBottom:10}}>
-          {pendingNext.map((n,i)=>(
-            <div key={n.id} onClick={()=>toggleNext(n.id)} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderBottom:i<pendingNext.length-1?`0.5px solid ${C.border}`:"none",cursor:"pointer"}}>
-              <div style={{width:20,height:20,border:`1.5px solid ${C.border}`,borderRadius:4,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}/>
-              <span style={{fontSize:12,color:C.text,flex:1}}>{n.label||n.detail||"—"}</span>
-              {n.category&&<Badge color={nextBadgeCat(n.category)} sm>{n.category}</Badge>}
+      {pending.length>0&&(
+        <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:10,padding:14,marginBottom:12}}>
+          <div style={{fontSize:13,color:C.accent,fontWeight:700,marginBottom:8}}>▶ Next Actions</div>
+          {pending.map(n=>(
+            <div key={n.id} style={{fontSize:12,color:C.textDim,padding:"6px 0",borderBottom:`1px solid ${C.panel2}`}}>
+              {n.label}
             </div>
           ))}
         </div>
       )}
-
-      {/* 次の試合 */}
-      {futureTournaments.length>0&&(
-        <>
-          <div style={{fontSize:11,color:C.accent,fontWeight:600,letterSpacing:"0.05em",marginBottom:4}}>次の試合</div>
-          {futureTournaments.slice(0,1).map(t=>(
-            <div key={t.id} style={{background:C.panel,border:`1px solid ${C.border}`,borderLeft:`3px solid ${C.accent}`,borderRadius:"0 8px 8px 0",padding:"8px 10px",marginBottom:10}}>
-              <div style={{fontSize:12,fontWeight:600,color:C.text}}>{fmtDate(t.date)} {t.name||"（大会名未入力）"}</div>
-              <div style={{fontSize:10,color:C.textMuted,marginTop:2}}>
-                {[t.racketName,t.stringMain&&t.stringCross?`${t.stringMain}+${t.stringCross}`:t.stringMain,fmtTension(t.tensionMain,t.tensionCross)].filter(Boolean).join(" / ")||"機材未設定"}
-              </div>
+      {upcoming.length>0&&(
+        <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:10,padding:14,marginBottom:12}}>
+          <div style={{fontSize:13,color:C.blue,fontWeight:700,marginBottom:8}}>📅 次の大会</div>
+          {upcoming.slice(0,3).map(t=>(
+            <div key={t.id} style={{fontSize:12,color:C.textDim,padding:"6px 0"}}>
+              {t.date} — {t.name}
             </div>
           ))}
-        </>
-      )}
-
-      {/* 次の練習 */}
-      {futurePractices.length>0&&(
-        <>
-          <div style={{fontSize:11,color:C.accent,fontWeight:600,letterSpacing:"0.05em",marginBottom:4}}>次の練習</div>
-          {futurePractices.map(p=>(
-            <div key={p.id} style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"6px 10px",marginBottom:4}}>
-              <div style={{display:"flex",justifyContent:"space-between"}}>
-                <span style={{fontSize:12,fontWeight:500,color:C.text}}>{fmtDate(p.date)} {p.venue||""}</span>
-                <span style={{fontSize:10,color:C.textMuted}}>{p.type||""}</span>
-              </div>
-            </div>
-          ))}
-          <div style={{marginBottom:10}}/>
-        </>
-      )}
-
-      {/* 最近の大会 */}
-      {pastTournaments.length>0&&(
-        <>
-          <div style={{fontSize:11,color:C.accent,fontWeight:600,letterSpacing:"0.05em",marginBottom:4}}>最近の大会</div>
-          {pastTournaments.map(t=>(
-            <div key={t.id} style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"6px 10px",marginBottom:4}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                <div>
-                  <span style={{fontSize:12,fontWeight:500,color:C.text}}>{fmtDate(t.date)} {t.name||"—"}</span>
-                  {t.overallResult&&<Badge color={resultColor(t.overallResult)} sm>{t.overallResult}</Badge>}
-                </div>
-                <span style={{fontSize:10,color:C.textMuted}}>{(t.matches||[]).length}試合</span>
-              </div>
-            </div>
-          ))}
-        </>
-      )}
-
-      {/* バックアップ警告 */}
-      {daysSinceExport>=3&&(
-        <div onClick={onExport} style={{marginTop:10,padding:"8px 12px",background:"#fef2f2",borderRadius:6,fontSize:11,color:C.red,textAlign:"center",cursor:"pointer",fontWeight:500}}>
-          📤 {daysSinceExport>=365?"このデバイスでバックアップ未実施":`最終バックアップ: ${daysSinceExport}日前`} — タップしてエクスポート
         </div>
       )}
+    </div>
+  );
+}
 
-      {/* データ件数 */}
-      <div style={{marginTop:12,display:"flex",gap:6,justifyContent:"center",flexWrap:"wrap"}}>
-        {[["大会",(tournaments||[]).length],["練習",(practices||[]).length],["試打",(trials||[]).length]].map(([l,v])=>(
-          <div key={l} style={{background:C.panel2,borderRadius:6,padding:"4px 10px",fontSize:10,color:C.textMuted}}>{l} {v}件</div>
+function SessionsTab({tournaments,practices,trials}){
+  const all=[
+    ...(tournaments||[]).map(t=>({...t,_type:"tournament",_date:t.date,_icon:"🏆",_label:t.name})),
+    ...(practices||[]).map(p=>({...p,_type:"practice",_date:p.date,_icon:"🏃",_label:`${p.type||"練習"} @ ${p.venue||"—"}`})),
+    ...(trials||[]).map(t=>({...t,_type:"trial",_date:t.date,_icon:"🎾",_label:`${t.racketName||"—"} / ${t.stringMain||"—"}`})),
+  ].sort((a,b)=>(b._date||"").localeCompare(a._date||""));
+  return (
+    <div style={{padding:"0 16px"}}>
+      <div style={{fontSize:12,color:C.accent,marginBottom:10}}>Sessions ({all.length}件)</div>
+      {all.slice(0,30).map(item=>(
+        <div key={item.id} style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 12px",marginBottom:4,display:"flex",alignItems:"center",gap:8}}>
+          <span style={{fontSize:16}}>{item._icon}</span>
+          <div style={{flex:1,overflow:"hidden"}}>
+            <div style={{fontSize:12,fontWeight:600,color:C.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{item._label}</div>
+            <div style={{fontSize:11,color:C.textMuted}}>{item._date}</div>
+          </div>
+          {item._type==="tournament"&&item.overallResult&&(
+            <span style={{fontSize:11,color:item.overallResult==="優勝"?C.accent:C.textMuted,fontWeight:600}}>{item.overallResult}</span>
+          )}
+        </div>
+      ))}
+      {all.length>30&&<div style={{fontSize:12,color:C.textMuted,textAlign:"center",padding:12}}>他 {all.length-30}件</div>}
+    </div>
+  );
+}
+
+function GearTab({rackets,strings,stringSetups}){
+  return (
+    <div style={{padding:"0 16px"}}>
+      <div style={{fontSize:12,color:C.accent,marginBottom:10}}>Gear</div>
+      <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:10,padding:14,marginBottom:12}}>
+        <div style={{fontSize:13,fontWeight:700,color:C.text,marginBottom:8}}>🎾 ラケット ({(rackets||[]).length})</div>
+        {(rackets||[]).map(r=>(
+          <div key={r.id} style={{fontSize:12,color:C.textDim,padding:"4px 0"}}>{r.name} — {r.status||"active"}</div>
         ))}
-        <div style={{background:C.panel2,borderRadius:6,padding:"4px 10px",fontSize:10,color:C.textMuted}}>v{APP_VERSION}</div>
+      </div>
+      <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:10,padding:14,marginBottom:12}}>
+        <div style={{fontSize:13,fontWeight:700,color:C.text,marginBottom:8}}>🧵 ストリング ({(strings||[]).length})</div>
+        {(strings||[]).map(s=>(
+          <div key={s.id} style={{fontSize:12,color:C.textDim,padding:"4px 0"}}>{s.name} — {s.status||"—"}</div>
+        ))}
       </div>
     </div>
   );
 }
 
-// ── PLACEHOLDER TABS ──────────────────────────────
-const PlaceholderTab=({name,icon,count})=>(
-  <div style={{padding:24,textAlign:"center"}}>
-    <div style={{fontSize:36,marginBottom:8}}>{icon}</div>
-    <div style={{fontSize:16,fontWeight:500,color:C.text,marginBottom:4}}>{name}</div>
-    <div style={{fontSize:12,color:C.textMuted,marginBottom:8}}>Phase 2で実装予定{count!=null?` · ${count}件のデータあり`:""}</div>
-    <div style={{fontSize:11,color:C.textDim}}>v2のデータはFirestore経由で共有されています</div>
-  </div>
-);
+function PlanTab({next,opponents}){
+  const pending=(next||[]).filter(n=>!n.done);
+  return (
+    <div style={{padding:"0 16px"}}>
+      <div style={{fontSize:12,color:C.accent,marginBottom:10}}>Plan</div>
+      <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:10,padding:14,marginBottom:12}}>
+        <div style={{fontSize:13,fontWeight:700,color:C.text,marginBottom:8}}>▶ Next ({pending.length}件)</div>
+        {pending.slice(0,10).map(n=>(
+          <div key={n.id} style={{fontSize:12,color:C.textDim,padding:"4px 0",display:"flex",gap:6}}>
+            <span style={{color:n.priority==="高"?C.red:n.priority==="中"?C.yellow:C.textMuted,fontWeight:700,minWidth:20}}>{n.priority}</span>
+            {n.label}
+          </div>
+        ))}
+      </div>
+      <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:10,padding:14}}>
+        <div style={{fontSize:13,fontWeight:700,color:C.text,marginBottom:8}}>🆚 対戦相手 ({(opponents||[]).length}人)</div>
+        {(opponents||[]).map(o=>(
+          <div key={o.id} style={{fontSize:12,color:C.textDim,padding:"4px 0"}}>{o.name}{o.nickname?` (${o.nickname})`:""}</div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
-// ── TAB BAR ───────────────────────────────────────
-function TabBar({tab,setTab}){
-  const tabs=[
-    {id:"home",icon:"🏠",label:"ホーム"},
-    {id:"sessions",icon:"📋",label:"Sessions"},
-    {id:"gear",icon:"🔧",label:"Gear"},
-    {id:"plan",icon:"📝",label:"Plan"},
-    {id:"insights",icon:"📊",label:"Insights"},
-  ];
-  return(
-    <div style={{display:"flex",borderTop:`1px solid ${C.border}`,background:C.panel,flexShrink:0}}>
-      {tabs.map(t=>(
-        <button key={t.id} onClick={()=>setTab(t.id)} style={{flex:1,background:tab===t.id?"rgba(0,184,122,0.08)":"none",border:"none",color:tab===t.id?C.accent:C.textMuted,padding:"6px 4px",fontSize:12,fontWeight:tab===t.id?600:400,cursor:"pointer",minHeight:48,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:1}}>
+function InsightsTab({tournaments,practices,trials,mental,profile}){
+  const wins=(tournaments||[]).flatMap(t=>(t.matches||[]).filter(m=>m.result==="勝利")).length;
+  const losses=(tournaments||[]).flatMap(t=>(t.matches||[]).filter(m=>m.result==="敗北")).length;
+  return (
+    <div style={{padding:"0 16px"}}>
+      <div style={{fontSize:12,color:C.accent,marginBottom:10}}>Insights</div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:12}}>
+        {[["大会",(tournaments||[]).length],["練習",(practices||[]).length],["試打",(trials||[]).length]].map(([label,count])=>(
+          <div key={label} style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"12px 10px",textAlign:"center"}}>
+            <div style={{fontSize:20,fontWeight:800,color:C.accent}}>{count}</div>
+            <div style={{fontSize:11,color:C.textMuted}}>{label}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:14,marginBottom:12}}>
+        <div style={{fontSize:13,fontWeight:700,color:C.text,marginBottom:6}}>戦績</div>
+        <div style={{fontSize:14,color:C.textDim}}>{wins}勝 {losses}敗</div>
+      </div>
+      <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:14}}>
+        <div style={{fontSize:13,fontWeight:700,color:C.text,marginBottom:6}}>🧠 メンタル ({(mental||[]).length}件)</div>
+        {(mental||[]).slice(0,5).map(m=>(
+          <div key={m.id} style={{fontSize:12,color:C.textDim,padding:"4px 0"}}>{m.title}</div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── TAB BAR ──────────────────────────────────────
+const TABS=[
+  {id:"home",icon:"🏠",label:"ホーム"},
+  {id:"sessions",icon:"📋",label:"Sessions"},
+  {id:"gear",icon:"🔧",label:"Gear"},
+  {id:"plan",icon:"📝",label:"Plan"},
+  {id:"insights",icon:"📊",label:"Insights"},
+];
+
+function TabBar({active,onChange}){
+  return (
+    <div style={{position:"fixed",bottom:0,left:0,right:0,background:C.panel,borderTop:`1px solid ${C.border}`,display:"flex",zIndex:100,minHeight:56,paddingBottom:"env(safe-area-inset-bottom)"}}>
+      {TABS.map(t=>(
+        <button key={t.id} onClick={()=>onChange(t.id)} style={{flex:1,background:"none",border:"none",cursor:"pointer",padding:"6px 0 4px",display:"flex",flexDirection:"column",alignItems:"center",gap:2,color:active===t.id?C.accent:C.textMuted,transition:"color 0.15s"}}>
           <span style={{fontSize:20}}>{t.icon}</span>
-          <span>{t.label}</span>
+          <span style={{fontSize:10,fontWeight:active===t.id?700:400}}>{t.label}</span>
         </button>
       ))}
     </div>
   );
 }
 
-// ── MAIN APP ──────────────────────────────────────
+// ── MAIN APP ─────────────────────────────────────
 function TennisDB(){
-  const[tab,setTab]=useState("home");
-  const[user,setUser]=useState(null);
-  const[syncing,setSyncing]=useState(false);
-  const[loading,setLoading]=useState(true);
   const toast=useToast();
+  const [user,setUser]=useState(null);
+  const [loading,setLoading]=useState(true);
+  const [tab,setTab]=useState("home");
 
-  const[tournaments,setTournaments]=useState(()=>ds(lsLoad(KEYS.tournaments))||[]);
-  const[practices,setPractices]=useState(()=>ds(lsLoad(KEYS.practices))||[]);
-  const[trials,setTrials]=useState(()=>ds(lsLoad(KEYS.trials))||[]);
-  const[rackets,setRackets]=useState(()=>lsLoad(KEYS.rackets)||[]);
-  const[strings,setStrings]=useState(()=>lsLoad(KEYS.strings)||[]);
-  const[stringSetups,setStringSetups]=useState(()=>lsLoad(KEYS.stringSetups)||[]);
-  const[mental,setMental]=useState(()=>lsLoad(KEYS.mental)||[]);
-  const[next,setNext]=useState(()=>lsLoad(KEYS.next)||[]);
-  const[profile,setProfile]=useState(()=>lsLoad(KEYS.profile)||{});
-  const[venues,setVenues]=useState(()=>lsLoad(KEYS.venues)||[]);
-  const[opponents,setOpponents]=useState(()=>lsLoad(KEYS.opponents)||[]);
-  const[measurements,setMeasurements]=useState(()=>lsLoad(KEYS.measurements)||[]);
-  const[quickTrialCards,setQuickTrialCards]=useState(()=>lsLoad(KEYS.quickTrialCards)||[]);
+  // State (v2 identical keys)
+  const [tournaments,setTournaments]=useState([]);
+  const [practices,setPractices]=useState([]);
+  const [trials,setTrials]=useState([]);
+  const [rackets,setRackets]=useState([]);
+  const [strings,setStrings]=useState([]);
+  const [stringSetups,setStringSetups]=useState([]);
+  const [measurements,setMeasurements]=useState([]);
+  const [mental,setMental]=useState([]);
+  const [next,setNext]=useState([]);
+  const [profile,setProfile]=useState({});
+  const [venues,setVenues]=useState([]);
+  const [quickTrialCards,setQuickTrialCards]=useState([]);
+  const [opponents,setOpponents]=useState([]);
 
-  // lastExport：v2完全一致のキー "yuke-last-export"
-  const[lastExport,setLastExport]=useState(()=>{try{return localStorage.getItem("yuke-last-export")||"";}catch{return"";}});
-  const daysSinceExport=lastExport?daysBetween(new Date(lastExport),new Date()):999;
-
-  // applyData：v2完全一致の構造
-  const applyData=(src)=>{
-    if(src.tournaments)setTournaments(ds(src.tournaments)||[]);
-    if(src.practices)setPractices(ds(src.practices)||[]);
-    if(src.trials)setTrials(ds(src.trials)||[]);
-    if(src.rackets)setRackets(src.rackets);
-    if(src.strings)setStrings(src.strings);
-    if(src.measurements)setMeasurements(src.measurements);
-    if(src.mental)setMental(src.mental);
-    if(src.next)setNext(src.next);
-    if(src.profile)setProfile(src.profile);
-    if(src.venues)setVenues(src.venues);
-    if(src.stringSetups)setStringSetups(src.stringSetups);
-    if(src.quickTrialCards)setQuickTrialCards(src.quickTrialCards);
-    if(src.opponents)setOpponents(src.opponents);
-  };
-
-  // Auth：v2完全一致のフロー（Google Sign-In、anonymous authなし）
+  // Auth + data load (v2 identical flow)
   useEffect(()=>{
     const unsub=fbAuth.onAuthStateChanged(async(u)=>{
-      setUser(u);
       if(u){
-        setSyncing(true);
+        setUser(u);
+        // Load from Firestore first, fallback to localStorage
         const cloud=await cloudLoadAll(u.uid);
-        if(cloud&&Object.keys(cloud).length>0){
-          const merged={};
-          Object.entries(KEYS).forEach(([name,key])=>{
-            if(cloud[key]){merged[name]=cloud[key];lsSave(key,cloud[key]);}
-          });
-          applyData(merged);
-          setSyncing(false);
-          toast.show("☁️ クラウドから同期しました");
-        }else{
-          const allLocal={};
-          Object.entries(KEYS).forEach(([name,key])=>{allLocal[name]=lsLoad(key);});
-          const hasLocal=Object.values(allLocal).some(v=>v!==null);
-          if(hasLocal){
-            await cloudSaveAll(u.uid,allLocal);
-            toast.show("☁️ ローカルデータをクラウドに移行しました");
-          }
-          setSyncing(false);
+        if(cloud){
+          const s=(k,setter,def)=>{const v=cloud[k];if(v){setter(v);lsSave(k,v);}else{const ls=lsLoad(k);if(ls)setter(ls);}};
+          s(KEYS.tournaments,setTournaments,[]);
+          s(KEYS.practices,setPractices,[]);
+          s(KEYS.trials,setTrials,[]);
+          s(KEYS.rackets,setRackets,[]);
+          s(KEYS.strings,setStrings,[]);
+          s(KEYS.stringSetups,setStringSetups,[]);
+          s(KEYS.measurements,setMeasurements,[]);
+          s(KEYS.mental,setMental,[]);
+          s(KEYS.next,setNext,[]);
+          s(KEYS.profile,setProfile,{});
+          s(KEYS.venues,setVenues,[]);
+          s(KEYS.quickTrialCards,setQuickTrialCards,[]);
+          s(KEYS.opponents,setOpponents,[]);
+        } else {
+          // Fallback: localStorage only
+          setTournaments(lsLoad(KEYS.tournaments)||[]);
+          setPractices(lsLoad(KEYS.practices)||[]);
+          setTrials(lsLoad(KEYS.trials)||[]);
+          setRackets(lsLoad(KEYS.rackets)||[]);
+          setStrings(lsLoad(KEYS.strings)||[]);
+          setStringSetups(lsLoad(KEYS.stringSetups)||[]);
+          setMeasurements(lsLoad(KEYS.measurements)||[]);
+          setMental(lsLoad(KEYS.mental)||[]);
+          setNext(lsLoad(KEYS.next)||[]);
+          setProfile(lsLoad(KEYS.profile)||{});
+          setVenues(lsLoad(KEYS.venues)||[]);
+          setQuickTrialCards(lsLoad(KEYS.quickTrialCards)||[]);
+          setOpponents(lsLoad(KEYS.opponents)||[]);
         }
-        // リアルタイム同期：v2完全一致
-        const dataRef=fbDb.collection("users").doc(u.uid).collection("data");
-        const unsubSnap=dataRef.onSnapshot(snap=>{
-          snap.docChanges().forEach(change=>{
-            if(change.type==="modified"){
-              const key=change.doc.id;
-              const d=change.doc.data();
-              const val=d.items||d.obj;
-              if(!val)return;
-              const name=Object.entries(KEYS).find(([,v])=>v===key)?.[0];
-              if(!name)return;
-              lsSave(key,val);
-              const setters={tournaments:setTournaments,practices:setPractices,trials:setTrials,rackets:setRackets,strings:setStrings,measurements:setMeasurements,mental:setMental,next:setNext,profile:setProfile,venues:setVenues,stringSetups:setStringSetups,quickTrialCards:setQuickTrialCards,opponents:setOpponents};
-              if(setters[name]){
-                if(Array.isArray(val)&&val[0]?.date){setters[name](ds(val));}
-                else{setters[name](val);}
-              }
-            }
-          });
-        });
-        return ()=>unsubSnap();
+      } else {
+        setUser(null);
       }
       setLoading(false);
     });
     return ()=>unsub();
   },[]);
 
-  // handleLogin：v2完全一致（popup→redirect fallback）
+  // Login
   const handleLogin=async()=>{
     try{
       const provider=new firebase.auth.GoogleAuthProvider();
       await fbAuth.signInWithPopup(provider);
     }catch(e){
-      if(e.code==="auth/popup-blocked"){
-        try{await fbAuth.signInWithRedirect(new firebase.auth.GoogleAuthProvider());}catch(e2){toast.show("❌ ログイン失敗",C.red);}
-      }else{toast.show("❌ ログイン失敗: "+e.message,C.red);}
+      try{await fbAuth.signInWithRedirect(new firebase.auth.GoogleAuthProvider());}catch(e2){toast.show("❌ ログイン失敗",C.red);}
     }
   };
-  // handleLogout：v2完全一致
-  const handleLogout=async()=>{await fbAuth.signOut();toast.show("ログアウトしました");};
 
-  const handleExport=async()=>{
-    const data={tournaments,practices,trials,rackets,strings,measurements,mental,next,profile,venues,stringSetups,opponents};
-    const result=await exportAll(data);
-    if(result==="cancelled")return;
-    const now=new Date().toISOString();
-    try{localStorage.setItem("yuke-last-export",now);}catch{}
-    setLastExport(now);
-    toast.show(result==="shared"?"📤 共有しました":"📤 ダウンロードしました");
-  };
-
-  const handleRecord=(type)=>{
-    toast.show(`${type==="tournaments"?"🏆 大会":type==="practices"?"🏃 練習":"🎾 試打"}の記録 — Phase 2で実装`,C.blue);
-  };
-
-  // ローディング画面
-  if(loading&&!user){
-    return <div style={{display:"flex",alignItems:"center",justifyContent:"center",minHeight:"100dvh",flexDirection:"column",gap:8}}>
-      <div style={{fontSize:24}}>🎾</div>
-      <div style={{fontSize:13,color:C.textMuted}}>Tennis DB v3 を読み込み中...</div>
-    </div>;
+  // Loading screen
+  if(loading){
+    return <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",color:C.accent,fontSize:14}}>読み込み中...</div>;
   }
 
-  // ログイン画面（未ログイン時）
+  // Login screen
   if(!user){
-    return <div style={{display:"flex",alignItems:"center",justifyContent:"center",minHeight:"100dvh",flexDirection:"column",gap:16,padding:24}}>
-      <div style={{fontSize:36}}>🎾</div>
-      <div style={{fontSize:18,fontWeight:600,color:C.accent}}>Tennis DB v3</div>
-      <div style={{fontSize:12,color:C.textMuted,textAlign:"center"}}>Googleアカウントでログインしてデータを同期します</div>
-      <button onClick={handleLogin} style={{background:C.accent,color:"#fff",border:"none",borderRadius:8,padding:"12px 32px",fontSize:14,fontWeight:600,cursor:"pointer",minHeight:48}}>Googleでログイン</button>
-      <div style={{fontSize:10,color:C.textDim}}>v{APP_VERSION}</div>
-    </div>;
+    return (
+      <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100vh",gap:16}}>
+        <div style={{fontSize:24,fontWeight:800,color:C.accent}}>🎾 Tennis DB v3</div>
+        <div style={{fontSize:12,color:C.textMuted}}>ゆっけ専用テニス管理アプリ</div>
+        <button onClick={handleLogin} style={{background:C.accent,border:"none",color:"#fff",borderRadius:8,padding:"14px 32px",fontSize:14,fontWeight:700,cursor:"pointer",marginTop:12}}>
+          Googleでログイン
+        </button>
+      </div>
+    );
   }
 
-  return(
-    <div style={{display:"flex",flexDirection:"column",minHeight:"100dvh",background:C.bg}}>
-      {/* ヘッダー：v2と同様のユーザー表示 */}
-      <div style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:"8px 14px",display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0}}>
-        <span style={{fontSize:16,fontWeight:600,color:C.accent}}>Tennis DB</span>
-        <div style={{display:"flex",alignItems:"center",gap:8}}>
-          <span style={{fontSize:10,color:syncing?"#fbbf24":"#60a5fa"}}>{syncing?"☁️ 同期中...":"☁️ "+user.email.split("@")[0]}</span>
-          <button onClick={handleLogout} style={{background:"#f5f3ff",border:`1px solid ${C.purple}`,color:C.purple,borderRadius:6,padding:"4px 8px",fontSize:10,fontWeight:600,cursor:"pointer"}}>👤</button>
-        </div>
-      </div>
+  // Data props
+  const data={tournaments,practices,trials,rackets,strings,stringSetups,measurements,mental,next,profile,venues,quickTrialCards,opponents};
 
-      {/* コンテンツ */}
-      <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
-        <ErrorBoundary label="ホーム">
-          {tab==="home"&&<HomeTab next={next} setNext={setNext} tournaments={tournaments} practices={practices} trials={trials} daysSinceExport={daysSinceExport} onExport={handleExport} onRecord={handleRecord} onGoToNext={()=>setTab("plan")} toast={toast}/>}
-        </ErrorBoundary>
-        <ErrorBoundary label="Sessions">
-          {tab==="sessions"&&<PlaceholderTab name="Sessions" icon="📋" count={(tournaments||[]).length+(practices||[]).length+(trials||[]).length}/>}
-        </ErrorBoundary>
-        <ErrorBoundary label="Gear">
-          {tab==="gear"&&<PlaceholderTab name="Gear" icon="🔧" count={(rackets||[]).length+(strings||[]).length}/>}
-        </ErrorBoundary>
-        <ErrorBoundary label="Plan">
-          {tab==="plan"&&<PlaceholderTab name="Plan" icon="📝" count={(next||[]).length+(opponents||[]).length}/>}
-        </ErrorBoundary>
-        <ErrorBoundary label="Insights">
-          {tab==="insights"&&<PlaceholderTab name="Insights" icon="📊"/>}
-        </ErrorBoundary>
-      </div>
-
-      {/* タブバー */}
-      <TabBar tab={tab} setTab={setTab}/>
+  return (
+    <div style={{maxWidth:960,margin:"0 auto",paddingTop:8}}>
       {toast.el}
+      {/* Header */}
+      <div style={{padding:"8px 16px 12px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <div>
+          <div style={{fontSize:16,fontWeight:800,color:C.accent}}>🎾 Tennis DB</div>
+          <div style={{fontSize:11,color:C.textMuted}}>
+            大会 {tournaments.length} / 練習 {practices.length} / 試打 {trials.length}
+            <span style={{color:"#999",marginLeft:6}}>v{APP_VERSION}</span>
+          </div>
+        </div>
+        <button onClick={()=>fbAuth.signOut()} style={{background:"none",border:`1px solid ${C.border}`,color:C.textMuted,borderRadius:6,padding:"6px 12px",fontSize:11,cursor:"pointer"}}>
+          ログアウト
+        </button>
+      </div>
+
+      {/* Tab content */}
+      {tab==="home"&&(
+        <ErrorBoundary name="ホーム">
+          <HomeTab tournaments={tournaments} practices={practices} trials={trials} next={next}/>
+        </ErrorBoundary>
+      )}
+      {tab==="sessions"&&(
+        <ErrorBoundary name="Sessions">
+          <SessionsTab tournaments={tournaments} practices={practices} trials={trials}/>
+        </ErrorBoundary>
+      )}
+      {tab==="gear"&&(
+        <ErrorBoundary name="Gear">
+          <GearTab rackets={rackets} strings={strings} stringSetups={stringSetups}/>
+        </ErrorBoundary>
+      )}
+      {tab==="plan"&&(
+        <ErrorBoundary name="Plan">
+          <PlanTab next={next} opponents={opponents}/>
+        </ErrorBoundary>
+      )}
+      {tab==="insights"&&(
+        <ErrorBoundary name="Insights">
+          <InsightsTab tournaments={tournaments} practices={practices} trials={trials} mental={mental} profile={profile}/>
+        </ErrorBoundary>
+      )}
+
+      {/* Tab bar */}
+      <TabBar active={tab} onChange={setTab}/>
     </div>
   );
 }
