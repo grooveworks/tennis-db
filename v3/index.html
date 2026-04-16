@@ -13,7 +13,7 @@
 const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
 // ── APP ───────────────────────────────────────────
-const APP_VERSION="3.3.6"; // 2026/04/16 スタッツヘッダーに勝者王冠・ゲーム数スコア・タイトル追加
+const APP_VERSION="3.3.7"; // 2026/04/16 スタッツ選手名の編集・自動同期・プロフィール名判定
 const font="-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif";
 const C={bg:"#f2f2f7",panel:"#fff",panel2:"#f5f5f7",border:"#e0e0e4",text:"#1a1a1a",textMuted:"#8e8e93",textDim:"#aaa",accent:"#00b87a",accentBg:"rgba(0,184,122,0.08)",red:"#dc2626",redBg:"#fef2f2",blue:"#2563eb",blueBg:"rgba(37,99,235,0.08)",yellow:"#f59e0b",yellowBg:"rgba(245,158,11,0.08)",purple:"#7c3aed",purpleBg:"rgba(124,58,237,0.08)",green:"#00b87a",greenBg:"rgba(0,184,122,0.08)"};
 const Badge=({children,color="gray",sm})=>{const cc={green:C.accent,blue:C.blue,yellow:C.yellow,red:C.red,gray:C.textMuted,purple:C.purple};const c=cc[color]||color;return<span style={{display:"inline-block",fontSize:sm?9:10,fontWeight:700,color:c,background:`${c}15`,border:`1px solid ${c}30`,borderRadius:4,padding:sm?"1px 4px":"2px 6px",lineHeight:1.4}}>{children}</span>;};
@@ -1315,26 +1315,38 @@ function MatchStatsView({stats,playerA,playerB,myIsA}){
 }
 
 // ── CSV IMPORT MODAL ──
-function CsvImportModal({onImport,onClose,myPlayerName}){
-  const[csvText,setCsvText]=useState("");
-  const[preview,setPreview]=useState(null);
+function CsvImportModal({onImport,onClose,myPlayerName,defaultOpponent}){
+  const[parsed,setParsed]=useState(null);
   const[error,setError]=useState("");
+  const[meName,setMeName]=useState(myPlayerName||"自分");
+  const[oppName,setOppName]=useState(defaultOpponent||"");
+  const[myIsA,setMyIsA]=useState(true);
   const handleFile=e=>{
     const f=e.target.files[0];if(!f)return;
     const reader=new FileReader();
     reader.onload=ev=>{
-      setCsvText(ev.target.result);
       try{
-        const parsed=parseStatsCSV(ev.target.result,myPlayerName);
-        const stats=computeMatchStats(parsed);
-        setPreview({parsed,stats});setError("");
-      }catch(err){setError(err.message);setPreview(null);}
+        const p=parseStatsCSV(ev.target.result,myPlayerName);
+        setParsed(p);setError("");setMyIsA(p.myIsA);
+        // プロフィール名で判定。マッチしなければCSV原本の名前を使う
+        if(!myPlayerName||(p.playerA!==myPlayerName&&p.playerB!==myPlayerName)){
+          setMeName(p.myIsA?p.playerA:p.playerB);
+        }else{setMeName(myPlayerName);}
+        if(!defaultOpponent){setOppName(p.myIsA?p.playerB:p.playerA);}
+      }catch(err){setError(err.message);setParsed(null);}
     };
     reader.readAsText(f);
   };
+  // プレビュー用: 現在の入力値で再計算
+  const previewStats=useMemo(()=>{
+    if(!parsed)return null;
+    const overridden={...parsed,myIsA,playerA:myIsA?meName:oppName,playerB:myIsA?oppName:meName};
+    return computeMatchStats(overridden);
+  },[parsed,meName,oppName,myIsA]);
   const handleImport=()=>{
-    if(!preview)return;
-    onImport({source:"datatennis",importedAt:new Date().toISOString(),raw:preview.parsed.rows,points:preview.parsed.points,stats:preview.stats,playerA:preview.parsed.playerA,playerB:preview.parsed.playerB,myIsA:preview.parsed.myIsA});
+    if(!parsed)return;
+    const pA=myIsA?meName:oppName,pB=myIsA?oppName:meName;
+    onImport({source:"datatennis",importedAt:new Date().toISOString(),raw:parsed.rows,points:parsed.points,stats:previewStats,playerA:pA,playerB:pB,myIsA});
   };
   return <div style={{position:"fixed",inset:0,background:"#0006",zIndex:600,display:"flex",alignItems:"flex-start",justifyContent:"center",overflowY:"auto",padding:20}} onClick={e=>e.target===e.currentTarget&&onClose()}>
     <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,width:"100%",maxWidth:500,padding:20}}>
@@ -1345,16 +1357,64 @@ function CsvImportModal({onImport,onClose,myPlayerName}){
       <div style={{fontSize:12,color:C.textMuted,marginBottom:12,padding:"8px 10px",background:C.panel2,borderRadius:6,borderLeft:`2px solid ${C.accent}`}}>データテニスアプリから出力したCSVファイルを選択してください。</div>
       <input type="file" accept=".csv" onChange={handleFile} style={{width:"100%",padding:"10px",border:`1px dashed ${C.border}`,borderRadius:6,marginBottom:12,fontSize:12}}/>
       {error&&<div style={{fontSize:12,color:C.red,padding:"8px 10px",background:C.redBg,borderRadius:6,marginBottom:12}}>❌ {error}</div>}
-      {preview&&<div style={{marginBottom:12,fontSize:12,color:C.text,padding:"8px 10px",background:C.accentBg,borderRadius:6}}>
-        ✅ プレビュー: {preview.parsed.playerA} vs {preview.parsed.playerB} ({preview.parsed.points.length}ポイント)<br/>
-        <span style={{fontSize:11,color:C.textMuted}}>自分: {preview.parsed.myIsA?preview.parsed.playerA:preview.parsed.playerB}</span>
-      </div>}
-      {preview&&<div style={{maxHeight:300,overflowY:"auto",background:C.panel2,borderRadius:6,padding:10,marginBottom:12}}>
-        <MatchStatsView stats={preview.stats} playerA={preview.parsed.playerA} playerB={preview.parsed.playerB} myIsA={preview.parsed.myIsA}/>
-      </div>}
+      {parsed&&<>
+        <div style={{fontSize:11,color:C.textMuted,marginBottom:6}}>CSVの選手名: <b>{parsed.playerA}</b> vs <b>{parsed.playerB}</b>（{parsed.points.length}ポイント）</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
+          <div>
+            <div style={{fontSize:11,color:C.textMuted,marginBottom:4}}>自分の名前</div>
+            <input value={meName} onChange={e=>setMeName(e.target.value)} style={{width:"100%",padding:"8px 10px",fontSize:12,border:`1px solid ${C.border}`,borderRadius:6,background:C.panel2}}/>
+          </div>
+          <div>
+            <div style={{fontSize:11,color:C.textMuted,marginBottom:4}}>対戦相手の名前</div>
+            <input value={oppName} onChange={e=>setOppName(e.target.value)} style={{width:"100%",padding:"8px 10px",fontSize:12,border:`1px solid ${C.border}`,borderRadius:6,background:C.panel2}}/>
+          </div>
+        </div>
+        <div style={{fontSize:11,color:C.textMuted,marginBottom:4}}>自分はCSVのどちら？</div>
+        <div style={{display:"flex",gap:6,marginBottom:12}}>
+          <button onClick={()=>setMyIsA(true)} style={{flex:1,padding:"8px",borderRadius:6,background:myIsA?C.accentBg:C.panel2,border:`1px solid ${myIsA?C.accent:C.border}`,color:myIsA?C.accent:C.textMuted,fontSize:11,fontWeight:600,cursor:"pointer"}}>PlayerA（{parsed.playerA}）</button>
+          <button onClick={()=>setMyIsA(false)} style={{flex:1,padding:"8px",borderRadius:6,background:!myIsA?C.accentBg:C.panel2,border:`1px solid ${!myIsA?C.accent:C.border}`,color:!myIsA?C.accent:C.textMuted,fontSize:11,fontWeight:600,cursor:"pointer"}}>PlayerB（{parsed.playerB}）</button>
+        </div>
+        <div style={{maxHeight:300,overflowY:"auto",background:C.panel2,borderRadius:6,padding:10,marginBottom:12}}>
+          <MatchStatsView stats={previewStats} playerA={myIsA?meName:oppName} playerB={myIsA?oppName:meName} myIsA={myIsA}/>
+        </div>
+      </>}
       <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
         <button onClick={onClose} style={{padding:"10px 20px",borderRadius:8,background:C.panel2,border:`1px solid ${C.border}`,color:C.textMuted,fontSize:13,fontWeight:600,cursor:"pointer"}}>キャンセル</button>
-        <button onClick={handleImport} disabled={!preview} style={{padding:"10px 20px",borderRadius:8,background:preview?C.accent:C.panel2,border:"none",color:preview?"#fff":C.textMuted,fontSize:13,fontWeight:700,cursor:preview?"pointer":"default"}}>📥 インポート</button>
+        <button onClick={handleImport} disabled={!parsed} style={{padding:"10px 20px",borderRadius:8,background:parsed?C.accent:C.panel2,border:"none",color:parsed?"#fff":C.textMuted,fontSize:13,fontWeight:700,cursor:parsed?"pointer":"default"}}>📥 インポート</button>
+      </div>
+    </div>
+  </div>;
+}
+
+function NameEditModal({matchStats,onSave,onClose}){
+  const[meName,setMeName]=useState(matchStats.myIsA?matchStats.playerA:matchStats.playerB);
+  const[oppName,setOppName]=useState(matchStats.myIsA?matchStats.playerB:matchStats.playerA);
+  const[myIsA,setMyIsA]=useState(matchStats.myIsA);
+  return <div style={{position:"fixed",inset:0,background:"#0006",zIndex:600,display:"flex",alignItems:"flex-start",justifyContent:"center",overflowY:"auto",padding:20}} onClick={e=>e.target===e.currentTarget&&onClose()}>
+    <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,width:"100%",maxWidth:400,padding:20}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+        <span style={{fontSize:14,fontWeight:700,color:C.text}}>✏️ 選手名を編集</span>
+        <button onClick={onClose} style={{background:"none",border:"none",fontSize:18,cursor:"pointer",color:C.textMuted,padding:4}}>✕</button>
+      </div>
+      <div style={{fontSize:12,color:C.textMuted,marginBottom:12,padding:"8px 10px",background:C.panel2,borderRadius:6,borderLeft:`2px solid ${C.accent}`}}>名前を変更すると、match.opponent にも自動反映されます。</div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
+        <div>
+          <div style={{fontSize:11,color:C.textMuted,marginBottom:4}}>自分の名前</div>
+          <input value={meName} onChange={e=>setMeName(e.target.value)} style={{width:"100%",padding:"8px 10px",fontSize:12,border:`1px solid ${C.border}`,borderRadius:6,background:C.panel2}}/>
+        </div>
+        <div>
+          <div style={{fontSize:11,color:C.textMuted,marginBottom:4}}>対戦相手の名前</div>
+          <input value={oppName} onChange={e=>setOppName(e.target.value)} style={{width:"100%",padding:"8px 10px",fontSize:12,border:`1px solid ${C.border}`,borderRadius:6,background:C.panel2}}/>
+        </div>
+      </div>
+      <div style={{fontSize:11,color:C.textMuted,marginBottom:4}}>自分はCSVのどちら？</div>
+      <div style={{display:"flex",gap:6,marginBottom:14}}>
+        <button onClick={()=>setMyIsA(true)} style={{flex:1,padding:"8px",borderRadius:6,background:myIsA?C.accentBg:C.panel2,border:`1px solid ${myIsA?C.accent:C.border}`,color:myIsA?C.accent:C.textMuted,fontSize:11,fontWeight:600,cursor:"pointer"}}>PlayerA側</button>
+        <button onClick={()=>setMyIsA(false)} style={{flex:1,padding:"8px",borderRadius:6,background:!myIsA?C.accentBg:C.panel2,border:`1px solid ${!myIsA?C.accent:C.border}`,color:!myIsA?C.accent:C.textMuted,fontSize:11,fontWeight:600,cursor:"pointer"}}>PlayerB側</button>
+      </div>
+      <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+        <button onClick={onClose} style={{padding:"10px 20px",borderRadius:8,background:C.panel2,border:`1px solid ${C.border}`,color:C.textMuted,fontSize:13,fontWeight:600,cursor:"pointer"}}>キャンセル</button>
+        <button onClick={()=>onSave(meName,oppName,myIsA)} style={{padding:"10px 20px",borderRadius:8,background:C.accent,border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>保存</button>
       </div>
     </div>
   </div>;
@@ -1404,13 +1464,41 @@ function MatchEditModal({match,trnType,rackets,strings,opponents,onSave,onClose}
   </div>;
 }
 
-function MatchRow({match,trn,opponents,onUpdate,onEditMatch,onDeleteMatch}){
+function MatchRow({match,trn,opponents,profile,onUpdate,onEditMatch,onDeleteMatch}){
   const[expanded,setExpanded]=useState(false);
   const[showGames,setShowGames]=useState(false);
   const[showStats,setShowStats]=useState(false);
   const[csvModal,setCsvModal]=useState(false);
+  const[nameModal,setNameModal]=useState(false);
+  const myName=profile?.name||"自分";
+  // match.opponent と matchStats.playerB の自動同期
+  useEffect(()=>{
+    if(match.matchStats&&match.opponent){
+      const ms=match.matchStats;
+      const currentOppName=ms.myIsA?ms.playerB:ms.playerA;
+      if(currentOppName!==match.opponent){
+        const updated={...ms};
+        if(ms.myIsA)updated.playerB=match.opponent;
+        else updated.playerA=match.opponent;
+        onUpdate({...match,matchStats:updated});
+      }
+    }
+  },[match.opponent]);
   const handleCsvImport=data=>{onUpdate({...match,matchStats:data});setCsvModal(false);setShowStats(true);};
   const handleStatsRemove=()=>{const{matchStats,...rest}=match;onUpdate(rest);};
+  const handleNameSave=(meName,oppName,newMyIsA)=>{
+    const ms={...match.matchStats};
+    ms.myIsA=newMyIsA;
+    if(newMyIsA){ms.playerA=meName;ms.playerB=oppName;}
+    else{ms.playerA=oppName;ms.playerB=meName;}
+    // スタッツ自体を再計算（myIsAが変わる場合に左右入れ替わる）
+    const reparsed={points:ms.points,rows:ms.raw,playerA:ms.playerA,playerB:ms.playerB,myIsA:ms.myIsA};
+    ms.stats=computeMatchStats(reparsed);
+    const updated={...match,matchStats:ms};
+    // match.opponent も同期
+    if(oppName&&oppName!==match.opponent)updated.opponent=oppName;
+    onUpdate(updated);setNameModal(false);
+  };
   const games=match.games||[];
   const score=games.reduce((a,g)=>({me:a.me+(g.winner==="me"?1:0),opp:a.opp+(g.winner==="opp"?1:0)}),{me:0,opp:0});
   const mc=match.mental>=4?C.accent:match.mental>=3?C.yellow:C.red;
@@ -1487,8 +1575,9 @@ function MatchRow({match,trn,opponents,onUpdate,onEditMatch,onDeleteMatch}){
         {showStats&&<div style={{marginTop:8,padding:10,background:C.panel,borderRadius:6,border:`1px solid ${C.border}`}}>
           <MatchStatsView stats={match.matchStats.stats} playerA={match.matchStats.playerA} playerB={match.matchStats.playerB} myIsA={match.matchStats.myIsA}/>
           <div style={{display:"flex",gap:8,marginTop:10}}>
+            <button onClick={()=>setNameModal(true)} style={{flex:1,padding:8,borderRadius:6,background:C.purpleBg,border:`1px solid ${C.purple}`,color:C.purple,fontSize:11,fontWeight:600,cursor:"pointer"}}>✏️ 選手名編集</button>
             <button onClick={()=>setCsvModal(true)} style={{flex:1,padding:8,borderRadius:6,background:C.blueBg,border:`1px solid ${C.blue}`,color:C.blue,fontSize:11,fontWeight:600,cursor:"pointer"}}>🔄 CSV再取込</button>
-            <button onClick={handleStatsRemove} style={{padding:"8px 12px",borderRadius:6,background:C.redBg,border:`1px solid ${C.red}`,color:C.red,fontSize:11,fontWeight:600,cursor:"pointer"}}>🗑 スタッツ削除</button>
+            <button onClick={handleStatsRemove} style={{padding:"8px 12px",borderRadius:6,background:C.redBg,border:`1px solid ${C.red}`,color:C.red,fontSize:11,fontWeight:600,cursor:"pointer"}}>🗑</button>
           </div>
         </div>}
       </>:<button onClick={()=>setCsvModal(true)} style={{width:"100%",background:C.panel,border:`1px dashed ${C.border}`,color:C.textMuted,borderRadius:6,padding:"8px",fontSize:12,cursor:"pointer",marginTop:8,fontWeight:600}}>📊 データテニスCSV取込</button>}
@@ -1498,11 +1587,12 @@ function MatchRow({match,trn,opponents,onUpdate,onEditMatch,onDeleteMatch}){
         <button onClick={onDeleteMatch} style={{padding:"10px 16px",borderRadius:6,background:C.redBg,border:`1px solid ${C.red}`,color:C.red,fontSize:12,fontWeight:700,cursor:"pointer"}}>🗑</button>
       </div>
     </div>}
-    {csvModal&&<CsvImportModal myPlayerName="古川" onImport={handleCsvImport} onClose={()=>setCsvModal(false)}/>}
+    {csvModal&&<CsvImportModal myPlayerName={myName} defaultOpponent={match.opponent||""} onImport={handleCsvImport} onClose={()=>setCsvModal(false)}/>}
+    {nameModal&&<NameEditModal matchStats={match.matchStats} onSave={handleNameSave} onClose={()=>setNameModal(false)}/>}
   </div>;
 }
 
-function TournamentDetail({tournament,rackets,strings,stringSetups,venues,onAddVenue,opponents,onSave,onDelete,onClose}){
+function TournamentDetail({tournament,rackets,strings,stringSetups,venues,onAddVenue,opponents,profile,onSave,onDelete,onClose}){
   const[f,setF]=useState({...tournament});
   const[matchModal,setMatchModal]=useState(null);
   const s=k=>v=>setF(p=>({...p,[k]:v}));
@@ -1583,7 +1673,7 @@ function TournamentDetail({tournament,rackets,strings,stringSetups,venues,onAddV
       </div>
       {matches.length===0?<div style={{padding:16,textAlign:"center",color:C.textMuted,fontSize:12,background:C.panel2,borderRadius:6,border:`1px dashed ${C.border}`}}>「＋ 試合を追加」から各試合を記録できます</div>
       :<div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,overflow:"hidden"}}>
-        {matches.map(m=><MatchRow key={m.id} match={m} trn={f} opponents={opponents} onUpdate={handleUpdateMatch} onEditMatch={()=>setMatchModal({match:m})} onDeleteMatch={()=>handleDeleteMatch(m.id)}/>)}
+        {matches.map(m=><MatchRow key={m.id} match={m} trn={f} opponents={opponents} profile={profile} onUpdate={handleUpdateMatch} onEditMatch={()=>setMatchModal({match:m})} onDeleteMatch={()=>handleDeleteMatch(m.id)}/>)}
       </div>}
     </div>
     <div style={{padding:16,paddingBottom:"calc(16px + env(safe-area-inset-bottom))",borderTop:`1px solid ${C.border}`,background:C.panel,flexShrink:0}}>
@@ -1710,7 +1800,7 @@ function PracticeDetail({practice,rackets,strings,stringSetups,venues,onAddVenue
 }
 
 // ── SESSIONS TAB (B+C: 3 months default + jump selector) ──
-function SessionsTab({tournaments,setTournaments,practices,setPractices,trials,setTrials,rackets,strings,stringSetups,venues,setVenues,opponents,toast,pendingRecord,onPendingRecordDone,onDetailOpenChange}){
+function SessionsTab({tournaments,setTournaments,practices,setPractices,trials,setTrials,rackets,strings,stringSetups,venues,setVenues,opponents,profile,toast,pendingRecord,onPendingRecordDone,onDetailOpenChange}){
   const[filter,setFilter]=useState("all");
   const[modal,setModal]=useState(null);
   const[detailPractice,setDetailPractice]=useState(null);
@@ -1889,7 +1979,7 @@ function SessionsTab({tournaments,setTournaments,practices,setPractices,trials,s
 
     {modal&&<RecordModal type={modal.type} data={modal.data} isNew={modal.isNew} rackets={rackets} strings={strings} stringSetups={stringSetups} venues={venues} onAddVenue={v=>{const nv=[...(venues||[]),v];setVenues(nv);save(KEYS.venues,nv);}} onSave={form=>handleSave(modal.type,form)} onClose={()=>setModal(null)}/>}
     {detailPractice&&<PracticeDetail practice={detailPractice} rackets={rackets} strings={strings} stringSetups={stringSetups} venues={venues} onAddVenue={v=>{const nv=[...(venues||[]),v];setVenues(nv);save(KEYS.venues,nv);}} onSave={form=>{const arr=ds((practices||[]).map(p=>p.id===form.id?form:p));setPractices(arr);save(KEYS.practices,arr);setDetailPractice(null);toast.show("💾 保存しました");}} onDelete={id=>{const arr=(practices||[]).filter(p=>p.id!==id);setPractices(arr);save(KEYS.practices,arr);setDetailPractice(null);toast.show("🗑 削除しました",C.red);}} onClose={()=>setDetailPractice(null)}/>}
-    {detailTournament&&<TournamentDetail tournament={detailTournament} rackets={rackets} strings={strings} stringSetups={stringSetups} venues={venues} onAddVenue={v=>{const nv=[...(venues||[]),v];setVenues(nv);save(KEYS.venues,nv);}} opponents={opponents} onSave={form=>{const arr=ds((tournaments||[]).map(t=>t.id===form.id?form:t));setTournaments(arr);save(KEYS.tournaments,arr);setDetailTournament(null);toast.show("💾 保存しました");}} onDelete={id=>{const arr=(tournaments||[]).filter(t=>t.id!==id);setTournaments(arr);save(KEYS.tournaments,arr);setDetailTournament(null);toast.show("🗑 削除しました",C.red);}} onClose={()=>setDetailTournament(null)}/>}
+    {detailTournament&&<TournamentDetail tournament={detailTournament} rackets={rackets} strings={strings} stringSetups={stringSetups} venues={venues} onAddVenue={v=>{const nv=[...(venues||[]),v];setVenues(nv);save(KEYS.venues,nv);}} opponents={opponents} profile={profile} onSave={form=>{const arr=ds((tournaments||[]).map(t=>t.id===form.id?form:t));setTournaments(arr);save(KEYS.tournaments,arr);setDetailTournament(null);toast.show("💾 保存しました");}} onDelete={id=>{const arr=(tournaments||[]).filter(t=>t.id!==id);setTournaments(arr);save(KEYS.tournaments,arr);setDetailTournament(null);toast.show("🗑 削除しました",C.red);}} onClose={()=>setDetailTournament(null)}/>}
   </div>;
 }
 
@@ -2178,7 +2268,7 @@ function TennisDB(){
         {tab==="home"&&<HomeTab next={next} setNext={setNext} tournaments={tournaments} setTournaments={setTournaments} practices={practices} setPractices={setPractices} trials={trials} setTrials={setTrials} rackets={rackets} strings={strings} stringSetups={stringSetups} venues={venues} setVenues={setVenues} quickTrialCards={quickTrialCards} setQuickTrialCards={setQuickTrialCards} daysSinceExport={daysSinceExport} lastExport={lastExport} onExport={handleExport} onGoToSessions={()=>setTab("sessions")} onGoToPlan={()=>setTab("plan")} toast={toast}/>}
       </ErrorBoundary>
       <ErrorBoundary label="Sessions">
-        {tab==="sessions"&&<SessionsTab tournaments={tournaments} setTournaments={setTournaments} practices={practices} setPractices={setPractices} trials={trials} setTrials={setTrials} rackets={rackets} strings={strings} stringSetups={stringSetups} venues={venues} setVenues={setVenues} opponents={opponents} toast={toast} pendingRecord={pendingRecord} onPendingRecordDone={()=>setPendingRecord(null)} onDetailOpenChange={setDetailOpen}/>}
+        {tab==="sessions"&&<SessionsTab tournaments={tournaments} setTournaments={setTournaments} practices={practices} setPractices={setPractices} trials={trials} setTrials={setTrials} rackets={rackets} strings={strings} stringSetups={stringSetups} venues={venues} setVenues={setVenues} opponents={opponents} profile={profile} toast={toast} pendingRecord={pendingRecord} onPendingRecordDone={()=>setPendingRecord(null)} onDetailOpenChange={setDetailOpen}/>}
       </ErrorBoundary>
       <ErrorBoundary label="Gear">
         {tab==="gear"&&<PlaceholderTab name="Gear" icon="🎾" count={(rackets||[]).length+(strings||[]).length}/>}
