@@ -13,7 +13,7 @@
 const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
 // ── APP ───────────────────────────────────────────
-const APP_VERSION="3.3.1"; // 2026/04/16 練習詳細画面（Sessions→タップで編集）
+const APP_VERSION="3.3.2"; // 2026/04/16 Apple Watch心拍ゾーン表示をv2準拠に
 const font="-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif";
 const C={bg:"#f2f2f7",panel:"#fff",panel2:"#f5f5f7",border:"#e0e0e4",text:"#1a1a1a",textMuted:"#8e8e93",textDim:"#aaa",accent:"#00b87a",accentBg:"rgba(0,184,122,0.08)",red:"#dc2626",redBg:"#fef2f2",blue:"#2563eb",blueBg:"rgba(37,99,235,0.08)",yellow:"#f59e0b",yellowBg:"rgba(245,158,11,0.08)",purple:"#7c3aed",purpleBg:"rgba(124,58,237,0.08)",green:"#00b87a",greenBg:"rgba(0,184,122,0.08)"};
 const Badge=({children,color="gray",sm})=>{const cc={green:C.accent,blue:C.blue,yellow:C.yellow,red:C.red,gray:C.textMuted,purple:C.purple};const c=cc[color]||color;return<span style={{display:"inline-block",fontSize:sm?9:10,fontWeight:700,color:c,background:`${c}15`,border:`1px solid ${c}30`,borderRadius:4,padding:sm?"1px 4px":"2px 6px",lineHeight:1.4}}>{children}</span>;};
@@ -916,14 +916,49 @@ function PracticeDetail({practice,rackets,strings,stringSetups,venues,onAddVenue
       <FSelect label="天気" value={f.weather||""} onChange={s("weather")} options={[{value:"",label:"—"},{value:"晴",label:"☀ 晴"},{value:"曇",label:"☁ 曇"},{value:"雨",label:"🌧 雨"},{value:"屋内",label:"🏠 屋内"}]}/>
 
       {/* Watch連携 */}
-      {hasWatch&&<div style={{background:"#fff7ed",border:"1px solid #f97316",borderRadius:8,padding:"10px 12px",margin:"8px 0"}}>
-        <div style={{fontSize:12,color:"#f97316",marginBottom:6,fontWeight:700}}>⌚ Apple Watch</div>
-        <div style={{display:"flex",gap:8,flexWrap:"wrap",fontSize:12}}>
-          {f.timeRange&&<span style={{color:C.textDim}}>⏱{f.timeRange}</span>}
-          {f.calories&&<span style={{color:"#f97316"}}>🔥{f.calories}kcal</span>}
-          {f.heartRateAvg&&<span style={{color:"#fca5a5"}}>💓avg{f.heartRateAvg}</span>}
-          {f.hrZone1&&<span style={{color:C.textMuted}}>ゾーンデータあり</span>}
+      {hasWatch&&<div style={{marginBottom:10,background:"#fff7ed",border:"1px solid #f97316",borderRadius:8,padding:"10px 12px"}}>
+        <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",marginBottom:8}}>
+          <span style={{fontSize:13,color:"#f97316",fontWeight:700}}>⌚ Apple Watch</span>
+          {f.timeRange&&<span style={{fontSize:12,color:C.textMuted}}>{f.timeRange}</span>}
+          {f.workoutLocation&&<span style={{fontSize:12,color:C.textMuted}}>📍{f.workoutLocation}</span>}
+          {f.difficulty&&<span style={{fontSize:12,color:C.purple}}>難易度{f.difficulty}</span>}
         </div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6,marginBottom:f.hrZone1?10:0}}>
+          {f.duration&&<div style={{background:C.panel,borderRadius:5,padding:"6px 10px"}}><div style={{fontSize:10,color:C.textMuted}}>⏱ 時間</div><div style={{fontSize:14,fontWeight:700,color:C.text}}>{f.duration}分</div></div>}
+          {f.calories&&<div style={{background:C.panel,borderRadius:5,padding:"6px 10px"}}><div style={{fontSize:10,color:C.textMuted}}>🔥 Active</div><div style={{fontSize:14,fontWeight:700,color:"#f97316"}}>{f.calories}</div></div>}
+          {f.heartRateAvg&&<div style={{background:C.panel,borderRadius:5,padding:"6px 10px"}}><div style={{fontSize:10,color:C.textMuted}}>💓 平均</div><div style={{fontSize:14,fontWeight:700,color:"#fca5a5"}}>{f.heartRateAvg}</div></div>}
+          {f.totalCalories&&<div style={{background:C.panel,borderRadius:5,padding:"6px 10px"}}><div style={{fontSize:10,color:C.textMuted}}>🔥 合計</div><div style={{fontSize:14,fontWeight:700,color:"#f97316"}}>{f.totalCalories}</div></div>}
+        </div>
+        {f.hrZone1&&(()=>{
+          const parseMin=s=>{if(!s)return 0;const p=String(s).split(":");return(parseInt(p[0])||0)+(parseInt(p[1])||0)/60;};
+          const toMinLabel=s=>{if(!s)return"0分";const p=String(s).split(":");const m=parseInt(p[0])||0;const sec=parseInt(p[1])||0;return sec>0?`${m}分${sec}秒`:`${m}分`;};
+          const zones=[
+            {label:"ウォームアップ",bpm:"<122",time:f.hrZone1,color:"#3b82f6",raw:parseMin(f.hrZone1)},
+            {label:"脂肪燃焼",bpm:"123-134",time:f.hrZone2,color:"#06b6d4",raw:parseMin(f.hrZone2)},
+            {label:"有酸素",bpm:"135-147",time:f.hrZone3,color:"#eab308",raw:parseMin(f.hrZone3)},
+            {label:"無酸素",bpm:"148-159",time:f.hrZone4,color:"#f97316",raw:parseMin(f.hrZone4)},
+            {label:"最大心拍",bpm:"160+",time:f.hrZone5,color:"#ef4444",raw:parseMin(f.hrZone5)},
+          ];
+          const total=zones.reduce((s,z)=>s+z.raw,0)||1;
+          return <div>
+            <div style={{fontSize:12,color:"#f97316",marginBottom:8,fontWeight:700}}>💓 心拍ゾーン</div>
+            <div style={{display:"flex",height:8,borderRadius:4,overflow:"hidden",marginBottom:10}}>
+              {zones.map((z,i)=><div key={i} style={{width:`${(z.raw/total)*100}%`,background:z.color,minWidth:z.raw>0?2:0}}/>)}
+            </div>
+            {zones.map((z,i)=><div key={i} style={{display:"flex",alignItems:"center",gap:6,marginBottom:5}}>
+              <div style={{width:10,height:10,borderRadius:2,background:z.color,flexShrink:0}}/>
+              <div style={{width:70,fontSize:11,color:C.text,fontWeight:600,flexShrink:0}}>{z.label}</div>
+              <div style={{width:48,fontSize:10,color:C.textMuted,flexShrink:0}}>{z.bpm}</div>
+              <div style={{flex:1,background:"#e5e7eb",borderRadius:3,height:16,overflow:"hidden",minWidth:0}}>
+                <div style={{width:`${(z.raw/total)*100}%`,height:"100%",background:z.color,borderRadius:3,minWidth:z.raw>0?3:0,display:"flex",alignItems:"center",justifyContent:"flex-end",paddingRight:4}}>
+                  {z.raw/total>0.12&&<span style={{fontSize:10,color:"#000",fontWeight:700}}>{Math.round(z.raw/total*100)}%</span>}
+                </div>
+              </div>
+              <div style={{width:50,fontSize:10,color:z.color,fontWeight:700,textAlign:"right",flexShrink:0}}>{toMinLabel(z.time)}</div>
+            </div>)}
+            {f.recoveryHR&&<div style={{marginTop:8,fontSize:12,color:C.textMuted,display:"flex",alignItems:"center",gap:6}}>🫀 回復心拍 <span style={{color:"#86efac",fontWeight:700,fontSize:12}}>{f.recoveryHR}</span></div>}
+          </div>;
+        })()}
       </div>}
 
       {/* 機材 */}
