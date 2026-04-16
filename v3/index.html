@@ -13,7 +13,7 @@
 const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
 // ── APP ───────────────────────────────────────────
-const APP_VERSION="3.3.0"; // 2026/04/16 Phase 3 開始 - 詳細画面・編集機能
+const APP_VERSION="3.3.1"; // 2026/04/16 練習詳細画面（Sessions→タップで編集）
 const font="-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif";
 const C={bg:"#f2f2f7",panel:"#fff",panel2:"#f5f5f7",border:"#e0e0e4",text:"#1a1a1a",textMuted:"#8e8e93",textDim:"#aaa",accent:"#00b87a",accentBg:"rgba(0,184,122,0.08)",red:"#dc2626",redBg:"#fef2f2",blue:"#2563eb",blueBg:"rgba(37,99,235,0.08)",yellow:"#f59e0b",yellowBg:"rgba(245,158,11,0.08)",purple:"#7c3aed",purpleBg:"rgba(124,58,237,0.08)",green:"#00b87a",greenBg:"rgba(0,184,122,0.08)"};
 const Badge=({children,color="gray",sm})=>{const cc={green:C.accent,blue:C.blue,yellow:C.yellow,red:C.red,gray:C.textMuted,purple:C.purple};const c=cc[color]||color;return<span style={{display:"inline-block",fontSize:sm?9:10,fontWeight:700,color:c,background:`${c}15`,border:`1px solid ${c}30`,borderRadius:4,padding:sm?"1px 4px":"2px 6px",lineHeight:1.4}}>{children}</span>;};
@@ -872,10 +872,92 @@ function HomeTab({next,setNext,tournaments,setTournaments,practices,setPractices
   </div>;
 }
 
+// ── PRACTICE DETAIL (full-screen, edit/delete) ────
+function PracticeDetail({practice,rackets,strings,stringSetups,venues,onAddVenue,onSave,onDelete,onClose}){
+  const[f,setF]=useState({...practice});
+  const s=k=>v=>setF(p=>{
+    const n={...p,[k]:v};
+    if((k==="startTime"||k==="endTime")&&n.startTime&&n.endTime){
+      const[sh,sm]=n.startTime.split(":").map(Number);
+      const[eh,em]=n.endTime.split(":").map(Number);
+      if(!isNaN(sh)&&!isNaN(eh)){
+        const mins=(eh*60+em)-(sh*60+sm);
+        if(mins>0)n.duration=String(mins);
+      }
+    }
+    return n;
+  });
+  const cfm=useConfirm();
+  const handleDelete=()=>{cfm.ask("この練習記録を削除しますか？",()=>{onDelete(f.id);});};
+  const typeOpts=[{value:"",label:"--"},{value:"スクール",label:"🏫 スクール"},{value:"自主練",label:"🎾 自主練"},{value:"練習会",label:"👥 練習会"},{value:"ゲーム練習",label:"⚔️ ゲーム練習"},{value:"球出し",label:"🏐 球出し"},{value:"練習試合",label:"🎯 練習試合"},{value:"フィジカル",label:"💪 フィジカル"}];
+  const hasWatch=f.calories||f.heartRateAvg||f.hrZone1;
+  return <div style={{position:"fixed",inset:0,background:C.bg,zIndex:500,display:"flex",flexDirection:"column"}}>
+    {cfm.el}
+    <div style={{padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",background:C.panel,borderBottom:`1px solid ${C.border}`,flexShrink:0}}>
+      <button onClick={onClose} style={{background:"none",border:"none",fontSize:14,cursor:"pointer",color:C.accent,padding:4,fontWeight:600}}>← 戻る</button>
+      <span style={{fontSize:15,fontWeight:700}}>🏃 練習記録</span>
+      <button onClick={handleDelete} style={{background:"none",border:"none",fontSize:14,cursor:"pointer",color:C.red,padding:4,fontWeight:600}}>🗑</button>
+    </div>
+    <div style={{flex:1,overflowY:"auto",padding:16}}>
+      {/* 基本情報 */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 12px"}}>
+        <Field label="日付" value={f.date} onChange={s("date")} type="date"/>
+        <VenueSelect label="場所" value={f.venue||""} onChange={s("venue")} venues={venues} onAddVenue={onAddVenue}/>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 12px"}}>
+        <FSelect label="種別" value={f.type||""} onChange={s("type")} options={typeOpts}/>
+        <Field label="気温（℃）" value={f.temp||""} onChange={s("temp")} placeholder="18"/>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"0 10px"}}>
+        <Field label="開始時刻" value={f.startTime||""} onChange={s("startTime")} type="time"/>
+        <Field label="終了時刻" value={f.endTime||""} onChange={s("endTime")} type="time"/>
+        <Field label="時間（分）" value={f.duration||""} onChange={s("duration")} placeholder="90"/>
+      </div>
+      <FSelect label="天気" value={f.weather||""} onChange={s("weather")} options={[{value:"",label:"—"},{value:"晴",label:"☀ 晴"},{value:"曇",label:"☁ 曇"},{value:"雨",label:"🌧 雨"},{value:"屋内",label:"🏠 屋内"}]}/>
+
+      {/* Watch連携 */}
+      {hasWatch&&<div style={{background:"#fff7ed",border:"1px solid #f97316",borderRadius:8,padding:"10px 12px",margin:"8px 0"}}>
+        <div style={{fontSize:12,color:"#f97316",marginBottom:6,fontWeight:700}}>⌚ Apple Watch</div>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap",fontSize:12}}>
+          {f.timeRange&&<span style={{color:C.textDim}}>⏱{f.timeRange}</span>}
+          {f.calories&&<span style={{color:"#f97316"}}>🔥{f.calories}kcal</span>}
+          {f.heartRateAvg&&<span style={{color:"#fca5a5"}}>💓avg{f.heartRateAvg}</span>}
+          {f.hrZone1&&<span style={{color:C.textMuted}}>ゾーンデータあり</span>}
+        </div>
+      </div>}
+
+      {/* 機材 */}
+      <div style={{fontSize:12,color:C.accent,margin:"12px 0 8px",paddingBottom:5,borderBottom:`1px solid ${C.border}`}}>▶ 機材</div>
+      <FSelect label="ラケット" value={f.racketName||""} onChange={s("racketName")} options={getRacketOpts(rackets)}/>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 12px"}}>
+        <FSelect label="縦糸" value={f.stringMain||""} onChange={s("stringMain")} options={getStringOpts(strings)}/>
+        <FSelect label="横糸" value={f.stringCross||""} onChange={s("stringCross")} options={[{value:"",label:"-- 同じ --"},...getStringOpts(strings).slice(1)]}/>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 12px"}}>
+        <Field label="テンション縦" value={f.tensionMain||""} onChange={s("tensionMain")} placeholder="46"/>
+        <Field label="テンション横" value={f.tensionCross||""} onChange={s("tensionCross")} placeholder="43"/>
+      </div>
+
+      {/* 評価 */}
+      <div style={{fontSize:12,color:C.accent,margin:"12px 0 8px",paddingBottom:5,borderBottom:`1px solid ${C.border}`}}>▶ 内容・評価</div>
+      <Stars label="フィジカルコンディション" value={f.physical||0} onChange={s("physical")}/>
+      <Field label="🎯 フォーカスポイント" value={f.focus||""} onChange={s("focus")} multiline placeholder="ラケットダウン / フォロースルー拡大 / セミオープンスタンス..."/>
+      <Field label="📋 コーチメモ" value={f.coachNote||""} onChange={s("coachNote")} multiline placeholder="コーチから言われたこと..."/>
+      <Field label="✅ よかった点" value={f.goodNote||""} onChange={s("goodNote")} multiline placeholder="できるようになったこと..."/>
+      <Field label="🔧 改善点" value={f.improveNote||""} onChange={s("improveNote")} multiline placeholder="次回意識したいこと..."/>
+      <Field label="📝 メモ" value={f.generalNote||""} onChange={s("generalNote")} multiline placeholder="その他気づき..."/>
+    </div>
+    <div style={{padding:16,paddingBottom:"calc(16px + env(safe-area-inset-bottom))",borderTop:`1px solid ${C.border}`,background:C.panel,flexShrink:0}}>
+      <button onClick={()=>onSave(f)} style={{width:"100%",padding:14,borderRadius:10,background:C.accent,border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>💾 保存</button>
+    </div>
+  </div>;
+}
+
 // ── SESSIONS TAB (B+C: 3 months default + jump selector) ──
 function SessionsTab({tournaments,setTournaments,practices,setPractices,trials,setTrials,rackets,strings,stringSetups,venues,setVenues,opponents,toast,pendingRecord,onPendingRecordDone}){
   const[filter,setFilter]=useState("all");
   const[modal,setModal]=useState(null);
+  const[detailPractice,setDetailPractice]=useState(null);
   const[expandedMonths,setExpandedMonths]=useState(()=>{try{const v=localStorage.getItem("yuke-session-months");return v?JSON.parse(v):{};}catch{return{};}});
   const[expandedYears,setExpandedYears]=useState(()=>{try{const v=localStorage.getItem("yuke-session-years");return v?JSON.parse(v):{};}catch{return{};}});
   const[showAllMonths,setShowAllMonths]=useState(false);
@@ -971,7 +1053,11 @@ function SessionsTab({tournaments,setTournaments,practices,setPractices,trials,s
     const title=item.type==="tournament"?d.name:item.type==="practice"?(d.type||"練習")+(d.venue?" @ "+d.venue:""):`${d.racketName||""}${d.stringMain?" / "+d.stringMain:""}`;
     const timeStr=item.type==="practice"&&d.startTime?d.startTime+(d.endTime?"-"+d.endTime:""):"";
     const sub=item.type==="tournament"?`${d.level||""} · ${(d.matches||[]).length}試合`:item.type==="practice"?`${timeStr}${timeStr&&d.duration?" ("+d.duration+"分)":d.duration?d.duration+"分":""}${d.focus?" · "+d.focus:""}`:d.judgment||"";
-    return <div key={item.id} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 0",borderBottom:`1px solid ${C.border}22`}}>
+    const handleClick=()=>{
+      if(item.type==="practice")setDetailPractice(d);
+    };
+    const clickable=item.type==="practice";
+    return <div key={item.id} onClick={clickable?handleClick:undefined} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 0",borderBottom:`1px solid ${C.border}22`,cursor:clickable?"pointer":"default"}}>
       <span style={{fontSize:16,flexShrink:0}}>{icon}</span>
       <div style={{flex:1,minWidth:0}}>
         <div style={{fontSize:12,fontWeight:600,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{title}</div>
@@ -980,6 +1066,7 @@ function SessionsTab({tournaments,setTournaments,practices,setPractices,trials,s
       </div>
       {item.type==="tournament"&&<ResultBadge result={d.overallResult}/>}
       {item.type==="trial"&&<TrialBadge judgment={d.judgment}/>}
+      {clickable&&<span style={{fontSize:11,color:C.textMuted,flexShrink:0}}>›</span>}
     </div>;
   };
 
@@ -1042,6 +1129,7 @@ function SessionsTab({tournaments,setTournaments,practices,setPractices,trials,s
     {allItems.length===0&&<div style={{textAlign:"center",padding:40,color:C.textMuted,fontSize:13}}>データがありません</div>}
 
     {modal&&<RecordModal type={modal.type} data={modal.data} isNew={modal.isNew} rackets={rackets} strings={strings} stringSetups={stringSetups} venues={venues} onAddVenue={v=>{const nv=[...(venues||[]),v];setVenues(nv);save(KEYS.venues,nv);}} onSave={form=>handleSave(modal.type,form)} onClose={()=>setModal(null)}/>}
+    {detailPractice&&<PracticeDetail practice={detailPractice} rackets={rackets} strings={strings} stringSetups={stringSetups} venues={venues} onAddVenue={v=>{const nv=[...(venues||[]),v];setVenues(nv);save(KEYS.venues,nv);}} onSave={form=>{const arr=ds((practices||[]).map(p=>p.id===form.id?form:p));setPractices(arr);save(KEYS.practices,arr);setDetailPractice(null);toast.show("💾 保存しました");}} onDelete={id=>{const arr=(practices||[]).filter(p=>p.id!==id);setPractices(arr);save(KEYS.practices,arr);setDetailPractice(null);toast.show("🗑 削除しました",C.red);}} onClose={()=>setDetailPractice(null)}/>}
   </div>;
 }
 
