@@ -13,7 +13,7 @@
 const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
 // ── APP ───────────────────────────────────────────
-const APP_VERSION="3.3.10"; // 2026/04/16 自動同期useEffect安全化 + スタッツをErrorBoundaryで保護
+const APP_VERSION="3.3.12"; // 2026/04/17 Firestore同期修正+名前入力クラッシュ修正+防御強化
 const font="-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif";
 const C={bg:"#f2f2f7",panel:"#fff",panel2:"#f5f5f7",border:"#e0e0e4",text:"#1a1a1a",textMuted:"#8e8e93",textDim:"#aaa",accent:"#00b87a",accentBg:"rgba(0,184,122,0.08)",red:"#dc2626",redBg:"#fef2f2",blue:"#2563eb",blueBg:"rgba(37,99,235,0.08)",yellow:"#f59e0b",yellowBg:"rgba(245,158,11,0.08)",purple:"#7c3aed",purpleBg:"rgba(124,58,237,0.08)",green:"#00b87a",greenBg:"rgba(0,184,122,0.08)"};
 const Badge=({children,color="gray",sm})=>{const cc={green:C.accent,blue:C.blue,yellow:C.yellow,red:C.red,gray:C.textMuted,purple:C.purple};const c=cc[color]||color;return<span style={{display:"inline-block",fontSize:sm?9:10,fontWeight:700,color:c,background:`${c}15`,border:`1px solid ${c}30`,borderRadius:4,padding:sm?"1px 4px":"2px 6px",lineHeight:1.4}}>{children}</span>;};
@@ -1191,8 +1191,9 @@ const fmtPct=v=>v==null?"—":v+"%";
 const fmtFraq=f=>!f||f.total===0?"—":`${f.pct}%(${f.won}/${f.total})`;
 const StatRow=({label,me,opp,higher="me",sub,fmt="fraq",small=false})=>{
   const pad=sub?"6px 10px":"10px 12px";
-  const left=fmt==="fraq"?fmtFraq(me):fmt==="pct"?fmtPct(me):fmt==="num"?(me==null?"—":me):fmt==="ratio"?(me==null?"—":me.toFixed(2)):me;
-  const right=fmt==="fraq"?fmtFraq(opp):fmt==="pct"?fmtPct(opp):fmt==="num"?(opp==null?"—":opp):fmt==="ratio"?(opp==null?"—":opp.toFixed(2)):opp;
+  const safeRatio=v=>v==null||!isFinite(v)?"—":Number(v).toFixed(2);
+  const left=fmt==="fraq"?fmtFraq(me):fmt==="pct"?fmtPct(me):fmt==="num"?(me==null?"—":me):fmt==="ratio"?safeRatio(me):me;
+  const right=fmt==="fraq"?fmtFraq(opp):fmt==="pct"?fmtPct(opp):fmt==="num"?(opp==null?"—":opp):fmt==="ratio"?safeRatio(opp):opp;
   const mePct=fmt==="fraq"?(me?.pct||0):fmt==="pct"?(me||0):0;
   const oppPct=fmt==="fraq"?(opp?.pct||0):fmt==="pct"?(opp||0):0;
   const meWin=fmt==="num"?(me>opp):fmt==="ratio"?(me>opp):(mePct>oppPct);
@@ -1215,12 +1216,13 @@ const StatRow=({label,me,opp,higher="me",sub,fmt="fraq",small=false})=>{
     </div>
   </div>;
 };
+const shotFmt=v=>{if(!v)return"0";const c=v.count||0;return c===0?"0":`${c}(${v.fPct||0}%/${v.bPct||0}%)`;};
+const totalFmt=v=>{if(!v)return"0";const t=v.total||0;return t===0?"0":`${t}(${v.fPct||0}%/${v.bPct||0}%)`;};
 const ShotRow=({label,me,opp})=>{
-  const fmt=v=>v.count===0?"0":`${v.count}(${v.fPct}%/${v.bPct}%)`;
   return <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:8,padding:"5px 10px",alignItems:"center"}}>
-    <div style={{fontSize:12,color:C.text,fontFamily:"monospace",textAlign:"right"}}>{fmt(me)}</div>
+    <div style={{fontSize:12,color:C.text,fontFamily:"monospace",textAlign:"right"}}>{shotFmt(me)}</div>
     <div style={{fontSize:10,color:C.textMuted,minWidth:90,textAlign:"center"}}>{label}</div>
-    <div style={{fontSize:12,color:C.text,fontFamily:"monospace",textAlign:"left"}}>{fmt(opp)}</div>
+    <div style={{fontSize:12,color:C.text,fontFamily:"monospace",textAlign:"left"}}>{shotFmt(opp)}</div>
   </div>;
 };
 const StatSection=({title,children})=><div style={{marginBottom:14}}>
@@ -1229,7 +1231,7 @@ const StatSection=({title,children})=><div style={{marginBottom:14}}>
 </div>;
 
 function MatchStatsView({stats,playerA,playerB,myIsA}){
-  if(!stats)return null;
+  if(!stats||!stats.service||!stats.returnStats||!stats.pointsStats||!stats.derived)return null;
   const meName=myIsA?playerA:playerB,oppName=myIsA?playerB:playerA;
   const s=stats.service,r=stats.returnStats,p=stats.pointsStats,d=stats.derived;
   const m=stats.match||{};
@@ -1293,9 +1295,9 @@ function MatchStatsView({stats,playerA,playerB,myIsA}){
       <ShotRow label="スマッシュ" me={p.winners.me.Sm} opp={p.winners.opp.Sm}/>
       <ShotRow label="ドロップ" me={p.winners.me.Dr} opp={p.winners.opp.Dr}/>
       <div style={{padding:"4px 10px",display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:8,alignItems:"center",borderTop:`1px solid ${C.border}22`}}>
-        <div style={{fontSize:13,fontWeight:800,color:C.accent,fontFamily:"monospace",textAlign:"right"}}>{p.winners.me.total}({p.winners.me.fPct}%/{p.winners.me.bPct}%)</div>
+        <div style={{fontSize:13,fontWeight:800,color:C.accent,fontFamily:"monospace",textAlign:"right"}}>{totalFmt(p.winners.me)}</div>
         <div style={{fontSize:10,color:C.textMuted,minWidth:90,textAlign:"center",fontWeight:700}}>合計</div>
-        <div style={{fontSize:13,fontWeight:800,color:C.accent,fontFamily:"monospace",textAlign:"left"}}>{p.winners.opp.total}({p.winners.opp.fPct}%/{p.winners.opp.bPct}%)</div>
+        <div style={{fontSize:13,fontWeight:800,color:C.accent,fontFamily:"monospace",textAlign:"left"}}>{totalFmt(p.winners.opp)}</div>
       </div>
 
       <div style={{padding:"8px 10px 2px",fontSize:11,fontWeight:700,color:C.yellow,borderTop:`1px solid ${C.border}22`}}>⚡ フォースドエラー</div>
@@ -1305,9 +1307,9 @@ function MatchStatsView({stats,playerA,playerB,myIsA}){
       <ShotRow label="スマッシュ" me={p.forcedErrors.me.Sm} opp={p.forcedErrors.opp.Sm}/>
       <ShotRow label="ドロップ" me={p.forcedErrors.me.Dr} opp={p.forcedErrors.opp.Dr}/>
       <div style={{padding:"4px 10px",display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:8,alignItems:"center",borderTop:`1px solid ${C.border}22`}}>
-        <div style={{fontSize:13,fontWeight:800,color:C.yellow,fontFamily:"monospace",textAlign:"right"}}>{p.forcedErrors.me.total}({p.forcedErrors.me.fPct}%/{p.forcedErrors.me.bPct}%)</div>
+        <div style={{fontSize:13,fontWeight:800,color:C.yellow,fontFamily:"monospace",textAlign:"right"}}>{totalFmt(p.forcedErrors.me)}</div>
         <div style={{fontSize:10,color:C.textMuted,minWidth:90,textAlign:"center",fontWeight:700}}>合計</div>
-        <div style={{fontSize:13,fontWeight:800,color:C.yellow,fontFamily:"monospace",textAlign:"left"}}>{p.forcedErrors.opp.total}({p.forcedErrors.opp.fPct}%/{p.forcedErrors.opp.bPct}%)</div>
+        <div style={{fontSize:13,fontWeight:800,color:C.yellow,fontFamily:"monospace",textAlign:"left"}}>{totalFmt(p.forcedErrors.opp)}</div>
       </div>
 
       <div style={{padding:"8px 10px 2px",fontSize:11,fontWeight:700,color:C.red,borderTop:`1px solid ${C.border}22`}}>❌ アンフォースドエラー</div>
@@ -1317,9 +1319,9 @@ function MatchStatsView({stats,playerA,playerB,myIsA}){
       <ShotRow label="スマッシュ" me={p.unforcedErrors.me.Sm} opp={p.unforcedErrors.opp.Sm}/>
       <ShotRow label="ドロップ" me={p.unforcedErrors.me.Dr} opp={p.unforcedErrors.opp.Dr}/>
       <div style={{padding:"4px 10px",display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:8,alignItems:"center",borderTop:`1px solid ${C.border}22`}}>
-        <div style={{fontSize:13,fontWeight:800,color:C.red,fontFamily:"monospace",textAlign:"right"}}>{p.unforcedErrors.me.total}({p.unforcedErrors.me.fPct}%/{p.unforcedErrors.me.bPct}%)</div>
+        <div style={{fontSize:13,fontWeight:800,color:C.red,fontFamily:"monospace",textAlign:"right"}}>{totalFmt(p.unforcedErrors.me)}</div>
         <div style={{fontSize:10,color:C.textMuted,minWidth:90,textAlign:"center",fontWeight:700}}>合計</div>
-        <div style={{fontSize:13,fontWeight:800,color:C.red,fontFamily:"monospace",textAlign:"left"}}>{p.unforcedErrors.opp.total}({p.unforcedErrors.opp.fPct}%/{p.unforcedErrors.opp.bPct}%)</div>
+        <div style={{fontSize:13,fontWeight:800,color:C.red,fontFamily:"monospace",textAlign:"left"}}>{totalFmt(p.unforcedErrors.opp)}</div>
       </div>
     </StatSection>
 
@@ -1340,9 +1342,11 @@ function MatchStatsView({stats,playerA,playerB,myIsA}){
 function CsvImportModal({onImport,onClose,myPlayerName,defaultOpponent}){
   const[parsed,setParsed]=useState(null);
   const[error,setError]=useState("");
-  const[meName,setMeName]=useState(myPlayerName||"自分");
+  const[meName,setMeName]=useState(myPlayerName||"");
   const[oppName,setOppName]=useState(defaultOpponent||"");
   const[myIsA,setMyIsA]=useState(true);
+  const meRef=useRef(null);
+  const oppRef=useRef(null);
   const handleFile=e=>{
     const f=e.target.files[0];if(!f)return;
     const reader=new FileReader();
@@ -1351,23 +1355,27 @@ function CsvImportModal({onImport,onClose,myPlayerName,defaultOpponent}){
         const p=parseStatsCSV(ev.target.result,myPlayerName);
         setParsed(p);setError("");setMyIsA(p.myIsA);
         // プロフィール名で判定。マッチしなければCSV原本の名前を使う
+        let newMe;
         if(!myPlayerName||(p.playerA!==myPlayerName&&p.playerB!==myPlayerName)){
-          setMeName(p.myIsA?p.playerA:p.playerB);
-        }else{setMeName(myPlayerName);}
-        if(!defaultOpponent){setOppName(p.myIsA?p.playerB:p.playerA);}
+          newMe=p.myIsA?p.playerA:p.playerB;
+        }else{newMe=myPlayerName;}
+        const newOpp=defaultOpponent||(p.myIsA?p.playerB:p.playerA);
+        setMeName(newMe);setOppName(newOpp);
       }catch(err){setError(err.message);setParsed(null);}
     };
     reader.readAsText(f);
   };
-  // プレビュー用: 現在の入力値で再計算
-  // 名前変更では再計算しない（myIsAが変わった時だけ再計算）
+  // プレビュー用: myIsAが変わった時だけ再計算
   const previewStats=useMemo(()=>{
     if(!parsed)return null;
     return computeMatchStats({...parsed,myIsA});
   },[parsed,myIsA]);
   const handleImport=()=>{
     if(!parsed)return;
-    const pA=myIsA?meName:oppName,pB=myIsA?oppName:meName;
+    // refから最新値取得（onBlur前でも安全）
+    const me=meRef.current?.value||meName;
+    const opp=oppRef.current?.value||oppName;
+    const pA=myIsA?me:opp,pB=myIsA?opp:me;
     onImport({source:"datatennis",importedAt:new Date().toISOString(),raw:parsed.rows,points:parsed.points,stats:previewStats,playerA:pA,playerB:pB,myIsA});
   };
   return <div style={{position:"fixed",inset:0,background:"#0006",zIndex:600,display:"flex",alignItems:"flex-start",justifyContent:"center",overflowY:"auto",padding:20}} onClick={e=>e.target===e.currentTarget&&onClose()}>
@@ -1384,13 +1392,14 @@ function CsvImportModal({onImport,onClose,myPlayerName,defaultOpponent}){
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
           <div>
             <div style={{fontSize:11,color:C.textMuted,marginBottom:4}}>自分の名前</div>
-            <input value={meName} onChange={e=>setMeName(e.target.value)} style={{width:"100%",padding:"8px 10px",fontSize:12,border:`1px solid ${C.border}`,borderRadius:6,background:C.panel2}}/>
+            <input ref={meRef} key={`me-${meName}`} defaultValue={meName} onBlur={e=>setMeName(e.target.value)} style={{width:"100%",padding:"8px 10px",fontSize:12,border:`1px solid ${C.border}`,borderRadius:6,background:C.panel2}}/>
           </div>
           <div>
             <div style={{fontSize:11,color:C.textMuted,marginBottom:4}}>対戦相手の名前</div>
-            <input value={oppName} onChange={e=>setOppName(e.target.value)} style={{width:"100%",padding:"8px 10px",fontSize:12,border:`1px solid ${C.border}`,borderRadius:6,background:C.panel2}}/>
+            <input ref={oppRef} key={`opp-${oppName}`} defaultValue={oppName} onBlur={e=>setOppName(e.target.value)} style={{width:"100%",padding:"8px 10px",fontSize:12,border:`1px solid ${C.border}`,borderRadius:6,background:C.panel2}}/>
           </div>
         </div>
+        <div style={{fontSize:10,color:C.textMuted,marginBottom:6,fontStyle:"italic"}}>※ 入力はフォーカス外しで反映</div>
         <div style={{fontSize:11,color:C.textMuted,marginBottom:4}}>自分はCSVのどちら？</div>
         <div style={{display:"flex",gap:6,marginBottom:12}}>
           <button onClick={()=>setMyIsA(true)} style={{flex:1,padding:"8px",borderRadius:6,background:myIsA?C.accentBg:C.panel2,border:`1px solid ${myIsA?C.accent:C.border}`,color:myIsA?C.accent:C.textMuted,fontSize:11,fontWeight:600,cursor:"pointer"}}>PlayerA（{parsed.playerA}）</button>
@@ -1409,9 +1418,16 @@ function CsvImportModal({onImport,onClose,myPlayerName,defaultOpponent}){
 }
 
 function NameEditModal({matchStats,onSave,onClose}){
-  const[meName,setMeName]=useState(matchStats.myIsA?matchStats.playerA:matchStats.playerB);
-  const[oppName,setOppName]=useState(matchStats.myIsA?matchStats.playerB:matchStats.playerA);
+  const meRef=useRef(null);
+  const oppRef=useRef(null);
   const[myIsA,setMyIsA]=useState(matchStats.myIsA);
+  const initMe=matchStats.myIsA?matchStats.playerA:matchStats.playerB;
+  const initOpp=matchStats.myIsA?matchStats.playerB:matchStats.playerA;
+  const handleSave=()=>{
+    const me=meRef.current?.value||initMe;
+    const opp=oppRef.current?.value||initOpp;
+    onSave(me,opp,myIsA);
+  };
   return <div style={{position:"fixed",inset:0,background:"#0006",zIndex:600,display:"flex",alignItems:"flex-start",justifyContent:"center",overflowY:"auto",padding:20}} onClick={e=>e.target===e.currentTarget&&onClose()}>
     <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,width:"100%",maxWidth:400,padding:20}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
@@ -1422,11 +1438,11 @@ function NameEditModal({matchStats,onSave,onClose}){
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
         <div>
           <div style={{fontSize:11,color:C.textMuted,marginBottom:4}}>自分の名前</div>
-          <input value={meName} onChange={e=>setMeName(e.target.value)} style={{width:"100%",padding:"8px 10px",fontSize:12,border:`1px solid ${C.border}`,borderRadius:6,background:C.panel2}}/>
+          <input ref={meRef} defaultValue={initMe} style={{width:"100%",padding:"8px 10px",fontSize:12,border:`1px solid ${C.border}`,borderRadius:6,background:C.panel2}}/>
         </div>
         <div>
           <div style={{fontSize:11,color:C.textMuted,marginBottom:4}}>対戦相手の名前</div>
-          <input value={oppName} onChange={e=>setOppName(e.target.value)} style={{width:"100%",padding:"8px 10px",fontSize:12,border:`1px solid ${C.border}`,borderRadius:6,background:C.panel2}}/>
+          <input ref={oppRef} defaultValue={initOpp} style={{width:"100%",padding:"8px 10px",fontSize:12,border:`1px solid ${C.border}`,borderRadius:6,background:C.panel2}}/>
         </div>
       </div>
       <div style={{fontSize:11,color:C.textMuted,marginBottom:4}}>自分はCSVのどちら？</div>
@@ -1436,7 +1452,7 @@ function NameEditModal({matchStats,onSave,onClose}){
       </div>
       <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
         <button onClick={onClose} style={{padding:"10px 20px",borderRadius:8,background:C.panel2,border:`1px solid ${C.border}`,color:C.textMuted,fontSize:13,fontWeight:600,cursor:"pointer"}}>キャンセル</button>
-        <button onClick={()=>onSave(meName,oppName,myIsA)} style={{padding:"10px 20px",borderRadius:8,background:C.accent,border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>保存</button>
+        <button onClick={handleSave} style={{padding:"10px 20px",borderRadius:8,background:C.accent,border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>保存</button>
       </div>
     </div>
   </div>;
