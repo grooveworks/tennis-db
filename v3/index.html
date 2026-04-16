@@ -13,7 +13,7 @@
 const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
 // ── APP ───────────────────────────────────────────
-const APP_VERSION="3.3.2"; // 2026/04/16 Apple Watch心拍ゾーン表示をv2準拠に
+const APP_VERSION="3.3.3"; // 2026/04/16 大会詳細画面+試合記録+GameTracker
 const font="-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif";
 const C={bg:"#f2f2f7",panel:"#fff",panel2:"#f5f5f7",border:"#e0e0e4",text:"#1a1a1a",textMuted:"#8e8e93",textDim:"#aaa",accent:"#00b87a",accentBg:"rgba(0,184,122,0.08)",red:"#dc2626",redBg:"#fef2f2",blue:"#2563eb",blueBg:"rgba(37,99,235,0.08)",yellow:"#f59e0b",yellowBg:"rgba(245,158,11,0.08)",purple:"#7c3aed",purpleBg:"rgba(124,58,237,0.08)",green:"#00b87a",greenBg:"rgba(0,184,122,0.08)"};
 const Badge=({children,color="gray",sm})=>{const cc={green:C.accent,blue:C.blue,yellow:C.yellow,red:C.red,gray:C.textMuted,purple:C.purple};const c=cc[color]||color;return<span style={{display:"inline-block",fontSize:sm?9:10,fontWeight:700,color:c,background:`${c}15`,border:`1px solid ${c}30`,borderRadius:4,padding:sm?"1px 4px":"2px 6px",lineHeight:1.4}}>{children}</span>;};
@@ -872,6 +872,222 @@ function HomeTab({next,setNext,tournaments,setTournaments,practices,setPractices
   </div>;
 }
 
+// ── TOURNAMENT DETAIL (full-screen, matches + GameTracker) ──
+const ROUND_OPTS=[{value:"1回戦",label:"1回戦"},{value:"2回戦",label:"2回戦"},{value:"3回戦",label:"3回戦"},{value:"準々決勝",label:"準々決勝"},{value:"準決勝",label:"準決勝"},{value:"決勝",label:"決勝"},{value:"予選",label:"予選"},{value:"エキシビション",label:"エキシビション"}];
+const ROUND_COLOR={"1回戦":"gray","2回戦":"gray","3回戦":"blue","準々決勝":"blue","準決勝":"purple","決勝":"yellow","予選":"gray","エキシビション":"orange"};
+const fmtTensionV3=(m,c)=>{const a=m||"";const b=c||"";if(!a&&!b)return"";if(a&&b&&a!==b)return`${a}/${b}`;return a||b;};
+
+function MatchEditModal({match,trnType,rackets,strings,opponents,onSave,onClose}){
+  const[f,setF]=useState({...match});
+  const s=k=>v=>setF(p=>({...p,[k]:v}));
+  const oppOpts=[{value:"",label:"-- 未選択 --"},...(opponents||[]).map(o=>({value:o.name,label:o.name+(o.nickname?` (${o.nickname})`:"")}))];
+  return <div style={{position:"fixed",inset:0,background:"#0006",zIndex:600,display:"flex",alignItems:"flex-start",justifyContent:"center",overflowY:"auto",padding:"20px 12px"}} onClick={e=>e.target===e.currentTarget&&onClose()}>
+    <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,width:"100%",maxWidth:480,padding:20}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+        <span style={{fontSize:14,fontWeight:700,color:C.text}}>試合の詳細を記録</span>
+        <button onClick={onClose} style={{background:"none",border:"none",fontSize:18,cursor:"pointer",color:C.textMuted,padding:4}}>✕</button>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 12px"}}>
+        <FSelect label="ラウンド" value={f.round||"1回戦"} onChange={s("round")} options={ROUND_OPTS}/>
+        <FSelect label="結果" value={f.result||"勝利"} onChange={s("result")} options={[{value:"勝利",label:"🎉 勝利"},{value:"敗北",label:"❌ 敗北"},{value:"棄権",label:"棄権"}]}/>
+      </div>
+      <FSelect label="対戦相手" value={f.opponent||""} onChange={s("opponent")} options={oppOpts}/>
+      {(trnType==="doubles"||trnType==="mixed")&&<FSelect label="対戦相手2" value={f.opponent2||""} onChange={s("opponent2")} options={oppOpts}/>}
+      <FSelect label="使用ラケット" value={f.racketName||""} onChange={s("racketName")} options={getRacketOpts(rackets)}/>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 12px"}}>
+        <FSelect label="縦糸" value={f.stringMain||""} onChange={s("stringMain")} options={getStringOpts(strings)}/>
+        <FSelect label="横糸" value={f.stringCross||""} onChange={s("stringCross")} options={[{value:"",label:"-- 同じ --"},...getStringOpts(strings).slice(1)]}/>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 12px"}}>
+        <Field label="テンション縦" value={f.tensionMain||""} onChange={s("tensionMain")} placeholder="46"/>
+        <Field label="テンション横" value={f.tensionCross||""} onChange={s("tensionCross")} placeholder="43"/>
+      </div>
+      <Field label="セットスコア" value={(f.setScores||[]).join(", ")} onChange={v=>s("setScores")(v.split(",").map(x=>x.trim()).filter(Boolean))} placeholder="6-3, 6-4"/>
+      <Stars label="メンタル" value={f.mental||3} onChange={s("mental")}/>
+      <Stars label="フィジカル" value={f.physical||3} onChange={s("physical")}/>
+      <Field label="🧠 メンタルメモ" value={f.mentalNote||""} onChange={s("mentalNote")} multiline placeholder="この試合でのメンタルの状態..."/>
+      <Field label="🎾 技術的気づき" value={f.techNote||""} onChange={s("techNote")} multiline placeholder="フォーム、戦術、改善点..."/>
+      <Field label="👤 相手の特徴" value={f.opponentNote||""} onChange={s("opponentNote")} multiline placeholder="相手のスタイル、強かった点..."/>
+      <Field label="📝 総括" value={f.note||""} onChange={s("note")} multiline placeholder="この試合で学んだこと..."/>
+      <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:14}}>
+        <button onClick={onClose} style={{padding:"10px 20px",borderRadius:8,background:C.panel2,border:`1px solid ${C.border}`,color:C.textMuted,fontSize:13,fontWeight:600,cursor:"pointer"}}>キャンセル</button>
+        <button onClick={()=>onSave(f)} style={{padding:"10px 20px",borderRadius:8,background:C.accent,border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>保存</button>
+      </div>
+    </div>
+  </div>;
+}
+
+function MatchRow({match,trn,opponents,onUpdate,onEditMatch,onDeleteMatch}){
+  const[expanded,setExpanded]=useState(false);
+  const[showGames,setShowGames]=useState(false);
+  const games=match.games||[];
+  const score=games.reduce((a,g)=>({me:a.me+(g.winner==="me"?1:0),opp:a.opp+(g.winner==="opp"?1:0)}),{me:0,opp:0});
+  const mc=match.mental>=4?C.accent:match.mental>=3?C.yellow:C.red;
+  const opp=(opponents||[]).find(o=>o.name===match.opponent);
+  return <div style={{borderBottom:`1px solid ${C.border}`}}>
+    <div onClick={()=>setExpanded(!expanded)} style={{display:"flex",alignItems:"center",gap:4,padding:"10px",background:expanded?C.panel2:"transparent",cursor:"pointer",borderLeft:expanded?`3px solid ${C.blue}`:"3px solid transparent",flexWrap:"wrap"}}>
+      <Badge color={ROUND_COLOR[match.round]||"gray"} sm>{match.round}</Badge>
+      <Badge color={match.result==="勝利"?"green":"red"} sm>{match.result==="勝利"?"勝利✓":match.result==="棄権"?"棄権":"敗北"}</Badge>
+      <div style={{flex:1,minWidth:60,overflow:"hidden"}}>
+        <span style={{fontSize:12,color:C.text,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",display:"flex",alignItems:"center",gap:3}}>
+          {opp&&<OppIcon gender={opp.gender} size={14}/>}
+          {match.opponent||"（相手未入力）"}
+        </span>
+      </div>
+      <span style={{fontSize:11,color:C.textMuted,fontFamily:"monospace",whiteSpace:"nowrap"}}>{(match.setScores||[]).join(", ")||"—"}</span>
+      <div style={{display:"flex",gap:1,flexShrink:0}}>
+        {games.slice(0,10).map((g,gi)=><div key={gi} style={{width:5,height:8,borderRadius:1,background:g.winner==="me"?C.accent:C.red}}/>)}
+      </div>
+      {games.length>0&&<div style={{fontSize:11,fontFamily:"monospace",color:C.textMuted,textAlign:"right"}}>{score.me}-{score.opp}</div>}
+      <div style={{display:"flex",gap:1,flexShrink:0}}>
+        {[1,2,3,4,5].map(n=><div key={n} style={{width:2,height:10,borderRadius:1,background:n<=match.mental?mc:C.border}}/>)}
+      </div>
+      <div style={{color:C.textMuted,fontSize:12,transform:expanded?"rotate(90deg)":"none",transition:"transform 0.2s"}}>▶</div>
+    </div>
+    {expanded&&<div style={{padding:"12px 14px",background:C.panel2,borderTop:`1px solid ${C.border}`}}>
+      {/* スコア & 情報 */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
+        <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:6,padding:"8px 12px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <div style={{textAlign:"center"}}>
+            <div style={{fontSize:11,color:C.accent}}>私</div>
+            <div style={{fontSize:22,fontWeight:800,color:C.accent,fontFamily:"monospace"}}>{score.me}</div>
+          </div>
+          <div style={{fontSize:12,color:C.textMuted}}>—</div>
+          <div style={{textAlign:"center"}}>
+            <div style={{fontSize:11,color:C.red}}>相手</div>
+            <div style={{fontSize:22,fontWeight:800,color:C.red,fontFamily:"monospace"}}>{score.opp}</div>
+          </div>
+        </div>
+        <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:6,padding:"8px 12px"}}>
+          <div style={{fontSize:11,color:C.textMuted,marginBottom:4}}>セットスコア</div>
+          <div style={{fontSize:14,color:C.text,fontWeight:700}}>{(match.setScores||[]).join(", ")||"—"}</div>
+          {match.racketName&&<div style={{fontSize:11,color:C.accent,marginTop:4}}>🖊 {match.racketName}{[match.stringMain,match.stringCross].filter(Boolean).length?` / ${[match.stringMain,match.stringCross].filter(Boolean).join(" / ")}`:""}{(match.tensionMain||match.tensionCross)?` / ${fmtTensionV3(match.tensionMain,match.tensionCross)}p`:""}</div>}
+        </div>
+      </div>
+      {/* メンタル/フィジカル */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
+        {[["メンタル",match.mental],["フィジカル",match.physical]].map(([l,v])=>(
+          <div key={l} style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:6,padding:"7px 10px"}}>
+            <div style={{fontSize:11,color:C.textMuted,marginBottom:4}}>{l}</div>
+            <div style={{display:"flex",gap:2,marginBottom:2}}>
+              {[1,2,3,4,5].map(n=><div key={n} style={{flex:1,height:4,borderRadius:2,background:n<=v?scColor(v):C.border}}/>)}
+            </div>
+            <div style={{fontSize:11,color:scColor(v)}}>{v||0}/5 {["","×","△","普通","◎","完璧"][v||0]}</div>
+          </div>
+        ))}
+      </div>
+      {/* メモ群 */}
+      {[["🧠 メンタル",match.mentalNote],["🎾 技術",match.techNote],["👤 相手",match.opponentNote],["📝 総括",match.note]].filter(([,v])=>v).map(([l,v])=>(
+        <div key={l} style={{marginBottom:6}}>
+          <div style={{fontSize:11,color:C.textMuted,marginBottom:2}}>{l}</div>
+          <div style={{fontSize:12,color:C.text,lineHeight:1.6,background:C.panel,borderRadius:5,padding:"6px 10px",borderLeft:`2px solid ${C.border}`}}>{v}</div>
+        </div>
+      ))}
+      {/* GameTracker */}
+      <button onClick={()=>setShowGames(!showGames)} style={{width:"100%",background:showGames?C.blueBg:C.panel,border:`1px solid ${showGames?C.blue:C.border}`,color:showGames?C.blue:C.textMuted,borderRadius:6,padding:"8px",fontSize:12,cursor:"pointer",marginTop:8,fontWeight:600}}>
+        {showGames?"▲ ゲーム記録を閉じる":`▼ ゲーム記録を開く（${games.length}ゲーム）`}
+      </button>
+      {showGames&&<div style={{marginTop:8,padding:10,background:C.panel,borderRadius:6,border:`1px solid ${C.border}`}}><GameTracker match={match} onChange={onUpdate}/></div>}
+      {/* アクション */}
+      <div style={{display:"flex",gap:8,marginTop:10}}>
+        <button onClick={onEditMatch} style={{flex:1,padding:10,borderRadius:6,background:C.panel,border:`1px solid ${C.border}`,color:C.text,fontSize:12,fontWeight:600,cursor:"pointer"}}>✏️ 編集</button>
+        <button onClick={onDeleteMatch} style={{padding:"10px 16px",borderRadius:6,background:C.redBg,border:`1px solid ${C.red}`,color:C.red,fontSize:12,fontWeight:700,cursor:"pointer"}}>🗑</button>
+      </div>
+    </div>}
+  </div>;
+}
+
+function TournamentDetail({tournament,rackets,strings,stringSetups,venues,onAddVenue,opponents,onSave,onDelete,onClose}){
+  const[f,setF]=useState({...tournament});
+  const[matchModal,setMatchModal]=useState(null);
+  const s=k=>v=>setF(p=>({...p,[k]:v}));
+  const cfm=useConfirm();
+  const matches=f.matches||[];
+  const wins=matches.filter(m=>m.result==="勝利").length;
+
+  const blankMatch=()=>({id:genId(),round:`${matches.length+1}回戦`,opponent:"",opponent2:"",racketName:f.racketName||"",stringMain:f.stringMain||"",stringCross:f.stringCross||"",tensionMain:f.tensionMain||"",tensionCross:f.tensionCross||"",result:"勝利",setScores:[],mental:3,physical:3,mentalNote:"",techNote:"",opponentNote:"",note:"",games:[],changeovers:[]});
+
+  const handleAddMatch=()=>setMatchModal({match:blankMatch()});
+  const handleSaveMatch=form=>{
+    const exists=matches.find(m=>m.id===form.id);
+    const newMatches=exists?matches.map(m=>m.id===form.id?form:m):[...matches,form];
+    setF(p=>({...p,matches:newMatches}));
+    setMatchModal(null);
+  };
+  const handleUpdateMatch=updated=>{
+    setF(p=>({...p,matches:matches.map(m=>m.id===updated.id?updated:m)}));
+  };
+  const handleDeleteMatch=id=>{
+    cfm.ask("この試合記録を削除しますか？",()=>{
+      setF(p=>({...p,matches:matches.filter(m=>m.id!==id)}));
+    });
+  };
+  const handleDelete=()=>cfm.ask("この大会記録を削除しますか？",()=>onDelete(f.id));
+
+  return <div style={{position:"fixed",inset:0,background:C.bg,zIndex:500,display:"flex",flexDirection:"column"}}>
+    {cfm.el}
+    <div style={{padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",background:C.panel,borderBottom:`1px solid ${C.border}`,flexShrink:0}}>
+      <button onClick={onClose} style={{background:"none",border:"none",fontSize:14,cursor:"pointer",color:C.accent,padding:4,fontWeight:600}}>← 戻る</button>
+      <span style={{fontSize:15,fontWeight:700}}>🏆 大会</span>
+      <button onClick={handleDelete} style={{background:"none",border:"none",fontSize:14,cursor:"pointer",color:C.red,padding:4,fontWeight:600}}>🗑</button>
+    </div>
+    <div style={{flex:1,overflowY:"auto",padding:16}}>
+      {/* 大会基本情報 */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 12px"}}>
+        <Field label="日付" value={f.date} onChange={s("date")} type="date"/>
+        <Field label="大会名" value={f.name||""} onChange={s("name")} placeholder="インスピ 中上級S"/>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 12px"}}>
+        <FSelect label="クラス" value={f.level||""} onChange={s("level")} options={[{value:"中上級",label:"中上級"},{value:"オープン",label:"オープン"},{value:"中級",label:"中級"},{value:"市民大会",label:"市民大会"},{value:"一般",label:"一般"},{value:"交流戦",label:"交流戦"},{value:"草トー",label:"草トー"}]}/>
+        <FSelect label="種目" value={f.type||"singles"} onChange={s("type")} options={[{value:"singles",label:"シングルス"},{value:"doubles",label:"ダブルス"},{value:"mixed",label:"ミックス"}]}/>
+      </div>
+      <VenueSelect label="会場" value={f.venue||""} onChange={s("venue")} venues={venues} onAddVenue={onAddVenue}/>
+      <FSelect label="結果" value={f.overallResult||""} onChange={s("overallResult")} options={[{value:"",label:"— 未定 —"},{value:"優勝",label:"優勝🏆"},{value:"準優勝",label:"準優勝🥈"},{value:"予選突破",label:"予選突破"},{value:"準決勝敗退",label:"準決勝敗退"},{value:"決勝敗退",label:"決勝敗退"},{value:"予選敗退",label:"予選敗退"},{value:"敗退",label:"敗退"}]}/>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"0 10px"}}>
+        <Field label="気温（℃）" value={f.temp||""} onChange={s("temp")} placeholder="15"/>
+        <Field label="テンション縦" value={f.tensionMain||""} onChange={s("tensionMain")} placeholder="46"/>
+        <Field label="テンション横" value={f.tensionCross||""} onChange={s("tensionCross")} placeholder="43"/>
+      </div>
+      <FSelect label="天気" value={f.weather||""} onChange={s("weather")} options={[{value:"",label:"—"},{value:"晴",label:"☀ 晴"},{value:"曇",label:"☁ 曇"},{value:"雨",label:"🌧 雨"},{value:"屋内",label:"🏠 屋内"}]}/>
+
+      <div style={{fontSize:12,color:C.accent,margin:"10px 0 8px",paddingBottom:5,borderBottom:`1px solid ${C.border}`}}>▶ 機材</div>
+      <FSelect label="ラケット" value={f.racketName||""} onChange={s("racketName")} options={getRacketOpts(rackets)}/>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 12px"}}>
+        <FSelect label="縦糸" value={f.stringMain||""} onChange={s("stringMain")} options={getStringOpts(strings)}/>
+        <FSelect label="横糸" value={f.stringCross||""} onChange={s("stringCross")} options={[{value:"",label:"-- 同じ --"},...getStringOpts(strings).slice(1)]}/>
+      </div>
+
+      <Field label="📝 大会総括" value={f.generalNote||""} onChange={s("generalNote")} multiline placeholder="その日の大会を通じての気づき..."/>
+
+      {/* サマリー */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:10,marginBottom:10}}>
+        <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:6,padding:"8px 12px",textAlign:"center"}}>
+          <div style={{fontSize:11,color:C.textMuted}}>試合数</div>
+          <div style={{fontSize:18,fontWeight:700,color:C.text}}>{matches.length}</div>
+        </div>
+        <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:6,padding:"8px 12px",textAlign:"center"}}>
+          <div style={{fontSize:11,color:C.textMuted}}>勝敗</div>
+          <div style={{fontSize:18,fontWeight:700,color:C.accent}}>{wins}<span style={{fontSize:12,color:C.textMuted}}>勝</span>{matches.length-wins}<span style={{fontSize:12,color:C.textMuted}}>敗</span></div>
+        </div>
+      </div>
+
+      {/* 試合一覧 */}
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",margin:"14px 0 8px",paddingBottom:5,borderBottom:`1px solid ${C.border}`}}>
+        <span style={{fontSize:12,color:C.accent,fontWeight:700}}>▶ 試合記録</span>
+        <button onClick={handleAddMatch} style={{background:C.accent,border:"none",color:"#fff",borderRadius:5,padding:"4px 12px",fontSize:12,fontWeight:700,cursor:"pointer"}}>＋ 試合を追加</button>
+      </div>
+      {matches.length===0?<div style={{padding:16,textAlign:"center",color:C.textMuted,fontSize:12,background:C.panel2,borderRadius:6,border:`1px dashed ${C.border}`}}>「＋ 試合を追加」から各試合を記録できます</div>
+      :<div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,overflow:"hidden"}}>
+        {matches.map(m=><MatchRow key={m.id} match={m} trn={f} opponents={opponents} onUpdate={handleUpdateMatch} onEditMatch={()=>setMatchModal({match:m})} onDeleteMatch={()=>handleDeleteMatch(m.id)}/>)}
+      </div>}
+    </div>
+    <div style={{padding:16,paddingBottom:"calc(16px + env(safe-area-inset-bottom))",borderTop:`1px solid ${C.border}`,background:C.panel,flexShrink:0}}>
+      <button onClick={()=>onSave(f)} style={{width:"100%",padding:14,borderRadius:10,background:C.accent,border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>💾 保存</button>
+    </div>
+    {matchModal&&<MatchEditModal match={matchModal.match} trnType={f.type} rackets={rackets} strings={strings} opponents={opponents} onSave={handleSaveMatch} onClose={()=>setMatchModal(null)}/>}
+  </div>;
+}
+
 // ── PRACTICE DETAIL (full-screen, edit/delete) ────
 function PracticeDetail({practice,rackets,strings,stringSetups,venues,onAddVenue,onSave,onDelete,onClose}){
   const[f,setF]=useState({...practice});
@@ -993,6 +1209,7 @@ function SessionsTab({tournaments,setTournaments,practices,setPractices,trials,s
   const[filter,setFilter]=useState("all");
   const[modal,setModal]=useState(null);
   const[detailPractice,setDetailPractice]=useState(null);
+  const[detailTournament,setDetailTournament]=useState(null);
   const[expandedMonths,setExpandedMonths]=useState(()=>{try{const v=localStorage.getItem("yuke-session-months");return v?JSON.parse(v):{};}catch{return{};}});
   const[expandedYears,setExpandedYears]=useState(()=>{try{const v=localStorage.getItem("yuke-session-years");return v?JSON.parse(v):{};}catch{return{};}});
   const[showAllMonths,setShowAllMonths]=useState(false);
@@ -1090,8 +1307,9 @@ function SessionsTab({tournaments,setTournaments,practices,setPractices,trials,s
     const sub=item.type==="tournament"?`${d.level||""} · ${(d.matches||[]).length}試合`:item.type==="practice"?`${timeStr}${timeStr&&d.duration?" ("+d.duration+"分)":d.duration?d.duration+"分":""}${d.focus?" · "+d.focus:""}`:d.judgment||"";
     const handleClick=()=>{
       if(item.type==="practice")setDetailPractice(d);
+      else if(item.type==="tournament")setDetailTournament(d);
     };
-    const clickable=item.type==="practice";
+    const clickable=item.type==="practice"||item.type==="tournament";
     return <div key={item.id} onClick={clickable?handleClick:undefined} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 0",borderBottom:`1px solid ${C.border}22`,cursor:clickable?"pointer":"default"}}>
       <span style={{fontSize:16,flexShrink:0}}>{icon}</span>
       <div style={{flex:1,minWidth:0}}>
@@ -1165,6 +1383,7 @@ function SessionsTab({tournaments,setTournaments,practices,setPractices,trials,s
 
     {modal&&<RecordModal type={modal.type} data={modal.data} isNew={modal.isNew} rackets={rackets} strings={strings} stringSetups={stringSetups} venues={venues} onAddVenue={v=>{const nv=[...(venues||[]),v];setVenues(nv);save(KEYS.venues,nv);}} onSave={form=>handleSave(modal.type,form)} onClose={()=>setModal(null)}/>}
     {detailPractice&&<PracticeDetail practice={detailPractice} rackets={rackets} strings={strings} stringSetups={stringSetups} venues={venues} onAddVenue={v=>{const nv=[...(venues||[]),v];setVenues(nv);save(KEYS.venues,nv);}} onSave={form=>{const arr=ds((practices||[]).map(p=>p.id===form.id?form:p));setPractices(arr);save(KEYS.practices,arr);setDetailPractice(null);toast.show("💾 保存しました");}} onDelete={id=>{const arr=(practices||[]).filter(p=>p.id!==id);setPractices(arr);save(KEYS.practices,arr);setDetailPractice(null);toast.show("🗑 削除しました",C.red);}} onClose={()=>setDetailPractice(null)}/>}
+    {detailTournament&&<TournamentDetail tournament={detailTournament} rackets={rackets} strings={strings} stringSetups={stringSetups} venues={venues} onAddVenue={v=>{const nv=[...(venues||[]),v];setVenues(nv);save(KEYS.venues,nv);}} opponents={opponents} onSave={form=>{const arr=ds((tournaments||[]).map(t=>t.id===form.id?form:t));setTournaments(arr);save(KEYS.tournaments,arr);setDetailTournament(null);toast.show("💾 保存しました");}} onDelete={id=>{const arr=(tournaments||[]).filter(t=>t.id!==id);setTournaments(arr);save(KEYS.tournaments,arr);setDetailTournament(null);toast.show("🗑 削除しました",C.red);}} onClose={()=>setDetailTournament(null)}/>}
   </div>;
 }
 
