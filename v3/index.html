@@ -13,7 +13,7 @@
 const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
 // ── APP ───────────────────────────────────────────
-const APP_VERSION="3.2.3"; // 2026/04/16 Sessionsバッジ視認性改善（優勝/準優勝を華やかに）
+const APP_VERSION="3.2.4"; // 2026/04/16 ミニカレンダー + ヘッダーロゴ改善 + タップ救済
 const font="-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif";
 const C={bg:"#f2f2f7",panel:"#fff",panel2:"#f5f5f7",border:"#e0e0e4",text:"#1a1a1a",textMuted:"#8e8e93",textDim:"#aaa",accent:"#00b87a",accentBg:"rgba(0,184,122,0.08)",red:"#dc2626",redBg:"#fef2f2",blue:"#2563eb",blueBg:"rgba(37,99,235,0.08)",yellow:"#f59e0b",yellowBg:"rgba(245,158,11,0.08)",purple:"#7c3aed",purpleBg:"rgba(124,58,237,0.08)",green:"#00b87a",greenBg:"rgba(0,184,122,0.08)"};
 const Badge=({children,color="gray",sm})=>{const cc={green:C.accent,blue:C.blue,yellow:C.yellow,red:C.red,gray:C.textMuted,purple:C.purple};const c=cc[color]||color;return<span style={{display:"inline-block",fontSize:sm?9:10,fontWeight:700,color:c,background:`${c}15`,border:`1px solid ${c}30`,borderRadius:4,padding:sm?"1px 4px":"2px 6px",lineHeight:1.4}}>{children}</span>;};
@@ -652,6 +652,66 @@ function QuickTrialMode({rackets,strings,trials,tournaments,practices,cards,setC
     </div>
   </div>;
 }
+// ── MINI CALENDAR ────────────────────────────────
+function MiniCalendar({tournaments,practices}){
+  const[month,setMonth]=useState(()=>{const d=new Date();return{y:d.getFullYear(),m:d.getMonth()};});
+  const[selectedDay,setSelectedDay]=useState(null);
+  const todayStr=today();
+  const daysInMonth=new Date(month.y,month.m+1,0).getDate();
+  const firstDow=new Date(month.y,month.m,1).getDay();
+  const monthLabel=`${month.y}年${month.m+1}月`;
+  const prev=()=>setMonth(p=>p.m===0?{y:p.y-1,m:11}:{y:p.y,m:p.m-1});
+  const next=()=>setMonth(p=>p.m===11?{y:p.y+1,m:0}:{y:p.y,m:p.m+1});
+
+  // Build date→events map
+  const eventMap=useMemo(()=>{
+    const map={};
+    const prefix=`${month.y}-${String(month.m+1).padStart(2,"0")}`;
+    (tournaments||[]).forEach(t=>{const nd=normDate(t.date);if(nd.startsWith(prefix)){if(!map[nd])map[nd]=[];map[nd].push({type:"tournament",data:t});}});
+    (practices||[]).forEach(p=>{const nd=normDate(p.date);if(nd.startsWith(prefix)){if(!map[nd])map[nd]=[];map[nd].push({type:"practice",data:p});}});
+    return map;
+  },[tournaments,practices,month]);
+
+  const dayEvents=selectedDay?eventMap[selectedDay]||[]:[];
+
+  return <Card>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+      <button onClick={prev} style={{background:"none",border:"none",fontSize:16,cursor:"pointer",color:C.textMuted,padding:"4px 8px"}}>◀</button>
+      <span style={{fontSize:13,fontWeight:700,color:C.text}}>{monthLabel}</span>
+      <button onClick={next} style={{background:"none",border:"none",fontSize:16,cursor:"pointer",color:C.textMuted,padding:"4px 8px"}}>▶</button>
+    </div>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2,textAlign:"center"}}>
+      {["日","月","火","水","木","金","土"].map((d,i)=><div key={d} style={{fontSize:10,fontWeight:600,color:i===0?"#dc2626":i===6?C.blue:C.textMuted,padding:"2px 0"}}>{d}</div>)}
+      {Array.from({length:firstDow}).map((_,i)=><div key={"e"+i}/>)}
+      {Array.from({length:daysInMonth}).map((_,i)=>{
+        const day=i+1;
+        const dateStr=`${month.y}-${String(month.m+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+        const events=eventMap[dateStr]||[];
+        const hasTrn=events.some(e=>e.type==="tournament");
+        const hasPrac=events.some(e=>e.type==="practice");
+        const isToday=dateStr===todayStr;
+        const isSelected=dateStr===selectedDay;
+        const dow=(firstDow+i)%7;
+        return <div key={day} onClick={()=>setSelectedDay(isSelected?null:dateStr)} style={{padding:"4px 0",cursor:events.length?"pointer":"default",borderRadius:6,background:isSelected?C.accentBg:"transparent",border:isToday?`2px solid ${C.accent}`:"2px solid transparent"}}>
+          <div style={{fontSize:12,fontWeight:isToday?700:400,color:dow===0?"#dc2626":dow===6?C.blue:C.text}}>{day}</div>
+          <div style={{display:"flex",justifyContent:"center",gap:2,minHeight:6}}>
+            {hasTrn&&<div style={{width:5,height:5,borderRadius:"50%",background:C.accent}}/>}
+            {hasPrac&&<div style={{width:5,height:5,borderRadius:"50%",background:C.blue}}/>}
+          </div>
+        </div>;
+      })}
+    </div>
+    {selectedDay&&dayEvents.length>0&&<div style={{marginTop:8,borderTop:`1px solid ${C.border}`,paddingTop:8}}>
+      <div style={{fontSize:11,color:C.textMuted,marginBottom:4}}>{parseInt(selectedDay.split("-")[1])}/{parseInt(selectedDay.split("-")[2])}</div>
+      {dayEvents.map((ev,i)=><div key={i} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 0"}}>
+        <span style={{fontSize:12}}>{ev.type==="tournament"?"🏆":"🏃"}</span>
+        <span style={{fontSize:12,color:C.text,fontWeight:500}}>{ev.type==="tournament"?ev.data.name:(ev.data.type||"練習")+(ev.data.venue?" @ "+ev.data.venue:"")}</span>
+        {ev.type==="tournament"&&ev.data.overallResult&&<Badge color={RESULT_BADGE[ev.data.overallResult]||"gray"} sm>{ev.data.overallResult}</Badge>}
+      </div>)}
+    </div>}
+  </Card>;
+}
+
 // ── HOME TAB ──────────────────────────────────────
 function HomeTab({next,setNext,tournaments,setTournaments,practices,setPractices,trials,setTrials,rackets,strings,stringSetups,venues,setVenues,quickTrialCards,setQuickTrialCards,daysSinceExport,lastExport,onExport,onGoToSessions,onGoToPlan,toast}){
   const[recordModal,setRecordModal]=useState(null);
@@ -739,6 +799,9 @@ function HomeTab({next,setNext,tournaments,setTournaments,practices,setPractices
         <div style={{fontSize:12,fontWeight:700,color:C.red}}>⚠️ バックアップしてください（{daysSinceExport>=365?"未実施":`${daysSinceExport}日前`}）</div>
         <div style={{fontSize:11,color:"#fca5a5"}}>{lastExport?`最終: ${new Date(lastExport).toLocaleDateString("ja-JP")}`:"まだバックアップしていません"}（タップで📤）</div>
       </div>}
+
+      {/* Mini Calendar */}
+      <MiniCalendar tournaments={tournaments} practices={practices}/>
 
       {/* Upcoming Events */}
       {displayUpcoming.length>0&&<Card>
@@ -1204,9 +1267,10 @@ function TennisDB(){
   return <div style={{display:"flex",flexDirection:"column",minHeight:"100dvh",background:C.bg,zoom:large?1.22:1}}>
     {/* Header */}
     <div style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:"8px 14px",display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0}}>
-      <div style={{display:"flex",alignItems:"center",gap:8}}>
-        <span style={{fontSize:16,fontWeight:600,color:C.accent}}>Tennis DB</span>
-        <span style={{fontSize:10,color:C.textMuted}}>v{APP_VERSION}{syncing?" · 同期中...":user?" · ☁️":""}</span>
+      <div onClick={()=>setTab("home")} style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",userSelect:"none"}}>
+        <span style={{fontSize:18}}>🎾</span>
+        <span style={{fontSize:20,letterSpacing:"0.03em"}}><span style={{fontWeight:400,color:C.text}}>Tennis</span><span style={{fontWeight:800,color:C.accent,marginLeft:3}}>DB</span></span>
+        <span style={{fontSize:9,color:C.textMuted,alignSelf:"flex-end",marginBottom:2}}>v{APP_VERSION}{syncing?" · 同期中...":user?" · ☁️":""}</span>
       </div>
       <div style={{display:"flex",gap:6}}>
         <button onClick={()=>setLarge(!large)} style={{background:"none",border:`1px solid ${large?C.accent:C.border}`,borderRadius:6,padding:"4px 8px",fontSize:11,color:large?C.accent:C.textMuted,cursor:"pointer",fontWeight:600}}>{large?"A↓":"A↑"}</button>
