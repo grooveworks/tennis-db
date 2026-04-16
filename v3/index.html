@@ -13,7 +13,7 @@
 const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
 // ── APP ───────────────────────────────────────────
-const APP_VERSION="3.3.12"; // 2026/04/17 Firestore同期修正+名前入力クラッシュ修正+防御強化
+const APP_VERSION="3.3.13"; // 2026/04/17 matchStats.raw/pointsをFirestore除外+保存エラーUI表示
 const font="-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif";
 const C={bg:"#f2f2f7",panel:"#fff",panel2:"#f5f5f7",border:"#e0e0e4",text:"#1a1a1a",textMuted:"#8e8e93",textDim:"#aaa",accent:"#00b87a",accentBg:"rgba(0,184,122,0.08)",red:"#dc2626",redBg:"#fef2f2",blue:"#2563eb",blueBg:"rgba(37,99,235,0.08)",yellow:"#f59e0b",yellowBg:"rgba(245,158,11,0.08)",purple:"#7c3aed",purpleBg:"rgba(124,58,237,0.08)",green:"#00b87a",greenBg:"rgba(0,184,122,0.08)"};
 const Badge=({children,color="gray",sm})=>{const cc={green:C.accent,blue:C.blue,yellow:C.yellow,red:C.red,gray:C.textMuted,purple:C.purple};const c=cc[color]||color;return<span style={{display:"inline-block",fontSize:sm?9:10,fontWeight:700,color:c,background:`${c}15`,border:`1px solid ${c}30`,borderRadius:4,padding:sm?"1px 4px":"2px 6px",lineHeight:1.4}}>{children}</span>;};
@@ -32,7 +32,8 @@ const LS_PREFIX="yuke-";
 const lsLoad=k=>{try{const v=localStorage.getItem(LS_PREFIX+k+"-v1");if(v)return JSON.parse(v);}catch(_){}return null;};
 const lsSave=(k,d)=>{try{localStorage.setItem(LS_PREFIX+k+"-v1",JSON.stringify(d));}catch(_){}};
 const _saveTimers={};
-// Firestore互換: undefined値を除去 (Firestoreはundefined値を拒否するためnullに変換/キー削除)
+// Firestore互換: undefined除去 + matchStats.raw/pointsを除外（サイズ削減）
+// raw/pointsはlocalStorageには残るが、Firestoreには送らない（stats集計結果だけで表示可能）
 const cleanForFirestore=obj=>{
   if(obj===undefined)return null;
   if(obj===null||typeof obj!=="object")return obj;
@@ -40,12 +41,19 @@ const cleanForFirestore=obj=>{
   if(Array.isArray(obj))return obj.map(cleanForFirestore);
   const r={};
   for(const k in obj){
-    if(Object.prototype.hasOwnProperty.call(obj,k)&&obj[k]!==undefined){
-      r[k]=cleanForFirestore(obj[k]);
-    }
+    if(!Object.prototype.hasOwnProperty.call(obj,k))continue;
+    if(obj[k]===undefined)continue;
+    // matchStats内のraw/pointsはFirestoreに保存しない（サイズ対策・statsだけで表示可能）
+    if((k==="raw"||k==="points")&&obj.source==="datatennis")continue;
+    r[k]=cleanForFirestore(obj[k]);
   }
   return r;
 };
+// グローバルエラー通知（save失敗時にアプリ内に表示）
+let _lastSaveError=null;
+const _saveErrorListeners=[];
+const onSaveError=fn=>{_saveErrorListeners.push(fn);return()=>{const i=_saveErrorListeners.indexOf(fn);if(i>=0)_saveErrorListeners.splice(i,1);};};
+const notifySaveError=(key,err)=>{_lastSaveError={key,message:err.message||String(err),at:new Date().toISOString()};_saveErrorListeners.forEach(fn=>fn(_lastSaveError));};
 const save=(k,d)=>{
   lsSave(k,d);
   const user=fbAuth.currentUser;
@@ -54,7 +62,7 @@ const save=(k,d)=>{
   _saveTimers[k]=setTimeout(()=>{
     const clean=cleanForFirestore(d);
     const payload={items:Array.isArray(clean)?clean:null,obj:Array.isArray(clean)?null:clean,updatedAt:firebase.firestore.FieldValue.serverTimestamp()};
-    fbDb.collection("users").doc(user.uid).collection("data").doc(k).set(payload).catch(e=>console.error("Firestore save error ["+k+"]:",e));
+    fbDb.collection("users").doc(user.uid).collection("data").doc(k).set(payload).then(()=>{console.log("Firestore saved ["+k+"]");}).catch(e=>{console.error("Firestore save error ["+k+"]:",e);notifySaveError(k,e);});
   },800);
 };
 const cloudLoadAll=async uid=>{
@@ -2102,6 +2110,8 @@ function TennisDB(){
   const importSnapshot=useRef(null);
   const[pendingRecord,setPendingRecord]=useState(null);
   const[loginError,setLoginError]=useState("");
+  const[saveError,setSaveError]=useState(null);
+  useEffect(()=>onSaveError(err=>setSaveError(err)),[]);
   const[detailOpen,setDetailOpen]=useState(false);
 
   const[tournaments,setTournaments]=useState([]);
@@ -2288,6 +2298,12 @@ function TennisDB(){
     {loginError&&<div style={{background:C.redBg,border:`1px solid ${C.red}`,padding:"8px 14px",display:"flex",alignItems:"center",gap:8}}>
       <span style={{fontSize:12,color:C.red,flex:1}}>{loginError}</span>
       <button onClick={()=>setLoginError("")} style={{background:"none",border:"none",color:C.red,cursor:"pointer",fontSize:14}}>✕</button>
+    </div>}
+
+    {/* Save Error Banner */}
+    {saveError&&<div style={{background:"#fef2f2",border:`1px solid ${C.red}`,padding:"8px 14px",display:"flex",alignItems:"center",gap:8}}>
+      <span style={{fontSize:11,color:C.red,flex:1}}>☁️ クラウド保存エラー [{saveError.key}]: {saveError.message}</span>
+      <button onClick={()=>setSaveError(null)} style={{background:"none",border:"none",color:C.red,cursor:"pointer",fontSize:14}}>✕</button>
     </div>}
 
     {/* Data Menu */}
