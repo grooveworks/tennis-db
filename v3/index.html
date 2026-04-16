@@ -13,7 +13,7 @@
 const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
 // ── APP ───────────────────────────────────────────
-const APP_VERSION="3.3.4"; // 2026/04/16 詳細画面でTabBarを非表示にして保存ボタン表示
+const APP_VERSION="3.3.5"; // 2026/04/16 CSV取込試合スタッツ（サイド別・ショット別・独自分析）
 const font="-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif";
 const C={bg:"#f2f2f7",panel:"#fff",panel2:"#f5f5f7",border:"#e0e0e4",text:"#1a1a1a",textMuted:"#8e8e93",textDim:"#aaa",accent:"#00b87a",accentBg:"rgba(0,184,122,0.08)",red:"#dc2626",redBg:"#fef2f2",blue:"#2563eb",blueBg:"rgba(37,99,235,0.08)",yellow:"#f59e0b",yellowBg:"rgba(245,158,11,0.08)",purple:"#7c3aed",purpleBg:"rgba(124,58,237,0.08)",green:"#00b87a",greenBg:"rgba(0,184,122,0.08)"};
 const Badge=({children,color="gray",sm})=>{const cc={green:C.accent,blue:C.blue,yellow:C.yellow,red:C.red,gray:C.textMuted,purple:C.purple};const c=cc[color]||color;return<span style={{display:"inline-block",fontSize:sm?9:10,fontWeight:700,color:c,background:`${c}15`,border:`1px solid ${c}30`,borderRadius:4,padding:sm?"1px 4px":"2px 6px",lineHeight:1.4}}>{children}</span>;};
@@ -873,6 +873,473 @@ function HomeTab({next,setNext,tournaments,setTournaments,practices,setPractices
 }
 
 // ── TOURNAMENT DETAIL (full-screen, matches + GameTracker) ──
+// ── CSV STATS PARSER & CALCULATOR (ATP-style stats from datatennis CSV) ──
+const parsePattern=code=>{
+  if(!code)return null;
+  if(code==="Ace")return{shotType:"Ace",result:"W",hand:null,forced:null};
+  if(code==="DbF")return{shotType:"DbF",result:"L",hand:null,forced:null};
+  const shotType=code.slice(0,2);
+  const result=code[2]||null;
+  const hand=code[3]||null;
+  const forced=code[4]||null;
+  return{shotType,result,hand,forced};
+};
+const parseScoreVal=s=>{
+  if(s==="Bk"||s==="Kp")return"game";
+  if(s==="0")return 0;if(s==="15")return 1;if(s==="30")return 2;if(s==="40")return 3;
+  const n=parseInt(s);return isNaN(n)?0:n;
+};
+const parseStatsCSV=(text,myPlayerName)=>{
+  const lines=text.replace(/\r/g,"").split("\n").filter(l=>l.trim());
+  if(lines.length<2)throw new Error("CSVが空です");
+  const header=lines[0].split(",").map(s=>s.trim());
+  const rows=lines.slice(1).map(l=>{
+    const cols=l.split(",");
+    const obj={};header.forEach((h,i)=>{obj[h]=(cols[i]||"").trim();});
+    return obj;
+  });
+  if(!rows[0].PlayerA||!rows[0].PlayerB)throw new Error("PlayerA/PlayerBカラムが見つかりません");
+  const playerA=rows[0].PlayerA,playerB=rows[0].PlayerB;
+  const myIsA=myPlayerName?(myPlayerName===playerA):(playerA==="古川"||playerA==="ゆっけ");
+  const points=[];
+  let gPtsA=0,gPtsB=0,curGame=0;
+  rows.forEach(row=>{
+    const g=parseInt(row.Game);
+    if(g!==curGame){curGame=g;gPtsA=0;gPtsB=0;}
+    const serverIsA=row.Server===playerA;
+    const serverPts=serverIsA?gPtsA:gPtsB,returnerPts=serverIsA?gPtsB:gPtsA;
+    const isBP=returnerPts>=3&&returnerPts>=serverPts;
+    const totalPts=gPtsA+gPtsB;
+    const side=totalPts%2===0?"deuce":"ad";
+    const fault=row.Fault||"";
+    const serveNum=(fault==="F"||fault==="DF")?2:1;
+    const nextA=parseScoreVal(row.ScoreA),nextB=parseScoreVal(row.ScoreB);
+    const aWon=(nextA==="game"&&(row.ScoreA==="Bk"||row.ScoreA==="Kp"))||(typeof nextA==="number"&&nextA===gPtsA+1);
+    const winner=aWon?"A":"B";
+    const pattern=parsePattern(row.PatternA||row.PatternB||"");
+    const patternOwner=row.PatternA?"A":(row.PatternB?"B":null);
+    points.push({
+      num:parseInt(row.Num),game:g,
+      server:serverIsA?"A":"B",
+      serverIsMe:myIsA?serverIsA:!serverIsA,
+      serveNum,isDoubleFault:fault==="DF",fault,
+      side,isBreakPoint:isBP,
+      winner,winnerIsMe:myIsA?(winner==="A"):(winner==="B"),
+      pattern,patternOwner,
+      gameEnd:nextA==="game"||nextB==="game",
+      gameWonBy:nextA==="game"?"A":(nextB==="game"?"B":null),
+    });
+    if(aWon)gPtsA++;else gPtsB++;
+  });
+  return{points,playerA,playerB,myIsA,rows};
+};
+
+// Compute match stats (データテニス値に一致 + ATP準拠2項目 + Tennis DB独自分析)
+const computeMatchStats=(parsed)=>{
+  const{points,myIsA}=parsed;
+  const meTag=myIsA?"A":"B",oppTag=myIsA?"B":"A";
+  const fraq=(w,t)=>({won:w,total:t,pct:t>0?Math.round(100*w/t):0});
+
+  // Service/Return splits
+  const mySPts=points.filter(p=>p.server===meTag);
+  const oppSPts=points.filter(p=>p.server===oppTag);
+  const myRPts=points.filter(p=>p.server===oppTag);
+  const oppRPts=points.filter(p=>p.server===meTag);
+  // Side splits (server-side)
+  const splitSide=(arr,s)=>arr.filter(p=>p.side===s);
+
+  // Aces: 自分のサーブで、pattern.Ace & winner=me
+  const countAces=(sp,tag)=>sp.filter(p=>p.pattern?.shotType==="Ace"&&p.patternOwner===tag&&p.winner===tag).length;
+  const myAces=countAces(mySPts,meTag);
+  const oppAces=countAces(oppSPts,oppTag);
+
+  // Double faults
+  const myDF=mySPts.filter(p=>p.isDoubleFault).length;
+  const oppDF=oppSPts.filter(p=>p.isDoubleFault).length;
+
+  // Helper: compute serve stats with side split (1st In / 1st Pts Won / 2nd Pts Won)
+  const serveStats=(sp,tag)=>{
+    const stat=(arr)=>{
+      const first=arr.filter(p=>p.fault==="");
+      const firstWon=first.filter(p=>p.winner===tag);
+      const second=arr.filter(p=>p.fault==="F"||p.fault==="DF");
+      const secondIn=second.filter(p=>!p.isDoubleFault);
+      const secondWon=secondIn.filter(p=>p.winner===tag);
+      return{
+        firstIn:fraq(first.length,arr.length),
+        firstWon:fraq(firstWon.length,first.length),
+        secondWon:fraq(secondWon.length,second.length),
+      };
+    };
+    return{
+      total:stat(sp),
+      deuce:stat(splitSide(sp,"deuce")),
+      ad:stat(splitSide(sp,"ad")),
+    };
+  };
+
+  // Helper: return-in rate (データテニス定義:相手のサーブがInでこちらがリターンをInできた率)
+  // リターンInできない要因: 自分のリターンエラー + サーバーのAce（返球不能）
+  const retInStats=(rp,meTag2)=>{
+    const serverTag=meTag2==="A"?"B":"A";
+    const notInFilter=p=>{
+      const isAce=p.pattern?.shotType==="Ace"&&p.patternOwner===serverTag&&p.winner===serverTag;
+      const isRetErr=p.pattern?.shotType==="Rt"&&p.pattern.result==="E"&&p.patternOwner===serverTag&&p.winner===serverTag;
+      return isAce||isRetErr;
+    };
+    const stat=(arr)=>{
+      const first=arr.filter(p=>p.fault==="");
+      const firstNotIn=first.filter(notInFilter);
+      const second=arr.filter(p=>p.fault==="F"||p.fault==="DF");
+      const secondIn=second.filter(p=>!p.isDoubleFault);
+      const secondNotIn=secondIn.filter(notInFilter);
+      return{
+        firstReturnIn:fraq(first.length-firstNotIn.length,first.length),
+        secondReturnIn:fraq(secondIn.length-secondNotIn.length,secondIn.length),
+      };
+    };
+    return{
+      total:stat(rp),
+      deuce:stat(splitSide(rp,"deuce")),
+      ad:stat(splitSide(rp,"ad")),
+    };
+  };
+
+  // Helper: return points won (ATP定義: DF除く)
+  const retWonStats=(rp,tag)=>{
+    const first=rp.filter(p=>p.fault==="");
+    const firstWon=first.filter(p=>p.winner===tag);
+    const second=rp.filter(p=>(p.fault==="F"||p.fault==="DF")&&!p.isDoubleFault);
+    const secondWon=second.filter(p=>p.winner===tag);
+    return{
+      firstReturnWon:fraq(firstWon.length,first.length),
+      secondReturnWon:fraq(secondWon.length,second.length),
+    };
+  };
+
+  // Side split for アイド/デュース サーブイン率 (データテニス値: サイド別 1stサーブIN率)
+  const my1stSide={deuce:fraq(splitSide(mySPts,"deuce").filter(p=>p.fault==="").length,splitSide(mySPts,"deuce").length),ad:fraq(splitSide(mySPts,"ad").filter(p=>p.fault==="").length,splitSide(mySPts,"ad").length)};
+  const opp1stSide={deuce:fraq(splitSide(oppSPts,"deuce").filter(p=>p.fault==="").length,splitSide(oppSPts,"deuce").length),ad:fraq(splitSide(oppSPts,"ad").filter(p=>p.fault==="").length,splitSide(oppSPts,"ad").length)};
+
+  const myServe=serveStats(mySPts,meTag);
+  const oppServe=serveStats(oppSPts,oppTag);
+  const myRetIn=retInStats(myRPts,meTag);
+  const oppRetIn=retInStats(oppRPts,oppTag);
+  const myRetWon=retWonStats(myRPts,meTag);
+  const oppRetWon=retWonStats(oppRPts,oppTag);
+
+  // Break Points
+  const myBPFaced=mySPts.filter(p=>p.isBreakPoint);
+  const oppBPFaced=oppSPts.filter(p=>p.isBreakPoint);
+  const myBPSaved=myBPFaced.filter(p=>p.winner===meTag);
+  const oppBPSaved=oppBPFaced.filter(p=>p.winner===oppTag);
+  const myBPChances=myRPts.filter(p=>p.isBreakPoint);
+  const oppBPChances=oppRPts.filter(p=>p.isBreakPoint);
+  const myBPConv=myBPChances.filter(p=>p.winner===meTag);
+  const oppBPConv=oppBPChances.filter(p=>p.winner===oppTag);
+
+  // Games Won
+  const gameEnds=points.filter(p=>p.gameEnd);
+  const myServiceGames=gameEnds.filter(p=>p.server===meTag);
+  const myServiceGamesWon=myServiceGames.filter(p=>p.gameWonBy===meTag);
+  const oppServiceGames=gameEnds.filter(p=>p.server===oppTag);
+  const oppServiceGamesWon=oppServiceGames.filter(p=>p.gameWonBy===oppTag);
+  const myReturnGamesWon=oppServiceGames.filter(p=>p.gameWonBy===meTag);
+  const oppReturnGamesWon=myServiceGames.filter(p=>p.gameWonBy===oppTag);
+
+  // Winners (by shot type + forehand/backhand)
+  const countWinners=tag=>{
+    const shots=["Rt","St","Vl","Sm","Dr"];
+    const r={total:0,fTotal:0,bTotal:0};
+    shots.forEach(s=>{
+      const arr=points.filter(p=>p.pattern?.shotType===s&&p.pattern.result==="W"&&p.patternOwner===tag&&p.winner===tag);
+      const f=arr.filter(p=>p.pattern.hand==="f").length;
+      const b=arr.filter(p=>p.pattern.hand==="b").length;
+      r[s]={count:arr.length,f,b,fPct:arr.length>0?Math.round(100*f/arr.length):0,bPct:arr.length>0?Math.round(100*b/arr.length):0};
+      r.total+=arr.length;r.fTotal+=f;r.bTotal+=b;
+    });
+    r.fPct=r.total>0?Math.round(100*r.fTotal/r.total):0;
+    r.bPct=r.total>0?Math.round(100*r.bTotal/r.total):0;
+    return r;
+  };
+  const countErrors=(tag,forced)=>{
+    const shots=["Rt","St","Vl","Sm","Dr"];
+    const r={total:0,fTotal:0,bTotal:0};
+    const ownerOfError=tag===meTag?oppTag:meTag;
+    shots.forEach(s=>{
+      const arr=points.filter(p=>p.pattern?.shotType===s&&p.pattern.result==="E"&&p.pattern.forced===forced&&p.patternOwner===ownerOfError&&p.winner===ownerOfError);
+      const f=arr.filter(p=>p.pattern.hand==="f").length;
+      const b=arr.filter(p=>p.pattern.hand==="b").length;
+      r[s]={count:arr.length,f,b,fPct:arr.length>0?Math.round(100*f/arr.length):0,bPct:arr.length>0?Math.round(100*b/arr.length):0};
+      r.total+=arr.length;r.fTotal+=f;r.bTotal+=b;
+    });
+    r.fPct=r.total>0?Math.round(100*r.fTotal/r.total):0;
+    r.bPct=r.total>0?Math.round(100*r.bTotal/r.total):0;
+    return r;
+  };
+  const myWinners=countWinners(meTag),oppWinners=countWinners(oppTag);
+  const myUE=countErrors(meTag,"U"),oppUE=countErrors(oppTag,"U");
+  const myFE=countErrors(meTag,"F"),oppFE=countErrors(oppTag,"F");
+
+  // Total points won
+  const myTotalWon=points.filter(p=>p.winner===meTag).length;
+  const oppTotalWon=points.filter(p=>p.winner===oppTag).length;
+
+  // Net points (Vl/Sm/Dr = ネット系)
+  const netShots=["Vl","Sm","Dr"];
+  const myNetPts=points.filter(p=>p.pattern&&netShots.includes(p.pattern.shotType)&&p.patternOwner===meTag&&p.winner===meTag);
+  const oppNetPts=points.filter(p=>p.pattern&&netShots.includes(p.pattern.shotType)&&p.patternOwner===oppTag&&p.winner===oppTag);
+
+  // Tennis DB独自: W/UE, UE Rate, Winner Rate, Keep/Break Rate, Serve/Return Rating
+  const div=(a,b)=>b>0?+(a/b).toFixed(2):null;
+  const pct=(a,b)=>b>0?Math.round(100*a/b):0;
+  const myWUE=div(myWinners.total,myUE.total);
+  const oppWUE=div(oppWinners.total,oppUE.total);
+  const myUERate=pct(myUE.total,points.length);
+  const oppUERate=pct(oppUE.total,points.length);
+  const myWinnerRate=pct(myWinners.total,points.length);
+  const oppWinnerRate=pct(oppWinners.total,points.length);
+  const myKeep=pct(myServiceGamesWon.length,myServiceGames.length);
+  const oppKeep=pct(oppServiceGamesWon.length,oppServiceGames.length);
+  const myBreak=pct(myReturnGamesWon.length,oppServiceGames.length);
+  const oppBreak=pct(oppReturnGamesWon.length,myServiceGames.length);
+
+  // Serve Rating = 1st% + 1stWon% + 2ndWon% + BPSaved% + SvcPtsWon%
+  const myServePtsWon=fraq(mySPts.filter(p=>p.winner===meTag).length,mySPts.length);
+  const oppServePtsWon=fraq(oppSPts.filter(p=>p.winner===oppTag).length,oppSPts.length);
+  const myReturnPtsWon=fraq(myRPts.filter(p=>p.winner===meTag).length,myRPts.length);
+  const oppReturnPtsWon=fraq(oppRPts.filter(p=>p.winner===oppTag).length,oppRPts.length);
+  const myServeRating=myServe.total.firstIn.pct+myServe.total.firstWon.pct+myServe.total.secondWon.pct+(myBPFaced.length>0?pct(myBPSaved.length,myBPFaced.length):100)+myServePtsWon.pct;
+  const oppServeRating=oppServe.total.firstIn.pct+oppServe.total.firstWon.pct+oppServe.total.secondWon.pct+(oppBPFaced.length>0?pct(oppBPSaved.length,oppBPFaced.length):100)+oppServePtsWon.pct;
+  // Return Rating = 1stRetWon% + 2ndRetWon% + BPConv% + RetPtsWon%
+  const myReturnRating=myRetWon.firstReturnWon.pct+myRetWon.secondReturnWon.pct+(myBPChances.length>0?pct(myBPConv.length,myBPChances.length):0)+myReturnPtsWon.pct;
+  const oppReturnRating=oppRetWon.firstReturnWon.pct+oppRetWon.secondReturnWon.pct+(oppBPChances.length>0?pct(oppBPConv.length,oppBPChances.length):0)+oppReturnPtsWon.pct;
+
+  return{
+    service:{
+      aces:{me:myAces,opp:oppAces},
+      doubleFaults:{me:myDF,opp:oppDF},
+      firstServeIn:{me:myServe.total.firstIn,opp:oppServe.total.firstIn,meDeuce:my1stSide.deuce,meAd:my1stSide.ad,oppDeuce:opp1stSide.deuce,oppAd:opp1stSide.ad},
+      firstServeWon:{me:myServe.total.firstWon,opp:oppServe.total.firstWon,meDeuce:myServe.deuce.firstWon,meAd:myServe.ad.firstWon,oppDeuce:oppServe.deuce.firstWon,oppAd:oppServe.ad.firstWon},
+      secondServeWon:{me:myServe.total.secondWon,opp:oppServe.total.secondWon,meDeuce:myServe.deuce.secondWon,meAd:myServe.ad.secondWon,oppDeuce:oppServe.deuce.secondWon,oppAd:oppServe.ad.secondWon},
+      breakPointsSaved:{me:fraq(myBPSaved.length,myBPFaced.length),opp:fraq(oppBPSaved.length,oppBPFaced.length)},
+      servicePointsWon:{me:myServePtsWon,opp:oppServePtsWon},
+      serviceGamesWon:{me:fraq(myServiceGamesWon.length,myServiceGames.length),opp:fraq(oppServiceGamesWon.length,oppServiceGames.length)},
+    },
+    returnStats:{
+      firstReturnIn:{me:myRetIn.total.firstReturnIn,opp:oppRetIn.total.firstReturnIn,meDeuce:myRetIn.deuce.firstReturnIn,meAd:myRetIn.ad.firstReturnIn,oppDeuce:oppRetIn.deuce.firstReturnIn,oppAd:oppRetIn.ad.firstReturnIn},
+      secondReturnIn:{me:myRetIn.total.secondReturnIn,opp:oppRetIn.total.secondReturnIn,meDeuce:myRetIn.deuce.secondReturnIn,meAd:myRetIn.ad.secondReturnIn,oppDeuce:oppRetIn.deuce.secondReturnIn,oppAd:oppRetIn.ad.secondReturnIn},
+      firstReturnWon:{me:myRetWon.firstReturnWon,opp:oppRetWon.firstReturnWon},
+      secondReturnWon:{me:myRetWon.secondReturnWon,opp:oppRetWon.secondReturnWon},
+      breakPointsConverted:{me:fraq(myBPConv.length,myBPChances.length),opp:fraq(oppBPConv.length,oppBPChances.length)},
+      returnPointsWon:{me:myReturnPtsWon,opp:oppReturnPtsWon},
+      returnGamesWon:{me:fraq(myReturnGamesWon.length,oppServiceGames.length),opp:fraq(oppReturnGamesWon.length,myServiceGames.length)},
+    },
+    pointsStats:{
+      totalPointsWon:{me:fraq(myTotalWon,points.length),opp:fraq(oppTotalWon,points.length)},
+      winners:{me:myWinners,opp:oppWinners},
+      unforcedErrors:{me:myUE,opp:oppUE},
+      forcedErrors:{me:myFE,opp:oppFE},
+      netPointsWon:{me:fraq(myNetPts.length,points.filter(p=>p.pattern&&netShots.includes(p.pattern.shotType)&&p.patternOwner===meTag).length),opp:fraq(oppNetPts.length,points.filter(p=>p.pattern&&netShots.includes(p.pattern.shotType)&&p.patternOwner===oppTag).length)},
+    },
+    derived:{
+      wueRatio:{me:myWUE,opp:oppWUE},
+      ueRate:{me:myUERate,opp:oppUERate},
+      winnerRate:{me:myWinnerRate,opp:oppWinnerRate},
+      keepRate:{me:myKeep,opp:oppKeep},
+      breakRate:{me:myBreak,opp:oppBreak},
+      serveRating:{me:myServeRating,opp:oppServeRating},
+      returnRating:{me:myReturnRating,opp:oppReturnRating},
+    },
+  };
+};
+
+// ── MATCH STATS DISPLAY (ATP-style 2-column comparison) ──
+const fmtPct=v=>v==null?"—":v+"%";
+const fmtFraq=f=>!f||f.total===0?"—":`${f.pct}%(${f.won}/${f.total})`;
+const StatRow=({label,me,opp,higher="me",sub,fmt="fraq",small=false})=>{
+  const pad=sub?"6px 10px":"10px 12px";
+  const left=fmt==="fraq"?fmtFraq(me):fmt==="pct"?fmtPct(me):fmt==="num"?(me==null?"—":me):fmt==="ratio"?(me==null?"—":me.toFixed(2)):me;
+  const right=fmt==="fraq"?fmtFraq(opp):fmt==="pct"?fmtPct(opp):fmt==="num"?(opp==null?"—":opp):fmt==="ratio"?(opp==null?"—":opp.toFixed(2)):opp;
+  const mePct=fmt==="fraq"?(me?.pct||0):fmt==="pct"?(me||0):0;
+  const oppPct=fmt==="fraq"?(opp?.pct||0):fmt==="pct"?(opp||0):0;
+  const meWin=fmt==="num"?(me>opp):fmt==="ratio"?(me>opp):(mePct>oppPct);
+  const oppWin=fmt==="num"?(opp>me):fmt==="ratio"?(opp>me):(oppPct>mePct);
+  const cME=meWin?C.accent:C.text,cOPP=oppWin?C.accent:C.text;
+  const barW=v=>Math.max(2,Math.min(100,v));
+  return <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:8,padding:pad,borderBottom:`1px solid ${C.border}22`,alignItems:"center"}}>
+    <div style={{textAlign:"right"}}>
+      <div style={{fontSize:small?11:13,fontWeight:meWin?700:600,color:cME,fontFamily:"monospace"}}>{left}</div>
+      {fmt==="fraq"&&me?.total>0&&<div style={{height:3,background:C.border,borderRadius:2,marginTop:3,overflow:"hidden"}}>
+        <div style={{width:`${barW(me.pct)}%`,height:"100%",background:meWin?C.accent:C.textMuted,marginLeft:"auto",float:"right"}}/>
+      </div>}
+    </div>
+    <div style={{fontSize:small?10:11,color:C.textMuted,fontWeight:sub?400:600,minWidth:90,textAlign:"center",padding:"0 4px"}}>{label}</div>
+    <div style={{textAlign:"left"}}>
+      <div style={{fontSize:small?11:13,fontWeight:oppWin?700:600,color:cOPP,fontFamily:"monospace"}}>{right}</div>
+      {fmt==="fraq"&&opp?.total>0&&<div style={{height:3,background:C.border,borderRadius:2,marginTop:3,overflow:"hidden"}}>
+        <div style={{width:`${barW(opp.pct)}%`,height:"100%",background:oppWin?C.accent:C.textMuted}}/>
+      </div>}
+    </div>
+  </div>;
+};
+const ShotRow=({label,me,opp})=>{
+  const fmt=v=>v.count===0?"0":`${v.count}(${v.fPct}%/${v.bPct}%)`;
+  return <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:8,padding:"5px 10px",alignItems:"center"}}>
+    <div style={{fontSize:12,color:C.text,fontFamily:"monospace",textAlign:"right"}}>{fmt(me)}</div>
+    <div style={{fontSize:10,color:C.textMuted,minWidth:90,textAlign:"center"}}>{label}</div>
+    <div style={{fontSize:12,color:C.text,fontFamily:"monospace",textAlign:"left"}}>{fmt(opp)}</div>
+  </div>;
+};
+const StatSection=({title,children})=><div style={{marginBottom:14}}>
+  <div style={{fontSize:12,fontWeight:700,color:"#fff",background:C.blue,padding:"6px 12px",borderRadius:"6px 6px 0 0"}}>{title}</div>
+  <div style={{background:C.panel,border:`1px solid ${C.border}`,borderTop:"none",borderRadius:"0 0 6px 6px"}}>{children}</div>
+</div>;
+
+function MatchStatsView({stats,playerA,playerB,myIsA}){
+  if(!stats)return null;
+  const meName=myIsA?playerA:playerB,oppName=myIsA?playerB:playerA;
+  const s=stats.service,r=stats.returnStats,p=stats.pointsStats,d=stats.derived;
+  return <div style={{padding:"4px 0"}}>
+    {/* プレイヤーヘッダー */}
+    <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:8,padding:"8px 12px",background:C.panel2,borderRadius:6,marginBottom:10,alignItems:"center"}}>
+      <div style={{fontSize:13,fontWeight:700,color:C.accent,textAlign:"right"}}>{meName}</div>
+      <div style={{fontSize:11,color:C.textMuted}}>vs</div>
+      <div style={{fontSize:13,fontWeight:700,color:C.red,textAlign:"left"}}>{oppName}</div>
+    </div>
+
+    {/* Service */}
+    <StatSection title="🎾 Service">
+      <StatRow label="サービスエース" me={s.aces.me} opp={s.aces.opp} fmt="num"/>
+      <StatRow label="ダブルフォルト" me={s.doubleFaults.me} opp={s.doubleFaults.opp} fmt="num"/>
+      <StatRow label="1stサーブイン率" me={s.firstServeIn.me} opp={s.firstServeIn.opp}/>
+      <StatRow label="　デュース" me={s.firstServeIn.meDeuce} opp={s.firstServeIn.oppDeuce} sub small/>
+      <StatRow label="　アド" me={s.firstServeIn.meAd} opp={s.firstServeIn.oppAd} sub small/>
+      <StatRow label="1stサーブPts Won" me={s.firstServeWon.me} opp={s.firstServeWon.opp}/>
+      <StatRow label="　デュース" me={s.firstServeWon.meDeuce} opp={s.firstServeWon.oppDeuce} sub small/>
+      <StatRow label="　アド" me={s.firstServeWon.meAd} opp={s.firstServeWon.oppAd} sub small/>
+      <StatRow label="2ndサーブPts Won" me={s.secondServeWon.me} opp={s.secondServeWon.opp}/>
+      <StatRow label="　デュース" me={s.secondServeWon.meDeuce} opp={s.secondServeWon.oppDeuce} sub small/>
+      <StatRow label="　アド" me={s.secondServeWon.meAd} opp={s.secondServeWon.oppAd} sub small/>
+      <StatRow label="BP Saved" me={s.breakPointsSaved.me} opp={s.breakPointsSaved.opp}/>
+      <StatRow label="Service Pts Won" me={s.servicePointsWon.me} opp={s.servicePointsWon.opp}/>
+      <StatRow label="Service Games Won" me={s.serviceGamesWon.me} opp={s.serviceGamesWon.opp}/>
+    </StatSection>
+
+    {/* Return */}
+    <StatSection title="🔄 Return">
+      <StatRow label="1stリターンイン率" me={r.firstReturnIn.me} opp={r.firstReturnIn.opp}/>
+      <StatRow label="　デュース" me={r.firstReturnIn.meDeuce} opp={r.firstReturnIn.oppDeuce} sub small/>
+      <StatRow label="　アド" me={r.firstReturnIn.meAd} opp={r.firstReturnIn.oppAd} sub small/>
+      <StatRow label="2ndリターンイン率" me={r.secondReturnIn.me} opp={r.secondReturnIn.opp}/>
+      <StatRow label="　デュース" me={r.secondReturnIn.meDeuce} opp={r.secondReturnIn.oppDeuce} sub small/>
+      <StatRow label="　アド" me={r.secondReturnIn.meAd} opp={r.secondReturnIn.oppAd} sub small/>
+      <StatRow label="1stリターンPts Won" me={r.firstReturnWon.me} opp={r.firstReturnWon.opp}/>
+      <StatRow label="2ndリターンPts Won" me={r.secondReturnWon.me} opp={r.secondReturnWon.opp}/>
+      <StatRow label="BP Converted" me={r.breakPointsConverted.me} opp={r.breakPointsConverted.opp}/>
+      <StatRow label="Return Pts Won" me={r.returnPointsWon.me} opp={r.returnPointsWon.opp}/>
+      <StatRow label="Return Games Won" me={r.returnGamesWon.me} opp={r.returnGamesWon.opp}/>
+    </StatSection>
+
+    {/* Shot Quality */}
+    <StatSection title="💥 Shot Quality">
+      <StatRow label="トータルPts Won" me={p.totalPointsWon.me} opp={p.totalPointsWon.opp}/>
+      <div style={{padding:"6px 10px 2px",fontSize:11,fontWeight:700,color:C.accent,borderTop:`1px solid ${C.border}22`}}>🏆 ウィナー</div>
+      <ShotRow label="リターン" me={p.winners.me.Rt} opp={p.winners.opp.Rt}/>
+      <ShotRow label="ストローク" me={p.winners.me.St} opp={p.winners.opp.St}/>
+      <ShotRow label="ボレー" me={p.winners.me.Vl} opp={p.winners.opp.Vl}/>
+      <ShotRow label="スマッシュ" me={p.winners.me.Sm} opp={p.winners.opp.Sm}/>
+      <ShotRow label="ドロップ" me={p.winners.me.Dr} opp={p.winners.opp.Dr}/>
+      <div style={{padding:"4px 10px",display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:8,alignItems:"center",borderTop:`1px solid ${C.border}22`}}>
+        <div style={{fontSize:13,fontWeight:800,color:C.accent,fontFamily:"monospace",textAlign:"right"}}>{p.winners.me.total}({p.winners.me.fPct}%/{p.winners.me.bPct}%)</div>
+        <div style={{fontSize:10,color:C.textMuted,minWidth:90,textAlign:"center",fontWeight:700}}>合計</div>
+        <div style={{fontSize:13,fontWeight:800,color:C.accent,fontFamily:"monospace",textAlign:"left"}}>{p.winners.opp.total}({p.winners.opp.fPct}%/{p.winners.opp.bPct}%)</div>
+      </div>
+
+      <div style={{padding:"8px 10px 2px",fontSize:11,fontWeight:700,color:C.yellow,borderTop:`1px solid ${C.border}22`}}>⚡ フォースドエラー</div>
+      <ShotRow label="リターン" me={p.forcedErrors.me.Rt} opp={p.forcedErrors.opp.Rt}/>
+      <ShotRow label="ストローク" me={p.forcedErrors.me.St} opp={p.forcedErrors.opp.St}/>
+      <ShotRow label="ボレー" me={p.forcedErrors.me.Vl} opp={p.forcedErrors.opp.Vl}/>
+      <ShotRow label="スマッシュ" me={p.forcedErrors.me.Sm} opp={p.forcedErrors.opp.Sm}/>
+      <ShotRow label="ドロップ" me={p.forcedErrors.me.Dr} opp={p.forcedErrors.opp.Dr}/>
+      <div style={{padding:"4px 10px",display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:8,alignItems:"center",borderTop:`1px solid ${C.border}22`}}>
+        <div style={{fontSize:13,fontWeight:800,color:C.yellow,fontFamily:"monospace",textAlign:"right"}}>{p.forcedErrors.me.total}({p.forcedErrors.me.fPct}%/{p.forcedErrors.me.bPct}%)</div>
+        <div style={{fontSize:10,color:C.textMuted,minWidth:90,textAlign:"center",fontWeight:700}}>合計</div>
+        <div style={{fontSize:13,fontWeight:800,color:C.yellow,fontFamily:"monospace",textAlign:"left"}}>{p.forcedErrors.opp.total}({p.forcedErrors.opp.fPct}%/{p.forcedErrors.opp.bPct}%)</div>
+      </div>
+
+      <div style={{padding:"8px 10px 2px",fontSize:11,fontWeight:700,color:C.red,borderTop:`1px solid ${C.border}22`}}>❌ アンフォースドエラー</div>
+      <ShotRow label="リターン" me={p.unforcedErrors.me.Rt} opp={p.unforcedErrors.opp.Rt}/>
+      <ShotRow label="ストローク" me={p.unforcedErrors.me.St} opp={p.unforcedErrors.opp.St}/>
+      <ShotRow label="ボレー" me={p.unforcedErrors.me.Vl} opp={p.unforcedErrors.opp.Vl}/>
+      <ShotRow label="スマッシュ" me={p.unforcedErrors.me.Sm} opp={p.unforcedErrors.opp.Sm}/>
+      <ShotRow label="ドロップ" me={p.unforcedErrors.me.Dr} opp={p.unforcedErrors.opp.Dr}/>
+      <div style={{padding:"4px 10px",display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:8,alignItems:"center",borderTop:`1px solid ${C.border}22`}}>
+        <div style={{fontSize:13,fontWeight:800,color:C.red,fontFamily:"monospace",textAlign:"right"}}>{p.unforcedErrors.me.total}({p.unforcedErrors.me.fPct}%/{p.unforcedErrors.me.bPct}%)</div>
+        <div style={{fontSize:10,color:C.textMuted,minWidth:90,textAlign:"center",fontWeight:700}}>合計</div>
+        <div style={{fontSize:13,fontWeight:800,color:C.red,fontFamily:"monospace",textAlign:"left"}}>{p.unforcedErrors.opp.total}({p.unforcedErrors.opp.fPct}%/{p.unforcedErrors.opp.bPct}%)</div>
+      </div>
+    </StatSection>
+
+    {/* Tennis DB独自分析 */}
+    <StatSection title="📊 Tennis DB 独自分析">
+      <StatRow label="W/UE Ratio" me={d.wueRatio.me} opp={d.wueRatio.opp} fmt="ratio"/>
+      <StatRow label="UE Rate" me={d.ueRate.me} opp={d.ueRate.opp} fmt="pct"/>
+      <StatRow label="Winner Rate" me={d.winnerRate.me} opp={d.winnerRate.opp} fmt="pct"/>
+      <StatRow label="キープ率" me={d.keepRate.me} opp={d.keepRate.opp} fmt="pct"/>
+      <StatRow label="ブレーク率" me={d.breakRate.me} opp={d.breakRate.opp} fmt="pct"/>
+      <StatRow label="Serve Rating" me={d.serveRating.me} opp={d.serveRating.opp} fmt="num"/>
+      <StatRow label="Return Rating" me={d.returnRating.me} opp={d.returnRating.opp} fmt="num"/>
+    </StatSection>
+  </div>;
+}
+
+// ── CSV IMPORT MODAL ──
+function CsvImportModal({onImport,onClose,myPlayerName}){
+  const[csvText,setCsvText]=useState("");
+  const[preview,setPreview]=useState(null);
+  const[error,setError]=useState("");
+  const handleFile=e=>{
+    const f=e.target.files[0];if(!f)return;
+    const reader=new FileReader();
+    reader.onload=ev=>{
+      setCsvText(ev.target.result);
+      try{
+        const parsed=parseStatsCSV(ev.target.result,myPlayerName);
+        const stats=computeMatchStats(parsed);
+        setPreview({parsed,stats});setError("");
+      }catch(err){setError(err.message);setPreview(null);}
+    };
+    reader.readAsText(f);
+  };
+  const handleImport=()=>{
+    if(!preview)return;
+    onImport({source:"datatennis",importedAt:new Date().toISOString(),raw:preview.parsed.rows,points:preview.parsed.points,stats:preview.stats,playerA:preview.parsed.playerA,playerB:preview.parsed.playerB,myIsA:preview.parsed.myIsA});
+  };
+  return <div style={{position:"fixed",inset:0,background:"#0006",zIndex:600,display:"flex",alignItems:"flex-start",justifyContent:"center",overflowY:"auto",padding:20}} onClick={e=>e.target===e.currentTarget&&onClose()}>
+    <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,width:"100%",maxWidth:500,padding:20}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+        <span style={{fontSize:14,fontWeight:700,color:C.text}}>📊 データテニスCSV取込</span>
+        <button onClick={onClose} style={{background:"none",border:"none",fontSize:18,cursor:"pointer",color:C.textMuted,padding:4}}>✕</button>
+      </div>
+      <div style={{fontSize:12,color:C.textMuted,marginBottom:12,padding:"8px 10px",background:C.panel2,borderRadius:6,borderLeft:`2px solid ${C.accent}`}}>データテニスアプリから出力したCSVファイルを選択してください。</div>
+      <input type="file" accept=".csv" onChange={handleFile} style={{width:"100%",padding:"10px",border:`1px dashed ${C.border}`,borderRadius:6,marginBottom:12,fontSize:12}}/>
+      {error&&<div style={{fontSize:12,color:C.red,padding:"8px 10px",background:C.redBg,borderRadius:6,marginBottom:12}}>❌ {error}</div>}
+      {preview&&<div style={{marginBottom:12,fontSize:12,color:C.text,padding:"8px 10px",background:C.accentBg,borderRadius:6}}>
+        ✅ プレビュー: {preview.parsed.playerA} vs {preview.parsed.playerB} ({preview.parsed.points.length}ポイント)<br/>
+        <span style={{fontSize:11,color:C.textMuted}}>自分: {preview.parsed.myIsA?preview.parsed.playerA:preview.parsed.playerB}</span>
+      </div>}
+      {preview&&<div style={{maxHeight:300,overflowY:"auto",background:C.panel2,borderRadius:6,padding:10,marginBottom:12}}>
+        <MatchStatsView stats={preview.stats} playerA={preview.parsed.playerA} playerB={preview.parsed.playerB} myIsA={preview.parsed.myIsA}/>
+      </div>}
+      <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+        <button onClick={onClose} style={{padding:"10px 20px",borderRadius:8,background:C.panel2,border:`1px solid ${C.border}`,color:C.textMuted,fontSize:13,fontWeight:600,cursor:"pointer"}}>キャンセル</button>
+        <button onClick={handleImport} disabled={!preview} style={{padding:"10px 20px",borderRadius:8,background:preview?C.accent:C.panel2,border:"none",color:preview?"#fff":C.textMuted,fontSize:13,fontWeight:700,cursor:preview?"pointer":"default"}}>📥 インポート</button>
+      </div>
+    </div>
+  </div>;
+}
+
 const ROUND_OPTS=[{value:"1回戦",label:"1回戦"},{value:"2回戦",label:"2回戦"},{value:"3回戦",label:"3回戦"},{value:"準々決勝",label:"準々決勝"},{value:"準決勝",label:"準決勝"},{value:"決勝",label:"決勝"},{value:"予選",label:"予選"},{value:"エキシビション",label:"エキシビション"}];
 const ROUND_COLOR={"1回戦":"gray","2回戦":"gray","3回戦":"blue","準々決勝":"blue","準決勝":"purple","決勝":"yellow","予選":"gray","エキシビション":"orange"};
 const fmtTensionV3=(m,c)=>{const a=m||"";const b=c||"";if(!a&&!b)return"";if(a&&b&&a!==b)return`${a}/${b}`;return a||b;};
@@ -920,6 +1387,10 @@ function MatchEditModal({match,trnType,rackets,strings,opponents,onSave,onClose}
 function MatchRow({match,trn,opponents,onUpdate,onEditMatch,onDeleteMatch}){
   const[expanded,setExpanded]=useState(false);
   const[showGames,setShowGames]=useState(false);
+  const[showStats,setShowStats]=useState(false);
+  const[csvModal,setCsvModal]=useState(false);
+  const handleCsvImport=data=>{onUpdate({...match,matchStats:data});setCsvModal(false);setShowStats(true);};
+  const handleStatsRemove=()=>{const{matchStats,...rest}=match;onUpdate(rest);};
   const games=match.games||[];
   const score=games.reduce((a,g)=>({me:a.me+(g.winner==="me"?1:0),opp:a.opp+(g.winner==="opp"?1:0)}),{me:0,opp:0});
   const mc=match.mental>=4?C.accent:match.mental>=3?C.yellow:C.red;
@@ -988,12 +1459,26 @@ function MatchRow({match,trn,opponents,onUpdate,onEditMatch,onDeleteMatch}){
         {showGames?"▲ ゲーム記録を閉じる":`▼ ゲーム記録を開く（${games.length}ゲーム）`}
       </button>
       {showGames&&<div style={{marginTop:8,padding:10,background:C.panel,borderRadius:6,border:`1px solid ${C.border}`}}><GameTracker match={match} onChange={onUpdate}/></div>}
+      {/* Stats Section */}
+      {match.matchStats?<>
+        <button onClick={()=>setShowStats(!showStats)} style={{width:"100%",background:showStats?C.purpleBg:C.panel,border:`1px solid ${showStats?C.purple:C.border}`,color:showStats?C.purple:C.textMuted,borderRadius:6,padding:"8px",fontSize:12,cursor:"pointer",marginTop:8,fontWeight:600}}>
+          {showStats?"▲ スタッツを閉じる":`📊 スタッツを開く（${match.matchStats.points?.length||0}ポイント）`}
+        </button>
+        {showStats&&<div style={{marginTop:8,padding:10,background:C.panel,borderRadius:6,border:`1px solid ${C.border}`}}>
+          <MatchStatsView stats={match.matchStats.stats} playerA={match.matchStats.playerA} playerB={match.matchStats.playerB} myIsA={match.matchStats.myIsA}/>
+          <div style={{display:"flex",gap:8,marginTop:10}}>
+            <button onClick={()=>setCsvModal(true)} style={{flex:1,padding:8,borderRadius:6,background:C.blueBg,border:`1px solid ${C.blue}`,color:C.blue,fontSize:11,fontWeight:600,cursor:"pointer"}}>🔄 CSV再取込</button>
+            <button onClick={handleStatsRemove} style={{padding:"8px 12px",borderRadius:6,background:C.redBg,border:`1px solid ${C.red}`,color:C.red,fontSize:11,fontWeight:600,cursor:"pointer"}}>🗑 スタッツ削除</button>
+          </div>
+        </div>}
+      </>:<button onClick={()=>setCsvModal(true)} style={{width:"100%",background:C.panel,border:`1px dashed ${C.border}`,color:C.textMuted,borderRadius:6,padding:"8px",fontSize:12,cursor:"pointer",marginTop:8,fontWeight:600}}>📊 データテニスCSV取込</button>}
       {/* アクション */}
       <div style={{display:"flex",gap:8,marginTop:10}}>
         <button onClick={onEditMatch} style={{flex:1,padding:10,borderRadius:6,background:C.panel,border:`1px solid ${C.border}`,color:C.text,fontSize:12,fontWeight:600,cursor:"pointer"}}>✏️ 編集</button>
         <button onClick={onDeleteMatch} style={{padding:"10px 16px",borderRadius:6,background:C.redBg,border:`1px solid ${C.red}`,color:C.red,fontSize:12,fontWeight:700,cursor:"pointer"}}>🗑</button>
       </div>
     </div>}
+    {csvModal&&<CsvImportModal myPlayerName="古川" onImport={handleCsvImport} onClose={()=>setCsvModal(false)}/>}
   </div>;
 }
 
