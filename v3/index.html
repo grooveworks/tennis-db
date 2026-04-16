@@ -13,7 +13,7 @@
 const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
 // ── APP ───────────────────────────────────────────
-const APP_VERSION="3.2.5"; // 2026/04/16 ホーム「好成績」表示（優勝/準優勝/予選突破の上位5件）
+const APP_VERSION="3.2.6"; // 2026/04/16 練習に開始/終了時刻追加+duration自動計算
 const font="-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif";
 const C={bg:"#f2f2f7",panel:"#fff",panel2:"#f5f5f7",border:"#e0e0e4",text:"#1a1a1a",textMuted:"#8e8e93",textDim:"#aaa",accent:"#00b87a",accentBg:"rgba(0,184,122,0.08)",red:"#dc2626",redBg:"#fef2f2",blue:"#2563eb",blueBg:"rgba(37,99,235,0.08)",yellow:"#f59e0b",yellowBg:"rgba(245,158,11,0.08)",purple:"#7c3aed",purpleBg:"rgba(124,58,237,0.08)",green:"#00b87a",greenBg:"rgba(0,184,122,0.08)"};
 const Badge=({children,color="gray",sm})=>{const cc={green:C.accent,blue:C.blue,yellow:C.yellow,red:C.red,gray:C.textMuted,purple:C.purple};const c=cc[color]||color;return<span style={{display:"inline-block",fontSize:sm?9:10,fontWeight:700,color:c,background:`${c}15`,border:`1px solid ${c}30`,borderRadius:4,padding:sm?"1px 4px":"2px 6px",lineHeight:1.4}}>{children}</span>;};
@@ -499,8 +499,20 @@ function QuickAddTournament({onSave,onClose,venues,onAddVenue}){
   </div>;
 }
 function QuickAddPractice({onSave,onClose,rackets,venues,onAddVenue}){
-  const[f,setF]=useState({id:genId(),date:today(),type:"スクール",venue:"",duration:"90",racketName:"",stringSetup:"",tension:"",tensionMain:"",tensionCross:"",temp:"",weather:"",focus:"",coachNote:"",goodNote:"",improveNote:"",generalNote:""});
-  const s=k=>v=>setF(p=>({...p,[k]:v}));
+  const[f,setF]=useState({id:genId(),date:today(),type:"スクール",venue:"",startTime:"",endTime:"",duration:"",racketName:"",stringSetup:"",tension:"",tensionMain:"",tensionCross:"",temp:"",weather:"",focus:"",coachNote:"",goodNote:"",improveNote:"",generalNote:""});
+  const s=k=>v=>setF(p=>{
+    const n={...p,[k]:v};
+    // Auto-calculate duration from startTime/endTime
+    if((k==="startTime"||k==="endTime")&&n.startTime&&n.endTime){
+      const [sh,sm]=n.startTime.split(":").map(Number);
+      const [eh,em]=n.endTime.split(":").map(Number);
+      if(!isNaN(sh)&&!isNaN(eh)){
+        const mins=(eh*60+em)-(sh*60+sm);
+        if(mins>0)n.duration=String(mins);
+      }
+    }
+    return n;
+  });
   return <div style={{position:"fixed",inset:0,background:"#0004",zIndex:300,display:"flex",alignItems:"flex-start",justifyContent:"center",overflowY:"auto",padding:"20px 16px"}} onClick={e=>e.target===e.currentTarget&&onClose()}>
     <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,width:"100%",maxWidth:400,padding:20}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
@@ -511,10 +523,14 @@ function QuickAddPractice({onSave,onClose,rackets,venues,onAddVenue}){
         <Field label="日付" value={f.date} onChange={s("date")} type="date"/>
         <VenueSelect label="場所" value={f.venue||""} onChange={s("venue")} venues={venues} onAddVenue={onAddVenue}/>
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"0 10px"}}>
-        <FSelect label="種別" value={f.type} onChange={s("type")} options={[{value:"スクール",label:"🏫 スクール"},{value:"自主練",label:"🎾 自主練"},{value:"球出し",label:"🏐 球出し"},{value:"練習試合",label:"⚔️ 練習試合"},{value:"フィジカル",label:"💪 フィジカル"}]}/>
-        <Field label="時間（分）" value={f.duration} onChange={s("duration")} placeholder="90"/>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 12px"}}>
+        <FSelect label="種別" value={f.type} onChange={s("type")} options={[{value:"スクール",label:"🏫 スクール"},{value:"自主練",label:"🎾 自主練"},{value:"練習会",label:"👥 練習会"},{value:"ゲーム練習",label:"⚔️ ゲーム練習"},{value:"球出し",label:"🏐 球出し"},{value:"練習試合",label:"🎯 練習試合"},{value:"フィジカル",label:"💪 フィジカル"}]}/>
         <Field label="気温（℃）" value={f.temp} onChange={s("temp")} placeholder="18"/>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"0 10px"}}>
+        <Field label="開始時刻" value={f.startTime||""} onChange={s("startTime")} type="time"/>
+        <Field label="終了時刻" value={f.endTime||""} onChange={s("endTime")} type="time"/>
+        <Field label="時間（分）" value={f.duration} onChange={s("duration")} placeholder="90"/>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"0 10px"}}>
         <FSelect label="天気" value={f.weather||""} onChange={s("weather")} options={[{value:"",label:"—"},{value:"晴",label:"☀ 晴"},{value:"曇",label:"☁ 曇"},{value:"雨",label:"🌧 雨"},{value:"屋内",label:"🏠 屋内"}]}/>
@@ -703,11 +719,15 @@ function MiniCalendar({tournaments,practices}){
     </div>
     {selectedDay&&dayEvents.length>0&&<div style={{marginTop:8,borderTop:`1px solid ${C.border}`,paddingTop:8}}>
       <div style={{fontSize:11,color:C.textMuted,marginBottom:4}}>{parseInt(selectedDay.split("-")[1])}/{parseInt(selectedDay.split("-")[2])}</div>
-      {dayEvents.map((ev,i)=><div key={i} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 0"}}>
-        <span style={{fontSize:12}}>{ev.type==="tournament"?"🏆":"🏃"}</span>
-        <span style={{fontSize:12,color:C.text,fontWeight:500}}>{ev.type==="tournament"?ev.data.name:(ev.data.type||"練習")+(ev.data.venue?" @ "+ev.data.venue:"")}</span>
-        {ev.type==="tournament"&&ev.data.overallResult&&<Badge color={RESULT_BADGE[ev.data.overallResult]||"gray"} sm>{ev.data.overallResult}</Badge>}
-      </div>)}
+      {dayEvents.map((ev,i)=>{
+        const t=ev.type==="practice"&&ev.data.startTime?ev.data.startTime+(ev.data.endTime?"-"+ev.data.endTime:""):"";
+        return <div key={i} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 0"}}>
+          <span style={{fontSize:12}}>{ev.type==="tournament"?"🏆":"🏃"}</span>
+          {t&&<span style={{fontSize:11,color:C.textMuted,fontFamily:"monospace",minWidth:82}}>{t}</span>}
+          <span style={{fontSize:12,color:C.text,fontWeight:500,flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ev.type==="tournament"?ev.data.name:(ev.data.type||"練習")+(ev.data.venue?" @ "+ev.data.venue:"")}</span>
+          {ev.type==="tournament"&&ev.data.overallResult&&<Badge color={RESULT_BADGE[ev.data.overallResult]||"gray"} sm>{ev.data.overallResult}</Badge>}
+        </div>;
+      })}
     </div>}
   </Card>;
 }
@@ -756,7 +776,7 @@ function HomeTab({next,setNext,tournaments,setTournaments,practices,setPractices
     const oneMonth=new Date();oneMonth.setMonth(oneMonth.getMonth()+1);
     const oneMonthStr=`${oneMonth.getFullYear()}-${String(oneMonth.getMonth()+1).padStart(2,"0")}-${String(oneMonth.getDate()).padStart(2,"0")}`;
     (tournaments||[]).filter(t=>{const nd=normDate(t.date);return nd>=todayStr&&nd<=oneMonthStr;}).forEach(t=>items.push({type:"tournament",date:t.date,name:t.name,level:t.level,racketName:t.racketName,stringSetup:t.stringSetup,tension:t.tension}));
-    (practices||[]).filter(p=>{const nd=normDate(p.date);return nd>=todayStr&&nd<=oneMonthStr;}).forEach(p=>items.push({type:"practice",date:p.date,name:p.type||"練習",venue:p.venue}));
+    (practices||[]).filter(p=>{const nd=normDate(p.date);return nd>=todayStr&&nd<=oneMonthStr;}).forEach(p=>items.push({type:"practice",date:p.date,name:p.type||"練習",venue:p.venue,startTime:p.startTime,endTime:p.endTime,duration:p.duration}));
     return items.sort((a,b)=>normDate(a.date).localeCompare(normDate(b.date)));
   },[tournaments,practices,todayStr]);
   const displayUpcoming=upcomingItems.slice(0,5);
@@ -811,7 +831,7 @@ function HomeTab({next,setNext,tournaments,setTournaments,practices,setPractices
           <span style={{fontSize:14}}>{item.type==="tournament"?"🏆":"🏃"}</span>
           <div style={{flex:1,minWidth:0}}>
             <div style={{fontSize:12,fontWeight:600,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.name}{item.level?" ("+item.level+")":""}</div>
-            <div style={{fontSize:10,color:C.textMuted}}>{fmtDateFull(item.date)}{item.venue?" · "+item.venue:""}</div>
+            <div style={{fontSize:10,color:C.textMuted}}>{fmtDateFull(item.date)}{item.startTime?" "+item.startTime+(item.endTime?"-"+item.endTime:""):""}{item.venue?" · "+item.venue:""}</div>
             {item.racketName&&<div style={{fontSize:10,color:C.accent}}>🎾 {item.racketName}{item.stringSetup?" / "+item.stringSetup:""}{item.tension?" / "+item.tension:""}</div>}
           </div>
         </div>)}
@@ -949,7 +969,8 @@ function SessionsTab({tournaments,setTournaments,practices,setPractices,trials,s
     const d=item.data;
     const icon=item.type==="tournament"?"🏆":item.type==="practice"?"🏃":"🎾";
     const title=item.type==="tournament"?d.name:item.type==="practice"?(d.type||"練習")+(d.venue?" @ "+d.venue:""):`${d.racketName||""}${d.stringMain?" / "+d.stringMain:""}`;
-    const sub=item.type==="tournament"?`${d.level||""} · ${(d.matches||[]).length}試合`:item.type==="practice"?`${d.duration?d.duration+"分":""}${d.focus?" · "+d.focus:""}`:d.judgment||"";
+    const timeStr=item.type==="practice"&&d.startTime?d.startTime+(d.endTime?"-"+d.endTime:""):"";
+    const sub=item.type==="tournament"?`${d.level||""} · ${(d.matches||[]).length}試合`:item.type==="practice"?`${timeStr}${timeStr&&d.duration?" ("+d.duration+"分)":d.duration?d.duration+"分":""}${d.focus?" · "+d.focus:""}`:d.judgment||"";
     return <div key={item.id} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 0",borderBottom:`1px solid ${C.border}22`}}>
       <span style={{fontSize:16,flexShrink:0}}>{icon}</span>
       <div style={{flex:1,minWidth:0}}>
