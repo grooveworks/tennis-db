@@ -13,7 +13,7 @@
 const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
 // ── APP ───────────────────────────────────────────
-const APP_VERSION="3.2.1"; // 2026/04/16 Auth fix + Sessions B+C + Badge colors + Error recovery
+const APP_VERSION="3.3.0"; // 2026/04/16 Home記録完結 + 3ボタン固定 + Sessions2階層 + QuickTrialMode17項目
 const font="-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif";
 const C={bg:"#f2f2f7",panel:"#fff",panel2:"#f5f5f7",border:"#e0e0e4",text:"#1a1a1a",textMuted:"#8e8e93",textDim:"#aaa",accent:"#00b87a",accentBg:"rgba(0,184,122,0.08)",red:"#dc2626",redBg:"#fef2f2",blue:"#2563eb",blueBg:"rgba(37,99,235,0.08)",yellow:"#f59e0b",yellowBg:"rgba(245,158,11,0.08)",purple:"#7c3aed",purpleBg:"rgba(124,58,237,0.08)",green:"#00b87a",greenBg:"rgba(0,184,122,0.08)"};
 const Badge=({children,color="gray",sm})=>{const cc={green:C.accent,blue:C.blue,yellow:C.yellow,red:C.red,gray:C.textMuted,purple:C.purple};const c=cc[color]||color;return<span style={{display:"inline-block",fontSize:sm?9:10,fontWeight:700,color:c,background:`${c}15`,border:`1px solid ${c}30`,borderRadius:4,padding:sm?"1px 4px":"2px 6px",lineHeight:1.4}}>{children}</span>;};
@@ -471,12 +471,145 @@ const GameBar=({games})=>{
   </div>;
 };
 
+// ── QUICK TRIAL MODE (full-screen, card-style, 17 items) ──
+const QTRatingCard=({label,value,onChange,color})=><div style={{background:C.panel,borderRadius:10,padding:"10px 12px",marginBottom:6,border:`1px solid ${C.border}`}}>
+  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+    <span style={{fontSize:12,fontWeight:600,color:C.text}}>{label}</span>
+    <span style={{fontSize:11,color:value?scColor(value):C.textMuted,fontWeight:700}}>{value||"-"}/5</span>
+  </div>
+  <div style={{display:"flex",gap:5}}>
+    {[1,2,3,4,5].map(n=><button key={n} onClick={()=>onChange(n)} style={{flex:1,height:36,borderRadius:7,background:n<=value?(color||C.accent):C.panel2,border:`1px solid ${n<=value?(color||C.accent):C.border}`,color:n<=value?"#fff":C.textMuted,fontSize:13,fontWeight:700,cursor:"pointer",padding:0}}>{n}</button>)}
+  </div>
+</div>;
+const QTBiCard=({label,lowLabel,highLabel,value,onChange})=><div style={{background:C.panel,borderRadius:10,padding:"10px 12px",marginBottom:6,border:`1px solid ${C.border}`}}>
+  <div style={{fontSize:12,fontWeight:600,color:C.text,marginBottom:4}}>{label}</div>
+  <div style={{display:"flex",alignItems:"center",gap:4}}>
+    <span style={{fontSize:10,color:C.textMuted,minWidth:36,textAlign:"right"}}>{lowLabel}</span>
+    <div style={{display:"flex",gap:4,flex:1}}>
+      {[1,2,3,4,5].map(n=><button key={n} onClick={()=>onChange(n)} style={{flex:1,height:36,borderRadius:7,background:n===value?C.blue:C.panel2,border:`1px solid ${n===value?C.blue:C.border}`,color:n===value?"#fff":C.textMuted,fontSize:13,fontWeight:700,cursor:"pointer",padding:0}}>{n}</button>)}
+    </div>
+    <span style={{fontSize:10,color:C.textMuted,minWidth:36}}>{highLabel}</span>
+  </div>
+</div>;
+function QuickTrialMode({rackets,strings,stringSetups,onSave,onClose}){
+  const[step,setStep]=useState(0);
+  const[f,setF]=useState({id:genId(),date:today(),racketName:"",stringMain:"",stringCross:"",tensionMain:"",tensionCross:"",temp:"",venue:"",judgment:"",spin:0,power:0,control:0,info:0,maneuver:0,swingThrough:0,trajectory:0,stiffness:0,shotForeAtk:0,shotForeDef:0,shotBackAtk:0,shotBackDef:0,shotSlice:0,shotServe:0,shotVolley:0,shotReturn:0,confidence:0,generalNote:""});
+  const s=key=>val=>setF(prev=>({...prev,[key]:val}));
+  const rOpts=getRacketOpts(rackets);
+  const sOpts=getStringOpts(strings);
+  const STEPS=4;
+  const canNext0=f.racketName&&f.stringMain;
+  const canSave=f.judgment;
+  const QTH=({back,title,n})=><div style={{padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",background:C.panel,borderBottom:`1px solid ${C.border}`,flexShrink:0}}>
+    {back?<button onClick={back} style={{background:"none",border:"none",fontSize:14,cursor:"pointer",color:C.accent,padding:4,fontWeight:600,minWidth:50,textAlign:"left"}}>← 戻る</button>
+    :<button onClick={onClose} style={{background:"none",border:"none",fontSize:18,cursor:"pointer",color:C.textMuted,padding:4,minWidth:50}}>✕</button>}
+    <span style={{fontSize:15,fontWeight:700}}>{title}</span>
+    <span style={{fontSize:11,color:C.textMuted,minWidth:50,textAlign:"right"}}>{n}/{STEPS}</span>
+  </div>;
+  const QTF=({onClick,disabled,label})=><div style={{padding:16,paddingBottom:"calc(16px + env(safe-area-inset-bottom))",borderTop:`1px solid ${C.border}`,background:C.panel,flexShrink:0}}>
+    <button onClick={onClick} disabled={disabled} style={{width:"100%",padding:14,borderRadius:10,background:disabled?C.panel2:C.accent,border:"none",color:disabled?C.textMuted:"#fff",fontSize:14,fontWeight:700,cursor:disabled?"default":"pointer"}}>{label}</button>
+  </div>;
+  const wrap=ch=><div style={{position:"fixed",inset:0,background:C.bg,zIndex:500,display:"flex",flexDirection:"column"}}>{ch}</div>;
+
+  // Step 0: Setup
+  if(step===0)return wrap(<>
+    <QTH title="🎾 機材" n={1}/>
+    <div style={{flex:1,overflowY:"auto",padding:16}}>
+      <FSelect label="ラケット" value={f.racketName} onChange={s("racketName")} options={rOpts}/>
+      <FSelect label="縦糸" value={f.stringMain} onChange={s("stringMain")} options={sOpts}/>
+      <FSelect label="横糸" value={f.stringCross} onChange={s("stringCross")} options={[{value:"",label:"-- なし（単張り）--"},...sOpts.slice(1)]}/>
+      <div style={{display:"flex",gap:8}}>
+        <Field label="縦テンション" value={f.tensionMain} onChange={s("tensionMain")} placeholder="43"/>
+        <Field label="横テンション" value={f.tensionCross} onChange={s("tensionCross")} placeholder="43"/>
+      </div>
+    </div>
+    <QTF onClick={()=>setStep(1)} disabled={!canNext0} label="次へ →"/>
+  </>);
+
+  // Step 1: Performance 6 + Bidirectional 2
+  if(step===1)return wrap(<>
+    <QTH back={()=>setStep(0)} title="⚡ パフォーマンス" n={2}/>
+    <div style={{flex:1,overflowY:"auto",padding:"12px 16px"}}>
+      <div style={{fontSize:11,color:C.textMuted,marginBottom:8}}>タップで評価（1-5）</div>
+      {[["スピン","spin"],["推進力","power"],["コントロール","control"],["打感情報","info"],["操作性","maneuver"],["振り抜き","swingThrough"]].map(([l,k])=>
+        <QTRatingCard key={k} label={l} value={f[k]} onChange={s(k)}/>
+      )}
+      <div style={{fontSize:11,color:C.textMuted,marginTop:10,marginBottom:8}}>特性（方向スケール）</div>
+      <QTBiCard label="弾道" lowLabel="低い" highLabel="高い" value={f.trajectory} onChange={s("trajectory")}/>
+      <QTBiCard label="打感の硬さ" lowLabel="柔らかい" highLabel="硬い" value={f.stiffness} onChange={s("stiffness")}/>
+    </div>
+    <QTF onClick={()=>setStep(2)} label="次へ →"/>
+  </>);
+
+  // Step 2: Shots 8 + Confidence 1
+  if(step===2)return wrap(<>
+    <QTH back={()=>setStep(1)} title="🎯 ショット別" n={3}/>
+    <div style={{flex:1,overflowY:"auto",padding:"12px 16px"}}>
+      <div style={{fontSize:11,color:C.textMuted,marginBottom:8}}>各ショットの感触（1-5）</div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
+        {[["フォアATK","shotForeAtk"],["フォアDEF","shotForeDef"],["バックATK","shotBackAtk"],["バックDEF","shotBackDef"],["スライス","shotSlice"],["サーブ","shotServe"],["ボレー","shotVolley"],["リターン","shotReturn"]].map(([l,k])=>
+          <div key={k} style={{background:C.panel,borderRadius:8,padding:10,border:`1px solid ${C.border}`}}>
+            <div style={{fontSize:11,fontWeight:600,color:C.text,marginBottom:4}}>{l}</div>
+            <div style={{display:"flex",gap:3}}>
+              {[1,2,3,4,5].map(n=><button key={n} onClick={()=>s(k)(n)} style={{flex:1,height:32,borderRadius:5,background:n<=f[k]?C.blue:C.panel2,border:`1px solid ${n<=f[k]?C.blue:C.border}`,color:n<=f[k]?"#fff":C.textMuted,fontSize:12,fontWeight:700,cursor:"pointer",padding:0}}>{n}</button>)}
+            </div>
+          </div>
+        )}
+      </div>
+      <div style={{marginTop:10}}>
+        <QTRatingCard label="🛡 安心感" value={f.confidence} onChange={s("confidence")} color={C.purple}/>
+      </div>
+    </div>
+    <QTF onClick={()=>setStep(3)} label="次へ →"/>
+  </>);
+
+  // Step 3: Judgment + memo
+  return wrap(<>
+    <QTH back={()=>setStep(2)} title="🏷 判定" n={4}/>
+    <div style={{flex:1,overflowY:"auto",padding:16}}>
+      <div style={{fontSize:13,fontWeight:600,color:C.text,marginBottom:12}}>この組み合わせの判定は？</div>
+      <div style={{display:"flex",gap:8,marginBottom:16}}>
+        {[["採用候補",C.accent,C.accentBg],["保留",C.yellow,C.yellowBg],["却下",C.red,C.redBg]].map(([label,color,bg])=>
+          <button key={label} onClick={()=>s("judgment")(label)} style={{flex:1,padding:14,borderRadius:10,background:f.judgment===label?bg:C.panel,border:`2px solid ${f.judgment===label?color:C.border}`,color:f.judgment===label?color:C.textMuted,fontSize:13,fontWeight:700,cursor:"pointer"}}>{label}</button>
+        )}
+      </div>
+      <Field label="メモ（任意）" value={f.generalNote} onChange={s("generalNote")} multiline placeholder="第一印象・気になった点"/>
+    </div>
+    <QTF onClick={()=>onSave(f)} disabled={!canSave} label="💾 保存"/>
+  </>);
+}
+
 // ── HOME TAB ──────────────────────────────────────
-function HomeTab({next,setNext,tournaments,practices,trials,daysSinceExport,lastExport,onExport,onRecord,onGoToSessions,onGoToPlan,toast}){
+function HomeTab({next,setNext,tournaments,setTournaments,practices,setPractices,trials,setTrials,rackets,strings,stringSetups,venues,setVenues,daysSinceExport,lastExport,onExport,onGoToSessions,onGoToPlan,toast}){
+  const[recordModal,setRecordModal]=useState(null);
+  const[showQuickTrial,setShowQuickTrial]=useState(false);
   const undoRef=useRef(null);
   const todayStr=today();
   // Next Actions: top 3 undone
   const nextItems=useMemo(()=>(next||[]).filter(n=>!n.done).slice(0,3),[next]);
+  const handleHomeRecord=type=>{
+    if(type==="trials"){setShowQuickTrial(true);return;}
+    const data=type==="tournaments"?{id:genId(),date:today(),name:"",level:"",type:"singles",venue:"",racketName:"",stringSetup:"",tension:"",temp:"",overallResult:"",generalNote:"",matches:[]}:{id:genId(),date:today(),type:"",venue:"",duration:"",racketName:"",stringSetup:"",tension:"",temp:"",focus:"",coachNote:"",goodNote:"",improveNote:"",generalNote:""};
+    setRecordModal({type,isNew:true,data});
+  };
+  const handleQuickTrialSave=form=>{
+    const arr=ds([form,...(trials||[])]);
+    setTrials(arr);save(KEYS.trials,arr);
+    setShowQuickTrial(false);toast.show("🎾 試打を保存しました");
+  };
+  const handleHomeSave=(type,form)=>{
+    if(type==="tournaments"){
+      const arr=ds([form,...(tournaments||[])]);
+      setTournaments(arr);save(KEYS.tournaments,arr);
+    }else if(type==="practices"){
+      const arr=ds([form,...(practices||[])]);
+      setPractices(arr);save(KEYS.practices,arr);
+    }else if(type==="trials"){
+      const arr=ds([form,...(trials||[])]);
+      setTrials(arr);save(KEYS.trials,arr);
+    }
+    setRecordModal(null);toast.show("💾 保存しました");
+  };
   const toggleNext=id=>{
     const prev=[...(next||[])];
     undoRef.current=prev;
@@ -498,71 +631,80 @@ function HomeTab({next,setNext,tournaments,practices,trials,daysSinceExport,last
   // Past tournaments: 5 most recent before today
   const pastTournaments=useMemo(()=>(tournaments||[]).filter(t=>normDate(t.date)<todayStr).slice(0,5),[tournaments,todayStr]);
 
-  return <div style={{padding:10}}>
-    {/* Big 3 Buttons */}
-    <div style={{display:"flex",gap:8,marginBottom:10}}>
-      {[["🏆","大会を記録","tournaments"],["🏃","練習を記録","practices"],["🎾","試打を記録","trials"]].map(([icon,label,type])=>
-        <button key={type} onClick={()=>onRecord(type)} style={{flex:1,height:56,borderRadius:10,background:C.accent,border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:2}}>
-          <span style={{fontSize:18}}>{icon}</span><span>{label}</span>
-        </button>
-      )}
-    </div>
-
-    {/* Backup Warning */}
-    {daysSinceExport>=3&&<div onClick={onExport} style={{background:C.redBg,border:`1px solid ${C.red}`,borderRadius:8,padding:10,marginBottom:10,cursor:"pointer"}}>
-      <div style={{fontSize:12,fontWeight:700,color:C.red}}>⚠️ バックアップしてください（{daysSinceExport>=365?"未実施":`${daysSinceExport}日前`}）</div>
-      <div style={{fontSize:11,color:"#fca5a5"}}>{lastExport?`最終: ${new Date(lastExport).toLocaleDateString("ja-JP")}`:"まだバックアップしていません"}（タップで📤）</div>
-    </div>}
-
-    {/* Next Actions */}
-    {nextItems.length>0&&<Card>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-        <span style={{fontSize:12,fontWeight:700,color:C.textMuted}}>▶ Next Actions</span>
-        <button onClick={onGoToPlan} style={{background:"none",border:"none",color:C.accent,fontSize:11,fontWeight:600,cursor:"pointer"}}>全て見る →</button>
-      </div>
-      {nextItems.map(n=><div key={n.id} onClick={()=>toggleNext(n.id)} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",cursor:"pointer",borderBottom:`1px solid ${C.border}22`}}>
-        <div style={{width:20,height:20,borderRadius:4,border:`2px solid ${C.accent}`,flexShrink:0}}/>
-        <div style={{minWidth:0,flex:1}}>
-          <div style={{fontSize:12,fontWeight:600,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{n.label}</div>
-          {n.category&&<Badge color={n.priority==="最高"?"green":n.priority==="高"?"blue":"yellow"} sm>{n.category}</Badge>}
-        </div>
-      </div>)}
-    </Card>}
-
-    {/* Upcoming Events */}
-    {displayUpcoming.length>0&&<Card>
-      <div style={{fontSize:12,fontWeight:700,color:C.textMuted,marginBottom:8}}>📅 今後の予定</div>
-      {displayUpcoming.map((item,i)=><div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 0",borderBottom:i<displayUpcoming.length-1?`1px solid ${C.border}22`:"none"}}>
-        <span style={{fontSize:14}}>{item.type==="tournament"?"🏆":"🏃"}</span>
-        <div style={{flex:1,minWidth:0}}>
-          <div style={{fontSize:12,fontWeight:600,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.name}{item.level?" ("+item.level+")":""}</div>
-          <div style={{fontSize:10,color:C.textMuted}}>{fmtDateFull(item.date)}{item.venue?" · "+item.venue:""}</div>
-          {item.racketName&&<div style={{fontSize:10,color:C.accent}}>🎾 {item.racketName}{item.stringSetup?" / "+item.stringSetup:""}{item.tension?" / "+item.tension:""}</div>}
-        </div>
-      </div>)}
-      {overflowCount>0&&<button onClick={onGoToSessions} style={{background:"none",border:"none",color:C.accent,fontSize:11,fontWeight:600,cursor:"pointer",marginTop:6}}>他{overflowCount}件を見る → Sessions</button>}
-    </Card>}
-
-    {/* Recent Tournaments */}
-    {pastTournaments.length>0&&<Card>
-      <div style={{fontSize:12,fontWeight:700,color:C.textMuted,marginBottom:8}}>🏆 最近の大会</div>
-      {pastTournaments.map(t=><div key={t.id} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 0",borderBottom:`1px solid ${C.border}22`}}>
-        <div style={{flex:1,minWidth:0}}>
-          <div style={{fontSize:12,fontWeight:600,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.name}</div>
-          <div style={{fontSize:10,color:C.textMuted}}>{fmtDateFull(t.date)} · {(t.matches||[]).length}試合</div>
-        </div>
-        {t.overallResult&&<Badge color={RESULT_BADGE[t.overallResult]||"gray"}>{t.overallResult}</Badge>}
-      </div>)}
-    </Card>}
-
-    {/* Stats summary */}
-    <Card style={{background:C.panel2}}>
-      <div style={{display:"flex",justifyContent:"space-around",textAlign:"center"}}>
-        {[["大会",(tournaments||[]).length,"🏆"],["練習",(practices||[]).length,"🏃"],["試打",(trials||[]).length,"🎾"]].map(([l,n,ic])=>
-          <div key={l}><div style={{fontSize:18}}>{ic}</div><div style={{fontSize:16,fontWeight:700,color:C.accent}}>{n}</div><div style={{fontSize:10,color:C.textMuted}}>{l}</div></div>
+  return <div style={{display:"flex",flexDirection:"column",height:"100%"}}>
+    {/* Fixed top area: 3 Buttons + Next Actions */}
+    <div style={{flexShrink:0,padding:"10px 10px 0"}}>
+      {/* Big 3 Buttons */}
+      <div style={{display:"flex",gap:8,marginBottom:10}}>
+        {[["🏆","大会を記録","tournaments"],["🏃","練習を記録","practices"],["🎾","試打を記録","trials"]].map(([icon,label,type])=>
+          <button key={type} onClick={()=>handleHomeRecord(type)} style={{flex:1,height:56,borderRadius:10,background:C.accent,border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:2}}>
+            <span style={{fontSize:18}}>{icon}</span><span>{label}</span>
+          </button>
         )}
       </div>
-    </Card>
+
+      {/* Next Actions */}
+      {nextItems.length>0&&<Card>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+          <span style={{fontSize:12,fontWeight:700,color:C.textMuted}}>▶ Next Actions</span>
+          <button onClick={onGoToPlan} style={{background:"none",border:"none",color:C.accent,fontSize:11,fontWeight:600,cursor:"pointer"}}>全て見る →</button>
+        </div>
+        {nextItems.map(n=><div key={n.id} onClick={()=>toggleNext(n.id)} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",cursor:"pointer",borderBottom:`1px solid ${C.border}22`}}>
+          <div style={{width:20,height:20,borderRadius:4,border:`2px solid ${C.accent}`,flexShrink:0}}/>
+          <div style={{minWidth:0,flex:1}}>
+            <div style={{fontSize:12,fontWeight:600,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{n.label}</div>
+            {n.category&&<Badge color={n.priority==="最高"?"green":n.priority==="高"?"blue":"yellow"} sm>{n.category}</Badge>}
+          </div>
+        </div>)}
+      </Card>}
+    </div>
+
+    {/* Scrollable content area */}
+    <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch",padding:"0 10px 60px"}}>
+      {/* Backup Warning */}
+      {daysSinceExport>=3&&<div onClick={onExport} style={{background:C.redBg,border:`1px solid ${C.red}`,borderRadius:8,padding:10,marginBottom:10,cursor:"pointer"}}>
+        <div style={{fontSize:12,fontWeight:700,color:C.red}}>⚠️ バックアップしてください（{daysSinceExport>=365?"未実施":`${daysSinceExport}日前`}）</div>
+        <div style={{fontSize:11,color:"#fca5a5"}}>{lastExport?`最終: ${new Date(lastExport).toLocaleDateString("ja-JP")}`:"まだバックアップしていません"}（タップで📤）</div>
+      </div>}
+
+      {/* Upcoming Events */}
+      {displayUpcoming.length>0&&<Card>
+        <div style={{fontSize:12,fontWeight:700,color:C.textMuted,marginBottom:8}}>📅 今後の予定</div>
+        {displayUpcoming.map((item,i)=><div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 0",borderBottom:i<displayUpcoming.length-1?`1px solid ${C.border}22`:"none"}}>
+          <span style={{fontSize:14}}>{item.type==="tournament"?"🏆":"🏃"}</span>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:12,fontWeight:600,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.name}{item.level?" ("+item.level+")":""}</div>
+            <div style={{fontSize:10,color:C.textMuted}}>{fmtDateFull(item.date)}{item.venue?" · "+item.venue:""}</div>
+            {item.racketName&&<div style={{fontSize:10,color:C.accent}}>🎾 {item.racketName}{item.stringSetup?" / "+item.stringSetup:""}{item.tension?" / "+item.tension:""}</div>}
+          </div>
+        </div>)}
+        {overflowCount>0&&<button onClick={onGoToSessions} style={{background:"none",border:"none",color:C.accent,fontSize:11,fontWeight:600,cursor:"pointer",marginTop:6}}>他{overflowCount}件を見る → Sessions</button>}
+      </Card>}
+
+      {/* Recent Tournaments */}
+      {pastTournaments.length>0&&<Card>
+        <div style={{fontSize:12,fontWeight:700,color:C.textMuted,marginBottom:8}}>🏆 最近の大会</div>
+        {pastTournaments.map(t=><div key={t.id} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 0",borderBottom:`1px solid ${C.border}22`}}>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:12,fontWeight:600,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.name}</div>
+            <div style={{fontSize:10,color:C.textMuted}}>{fmtDateFull(t.date)} · {(t.matches||[]).length}試合</div>
+          </div>
+          {t.overallResult&&<Badge color={RESULT_BADGE[t.overallResult]||"gray"}>{t.overallResult}</Badge>}
+        </div>)}
+      </Card>}
+
+      {/* Stats summary */}
+      <Card style={{background:C.panel2}}>
+        <div style={{display:"flex",justifyContent:"space-around",textAlign:"center"}}>
+          {[["大会",(tournaments||[]).length,"🏆"],["練習",(practices||[]).length,"🏃"],["試打",(trials||[]).length,"🎾"]].map(([l,n,ic])=>
+            <div key={l}><div style={{fontSize:18}}>{ic}</div><div style={{fontSize:16,fontWeight:700,color:C.accent}}>{n}</div><div style={{fontSize:10,color:C.textMuted}}>{l}</div></div>
+          )}
+        </div>
+      </Card>
+    </div>
+
+    {recordModal&&<RecordModal type={recordModal.type} data={recordModal.data} isNew={recordModal.isNew} rackets={rackets} strings={strings} stringSetups={stringSetups} venues={venues} onAddVenue={v=>{const nv=[...(venues||[]),v];setVenues(nv);save(KEYS.venues,nv);}} onSave={form=>handleHomeSave(recordModal.type,form)} onClose={()=>setRecordModal(null)}/>}
+    {showQuickTrial&&<QuickTrialMode rackets={rackets} strings={strings} stringSetups={stringSetups} onSave={handleQuickTrialSave} onClose={()=>setShowQuickTrial(false)}/>}
   </div>;
 }
 
@@ -571,6 +713,7 @@ function SessionsTab({tournaments,setTournaments,practices,setPractices,trials,s
   const[filter,setFilter]=useState("all");
   const[modal,setModal]=useState(null);
   const[expandedMonths,setExpandedMonths]=useState(()=>{try{const v=localStorage.getItem("yuke-session-months");return v?JSON.parse(v):{};}catch{return{};}});
+  const[expandedYears,setExpandedYears]=useState(()=>{try{const v=localStorage.getItem("yuke-session-years");return v?JSON.parse(v):{};}catch{return{};}});
   const[showAllMonths,setShowAllMonths]=useState(false);
   const[jumpTarget,setJumpTarget]=useState("");
 
@@ -582,8 +725,10 @@ function SessionsTab({tournaments,setTournaments,practices,setPractices,trials,s
   },[pendingRecord]);
 
   useEffect(()=>{try{localStorage.setItem("yuke-session-months",JSON.stringify(expandedMonths));}catch{}},[expandedMonths]);
+  useEffect(()=>{try{localStorage.setItem("yuke-session-years",JSON.stringify(expandedYears));}catch{}},[expandedYears]);
 
   const toggleMonth=key=>{setExpandedMonths(prev=>({...prev,[key]:!prev[key]}));};
+  const toggleYear=year=>{setExpandedYears(prev=>({...prev,[year]:!prev[year]}));};
 
   // Build all items
   const allItems=useMemo(()=>{
@@ -609,7 +754,17 @@ function SessionsTab({tournaments,setTournaments,practices,setPractices,trials,s
   // B+C: Show only 3 most recent months by default, or all if toggled / jumped
   const recentMonths=allMonths.slice(0,3);
   const olderMonths=allMonths.slice(3);
-  const displayMonths=showAllMonths?allMonths:recentMonths;
+  // Group older months by year for 2-level hierarchy
+  const olderByYear=useMemo(()=>{
+    const yearMap={};
+    olderMonths.forEach(m=>{
+      const year=m.key.split("-")[0];
+      if(!yearMap[year])yearMap[year]={year,label:year+"年",months:[],totalItems:0};
+      yearMap[year].months.push(m);
+      yearMap[year].totalItems+=m.items.length;
+    });
+    return Object.values(yearMap).sort((a,b)=>b.year.localeCompare(a.year));
+  },[olderMonths]);
 
   // Jump selector options
   const jumpOptions=useMemo(()=>[{value:"",label:"📅 月を選択してジャンプ"},...allMonths.map(m=>({value:m.key,label:`${m.label} (${m.items.length}件)`}))]
@@ -618,7 +773,9 @@ function SessionsTab({tournaments,setTournaments,practices,setPractices,trials,s
   // Handle jump
   const handleJump=ym=>{
     if(!ym)return;
+    const year=ym.split("-")[0];
     setShowAllMonths(true);
+    setExpandedYears(prev=>({...prev,[year]:true}));
     setExpandedMonths(prev=>({...prev,[ym]:true}));
     setJumpTarget(ym);
     // Scroll to target after render
@@ -670,8 +827,8 @@ function SessionsTab({tournaments,setTournaments,practices,setPractices,trials,s
       {jumpOptions.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
     </select>
 
-    {/* Month headers */}
-    {displayMonths.map(month=><div key={month.key} id={"month-"+month.key} style={{marginBottom:4}}>
+    {/* Recent months (flat, no year header) */}
+    {recentMonths.map(month=><div key={month.key} id={"month-"+month.key} style={{marginBottom:4}}>
       <div onClick={()=>toggleMonth(month.key)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 10px",background:C.panel,borderRadius:8,cursor:"pointer",border:`1px solid ${C.border}`}}>
         <span style={{fontSize:13,fontWeight:600,color:C.text}}>{month.label}</span>
         <span style={{fontSize:11,color:C.textMuted}}>({month.items.length}件) {expandedMonths[month.key]?"▼":"▶"}</span>
@@ -681,6 +838,24 @@ function SessionsTab({tournaments,setTournaments,practices,setPractices,trials,s
 
     {/* Show older / collapse */}
     {!showAllMonths&&olderMonths.length>0&&<button onClick={()=>setShowAllMonths(true)} style={{width:"100%",padding:12,borderRadius:8,background:C.panel2,border:`1px solid ${C.border}`,color:C.textMuted,fontSize:12,fontWeight:600,cursor:"pointer",marginTop:8}}>📂 過去のデータを表示（{olderMonths.length}ヶ月分）</button>}
+
+    {/* Older months: year > month 2-level hierarchy */}
+    {showAllMonths&&olderByYear.map(yearGroup=><div key={yearGroup.year} style={{marginBottom:6}}>
+      <div onClick={()=>toggleYear(yearGroup.year)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 12px",background:C.panel2,borderRadius:8,cursor:"pointer",border:`1px solid ${C.border}`,marginBottom:4}}>
+        <span style={{fontSize:14,fontWeight:700,color:C.text}}>{yearGroup.label}</span>
+        <span style={{fontSize:11,color:C.textMuted}}>({yearGroup.totalItems}件) {expandedYears[yearGroup.year]?"▼":"▶"}</span>
+      </div>
+      {expandedYears[yearGroup.year]&&<div style={{paddingLeft:8}}>
+        {yearGroup.months.map(month=><div key={month.key} id={"month-"+month.key} style={{marginBottom:4}}>
+          <div onClick={()=>toggleMonth(month.key)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 10px",background:C.panel,borderRadius:8,cursor:"pointer",border:`1px solid ${C.border}`}}>
+            <span style={{fontSize:13,fontWeight:600,color:C.text}}>{parseInt(month.key.split("-")[1])}月</span>
+            <span style={{fontSize:11,color:C.textMuted}}>({month.items.length}件) {expandedMonths[month.key]?"▼":"▶"}</span>
+          </div>
+          {expandedMonths[month.key]&&<div style={{padding:"4px 8px"}}>{month.items.map(renderItem)}</div>}
+        </div>)}
+      </div>}
+    </div>)}
+
     {showAllMonths&&olderMonths.length>0&&<button onClick={()=>setShowAllMonths(false)} style={{width:"100%",padding:10,borderRadius:8,background:"none",border:`1px solid ${C.border}`,color:C.textMuted,fontSize:11,cursor:"pointer",marginTop:8}}>▲ 直近3ヶ月のみ表示</button>}
 
     {allItems.length===0&&<div style={{textAlign:"center",padding:40,color:C.textMuted,fontSize:13}}>データがありません</div>}
@@ -914,6 +1089,8 @@ function TennisDB(){
     Object.entries(KEYS).forEach(([name,key])=>{if(importSnapshot.current[name])save(key,importSnapshot.current[name]);});
     importSnapshot.current=null;toast.show("↩️ インポートを元に戻しました",C.yellow);
   };
+  // handleRecord is no longer used for home 3-buttons (they open modal in HomeTab directly)
+  // Kept for potential future use from other contexts
   const handleRecord=type=>{setPendingRecord(type);setTab("sessions");};
   const handleLogin=async()=>{
     setLoginError("");
@@ -965,9 +1142,9 @@ function TennisDB(){
     </div>}
 
     {/* Content */}
-    <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch",paddingBottom:60}}>
+    <div style={{flex:1,overflowY:tab==="home"?"hidden":"auto",WebkitOverflowScrolling:"touch",paddingBottom:tab==="home"?0:60,display:"flex",flexDirection:"column"}}>
       <ErrorBoundary label="ホーム">
-        {tab==="home"&&<HomeTab next={next} setNext={setNext} tournaments={tournaments} practices={practices} trials={trials} daysSinceExport={daysSinceExport} lastExport={lastExport} onExport={handleExport} onRecord={handleRecord} onGoToSessions={()=>setTab("sessions")} onGoToPlan={()=>setTab("plan")} toast={toast}/>}
+        {tab==="home"&&<HomeTab next={next} setNext={setNext} tournaments={tournaments} setTournaments={setTournaments} practices={practices} setPractices={setPractices} trials={trials} setTrials={setTrials} rackets={rackets} strings={strings} stringSetups={stringSetups} venues={venues} setVenues={setVenues} daysSinceExport={daysSinceExport} lastExport={lastExport} onExport={handleExport} onGoToSessions={()=>setTab("sessions")} onGoToPlan={()=>setTab("plan")} toast={toast}/>}
       </ErrorBoundary>
       <ErrorBoundary label="Sessions">
         {tab==="sessions"&&<SessionsTab tournaments={tournaments} setTournaments={setTournaments} practices={practices} setPractices={setPractices} trials={trials} setTrials={setTrials} rackets={rackets} strings={strings} stringSetups={stringSetups} venues={venues} setVenues={setVenues} opponents={opponents} toast={toast} pendingRecord={pendingRecord} onPendingRecordDone={()=>setPendingRecord(null)}/>}
