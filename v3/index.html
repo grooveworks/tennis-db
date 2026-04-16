@@ -13,7 +13,7 @@
 const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
 // ── APP ───────────────────────────────────────────
-const APP_VERSION="3.3.13"; // 2026/04/17 matchStats.raw/pointsをFirestore除外+保存エラーUI表示
+const APP_VERSION="3.3.14"; // 2026/04/17 試打詳細の再編集（Sessions→タップで全画面編集）
 const font="-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif";
 const C={bg:"#f2f2f7",panel:"#fff",panel2:"#f5f5f7",border:"#e0e0e4",text:"#1a1a1a",textMuted:"#8e8e93",textDim:"#aaa",accent:"#00b87a",accentBg:"rgba(0,184,122,0.08)",red:"#dc2626",redBg:"#fef2f2",blue:"#2563eb",blueBg:"rgba(37,99,235,0.08)",yellow:"#f59e0b",yellowBg:"rgba(245,158,11,0.08)",purple:"#7c3aed",purpleBg:"rgba(124,58,237,0.08)",green:"#00b87a",greenBg:"rgba(0,184,122,0.08)"};
 const Badge=({children,color="gray",sm})=>{const cc={green:C.accent,blue:C.blue,yellow:C.yellow,red:C.red,gray:C.textMuted,purple:C.purple};const c=cc[color]||color;return<span style={{display:"inline-block",fontSize:sm?9:10,fontWeight:700,color:c,background:`${c}15`,border:`1px solid ${c}30`,borderRadius:4,padding:sm?"1px 4px":"2px 6px",lineHeight:1.4}}>{children}</span>;};
@@ -1728,6 +1728,93 @@ function TournamentDetail({tournament,rackets,strings,stringSetups,venues,onAddV
   </div>;
 }
 
+// ── TRIAL DETAIL (full-screen, edit/delete) ────
+function TrialDetail({trial,rackets,strings,venues,onAddVenue,onSave,onDelete,onClose}){
+  const[f,setF]=useState({...trial});
+  const s=k=>v=>setF(p=>({...p,[k]:v}));
+  const cfm=useConfirm();
+  const handleDelete=()=>{cfm.ask("この試打記録を削除しますか？",()=>{onDelete(f.id);});};
+  const rOpts=getRacketOpts(rackets);
+  const sOpts=getStringOpts(strings);
+  const jc={採用候補:C.accent,保留:C.yellow,却下:C.red};
+  return <div style={{position:"fixed",inset:0,background:C.bg,zIndex:500,display:"flex",flexDirection:"column"}}>
+    {cfm.el}
+    <div style={{padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",background:C.panel,borderBottom:`1px solid ${C.border}`,flexShrink:0}}>
+      <button onClick={onClose} style={{background:"none",border:"none",fontSize:14,cursor:"pointer",color:C.accent,padding:4,fontWeight:600}}>← 戻る</button>
+      <span style={{fontSize:15,fontWeight:700}}>🎾 試打ノート</span>
+      <button onClick={handleDelete} style={{background:"none",border:"none",fontSize:14,cursor:"pointer",color:C.red,padding:4,fontWeight:600}}>🗑</button>
+    </div>
+    <div style={{flex:1,overflowY:"auto",padding:16}}>
+      {/* ヘッダーカード */}
+      <div style={{background:jc[f.judgment]||C.textMuted,borderRadius:10,padding:"14px 16px",marginBottom:14,color:"#fff"}}>
+        <div style={{fontSize:16,fontWeight:700}}>{f.racketName||"ラケット未選択"}</div>
+        <div style={{fontSize:12,opacity:0.85,marginTop:4}}>{[f.stringMain,f.stringCross].filter(Boolean).join(" / ")}{f.tensionMain?" / "+f.tensionMain+(f.tensionCross?"/"+f.tensionCross:"")+"p":""}</div>
+      </div>
+
+      {/* 基本情報 */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 12px"}}>
+        <Field label="日付" value={f.date} onChange={s("date")} type="date"/>
+        <VenueSelect label="場所" value={f.venue||""} onChange={s("venue")} venues={venues} onAddVenue={onAddVenue}/>
+      </div>
+      <FSelect label="ラケット" value={f.racketName||""} onChange={s("racketName")} options={rOpts}/>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 10px"}}>
+        <FSelect label="縦糸" value={f.stringMain||""} onChange={s("stringMain")} options={sOpts}/>
+        <FSelect label="横糸" value={f.stringCross||""} onChange={s("stringCross")} options={[{value:"",label:"-- 同じ --"},...sOpts.slice(1)]}/>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"0 10px"}}>
+        <Field label="縦T" value={f.tensionMain||""} onChange={s("tensionMain")} placeholder="46"/>
+        <Field label="横T" value={f.tensionCross||""} onChange={s("tensionCross")} placeholder="43"/>
+        <Field label="気温" value={f.temp||""} onChange={s("temp")} placeholder="18"/>
+      </div>
+
+      {/* 性能評価 */}
+      <div style={{fontSize:12,color:C.accent,margin:"12px 0 8px",paddingBottom:5,borderBottom:`1px solid ${C.border}`}}>性能評価　<span style={{color:C.textMuted}}>高い方が良い</span></div>
+      <div style={{background:C.panel2,borderRadius:8,padding:"10px 12px",marginBottom:10}}>
+        {[["🌀 スピン","spin"],["🚀 推進力","power"],["🎯 コントロール","control"],["📡 打感情報","info"],["🔧 操作性","maneuver"],["💨 振り抜き","swingThrough"]].map(([l,k])=>
+          <StarRow key={k} label={l} value={f[k]||3} onChange={s(k)}/>
+        )}
+      </div>
+
+      {/* 特性 */}
+      <div style={{fontSize:12,color:C.accent,margin:"10px 0 8px",paddingBottom:5,borderBottom:`1px solid ${C.border}`}}>特性（1↔5）</div>
+      <div style={{background:C.panel2,borderRadius:8,padding:"10px 12px",marginBottom:10}}>
+        {[["📐 弾道 (1低↔5高)","trajectory"],["🪨 打感 (1柔↔5硬)","stiffness"]].map(([l,k])=>
+          <StarRow key={k} label={l} value={f[k]||3} onChange={s(k)}/>
+        )}
+      </div>
+
+      {/* ショット別 */}
+      <div style={{fontSize:12,color:C.accent,margin:"10px 0 8px",paddingBottom:5,borderBottom:`1px solid ${C.border}`}}>ショット別</div>
+      <div style={{background:C.panel2,borderRadius:8,padding:"10px 12px",marginBottom:10}}>
+        {[["🎾 フォア（攻撃）","shotForeAtk"],["🛡 フォア（守備）","shotForeDef"],["🔄 バック（攻撃）","shotBackAtk"],["🛡 バック（守備）","shotBackDef"],["↗ スライス","shotSlice"],["💥 サーブ","shotServe"],["🥅 ボレー","shotVolley"],["↩ リターン","shotReturn"]].map(([l,k])=>
+          <StarRow key={k} label={l} value={f[k]||3} onChange={s(k)}/>
+        )}
+      </div>
+
+      {/* 総合 */}
+      <div style={{fontSize:12,color:C.accent,margin:"10px 0 8px",paddingBottom:5,borderBottom:`1px solid ${C.border}`}}>総合</div>
+      <div style={{background:C.panel2,borderRadius:8,padding:"10px 12px",marginBottom:10}}>
+        <StarRow label="🛡 安心感" value={f.confidence||3} onChange={s("confidence")}/>
+      </div>
+
+      {/* メモ */}
+      <Field label="🎾 ストロークメモ" value={f.strokeNote||""} onChange={s("strokeNote")} multiline placeholder="フォア/バック、飛び、弾道..."/>
+      <Field label="🏐 サーブメモ" value={f.serveNote||""} onChange={s("serveNote")} multiline placeholder="スピン量、コントロール..."/>
+      <Field label="🥅 ボレーメモ" value={f.volleyNote||""} onChange={s("volleyNote")} multiline placeholder="安定感、操作性..."/>
+      <Field label="📝 総括" value={f.generalNote||""} onChange={s("generalNote")} multiline placeholder="全体の印象..."/>
+
+      {/* 判定 */}
+      <div style={{fontSize:12,color:C.accent,margin:"10px 0 8px",paddingBottom:5,borderBottom:`1px solid ${C.border}`}}>判定</div>
+      <div style={{display:"flex",gap:8,marginBottom:14}}>
+        {["採用候補","保留","却下"].map(j=><button key={j} onClick={()=>s("judgment")(j)} style={{flex:1,background:f.judgment===j?({採用候補:C.accentBg,保留:C.yellowBg,却下:C.redBg}[j]):"none",border:`1px solid ${f.judgment===j?(jc[j]):C.border}`,color:f.judgment===j?(jc[j]):C.textMuted,borderRadius:6,padding:10,fontSize:12,fontWeight:700,cursor:"pointer",minHeight:44}}>{j}</button>)}
+      </div>
+    </div>
+    <div style={{padding:16,paddingBottom:"calc(16px + env(safe-area-inset-bottom))",borderTop:`1px solid ${C.border}`,background:C.panel,flexShrink:0}}>
+      <button onClick={()=>onSave(f)} style={{width:"100%",padding:14,borderRadius:10,background:C.accent,border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>💾 保存</button>
+    </div>
+  </div>;
+}
+
 // ── PRACTICE DETAIL (full-screen, edit/delete) ────
 function PracticeDetail({practice,rackets,strings,stringSetups,venues,onAddVenue,onSave,onDelete,onClose}){
   const[f,setF]=useState({...practice});
@@ -1850,7 +1937,8 @@ function SessionsTab({tournaments,setTournaments,practices,setPractices,trials,s
   const[modal,setModal]=useState(null);
   const[detailPractice,setDetailPractice]=useState(null);
   const[detailTournament,setDetailTournament]=useState(null);
-  useEffect(()=>{if(onDetailOpenChange)onDetailOpenChange(!!detailPractice||!!detailTournament);},[detailPractice,detailTournament]);
+  const[detailTrial,setDetailTrial]=useState(null);
+  useEffect(()=>{if(onDetailOpenChange)onDetailOpenChange(!!detailPractice||!!detailTournament||!!detailTrial);},[detailPractice,detailTournament,detailTrial]);
   const[expandedMonths,setExpandedMonths]=useState(()=>{try{const v=localStorage.getItem("yuke-session-months");return v?JSON.parse(v):{};}catch{return{};}});
   const[expandedYears,setExpandedYears]=useState(()=>{try{const v=localStorage.getItem("yuke-session-years");return v?JSON.parse(v):{};}catch{return{};}});
   const[showAllMonths,setShowAllMonths]=useState(false);
@@ -1949,8 +2037,9 @@ function SessionsTab({tournaments,setTournaments,practices,setPractices,trials,s
     const handleClick=()=>{
       if(item.type==="practice")setDetailPractice(d);
       else if(item.type==="tournament")setDetailTournament(d);
+      else if(item.type==="trial")setDetailTrial(d);
     };
-    const clickable=item.type==="practice"||item.type==="tournament";
+    const clickable=true;
     return <div key={item.id} onClick={clickable?handleClick:undefined} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 0",borderBottom:`1px solid ${C.border}22`,cursor:clickable?"pointer":"default"}}>
       <span style={{fontSize:16,flexShrink:0}}>{icon}</span>
       <div style={{flex:1,minWidth:0}}>
@@ -2025,6 +2114,7 @@ function SessionsTab({tournaments,setTournaments,practices,setPractices,trials,s
     {modal&&<RecordModal type={modal.type} data={modal.data} isNew={modal.isNew} rackets={rackets} strings={strings} stringSetups={stringSetups} venues={venues} onAddVenue={v=>{const nv=[...(venues||[]),v];setVenues(nv);save(KEYS.venues,nv);}} onSave={form=>handleSave(modal.type,form)} onClose={()=>setModal(null)}/>}
     {detailPractice&&<PracticeDetail practice={detailPractice} rackets={rackets} strings={strings} stringSetups={stringSetups} venues={venues} onAddVenue={v=>{const nv=[...(venues||[]),v];setVenues(nv);save(KEYS.venues,nv);}} onSave={form=>{const arr=ds((practices||[]).map(p=>p.id===form.id?form:p));setPractices(arr);save(KEYS.practices,arr);setDetailPractice(null);toast.show("💾 保存しました");}} onDelete={id=>{const arr=(practices||[]).filter(p=>p.id!==id);setPractices(arr);save(KEYS.practices,arr);setDetailPractice(null);toast.show("🗑 削除しました",C.red);}} onClose={()=>setDetailPractice(null)}/>}
     {detailTournament&&<TournamentDetail tournament={detailTournament} rackets={rackets} strings={strings} stringSetups={stringSetups} venues={venues} onAddVenue={v=>{const nv=[...(venues||[]),v];setVenues(nv);save(KEYS.venues,nv);}} opponents={opponents} profile={profile} onSave={form=>{const arr=ds((tournaments||[]).map(t=>t.id===form.id?form:t));setTournaments(arr);save(KEYS.tournaments,arr);setDetailTournament(null);toast.show("💾 保存しました");}} onDelete={id=>{const arr=(tournaments||[]).filter(t=>t.id!==id);setTournaments(arr);save(KEYS.tournaments,arr);setDetailTournament(null);toast.show("🗑 削除しました",C.red);}} onClose={()=>setDetailTournament(null)}/>}
+    {detailTrial&&<TrialDetail trial={detailTrial} rackets={rackets} strings={strings} venues={venues} onAddVenue={v=>{const nv=[...(venues||[]),v];setVenues(nv);save(KEYS.venues,nv);}} onSave={form=>{const arr=ds((trials||[]).map(t=>t.id===form.id?form:t));setTrials(arr);save(KEYS.trials,arr);setDetailTrial(null);toast.show("💾 保存しました");}} onDelete={id=>{const arr=(trials||[]).filter(t=>t.id!==id);setTrials(arr);save(KEYS.trials,arr);setDetailTrial(null);toast.show("🗑 削除しました",C.red);}} onClose={()=>setDetailTrial(null)}/>}
   </div>;
 }
 
