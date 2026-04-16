@@ -13,7 +13,7 @@
 const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
 // ── APP ───────────────────────────────────────────
-const APP_VERSION="3.2.2"; // 2026/04/16 Home記録完結 + 3ボタン固定 + Sessions2階層 + v2準拠QuickTrialMode
+const APP_VERSION="3.2.3"; // 2026/04/16 Sessionsバッジ視認性改善（優勝/準優勝を華やかに）
 const font="-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif";
 const C={bg:"#f2f2f7",panel:"#fff",panel2:"#f5f5f7",border:"#e0e0e4",text:"#1a1a1a",textMuted:"#8e8e93",textDim:"#aaa",accent:"#00b87a",accentBg:"rgba(0,184,122,0.08)",red:"#dc2626",redBg:"#fef2f2",blue:"#2563eb",blueBg:"rgba(37,99,235,0.08)",yellow:"#f59e0b",yellowBg:"rgba(245,158,11,0.08)",purple:"#7c3aed",purpleBg:"rgba(124,58,237,0.08)",green:"#00b87a",greenBg:"rgba(0,184,122,0.08)"};
 const Badge=({children,color="gray",sm})=>{const cc={green:C.accent,blue:C.blue,yellow:C.yellow,red:C.red,gray:C.textMuted,purple:C.purple};const c=cc[color]||color;return<span style={{display:"inline-block",fontSize:sm?9:10,fontWeight:700,color:c,background:`${c}15`,border:`1px solid ${c}30`,borderRadius:4,padding:sm?"1px 4px":"2px 6px",lineHeight:1.4}}>{children}</span>;};
@@ -859,12 +859,27 @@ function SessionsTab({tournaments,setTournaments,practices,setPractices,trials,s
     },100);
   };
 
+  const ResultBadge=({result})=>{
+    if(!result)return null;
+    const isHigh=result==="優勝"||result==="準優勝";
+    if(isHigh){
+      const ic=result==="優勝"?"🏆":"🥈";
+      const c=result==="優勝"?C.accent:C.blue;
+      const bg=result==="優勝"?C.accentBg:C.blueBg;
+      return<span style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:13,fontWeight:800,color:c,background:bg,border:`1.5px solid ${c}`,borderRadius:6,padding:"4px 10px",letterSpacing:"0.02em"}}>{ic} {result}</span>;
+    }
+    return<Badge color={RESULT_BADGE[result]||"gray"}>{result}</Badge>;
+  };
+  const TrialBadge=({judgment})=>{
+    if(!judgment)return null;
+    const c=judgment==="採用候補"?"green":judgment==="保留"?"yellow":"red";
+    return<Badge color={c}>{judgment}</Badge>;
+  };
   const renderItem=item=>{
     const d=item.data;
     const icon=item.type==="tournament"?"🏆":item.type==="practice"?"🏃":"🎾";
     const title=item.type==="tournament"?d.name:item.type==="practice"?(d.type||"練習")+(d.venue?" @ "+d.venue:""):`${d.racketName||""}${d.stringMain?" / "+d.stringMain:""}`;
     const sub=item.type==="tournament"?`${d.level||""} · ${(d.matches||[]).length}試合`:item.type==="practice"?`${d.duration?d.duration+"分":""}${d.focus?" · "+d.focus:""}`:d.judgment||"";
-    const badge=item.type==="tournament"&&d.overallResult?<Badge color={RESULT_BADGE[d.overallResult]||"gray"}>{d.overallResult}</Badge>:item.type==="trial"&&d.judgment?<Badge color={d.judgment==="採用候補"?"green":d.judgment==="保留"?"yellow":"red"} sm>{d.judgment}</Badge>:null;
     return <div key={item.id} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 0",borderBottom:`1px solid ${C.border}22`}}>
       <span style={{fontSize:16,flexShrink:0}}>{icon}</span>
       <div style={{flex:1,minWidth:0}}>
@@ -872,7 +887,8 @@ function SessionsTab({tournaments,setTournaments,practices,setPractices,trials,s
         <div style={{fontSize:10,color:C.textMuted}}>{fmtDate(item.date)} {sub}</div>
         {item.type==="tournament"&&d.matches?.length>0&&<GameBar games={d.matches[d.matches.length-1]?.games}/>}
       </div>
-      {badge}
+      {item.type==="tournament"&&<ResultBadge result={d.overallResult}/>}
+      {item.type==="trial"&&<TrialBadge judgment={d.judgment}/>}
     </div>;
   };
 
