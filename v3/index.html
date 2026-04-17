@@ -13,7 +13,7 @@
 const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
 // ── APP ───────────────────────────────────────────
-const APP_VERSION="3.3.17"; // 2026/04/17 Sessions展開UI（v2準拠）+結果選択肢更新
+const APP_VERSION="3.3.18"; // 2026/04/17 インポートプレビュー（補完可視化+モード選択）+重複検出
 const font="-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif";
 const C={bg:"#f2f2f7",panel:"#fff",panel2:"#f5f5f7",border:"#e0e0e4",text:"#1a1a1a",textMuted:"#8e8e93",textDim:"#aaa",accent:"#00b87a",accentBg:"rgba(0,184,122,0.08)",red:"#dc2626",redBg:"#fef2f2",blue:"#2563eb",blueBg:"rgba(37,99,235,0.08)",yellow:"#f59e0b",yellowBg:"rgba(245,158,11,0.08)",purple:"#7c3aed",purpleBg:"rgba(124,58,237,0.08)",green:"#00b87a",greenBg:"rgba(0,184,122,0.08)"};
 const Badge=({children,color="gray",sm,minWidth})=>{const cc={green:C.accent,blue:C.blue,yellow:C.yellow,red:C.red,gray:C.textMuted,purple:C.purple};const c=cc[color]||color;const st={display:"inline-block",fontSize:sm?9:10,fontWeight:700,color:c,background:`${c}15`,border:`1px solid ${c}30`,borderRadius:4,padding:sm?"1px 4px":"2px 6px",lineHeight:1.4};if(minWidth){st.minWidth=minWidth;st.textAlign="center";st.boxSizing="border-box";}return<span style={st}>{children}</span>;};
@@ -237,27 +237,92 @@ const mergeArr=(exist,incoming,isDup)=>{
   });
   return merged;
 };
-const mergeData=(current,incoming)=>{
+// 補完候補を計算: existing が空で incoming に値がある項目をリストアップ
+const COMPLEMENT_FIELDS={
+  tournament:[["venue","会場"],["level","クラス"],["racketName","ラケット"],["stringMain","縦糸"],["stringCross","横糸"],["tensionMain","縦テンション"],["tensionCross","横テンション"],["weather","天気"],["temp","気温"],["generalNote","総括"]],
+  practice:[["startTime","開始時刻"],["endTime","終了時刻"],["duration","時間"],["type","種別"],["venue","会場"],["racketName","ラケット"],["stringMain","縦糸"],["stringCross","横糸"],["weather","天気"],["temp","気温"]],
+  trial:[["racketName","ラケット"],["stringMain","縦糸"],["stringCross","横糸"],["tensionMain","縦T"],["tensionCross","横T"],["temp","気温"],["venue","場所"]],
+};
+const computeComplement=(existing,incoming,type)=>{
+  const fields=COMPLEMENT_FIELDS[type]||[];
+  const r=[];
+  fields.forEach(([key,label])=>{
+    if(!existing[key]&&incoming[key])r.push({key,label,value:incoming[key]});
+  });
+  return r;
+};
+// インポートプレビュー用: 何が新規追加・何が重複スキップになるかを分析
+const analyzeImport=(current,incoming)=>{
+  const r={tournaments:{add:[],dup:[]},practices:{add:[],dup:[]},trials:{add:[],dup:[]}};
+  (incoming.tournaments||[]).forEach(item=>{
+    const dup=(current.tournaments||[]).find(e=>e.id===item.id||trnDup(e,item));
+    if(dup)r.tournaments.dup.push({incoming:item,existing:dup,complement:computeComplement(dup,item,"tournament")});
+    else r.tournaments.add.push(item);
+  });
+  (incoming.practices||[]).forEach(item=>{
+    const dup=(current.practices||[]).find(e=>e.id===item.id||pracDup(e,item));
+    if(dup)r.practices.dup.push({incoming:item,existing:dup,complement:computeComplement(dup,item,"practice")});
+    else r.practices.add.push(item);
+  });
+  (incoming.trials||[]).forEach(item=>{
+    const dup=(current.trials||[]).find(e=>e.id===item.id);
+    if(dup)r.trials.dup.push({incoming:item,existing:dup,complement:computeComplement(dup,item,"trial")});
+    else r.trials.add.push(item);
+  });
+  return r;
+};
+// 重複時のフィールド補完（既存値が空のフィールドのみ補完）
+const mergeFields=(existing,incoming,fields)=>{
+  const r={...existing};
+  fields.forEach(f=>{if(!r[f]&&incoming[f])r[f]=incoming[f];});
+  return r;
+};
+// 重複時の上書き（既存IDをそのまま、データのみ新規で置き換え）
+const overwriteArr=(exist,incoming,isDup)=>{
+  const merged=[...exist];
+  (incoming||[]).forEach(item=>{
+    const idx=merged.findIndex(e=>e.id===item.id||isDup(e,item));
+    if(idx>=0)merged[idx]={...item,id:merged[idx].id};
+    else merged.push(item);
+  });
+  return merged;
+};
+const mergeData=(current,incoming,mode="merge")=>{
+  // mode: "skip"=重複は完全スキップ / "merge"=空フィールドのみ補完(デフォルト) / "overwrite"=重複を上書き
   const r={...current};
-  r.tournaments=mergeArr(current.tournaments||[],incoming.tournaments,trnDup);
-  r.practices=mergeArr(current.practices||[],incoming.practices,pracDup);
-  // 重複した練習に時間情報を補完（心拍データ等の既存フィールドは保持）
-  if(incoming.practices){
-    r.practices=r.practices.map(p=>{
-      const inc=(incoming.practices||[]).find(ip=>pracDup(p,ip));
-      if(inc){
-        return{...p,
-          startTime:p.startTime||inc.startTime||"",
-          endTime:p.endTime||inc.endTime||"",
-          duration:p.duration||inc.duration||"",
-          type:p.type||inc.type||"",
-          venue:p.venue||inc.venue||"",
-        };
+  if(mode==="overwrite"){
+    r.tournaments=overwriteArr(current.tournaments||[],incoming.tournaments,trnDup);
+    r.practices=overwriteArr(current.practices||[],incoming.practices,pracDup);
+    r.trials=overwriteArr(current.trials||[],incoming.trials,(a,b)=>a.id===b.id);
+  }else{
+    r.tournaments=mergeArr(current.tournaments||[],incoming.tournaments,trnDup);
+    r.practices=mergeArr(current.practices||[],incoming.practices,pracDup);
+    r.trials=mergeArr(current.trials||[],incoming.trials,(a,b)=>a.id===b.id);
+    if(mode==="merge"){
+      // 重複した既存データの空フィールドを補完
+      const tFields=COMPLEMENT_FIELDS.tournament.map(f=>f[0]);
+      const pFields=COMPLEMENT_FIELDS.practice.map(f=>f[0]);
+      const trFields=COMPLEMENT_FIELDS.trial.map(f=>f[0]);
+      if(incoming.tournaments){
+        r.tournaments=r.tournaments.map(t=>{
+          const inc=(incoming.tournaments||[]).find(it=>trnDup(t,it));
+          return inc?mergeFields(t,inc,tFields):t;
+        });
       }
-      return p;
-    });
+      if(incoming.practices){
+        r.practices=r.practices.map(p=>{
+          const inc=(incoming.practices||[]).find(ip=>pracDup(p,ip));
+          return inc?mergeFields(p,inc,pFields):p;
+        });
+      }
+      if(incoming.trials){
+        r.trials=r.trials.map(t=>{
+          const inc=(incoming.trials||[]).find(it=>it.id===t.id);
+          return inc?mergeFields(t,inc,trFields):t;
+        });
+      }
+    }
   }
-  r.trials=mergeArr(current.trials||[],incoming.trials,(a,b)=>a.id===b.id);
   ["rackets","strings","measurements","mental","next","opponents","stringSetups","quickTrialCards"].forEach(k=>{
     if(incoming[k]){r[k]=mergeArr(current[k]||[],incoming[k],(a,b)=>a.id===b.id);}
   });
@@ -1381,6 +1446,86 @@ function MatchStatsView({stats,playerA,playerB,myIsA}){
 }
 
 // ── CSV IMPORT MODAL ──
+// インポート前のプレビューモーダル: 新規/重複の内訳と詳細を表示、モード選択
+function ImportPreviewModal({analysis,incoming,onConfirm,onClose}){
+  const t=analysis.tournaments,p=analysis.practices,tr=analysis.trials;
+  const totalAdd=t.add.length+p.add.length+tr.add.length;
+  const totalDup=t.dup.length+p.dup.length+tr.dup.length;
+  const[mode,setMode]=useState("merge");
+  const[expandedDup,setExpandedDup]=useState(new Set());
+  const toggleExpand=key=>setExpandedDup(prev=>{const n=new Set(prev);if(n.has(key))n.delete(key);else n.add(key);return n;});
+  const modeDesc={
+    skip:"重複は完全スキップ（既存データそのまま、新規データ破棄）",
+    merge:"既存の空フィールドのみ新規データで補完（心拍・メモ等は保持）",
+    overwrite:"重複は新規データで上書き（既存データの内容は失われる）",
+  };
+  const Section=({title,icon,data,type,renderItem})=>{
+    if(data.add.length===0&&data.dup.length===0)return null;
+    return <div style={{marginBottom:14}}>
+      <div style={{fontSize:12,fontWeight:700,color:C.text,marginBottom:6}}>{icon} {title}: <span style={{color:C.accent}}>新規{data.add.length}件</span> / <span style={{color:C.yellow}}>重複{data.dup.length}件</span></div>
+      {data.add.length>0&&<div style={{marginBottom:6}}>
+        <div style={{fontSize:11,color:C.accent,marginBottom:4}}>＋ 新規追加</div>
+        <div style={{maxHeight:120,overflowY:"auto",background:C.accentBg,borderRadius:6,padding:"6px 10px"}}>
+          {data.add.map((item,i)=><div key={i} style={{fontSize:11,color:C.text,padding:"2px 0"}}>{renderItem(item)}</div>)}
+        </div>
+      </div>}
+      {data.dup.length>0&&<div>
+        <div style={{fontSize:11,color:C.yellow,marginBottom:4}}>{mode==="overwrite"?"⚠ 重複は上書き":mode==="skip"?"= 重複スキップ":"= 重複（補完あり）"}</div>
+        <div style={{maxHeight:200,overflowY:"auto",background:C.yellowBg,borderRadius:6,padding:"4px 8px"}}>
+          {data.dup.map((d,i)=>{
+            const key=`${type}-${i}`;
+            const isOpen=expandedDup.has(key);
+            const hasComplement=d.complement&&d.complement.length>0;
+            return <div key={i} style={{borderBottom:i<data.dup.length-1?`1px solid ${C.yellow}30`:"none",padding:"3px 0"}}>
+              <div onClick={()=>toggleExpand(key)} style={{display:"flex",alignItems:"center",gap:6,fontSize:11,color:C.text,cursor:"pointer"}}>
+                <span style={{transform:isOpen?"rotate(90deg)":"none",transition:"transform 0.2s",fontSize:9,color:C.textMuted}}>▶</span>
+                <span style={{flex:1}}>{renderItem(d.incoming)}</span>
+                {mode==="merge"&&hasComplement&&<span style={{fontSize:10,color:C.accent,background:C.accentBg,padding:"1px 5px",borderRadius:3}}>+{d.complement.length}補完</span>}
+              </div>
+              {isOpen&&<div style={{marginLeft:18,marginTop:4,padding:"6px 8px",background:C.panel,borderRadius:4,fontSize:11}}>
+                {mode==="merge"&&hasComplement?<>
+                  <div style={{color:C.accent,fontWeight:600,marginBottom:3}}>補完される項目:</div>
+                  {d.complement.map((c,j)=><div key={j} style={{color:C.text,paddingLeft:8}}>・{c.label}: <b>{c.value}</b></div>)}
+                </>:mode==="merge"?<div style={{color:C.textMuted}}>補完項目なし（既存データに値あり or 新規データに値なし）</div>
+                :mode==="overwrite"?<div style={{color:C.red}}>⚠ 全フィールドが新規データで上書きされます</div>
+                :<div style={{color:C.textMuted}}>このアイテムは何も変更されません</div>}
+              </div>}
+            </div>;
+          })}
+        </div>
+      </div>}
+    </div>;
+  };
+  return <div style={{position:"fixed",inset:0,background:"#0006",zIndex:600,display:"flex",alignItems:"flex-start",justifyContent:"center",overflowY:"auto",padding:20}} onClick={e=>e.target===e.currentTarget&&onClose()}>
+    <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,width:"100%",maxWidth:520,padding:20}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+        <span style={{fontSize:14,fontWeight:700,color:C.text}}>📥 インポート確認</span>
+        <button onClick={onClose} style={{background:"none",border:"none",fontSize:18,cursor:"pointer",color:C.textMuted,padding:4}}>✕</button>
+      </div>
+      <div style={{fontSize:12,color:C.text,marginBottom:10,padding:"8px 10px",background:C.panel2,borderRadius:6}}>
+        合計: <b style={{color:C.accent}}>新規{totalAdd}件</b> / <b style={{color:C.yellow}}>重複{totalDup}件</b>
+      </div>
+      {totalDup>0&&<div style={{marginBottom:14,padding:"10px 12px",background:C.panel2,borderRadius:6,border:`1px solid ${C.border}`}}>
+        <div style={{fontSize:11,color:C.textMuted,marginBottom:6,fontWeight:700}}>重複時の動作</div>
+        <div style={{display:"flex",gap:6,marginBottom:6}}>
+          {[["skip","スキップ",C.textMuted],["merge","マージ",C.accent],["overwrite","上書き",C.red]].map(([v,l,c])=>
+            <button key={v} onClick={()=>setMode(v)} style={{flex:1,padding:"6px 8px",borderRadius:6,background:mode===v?`${c}15`:C.panel,border:`1px solid ${mode===v?c:C.border}`,color:mode===v?c:C.textMuted,fontSize:11,fontWeight:700,cursor:"pointer"}}>{l}</button>
+          )}
+        </div>
+        <div style={{fontSize:10,color:C.textMuted,lineHeight:1.5}}>{modeDesc[mode]}</div>
+      </div>}
+      <Section title="大会" icon="🏆" data={t} type="t" renderItem={item=>`${normDate(item.date)} ${item.name||"(名称なし)"}`}/>
+      <Section title="練習" icon="🏃" data={p} type="p" renderItem={item=>`${normDate(item.date)} ${item.type||"練習"}${item.venue?" @ "+item.venue:""}${item.startTime?" "+item.startTime:""}`}/>
+      <Section title="試打" icon="🎾" data={tr} type="tr" renderItem={item=>`${normDate(item.date)} ${item.racketName||"(ラケット未指定)"}`}/>
+      {totalAdd===0&&totalDup===0&&<div style={{textAlign:"center",padding:20,color:C.textMuted,fontSize:12}}>インポート対象データがありません</div>}
+      <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:14}}>
+        <button onClick={onClose} style={{padding:"10px 20px",borderRadius:8,background:C.panel2,border:`1px solid ${C.border}`,color:C.textMuted,fontSize:13,fontWeight:600,cursor:"pointer"}}>キャンセル</button>
+        <button onClick={()=>onConfirm(mode)} disabled={totalAdd===0&&totalDup===0} style={{padding:"10px 20px",borderRadius:8,background:(totalAdd===0&&totalDup===0)?C.panel2:(mode==="overwrite"?C.red:C.accent),border:"none",color:(totalAdd===0&&totalDup===0)?C.textMuted:"#fff",fontSize:13,fontWeight:700,cursor:(totalAdd===0&&totalDup===0)?"default":"pointer"}}>{mode==="overwrite"?"⚠ 上書き実行":"✅ インポート実行"}</button>
+      </div>
+    </div>
+  </div>;
+}
+
 function CsvImportModal({onImport,onClose,myPlayerName,defaultOpponent}){
   const[parsed,setParsed]=useState(null);
   const[error,setError]=useState("");
@@ -2270,6 +2415,28 @@ function SessionsTab({tournaments,setTournaments,practices,setPractices,trials,s
   };
   const cfmBulk=useConfirm();
   const toggleSelect=id=>{setSelectedIds(prev=>{const n=new Set(prev);if(n.has(id))n.delete(id);else n.add(id);return n;});};
+  const handleDetectDuplicates=()=>{
+    const dupIds=new Set();
+    const seen=new Map();
+    allItems.forEach(item=>{
+      let key=null;
+      const d=item.data;
+      const nd=normDate(item.date);
+      if(item.type==="tournament")key=`t:${nd}:${d.name||""}`;
+      else if(item.type==="practice")key=`p:${nd}:${normalizeVenue(d.venue||"")}`;
+      else if(item.type==="trial")key=`tr:${nd}:${d.racketName||""}:${d.stringMain||""}`;
+      if(!key)return;
+      if(seen.has(key)){
+        dupIds.add(item.id);
+        dupIds.add(seen.get(key));
+      }else{
+        seen.set(key,item.id);
+      }
+    });
+    setSelectedIds(dupIds);
+    if(dupIds.size===0)toast.show("重複候補は見つかりませんでした",C.accent);
+    else toast.show(`🔍 ${dupIds.size}件の重複候補を検出`,C.yellow);
+  };
   const handleBulkDelete=()=>{
     if(selectedIds.size===0)return;
     cfmBulk.ask(`${selectedIds.size}件のデータを削除しますか？この操作は取り消せません。`,()=>{
@@ -2379,6 +2546,7 @@ function SessionsTab({tournaments,setTournaments,practices,setPractices,trials,s
     {/* Edit mode: bulk actions */}
     {editMode&&<div style={{display:"flex",gap:8,marginBottom:8,alignItems:"center"}}>
       <button onClick={()=>{const visible=allItems.map(i=>i.id);setSelectedIds(prev=>prev.size===visible.length?new Set():new Set(visible));}} style={{padding:"6px 10px",borderRadius:6,border:`1px solid ${C.border}`,background:C.panel,color:C.textMuted,fontSize:11,fontWeight:600,cursor:"pointer"}}>{selectedIds.size===allItems.length?"全解除":"全選択"}</button>
+      <button onClick={handleDetectDuplicates} style={{padding:"6px 10px",borderRadius:6,border:`1px solid ${C.yellow}`,background:C.yellowBg,color:C.yellow,fontSize:11,fontWeight:600,cursor:"pointer"}}>🔍 重複検出</button>
       <span style={{fontSize:11,color:C.textMuted,flex:1}}>{selectedIds.size}件選択中</span>
       {selectedIds.size>0&&<button onClick={handleBulkDelete} style={{padding:"6px 14px",borderRadius:6,background:C.redBg,border:`1px solid ${C.red}`,color:C.red,fontSize:11,fontWeight:700,cursor:"pointer"}}>🗑 {selectedIds.size}件を削除</button>}
     </div>}
@@ -2504,6 +2672,7 @@ function TennisDB(){
   const[showDataMenu,setShowDataMenu]=useState(false);
   const[showClaudeShare,setShowClaudeShare]=useState(false);
   const[pasteImport,setPasteImport]=useState(false);
+  const[importPreview,setImportPreview]=useState(null);
   const[pasteText,setPasteText]=useState("");
   const importSnapshot=useRef(null);
   const[pendingRecord,setPendingRecord]=useState(null);
@@ -2624,17 +2793,23 @@ function TennisDB(){
       toast.show("📤 エクスポート完了");
     }
   };
+  const executeImport=(data,mode="merge")=>{
+    importSnapshot.current={tournaments,practices,trials,rackets,strings,stringSetups,mental,next,profile,venues,opponents,measurements,quickTrialCards};
+    const current={tournaments,practices,trials,rackets,strings,stringSetups,mental,next,profile,venues,opponents,measurements,quickTrialCards};
+    const merged=mergeData(current,data,mode);applyData(merged);
+    Object.entries(KEYS).forEach(([name,key])=>{if(merged[name])save(key,merged[name]);});
+    if(merged.profile)save("profile",merged.profile);
+    setImportPreview(null);setPasteImport(false);setPasteText("");
+    toast.show(`📥 インポート完了（${mode==="overwrite"?"上書き":mode==="skip"?"スキップ":"マージ"}）`,C.blue);
+  };
   const handleImport=()=>{
     const inp=document.createElement("input");inp.type="file";inp.accept=".json";
     inp.onchange=async e=>{
       try{
         const text=await e.target.files[0].text();const data=JSON.parse(text);
-        importSnapshot.current={tournaments,practices,trials,rackets,strings,stringSetups,mental,next,profile,venues,opponents,measurements,quickTrialCards};
         const current={tournaments,practices,trials,rackets,strings,stringSetups,mental,next,profile,venues,opponents,measurements,quickTrialCards};
-        const merged=mergeData(current,data);applyData(merged);
-        Object.entries(KEYS).forEach(([name,key])=>{if(merged[name])save(key,merged[name]);});
-        if(merged.profile)save("profile",merged.profile);
-        toast.show(`📥 インポート完了`,C.blue);
+        const analysis=analyzeImport(current,data);
+        setImportPreview({analysis,incoming:data});
       }catch(err){toast.show("❌ インポートエラー: "+err.message,C.red);}
     };
     inp.click();
@@ -2642,12 +2817,9 @@ function TennisDB(){
   const handlePasteImport=()=>{
     try{
       const data=JSON.parse(pasteText);
-      importSnapshot.current={tournaments,practices,trials,rackets,strings,stringSetups,mental,next,profile,venues,opponents,measurements,quickTrialCards};
       const current={tournaments,practices,trials,rackets,strings,stringSetups,mental,next,profile,venues,opponents,measurements,quickTrialCards};
-      const merged=mergeData(current,data);applyData(merged);
-      Object.entries(KEYS).forEach(([name,key])=>{if(merged[name])save(key,merged[name]);});
-      if(merged.profile)save("profile",merged.profile);
-      setPasteImport(false);setPasteText("");toast.show("📥 貼り付けインポート完了",C.blue);
+      const analysis=analyzeImport(current,data);
+      setImportPreview({analysis,incoming:data});
     }catch(err){toast.show("❌ JSONエラー: "+err.message,C.red);}
   };
   const handleImportUndo=()=>{
@@ -2737,6 +2909,7 @@ function TennisDB(){
     {!detailOpen&&<TabBar tab={tab} setTab={setTab}/>}
 
     {showClaudeShare&&<ClaudeShareModal onClose={()=>setShowClaudeShare(false)} data={{tournaments,practices,trials,rackets,strings,stringSetups,mental,next,profile,venues,opponents,measurements,quickTrialCards}} toast={toast}/>}
+    {importPreview&&<ImportPreviewModal analysis={importPreview.analysis} incoming={importPreview.incoming} onConfirm={mode=>executeImport(importPreview.incoming,mode)} onClose={()=>setImportPreview(null)}/>}
     {pasteImport&&<div style={{position:"fixed",inset:0,background:"#0008",zIndex:400,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
       <div style={{background:C.panel,borderRadius:12,padding:20,width:"100%",maxWidth:400}}>
         <div style={{fontSize:14,fontWeight:700,marginBottom:10}}>📋→📥 JSONを貼り付け</div>
