@@ -13,10 +13,10 @@
 const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
 // ── APP ───────────────────────────────────────────
-const APP_VERSION="3.3.16"; // 2026/04/17 一括削除+venue正規化+試打カード削除+ハイパーリンク
+const APP_VERSION="3.3.17"; // 2026/04/17 Sessions展開UI（v2準拠）+結果選択肢更新
 const font="-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif";
 const C={bg:"#f2f2f7",panel:"#fff",panel2:"#f5f5f7",border:"#e0e0e4",text:"#1a1a1a",textMuted:"#8e8e93",textDim:"#aaa",accent:"#00b87a",accentBg:"rgba(0,184,122,0.08)",red:"#dc2626",redBg:"#fef2f2",blue:"#2563eb",blueBg:"rgba(37,99,235,0.08)",yellow:"#f59e0b",yellowBg:"rgba(245,158,11,0.08)",purple:"#7c3aed",purpleBg:"rgba(124,58,237,0.08)",green:"#00b87a",greenBg:"rgba(0,184,122,0.08)"};
-const Badge=({children,color="gray",sm})=>{const cc={green:C.accent,blue:C.blue,yellow:C.yellow,red:C.red,gray:C.textMuted,purple:C.purple};const c=cc[color]||color;return<span style={{display:"inline-block",fontSize:sm?9:10,fontWeight:700,color:c,background:`${c}15`,border:`1px solid ${c}30`,borderRadius:4,padding:sm?"1px 4px":"2px 6px",lineHeight:1.4}}>{children}</span>;};
+const Badge=({children,color="gray",sm,minWidth})=>{const cc={green:C.accent,blue:C.blue,yellow:C.yellow,red:C.red,gray:C.textMuted,purple:C.purple};const c=cc[color]||color;const st={display:"inline-block",fontSize:sm?9:10,fontWeight:700,color:c,background:`${c}15`,border:`1px solid ${c}30`,borderRadius:4,padding:sm?"1px 4px":"2px 6px",lineHeight:1.4};if(minWidth){st.minWidth=minWidth;st.textAlign="center";st.boxSizing="border-box";}return<span style={st}>{children}</span>;};
 const Card=({children,style})=><div style={{background:C.panel,borderRadius:10,padding:12,marginBottom:8,border:`1px solid ${C.border}`,...style}}>{children}</div>;
 
 // ── FIREBASE ──────────────────────────────────────
@@ -114,8 +114,8 @@ const getSetupOpts=(setups,strings)=>{
 const scColor=v=>v>=4?C.accent:v>=3?C.yellow:C.red;
 const MENTAL_LABELS={1:"最悪",2:"崩れ",3:"普通",4:"集中",5:"ゾーン"};
 const PHYSICAL_LABELS={1:"限界",2:"辛い",3:"普通",4:"良好",5:"万全"};
-const RESULT_COLORS={優勝:C.accent,準優勝:C.blue,決勝敗退:C.blue,準決勝敗退:C.yellow,敗退:C.red,予選敗退:C.red};
-const RESULT_BADGE={優勝:"green",準優勝:"blue",決勝敗退:"blue",準決勝敗退:"yellow",敗退:"red",予選敗退:"red"};
+const RESULT_COLORS={優勝:C.accent,準優勝:C.blue,"3位":C.purple,ベスト8:C.yellow,ベスト16:C.yellow,予選突破:C.accent,準決勝敗退:C.yellow,敗退:C.red,予選敗退:C.red};
+const RESULT_BADGE={優勝:"green",準優勝:"blue","3位":"purple",ベスト8:"yellow",ベスト16:"yellow",予選突破:"green",準決勝敗退:"yellow",敗退:"red",予選敗退:"red"};
 
 // ── SHARED COMPONENTS ─────────────────────────────
 function ConfirmDialog({message,onYes,onNo}){
@@ -241,6 +241,22 @@ const mergeData=(current,incoming)=>{
   const r={...current};
   r.tournaments=mergeArr(current.tournaments||[],incoming.tournaments,trnDup);
   r.practices=mergeArr(current.practices||[],incoming.practices,pracDup);
+  // 重複した練習に時間情報を補完（心拍データ等の既存フィールドは保持）
+  if(incoming.practices){
+    r.practices=r.practices.map(p=>{
+      const inc=(incoming.practices||[]).find(ip=>pracDup(p,ip));
+      if(inc){
+        return{...p,
+          startTime:p.startTime||inc.startTime||"",
+          endTime:p.endTime||inc.endTime||"",
+          duration:p.duration||inc.duration||"",
+          type:p.type||inc.type||"",
+          venue:p.venue||inc.venue||"",
+        };
+      }
+      return p;
+    });
+  }
   r.trials=mergeArr(current.trials||[],incoming.trials,(a,b)=>a.id===b.id);
   ["rackets","strings","measurements","mental","next","opponents","stringSetups","quickTrialCards"].forEach(k=>{
     if(incoming[k]){r[k]=mergeArr(current[k]||[],incoming[k],(a,b)=>a.id===b.id);}
@@ -709,7 +725,7 @@ function QuickTrialMode({rackets,strings,trials,tournaments,practices,cards,setC
   </div>;
 }
 // ── MINI CALENDAR ────────────────────────────────
-function MiniCalendar({tournaments,practices}){
+function MiniCalendar({tournaments,practices,onNavigateDetail}){
   const[month,setMonth]=useState(()=>{const d=new Date();return{y:d.getFullYear(),m:d.getMonth()};});
   const[selectedDay,setSelectedDay]=useState(null);
   const todayStr=today();
@@ -823,7 +839,7 @@ function HomeTab({next,setNext,tournaments,setTournaments,practices,setPractices
   const displayUpcoming=upcomingItems.slice(0,5);
   const overflowCount=upcomingItems.length-5;
   // Best results: top 5 good results (優勝→準優勝→予選突破 order, then by date)
-  const GOOD_RESULTS=["優勝","準優勝","予選突破"];
+  const GOOD_RESULTS=["優勝","準優勝","3位","予選突破"];
   const bestTournaments=useMemo(()=>(tournaments||[]).filter(t=>GOOD_RESULTS.includes(t.overallResult)).sort((a,b)=>{const ai=GOOD_RESULTS.indexOf(a.overallResult),bi=GOOD_RESULTS.indexOf(b.overallResult);return ai!==bi?ai-bi:(normDate(b.date)||"").localeCompare(normDate(a.date)||"");}).slice(0,5),[tournaments]);
 
   return <div style={{display:"flex",flexDirection:"column",height:"100%"}}>
@@ -863,7 +879,7 @@ function HomeTab({next,setNext,tournaments,setTournaments,practices,setPractices
       </div>}
 
       {/* Mini Calendar */}
-      <MiniCalendar tournaments={tournaments} practices={practices}/>
+      <MiniCalendar tournaments={tournaments} practices={practices} onNavigateDetail={onNavigateDetail}/>
 
       {/* Upcoming Events */}
       {displayUpcoming.length>0&&<Card>
@@ -1484,6 +1500,187 @@ function NameEditModal({matchStats,onSave,onClose}){
   </div>;
 }
 
+// ── EXPANDED CONTENT (in-place expand, not full-screen) ──
+const InfoCell=({label,value})=><div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:6,padding:"6px 10px"}}>
+  <div style={{fontSize:11,color:C.textMuted,marginBottom:2}}>{label}</div>
+  <div style={{fontSize:12,color:C.text,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{value||"—"}</div>
+</div>;
+const PhysicalBar=({value})=>{
+  const v=value||0;const c=scColor(v);
+  return <div style={{display:"flex",gap:1,flexShrink:0}}>{[1,2,3,4,5].map(n=><div key={n} style={{width:3,height:12,borderRadius:1,background:n<=v?c:C.border}}/>)}</div>;
+};
+const TrialAvg=({trial})=>{
+  const vals=[trial.spin,trial.power,trial.control,trial.info,trial.maneuver,trial.swingThrough].filter(v=>v>0);
+  if(vals.length===0)return null;
+  const avg=(vals.reduce((s,v)=>s+v,0)/vals.length).toFixed(1);
+  const c=parseFloat(avg)>=4?C.accent:parseFloat(avg)>=3?C.yellow:C.red;
+  return <span style={{fontSize:13,fontWeight:800,color:c,fontFamily:"monospace"}}>{avg}</span>;
+};
+const TrialRatingBar=({label,value})=>{
+  const v=value||0;const c=scColor(v);const w=v*20;
+  return <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+    <span style={{fontSize:11,color:C.textMuted,minWidth:88}}>{label}</span>
+    <div style={{flex:1,background:C.border,borderRadius:3,height:14,overflow:"hidden"}}>
+      <div style={{width:`${w}%`,height:"100%",background:c,borderRadius:3}}/>
+    </div>
+    <span style={{fontSize:12,fontWeight:700,color:c,minWidth:16,textAlign:"right"}}>{v}</span>
+  </div>;
+};
+const LinkedTrialCard=({trial})=>{
+  const jc2={採用候補:C.accent,保留:C.yellow,却下:C.red};
+  const avg=[trial.spin,trial.power,trial.control,trial.info,trial.maneuver,trial.swingThrough].filter(v=>v>0);
+  const avgVal=avg.length>0?(avg.reduce((s,v)=>s+v,0)/avg.length).toFixed(1):"—";
+  return <div style={{background:"#fdf6e3",border:`1px solid ${C.yellow}`,borderRadius:8,padding:"10px 12px",marginBottom:6}}>
+    <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
+      <span style={{fontSize:11,color:C.yellow,fontWeight:700}}>⚔️ 試打評価</span>
+      {trial.judgment&&<Badge color={trial.judgment==="採用候補"?"green":trial.judgment==="保留"?"yellow":"red"} sm>{trial.judgment}</Badge>}
+    </div>
+    <div style={{fontSize:13,fontWeight:700,color:C.text}}>{trial.racketName}</div>
+    {(trial.stringMain||trial.tensionMain)&&<div style={{fontSize:11,color:C.textMuted,marginBottom:4}}>{[trial.stringMain,trial.stringCross].filter(Boolean).join(" / ")}{trial.tensionMain?" / "+fmtTensionV3(trial.tensionMain,trial.tensionCross)+"p":""}</div>}
+    <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
+      {[["SP",trial.spin],["CT",trial.control],["PW",trial.power],["MN",trial.maneuver],["IF",trial.info]].map(([l,v])=>v?<div key={l} style={{display:"flex",alignItems:"center",gap:2}}>
+        <span style={{fontSize:10,color:C.textMuted}}>{l}</span>
+        <div style={{display:"flex",gap:1}}>{[1,2,3,4,5].map(n=><div key={n} style={{width:6,height:6,borderRadius:1,background:n<=v?scColor(v):C.border}}/>)}</div>
+      </div>:null)}
+      <span style={{fontSize:12,fontWeight:700,color:parseFloat(avgVal)>=4?C.accent:parseFloat(avgVal)>=3?C.yellow:C.red}}>avg {avgVal}</span>
+    </div>
+    {trial.generalNote&&<div style={{fontSize:11,color:C.text,lineHeight:1.6,marginTop:6,background:C.panel,borderRadius:5,padding:"6px 10px",borderLeft:`2px solid ${C.yellow}`}}>{trial.generalNote}</div>}
+  </div>;
+};
+
+function TournamentExpanded({trn,rackets,strings,opponents,profile,trials,toast,onUpdate,onEdit,onDelete}){
+  const wins=(trn.matches||[]).filter(m=>m.result==="勝利").length;
+  const[matchModal,setMatchModal]=useState(null);
+  const cfm=useConfirm();
+  const blankMatch=()=>({id:genId(),round:`${(trn.matches||[]).length+1}回戦`,opponent:"",opponent2:"",racketName:trn.racketName||"",stringMain:trn.stringMain||"",stringCross:trn.stringCross||"",tensionMain:trn.tensionMain||"",tensionCross:trn.tensionCross||"",result:"勝利",setScores:[],mental:3,physical:3,mentalNote:"",techNote:"",opponentNote:"",note:"",games:[],changeovers:[]});
+  const handleSaveMatch=form=>{const exists=(trn.matches||[]).find(m=>m.id===form.id);const ms=exists?(trn.matches||[]).map(m=>m.id===form.id?form:m):[...(trn.matches||[]),form];onUpdate({...trn,matches:ms});setMatchModal(null);};
+  const handleDeleteMatch=id=>{cfm.ask("この試合を削除しますか？",()=>onUpdate({...trn,matches:(trn.matches||[]).filter(m=>m.id!==id)}));};
+  const handleUpdateMatch=updated=>onUpdate({...trn,matches:(trn.matches||[]).map(m=>m.id===updated.id?updated:m)});
+  return <div style={{padding:"12px 14px",background:"#f0f0f5",borderTop:`1px solid ${C.border}`}}>
+    {cfm.el}
+    <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:10}}>
+      {[["会場",trn.venue],["ラケット",trn.racketName],["気温",trn.temp?trn.temp+"℃":""],["天気",trn.weather],["ST",[trn.stringMain,trn.stringCross].filter(Boolean).join(" / ")],["テンション",fmtTensionV3(trn.tensionMain,trn.tensionCross)],["試合数",(trn.matches||[]).length+"試合"],["勝敗",`${wins}勝${(trn.matches||[]).length-wins}敗`]].map(([k,v])=><InfoCell key={k} label={k} value={v}/>)}
+    </div>
+    {trn.generalNote&&<div style={{marginBottom:10}}>
+      <div style={{fontSize:11,color:C.textMuted,marginBottom:3}}>📝 大会総括</div>
+      <div style={{fontSize:12,color:C.text,lineHeight:1.7,background:C.panel,borderRadius:6,padding:"7px 10px",borderLeft:`2px solid ${C.border}`}}>{trn.generalNote}</div>
+    </div>}
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+      <span style={{fontSize:12,color:C.accent,fontWeight:700}}>▶ 試合記録</span>
+      <button onClick={()=>setMatchModal({match:blankMatch()})} style={{background:C.accent,border:"none",color:"#fff",borderRadius:5,padding:"3px 12px",fontSize:12,fontWeight:700,cursor:"pointer"}}>＋ 試合を追加</button>
+    </div>
+    {(trn.matches||[]).length===0?<div style={{padding:16,textAlign:"center",color:C.textMuted,fontSize:12,background:C.panel2,borderRadius:6,border:`1px dashed ${C.border}`}}>「＋ 試合を追加」から各試合を記録できます</div>
+    :<div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,overflow:"hidden"}}>
+      {(trn.matches||[]).map(m=><MatchRow key={m.id} match={m} trn={trn} opponents={opponents} profile={profile} onUpdate={handleUpdateMatch} onEditMatch={()=>setMatchModal({match:m})} onDeleteMatch={()=>handleDeleteMatch(m.id)}/>)}
+    </div>}
+    <div style={{display:"flex",gap:8,marginTop:10}}>
+      <button onClick={onEdit} style={{flex:1,padding:10,borderRadius:6,background:C.panel,border:`1px solid ${C.border}`,color:C.text,fontSize:12,fontWeight:600,cursor:"pointer"}}>✏️ 編集</button>
+      {toast&&<button onClick={()=>copyToClipboard(formatTournamentAllForClaude(trn)).then(()=>toast.show("📋 コピーしました"))} style={{padding:"10px 16px",borderRadius:6,background:C.purpleBg,border:`1px solid ${C.purple}`,color:C.purple,fontSize:12,fontWeight:600,cursor:"pointer"}}>📋 全試合</button>}
+      <button onClick={()=>cfm.ask("この大会を削除しますか？",onDelete)} style={{padding:"10px 16px",borderRadius:6,background:C.redBg,border:`1px solid ${C.red}`,color:C.red,fontSize:12,fontWeight:700,cursor:"pointer"}}>🗑</button>
+    </div>
+    {matchModal&&<MatchEditModal match={matchModal.match} trnType={trn.type} rackets={rackets} strings={strings} opponents={opponents} onSave={handleSaveMatch} onClose={()=>setMatchModal(null)}/>}
+  </div>;
+}
+
+function PracticeExpanded({practice,trials,toast,onEdit,onDelete}){
+  const cfm=useConfirm();
+  const p=practice;
+  const hasWatch=p.calories||p.heartRateAvg||p.hrZone1;
+  const linkedTrials=(trials||[]).filter(t=>t.linkedPracticeId===p.id);
+  return <div style={{padding:"12px 14px",background:"#f0f0f5",borderTop:`1px solid ${C.border}`}}>
+    {cfm.el}
+    {hasWatch&&<div style={{marginBottom:10,background:"#fff7ed",border:"1px solid #f97316",borderRadius:8,padding:"10px 12px"}}>
+      <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",marginBottom:8}}>
+        <span style={{fontSize:13,color:"#f97316",fontWeight:700}}>⌚ Apple Watch</span>
+        {p.timeRange&&<span style={{fontSize:12,color:C.textMuted}}>{p.timeRange}</span>}
+        {p.workoutLocation&&<span style={{fontSize:12,color:C.textMuted}}>📍{p.workoutLocation}</span>}
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6,marginBottom:p.hrZone1?10:0}}>
+        {p.duration&&<div style={{background:C.panel,borderRadius:5,padding:"6px 10px"}}><div style={{fontSize:10,color:C.textMuted}}>⏱ 時間</div><div style={{fontSize:14,fontWeight:700,color:C.text}}>{p.duration}分</div></div>}
+        {p.calories&&<div style={{background:C.panel,borderRadius:5,padding:"6px 10px"}}><div style={{fontSize:10,color:C.textMuted}}>🔥 Active</div><div style={{fontSize:14,fontWeight:700,color:"#f97316"}}>{p.calories}</div></div>}
+        {p.heartRateAvg&&<div style={{background:C.panel,borderRadius:5,padding:"6px 10px"}}><div style={{fontSize:10,color:C.textMuted}}>💓 平均</div><div style={{fontSize:14,fontWeight:700,color:"#fca5a5"}}>{p.heartRateAvg}</div></div>}
+        {p.totalCalories&&<div style={{background:C.panel,borderRadius:5,padding:"6px 10px"}}><div style={{fontSize:10,color:C.textMuted}}>🔥 合計</div><div style={{fontSize:14,fontWeight:700,color:"#f97316"}}>{p.totalCalories}</div></div>}
+      </div>
+      {p.hrZone1&&(()=>{
+        const parseMin=s=>{if(!s)return 0;const pp=String(s).split(":");return(parseInt(pp[0])||0)+(parseInt(pp[1])||0)/60;};
+        const toMinLabel=s=>{if(!s)return"0分";const pp=String(s).split(":");const m=parseInt(pp[0])||0;const sec=parseInt(pp[1])||0;return sec>0?`${m}分${sec}秒`:`${m}分`;};
+        const zones=[{label:"ウォームアップ",bpm:"<122",time:p.hrZone1,color:"#3b82f6",raw:parseMin(p.hrZone1)},{label:"脂肪燃焼",bpm:"123-134",time:p.hrZone2,color:"#06b6d4",raw:parseMin(p.hrZone2)},{label:"有酸素",bpm:"135-147",time:p.hrZone3,color:"#eab308",raw:parseMin(p.hrZone3)},{label:"無酸素",bpm:"148-159",time:p.hrZone4,color:"#f97316",raw:parseMin(p.hrZone4)},{label:"最大心拍",bpm:"160+",time:p.hrZone5,color:"#ef4444",raw:parseMin(p.hrZone5)}];
+        const total=zones.reduce((s,z)=>s+z.raw,0)||1;
+        return <div>
+          <div style={{fontSize:12,color:"#f97316",marginBottom:8,fontWeight:700}}>💓 心拍ゾーン</div>
+          <div style={{display:"flex",height:8,borderRadius:4,overflow:"hidden",marginBottom:10}}>{zones.map((z,i)=><div key={i} style={{width:`${(z.raw/total)*100}%`,background:z.color,minWidth:z.raw>0?2:0}}/>)}</div>
+          {zones.map((z,i)=><div key={i} style={{display:"flex",alignItems:"center",gap:6,marginBottom:5}}>
+            <div style={{width:10,height:10,borderRadius:2,background:z.color,flexShrink:0}}/>
+            <div style={{width:70,fontSize:11,color:C.text,fontWeight:600,flexShrink:0}}>{z.label}</div>
+            <div style={{width:48,fontSize:10,color:C.textMuted,flexShrink:0}}>{z.bpm}</div>
+            <div style={{flex:1,background:"#e5e7eb",borderRadius:3,height:16,overflow:"hidden",minWidth:0}}>
+              <div style={{width:`${(z.raw/total)*100}%`,height:"100%",background:z.color,borderRadius:3,minWidth:z.raw>0?3:0,display:"flex",alignItems:"center",justifyContent:"flex-end",paddingRight:4}}>
+                {z.raw/total>0.12&&<span style={{fontSize:10,color:"#000",fontWeight:700}}>{Math.round(z.raw/total*100)}%</span>}
+              </div>
+            </div>
+            <div style={{width:50,fontSize:10,color:z.color,fontWeight:700,textAlign:"right",flexShrink:0}}>{toMinLabel(z.time)}</div>
+          </div>)}
+          {p.recoveryHR&&<div style={{marginTop:8,fontSize:12,color:C.textMuted,display:"flex",alignItems:"center",gap:6}}>🫀 回復心拍 <span style={{color:"#86efac",fontWeight:700,fontSize:12}}>{p.recoveryHR}</span></div>}
+        </div>;
+      })()}
+    </div>}
+    <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:8,marginBottom:10}}>
+      {[["ラケット",p.racketName],["セッティング",[p.stringMain,p.stringCross].filter(Boolean).join(" / ")],["時間",(p.startTime?p.startTime+(p.endTime?"-"+p.endTime:"")+" ":"")+(p.duration?p.duration+"分":"")],["気温",p.temp?p.temp+"℃":""],["場所",p.venue],["種別",p.type]].map(([k,v])=><InfoCell key={k} label={k} value={v}/>)}
+    </div>
+    {[["🎯 フォーカス",p.focus],["📋 コーチメモ",p.coachNote],["✅ よかった点",p.goodNote],["🔧 改善点",p.improveNote],["📝 メモ",p.generalNote]].filter(([,v])=>v).map(([l,v])=><div key={l} style={{marginBottom:6}}>
+      <div style={{fontSize:11,color:C.textMuted,marginBottom:2}}>{l}</div>
+      <div style={{fontSize:12,color:C.text,lineHeight:1.6,background:C.panel,borderRadius:5,padding:"6px 10px",borderLeft:`2px solid ${C.border}`}}>{v}</div>
+    </div>)}
+    {linkedTrials.length>0&&linkedTrials.map(lt=><LinkedTrialCard key={lt.id} trial={lt}/>)}
+    <div style={{display:"flex",gap:8,marginTop:10}}>
+      <button onClick={onEdit} style={{flex:1,padding:10,borderRadius:6,background:C.panel,border:`1px solid ${C.border}`,color:C.text,fontSize:12,fontWeight:600,cursor:"pointer"}}>✏️ 編集</button>
+      {toast&&<button onClick={()=>copyToClipboard(formatPracticeForClaude(p)).then(()=>toast.show("📋 コピーしました"))} style={{padding:"10px 16px",borderRadius:6,background:C.purpleBg,border:`1px solid ${C.purple}`,color:C.purple,fontSize:12,fontWeight:600,cursor:"pointer"}}>📋</button>}
+      <button onClick={()=>cfm.ask("この練習を削除しますか？",onDelete)} style={{padding:"10px 16px",borderRadius:6,background:C.redBg,border:`1px solid ${C.red}`,color:C.red,fontSize:12,fontWeight:700,cursor:"pointer"}}>🗑</button>
+    </div>
+  </div>;
+}
+
+function TrialExpanded({trial,toast,onEdit,onDelete}){
+  const cfm=useConfirm();
+  const t=trial;
+  const avg=[t.spin,t.power,t.control,t.info,t.maneuver,t.swingThrough].filter(v=>v>0);
+  const avgVal=avg.length>0?(avg.reduce((s,v)=>s+v,0)/avg.length).toFixed(1):"—";
+  const hasShotDetail=t.shotForeAtk||t.shotForeDef||t.shotBackAtk||t.shotBackDef||t.shotSlice||t.shotServe||t.shotVolley||t.shotReturn;
+  return <div style={{padding:"12px 14px",background:"#f0f0f5",borderTop:`1px solid ${C.border}`}}>
+    {cfm.el}
+    <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:8,marginBottom:10}}>
+      {[["ラケット",t.racketName],["縦糸",t.stringMain],["横糸",t.stringCross],["テンション",fmtTensionV3(t.tensionMain,t.tensionCross)],["気温",t.temp?t.temp+"℃":""],["場所",t.venue]].map(([k,v])=><InfoCell key={k} label={k} value={v}/>)}
+    </div>
+    <div style={{background:C.panel2,borderRadius:8,padding:"10px 12px",marginBottom:10}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+        <span style={{fontSize:12,fontWeight:700,color:C.text}}>打感評価</span>
+        <span style={{fontSize:12,fontWeight:700,color:parseFloat(avgVal)>=4?C.accent:parseFloat(avgVal)>=3?C.yellow:C.red}}>平均 {avgVal}/5</span>
+      </div>
+      {[["🌀 スピン",t.spin],["🚀 推進力",t.power],["🎯 コントロール",t.control],["📡 打感情報",t.info],["🔧 操作性",t.maneuver],["💨 振り抜き",t.swingThrough]].map(([l,v])=><TrialRatingBar key={l} label={l} value={v}/>)}
+    </div>
+    {(t.trajectory||t.stiffness)&&<div style={{background:C.panel2,borderRadius:8,padding:"10px 12px",marginBottom:10}}>
+      <div style={{fontSize:12,fontWeight:700,color:C.text,marginBottom:8}}>特性（1↔5）</div>
+      {[["📐 弾道 (低↔高)",t.trajectory],["🪨 打感 (柔↔硬)",t.stiffness]].map(([l,v])=><TrialRatingBar key={l} label={l} value={v}/>)}
+    </div>}
+    {hasShotDetail&&<div style={{background:C.panel2,borderRadius:8,padding:"10px 12px",marginBottom:10}}>
+      <div style={{fontSize:12,fontWeight:700,color:C.text,marginBottom:8}}>ショット別</div>
+      {[["🎾 フォア攻",t.shotForeAtk],["🛡 フォア守",t.shotForeDef],["🔄 バック攻",t.shotBackAtk],["🛡 バック守",t.shotBackDef],["↗ スライス",t.shotSlice],["💥 サーブ",t.shotServe],["🥅 ボレー",t.shotVolley],["↩ リターン",t.shotReturn]].map(([l,v])=><TrialRatingBar key={l} label={l} value={v}/>)}
+    </div>}
+    {t.confidence&&<div style={{background:C.panel2,borderRadius:8,padding:"10px 12px",marginBottom:10}}>
+      <TrialRatingBar label="🛡 安心感" value={t.confidence}/>
+    </div>}
+    {[["🎾 ストローク",t.strokeNote],["🏐 サーブ",t.serveNote],["🥅 ボレー",t.volleyNote],["📝 総括",t.generalNote]].filter(([,v])=>v).map(([l,v])=><div key={l} style={{marginBottom:6}}>
+      <div style={{fontSize:11,color:C.textMuted,marginBottom:2}}>{l}</div>
+      <div style={{fontSize:12,color:C.text,lineHeight:1.6,background:C.panel,borderRadius:5,padding:"6px 10px",borderLeft:`2px solid ${C.border}`}}>{v}</div>
+    </div>)}
+    <div style={{display:"flex",gap:8,marginTop:10}}>
+      <button onClick={onEdit} style={{flex:1,padding:10,borderRadius:6,background:C.panel,border:`1px solid ${C.border}`,color:C.text,fontSize:12,fontWeight:600,cursor:"pointer"}}>✏️ 編集</button>
+      {toast&&<button onClick={()=>copyToClipboard(formatTrialForClaude(t)).then(()=>toast.show("📋 コピーしました"))} style={{padding:"10px 16px",borderRadius:6,background:C.purpleBg,border:`1px solid ${C.purple}`,color:C.purple,fontSize:12,fontWeight:600,cursor:"pointer"}}>📋</button>}
+      <button onClick={()=>cfm.ask("この試打を削除しますか？",onDelete)} style={{padding:"10px 16px",borderRadius:6,background:C.redBg,border:`1px solid ${C.red}`,color:C.red,fontSize:12,fontWeight:700,cursor:"pointer"}}>🗑</button>
+    </div>
+  </div>;
+}
+
 const ROUND_OPTS=[{value:"1回戦",label:"1回戦"},{value:"2回戦",label:"2回戦"},{value:"3回戦",label:"3回戦"},{value:"準々決勝",label:"準々決勝"},{value:"準決勝",label:"準決勝"},{value:"決勝",label:"決勝"},{value:"予選",label:"予選"},{value:"エキシビション",label:"エキシビション"}];
 const ROUND_COLOR={"1回戦":"gray","2回戦":"gray","3回戦":"blue","準々決勝":"blue","準決勝":"purple","決勝":"yellow","予選":"gray","エキシビション":"orange"};
 const fmtTensionV3=(m,c)=>{const a=m||"";const b=c||"";if(!a&&!b)return"";if(a&&b&&a!==b)return`${a}/${b}`;return a||b;};
@@ -1700,7 +1897,7 @@ function TournamentDetail({tournament,rackets,strings,stringSetups,venues,onAddV
         <FSelect label="種目" value={f.type||"singles"} onChange={s("type")} options={[{value:"singles",label:"シングルス"},{value:"doubles",label:"ダブルス"},{value:"mixed",label:"ミックス"}]}/>
       </div>
       <VenueSelect label="会場" value={f.venue||""} onChange={s("venue")} venues={venues} onAddVenue={onAddVenue}/>
-      <FSelect label="結果" value={f.overallResult||""} onChange={s("overallResult")} options={[{value:"",label:"— 未定 —"},{value:"優勝",label:"優勝🏆"},{value:"準優勝",label:"準優勝🥈"},{value:"予選突破",label:"予選突破"},{value:"準決勝敗退",label:"準決勝敗退"},{value:"決勝敗退",label:"決勝敗退"},{value:"予選敗退",label:"予選敗退"},{value:"敗退",label:"敗退"}]}/>
+      <FSelect label="結果" value={f.overallResult||""} onChange={s("overallResult")} options={[{value:"",label:"— 未定 —"},{value:"優勝",label:"🏆 優勝"},{value:"準優勝",label:"🥈 準優勝"},{value:"3位",label:"🥉 3位"},{value:"ベスト8",label:"ベスト8"},{value:"ベスト16",label:"ベスト16"},{value:"予選突破",label:"✅ 予選突破"},{value:"予選敗退",label:"予選敗退"},{value:"敗退",label:"敗退"}]}/>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"0 10px"}}>
         <Field label="気温（℃）" value={f.temp||""} onChange={s("temp")} placeholder="15"/>
         <Field label="テンション縦" value={f.tensionMain||""} onChange={s("tensionMain")} placeholder="46"/>
@@ -1955,6 +2152,7 @@ function SessionsTab({tournaments,setTournaments,practices,setPractices,trials,s
   const[modal,setModal]=useState(null);
   const[editMode,setEditMode]=useState(false);
   const[selectedIds,setSelectedIds]=useState(new Set());
+  const[expandedItem,setExpandedItem]=useState(null);
   const[detailPractice,setDetailPractice]=useState(null);
   const[detailTournament,setDetailTournament]=useState(null);
   const[detailTrial,setDetailTrial]=useState(null);
@@ -1962,9 +2160,23 @@ function SessionsTab({tournaments,setTournaments,practices,setPractices,trials,s
   useEffect(()=>{
     if(!pendingDetail)return;
     const{type,data}=pendingDetail;
-    if(type==="practice")setDetailPractice(data);
-    else if(type==="tournament")setDetailTournament(data);
-    else if(type==="trial")setDetailTrial(data);
+    // 展開UIで開く（全画面編集ではなく）
+    if(data?.id){
+      setExpandedItem(data.id);
+      // 該当月を展開
+      const nd=normDate(data.date);
+      const m=nd.match(/(\d{4})-(\d{2})/);
+      if(m){
+        const ym=`${m[1]}-${m[2]}`;
+        setExpandedMonths(prev=>({...prev,[ym]:true}));
+        // 古い月なら表示する
+        setShowAllMonths(true);
+        // 年も展開
+        setExpandedYears(prev=>({...prev,[m[1]]:true}));
+        // スクロール
+        setTimeout(()=>{const el=document.getElementById("month-"+ym);if(el)el.scrollIntoView({behavior:"smooth",block:"start"});},200);
+      }
+    }
     if(onPendingDetailDone)onPendingDetailDone();
   },[pendingDetail]);
   const[expandedMonths,setExpandedMonths]=useState(()=>{try{const v=localStorage.getItem("yuke-session-months");return v?JSON.parse(v):{};}catch{return{};}});
@@ -2072,32 +2284,70 @@ function SessionsTab({tournaments,setTournaments,practices,setPractices,trials,s
       setSelectedIds(new Set());setEditMode(false);
     });
   };
+  const typeLabel2={singles:"S",doubles:"D",mixed:"Mix"};
+  const typeColor2={singles:"gray",doubles:"blue",mixed:"purple"};
   const renderItem=item=>{
     const d=item.data;
     const icon=item.type==="tournament"?"🏆":item.type==="practice"?"🏃":"🎾";
-    const title=item.type==="tournament"?d.name:item.type==="practice"?(d.type||"練習")+(d.venue?" @ "+d.venue:""):`${d.racketName||""}${d.stringMain?" / "+d.stringMain:""}`;
-    const timeStr=item.type==="practice"&&d.startTime?d.startTime+(d.endTime?"-"+d.endTime:""):"";
-    const sub=item.type==="tournament"?`${d.level||""} · ${(d.matches||[]).length}試合`:item.type==="practice"?`${timeStr}${timeStr&&d.duration?" ("+d.duration+"分)":d.duration?d.duration+"分":""}${d.focus?" · "+d.focus:""}`:d.judgment||"";
+    const isExpanded=expandedItem===item.id;
     const isSelected=selectedIds.has(item.id);
     const handleClick=()=>{
       if(editMode){toggleSelect(item.id);return;}
-      if(item.type==="practice")setDetailPractice(d);
-      else if(item.type==="tournament")setDetailTournament(d);
-      else if(item.type==="trial")setDetailTrial(d);
+      setExpandedItem(isExpanded?null:item.id);
     };
-    return <div key={item.id} onClick={handleClick} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 0",borderBottom:`1px solid ${C.border}22`,cursor:"pointer",background:isSelected?C.redBg:"transparent"}}>
-      {editMode&&<div style={{width:20,height:20,borderRadius:4,border:`2px solid ${isSelected?C.red:C.border}`,background:isSelected?C.red:"transparent",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
-        {isSelected&&<span style={{color:"#fff",fontSize:12,fontWeight:700}}>✓</span>}
-      </div>}
-      <span style={{fontSize:16,flexShrink:0}}>{icon}</span>
-      <div style={{flex:1,minWidth:0}}>
-        <div style={{fontSize:12,fontWeight:600,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{title}</div>
-        <div style={{fontSize:10,color:C.textMuted}}>{fmtDate(item.date)} {sub}</div>
-        {item.type==="tournament"&&d.matches?.length>0&&<GameBar games={d.matches[d.matches.length-1]?.games}/>}
+    // 大会の一覧行
+    if(item.type==="tournament"){
+      const wins=(d.matches||[]).filter(m=>m.result==="勝利").length;
+      return <div key={item.id}>
+        <div onClick={handleClick} style={{display:"flex",alignItems:"center",gap:4,padding:"8px 4px",borderBottom:`1px solid ${C.border}22`,cursor:"pointer",background:isSelected?C.redBg:isExpanded?"#f0f0f5":"transparent",borderLeft:isExpanded?`3px solid ${C.accent}`:"3px solid transparent"}}>
+          {editMode&&<div style={{width:20,height:20,borderRadius:4,border:`2px solid ${isSelected?C.red:C.border}`,background:isSelected?C.red:"transparent",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>{isSelected&&<span style={{color:"#fff",fontSize:12,fontWeight:700}}>✓</span>}</div>}
+          <span style={{fontSize:12,color:C.textMuted,fontFamily:"monospace",minWidth:52,flexShrink:0}}>{fmtDate(item.date)}</span>
+          <Badge color={typeColor2[d.type]||"gray"} minWidth={32}>{typeLabel2[d.type]||d.type||"-"}</Badge>
+          {!editMode&&(d.overallResult?<Badge color={RESULT_BADGE[d.overallResult]||"gray"} minWidth={60}>{d.overallResult==="優勝"?"🏆 優勝":d.overallResult==="準優勝"?"🥈 準優勝":d.overallResult}</Badge>:<span style={{minWidth:60,display:"inline-block",flexShrink:0}}/>)}
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:12,fontWeight:700,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.name}</div>
+            <div style={{fontSize:10,color:C.textMuted}}>{wins}勝{(d.matches||[]).length-wins}敗{d.racketName?" · "+d.racketName:""}</div>
+          </div>
+          <div style={{color:C.textMuted,fontSize:12,transform:isExpanded?"rotate(90deg)":"none",transition:"transform 0.2s",flexShrink:0}}>▶</div>
+        </div>
+        {isExpanded&&!editMode&&<TournamentExpanded trn={d} rackets={rackets} strings={strings} opponents={opponents} profile={profile} trials={trials} toast={toast} onUpdate={updated=>{const arr=ds((tournaments||[]).map(t=>t.id===updated.id?updated:t));setTournaments(arr);save(KEYS.tournaments,arr);}} onEdit={()=>setDetailTournament(d)} onDelete={()=>{const arr=(tournaments||[]).filter(t=>t.id!==d.id);setTournaments(arr);save(KEYS.tournaments,arr);setExpandedItem(null);toast.show("🗑 削除しました",C.red);}}/>}
+      </div>;
+    }
+    // 練習の一覧行
+    if(item.type==="practice"){
+      const timeStr=d.startTime?d.startTime+(d.endTime?"-"+d.endTime:""):"";
+      const pracTypeIcon={スクール:"🏫",自主練:"🎾",練習会:"👥",ゲーム練習:"⚔️",球出し:"🏐",練習試合:"🎯",フィジカル:"💪"};
+      const pracTypeColor={スクール:"blue",自主練:"green",練習会:"gray",ゲーム練習:"purple",球出し:"yellow",練習試合:"purple",フィジカル:"orange"};
+      return <div key={item.id}>
+        <div onClick={handleClick} style={{display:"flex",alignItems:"center",gap:4,padding:"8px 4px",borderBottom:`1px solid ${C.border}22`,cursor:"pointer",background:isSelected?C.redBg:isExpanded?"#f0f0f5":"transparent",borderLeft:isExpanded?`3px solid ${C.blue}`:"3px solid transparent"}}>
+          {editMode&&<div style={{width:20,height:20,borderRadius:4,border:`2px solid ${isSelected?C.red:C.border}`,background:isSelected?C.red:"transparent",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>{isSelected&&<span style={{color:"#fff",fontSize:12,fontWeight:700}}>✓</span>}</div>}
+          <span style={{fontSize:12,color:C.textMuted,fontFamily:"monospace",minWidth:52,flexShrink:0}}>{fmtDate(item.date)}</span>
+          <Badge color={pracTypeColor[d.type]||"gray"} minWidth={96}>{(pracTypeIcon[d.type]||"") + (d.type||"練習")}</Badge>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:12,fontWeight:600,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.venue||"（場所未入力）"}</div>
+            <div style={{fontSize:10,color:C.textMuted}}>{timeStr}{timeStr&&d.duration?" ("+d.duration+"分)":d.duration?d.duration+"分":""}{d.racketName?" · "+d.racketName:""}{d.focus?" · "+d.focus.slice(0,20):""}</div>
+          </div>
+          {!editMode&&<PhysicalBar value={d.physical}/>}
+          <div style={{color:C.textMuted,fontSize:12,transform:isExpanded?"rotate(90deg)":"none",transition:"transform 0.2s",flexShrink:0}}>▶</div>
+        </div>
+        {isExpanded&&!editMode&&<PracticeExpanded practice={d} trials={trials} toast={toast} onEdit={()=>setDetailPractice(d)} onDelete={()=>{const arr=(practices||[]).filter(p=>p.id!==d.id);setPractices(arr);save(KEYS.practices,arr);setExpandedItem(null);toast.show("🗑 削除しました",C.red);}}/>}
+      </div>;
+    }
+    // 試打の一覧行
+    const jc3={採用候補:"green",保留:"yellow",却下:"red"};
+    return <div key={item.id}>
+      <div onClick={handleClick} style={{display:"flex",alignItems:"center",gap:4,padding:"8px 4px",borderBottom:`1px solid ${C.border}22`,cursor:"pointer",background:isSelected?C.redBg:isExpanded?"#f0f0f5":"transparent",borderLeft:isExpanded?`3px solid ${C.purple}`:"3px solid transparent"}}>
+        {editMode&&<div style={{width:20,height:20,borderRadius:4,border:`2px solid ${isSelected?C.red:C.border}`,background:isSelected?C.red:"transparent",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>{isSelected&&<span style={{color:"#fff",fontSize:12,fontWeight:700}}>✓</span>}</div>}
+        <span style={{fontSize:12,color:C.textMuted,fontFamily:"monospace",minWidth:52,flexShrink:0}}>{fmtDate(item.date)}</span>
+        {!editMode&&(d.judgment?<Badge color={d.judgment==="採用候補"?"green":d.judgment==="保留"?"yellow":"red"} minWidth={96}>{d.judgment}</Badge>:<span style={{minWidth:96,display:"inline-block",flexShrink:0}}/>)}
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontSize:12,fontWeight:600,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.racketName||"ラケット未選択"}</div>
+          <div style={{fontSize:10,color:C.textMuted}}>{[d.stringMain,d.stringCross].filter(Boolean).join(" / ")}{d.tensionMain?" / "+fmtTensionV3(d.tensionMain,d.tensionCross)+"p":""}</div>
+        </div>
+        {!editMode&&<TrialAvg trial={d}/>}
+        <div style={{color:C.textMuted,fontSize:12,transform:isExpanded?"rotate(90deg)":"none",transition:"transform 0.2s",flexShrink:0}}>▶</div>
       </div>
-      {!editMode&&item.type==="tournament"&&<ResultBadge result={d.overallResult}/>}
-      {!editMode&&item.type==="trial"&&<TrialBadge judgment={d.judgment}/>}
-      {!editMode&&<span style={{fontSize:11,color:C.textMuted,flexShrink:0}}>›</span>}
+      {isExpanded&&!editMode&&<TrialExpanded trial={d} toast={toast} onEdit={()=>setDetailTrial(d)} onDelete={()=>{const arr=(trials||[]).filter(t=>t.id!==d.id);setTrials(arr);save(KEYS.trials,arr);setExpandedItem(null);toast.show("🗑 削除しました",C.red);}}/>}
     </div>;
   };
 
@@ -2213,7 +2463,7 @@ function RecordModal({type,data,isNew,rackets,strings,stringSetups,venues,onAddV
         <Field label="テンション" value={f.tension||""} onChange={s("tension")} placeholder="43p"/>
       </>}
       <Field label="気温" value={f.temp||""} onChange={s("temp")} placeholder="18"/>
-      {type==="tournaments"&&<FSelect label="結果" value={f.overallResult||""} onChange={s("overallResult")} options={[{value:"",label:"--"},{value:"優勝",label:"優勝"},{value:"準優勝",label:"準優勝"},{value:"決勝敗退",label:"決勝敗退"},{value:"準決勝敗退",label:"準決勝敗退"},{value:"敗退",label:"敗退"},{value:"予選敗退",label:"予選敗退"}]}/>}
+      {type==="tournaments"&&<FSelect label="結果" value={f.overallResult||""} onChange={s("overallResult")} options={[{value:"",label:"--"},{value:"優勝",label:"🏆 優勝"},{value:"準優勝",label:"🥈 準優勝"},{value:"3位",label:"🥉 3位"},{value:"ベスト8",label:"ベスト8"},{value:"ベスト16",label:"ベスト16"},{value:"予選突破",label:"✅ 予選突破"},{value:"予選敗退",label:"予選敗退"},{value:"敗退",label:"敗退"}]}/>}
       {type==="trials"&&<FSelect label="判定" value={f.judgment||""} onChange={s("judgment")} options={[{value:"",label:"--"},{value:"採用候補",label:"採用候補"},{value:"保留",label:"保留"},{value:"却下",label:"却下"}]}/>}
       {type==="practices"&&<Field label="フォーカス" value={f.focus||""} onChange={s("focus")} placeholder="今日の練習テーマ"/>}
       <Field label="メモ" value={f.generalNote||""} onChange={s("generalNote")} multiline placeholder="メモ"/>
