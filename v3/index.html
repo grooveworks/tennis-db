@@ -13,7 +13,7 @@
 const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
 // ── APP ───────────────────────────────────────────
-const APP_VERSION="3.3.20"; // 2026/04/18 Practiceにtitleフィールド追加＋インポート時のtitle結合マージ
+const APP_VERSION="3.3.21"; // 2026/04/18 緊急: GCalインポート取り消しボタン追加
 const font="-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif";
 const C={bg:"#f2f2f7",panel:"#fff",panel2:"#f5f5f7",border:"#e0e0e4",text:"#1a1a1a",textMuted:"#8e8e93",textDim:"#aaa",accent:"#00b87a",accentBg:"rgba(0,184,122,0.08)",red:"#dc2626",redBg:"#fef2f2",blue:"#2563eb",blueBg:"rgba(37,99,235,0.08)",yellow:"#f59e0b",yellowBg:"rgba(245,158,11,0.08)",purple:"#7c3aed",purpleBg:"rgba(124,58,237,0.08)",green:"#00b87a",greenBg:"rgba(0,184,122,0.08)"};
 const Badge=({children,color="gray",sm,minWidth})=>{const cc={green:C.accent,blue:C.blue,yellow:C.yellow,red:C.red,gray:C.textMuted,purple:C.purple};const c=cc[color]||color;const st={display:"inline-block",fontSize:sm?9:10,fontWeight:700,color:c,background:`${c}15`,border:`1px solid ${c}30`,borderRadius:4,padding:sm?"1px 4px":"2px 6px",lineHeight:1.4};if(minWidth){st.minWidth=minWidth;st.textAlign="center";st.boxSizing="border-box";}return<span style={st}>{children}</span>;};
@@ -961,6 +961,27 @@ function HomeTab({next,setNext,tournaments,setTournaments,practices,setPractices
 
     {/* Scrollable content area */}
     <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch",padding:"0 10px 60px"}}>
+      {/* GCal import rollback button (v3.3.21 emergency) */}
+      {(()=>{
+        const gcalCount=((tournaments||[]).filter(t=>String(t.id||"").startsWith("gcal_")).length)+((practices||[]).filter(p=>String(p.id||"").startsWith("gcal_")).length)+((trials||[]).filter(t=>String(t.id||"").startsWith("gcal_")).length);
+        if(gcalCount===0)return null;
+        const doRollback=async()=>{
+          if(!confirm(`GCalからインポートした ${gcalCount} 件を全て削除します。よろしいですか？（取り消し不可）`))return;
+          try{
+            const newT=(tournaments||[]).filter(t=>!String(t.id||"").startsWith("gcal_"));
+            const newP=(practices||[]).filter(p=>!String(p.id||"").startsWith("gcal_"));
+            const newTr=(trials||[]).filter(t=>!String(t.id||"").startsWith("gcal_"));
+            setTournaments(newT);save(KEYS.tournaments,newT);
+            setPractices(newP);save(KEYS.practices,newP);
+            setTrials(newTr);save(KEYS.trials,newTr);
+            toast.show(`✅ ${gcalCount}件のGCalインポートを削除しました`);
+          }catch(e){console.error(e);toast.show("⚠️ 削除エラー: "+e.message,C.red);}
+        };
+        return <div onClick={doRollback} style={{background:C.redBg,border:`2px solid ${C.red}`,borderRadius:8,padding:10,marginBottom:10,cursor:"pointer"}}>
+          <div style={{fontSize:12,fontWeight:700,color:C.red}}>🚨 GCalインポートを取り消し</div>
+          <div style={{fontSize:11,color:"#fca5a5"}}>gcal_ プレフィックスの {gcalCount} 件を全削除（タップで実行、要確認）</div>
+        </div>;
+      })()}
       {/* Backup Warning */}
       {daysSinceExport>=3&&<div onClick={onExport} style={{background:C.redBg,border:`1px solid ${C.red}`,borderRadius:8,padding:10,marginBottom:10,cursor:"pointer"}}>
         <div style={{fontSize:12,fontWeight:700,color:C.red}}>⚠️ バックアップしてください（{daysSinceExport>=365?"未実施":`${daysSinceExport}日前`}）</div>
