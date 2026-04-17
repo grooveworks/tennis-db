@@ -13,7 +13,7 @@
 const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
 // ── APP ───────────────────────────────────────────
-const APP_VERSION="3.3.21"; // 2026/04/18 緊急: GCalインポート取り消しボタン追加
+const APP_VERSION="3.3.22"; // 2026/04/18 pracDup改善: 空venueはstartTimeで補完判定
 const font="-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif";
 const C={bg:"#f2f2f7",panel:"#fff",panel2:"#f5f5f7",border:"#e0e0e4",text:"#1a1a1a",textMuted:"#8e8e93",textDim:"#aaa",accent:"#00b87a",accentBg:"rgba(0,184,122,0.08)",red:"#dc2626",redBg:"#fef2f2",blue:"#2563eb",blueBg:"rgba(37,99,235,0.08)",yellow:"#f59e0b",yellowBg:"rgba(245,158,11,0.08)",purple:"#7c3aed",purpleBg:"rgba(124,58,237,0.08)",green:"#00b87a",greenBg:"rgba(0,184,122,0.08)"};
 const Badge=({children,color="gray",sm,minWidth})=>{const cc={green:C.accent,blue:C.blue,yellow:C.yellow,red:C.red,gray:C.textMuted,purple:C.purple};const c=cc[color]||color;const st={display:"inline-block",fontSize:sm?9:10,fontWeight:700,color:c,background:`${c}15`,border:`1px solid ${c}30`,borderRadius:4,padding:sm?"1px 4px":"2px 6px",lineHeight:1.4};if(minWidth){st.minWidth=minWidth;st.textAlign="center";st.boxSizing="border-box";}return<span style={st}>{children}</span>;};
@@ -229,7 +229,16 @@ const normalizeVenue=v=>{
   if(/大宮.*けんぽ/.test(v))return"大宮けんぽグラウンド";
   return v;
 };
-const pracDup=(a,b)=>normDate(a.date)===normDate(b.date)&&normalizeVenue(a.venue)===normalizeVenue(b.venue);
+const pracDup=(a,b)=>{
+  if(normDate(a.date)!==normDate(b.date))return false;
+  const va=normalizeVenue(a.venue||""),vb=normalizeVenue(b.venue||"");
+  // 両方venueがあるなら正規化後一致が必須
+  if(va&&vb)return va===vb;
+  // 片方または両方空: startTimeで補完判定（両方あって一致なら重複）
+  if(a.startTime&&b.startTime)return a.startTime===b.startTime;
+  // venue片方空 + startTime不足: 同一日なら重複扱い（同日複数練習は稀）
+  return true;
+};
 const mergeArr=(exist,incoming,isDup)=>{
   const merged=[...exist];
   (incoming||[]).forEach(item=>{
