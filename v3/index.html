@@ -13,7 +13,7 @@
 const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
 // ── APP ───────────────────────────────────────────
-const APP_VERSION="3.3.19"; // 2026/04/17 公開/非公開トグル追加（GCal連携準備）
+const APP_VERSION="3.3.20"; // 2026/04/18 Practiceにtitleフィールド追加＋インポート時のtitle結合マージ
 const font="-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif";
 const C={bg:"#f2f2f7",panel:"#fff",panel2:"#f5f5f7",border:"#e0e0e4",text:"#1a1a1a",textMuted:"#8e8e93",textDim:"#aaa",accent:"#00b87a",accentBg:"rgba(0,184,122,0.08)",red:"#dc2626",redBg:"#fef2f2",blue:"#2563eb",blueBg:"rgba(37,99,235,0.08)",yellow:"#f59e0b",yellowBg:"rgba(245,158,11,0.08)",purple:"#7c3aed",purpleBg:"rgba(124,58,237,0.08)",green:"#00b87a",greenBg:"rgba(0,184,122,0.08)"};
 const Badge=({children,color="gray",sm,minWidth})=>{const cc={green:C.accent,blue:C.blue,yellow:C.yellow,red:C.red,gray:C.textMuted,purple:C.purple};const c=cc[color]||color;const st={display:"inline-block",fontSize:sm?9:10,fontWeight:700,color:c,background:`${c}15`,border:`1px solid ${c}30`,borderRadius:4,padding:sm?"1px 4px":"2px 6px",lineHeight:1.4};if(minWidth){st.minWidth=minWidth;st.textAlign="center";st.boxSizing="border-box";}return<span style={st}>{children}</span>;};
@@ -240,7 +240,7 @@ const mergeArr=(exist,incoming,isDup)=>{
 // 補完候補を計算: existing が空で incoming に値がある項目をリストアップ
 const COMPLEMENT_FIELDS={
   tournament:[["venue","会場"],["level","クラス"],["racketName","ラケット"],["stringMain","縦糸"],["stringCross","横糸"],["tensionMain","縦テンション"],["tensionCross","横テンション"],["weather","天気"],["temp","気温"],["generalNote","総括"]],
-  practice:[["startTime","開始時刻"],["endTime","終了時刻"],["duration","時間"],["type","種別"],["venue","会場"],["racketName","ラケット"],["stringMain","縦糸"],["stringCross","横糸"],["weather","天気"],["temp","気温"]],
+  practice:[["title","イベント名"],["startTime","開始時刻"],["endTime","終了時刻"],["duration","時間"],["type","種別"],["venue","会場"],["racketName","ラケット"],["stringMain","縦糸"],["stringCross","横糸"],["weather","天気"],["temp","気温"]],
   trial:[["racketName","ラケット"],["stringMain","縦糸"],["stringCross","横糸"],["tensionMain","縦T"],["tensionCross","横T"],["temp","気温"],["venue","場所"]],
 };
 const computeComplement=(existing,incoming,type)=>{
@@ -249,6 +249,10 @@ const computeComplement=(existing,incoming,type)=>{
   fields.forEach(([key,label])=>{
     if(!existing[key]&&incoming[key])r.push({key,label,value:incoming[key]});
   });
+  // 練習のtitleは両方あって異なる場合「結合」扱い
+  if(type==="practice"&&existing.title&&incoming.title&&existing.title!==incoming.title){
+    r.push({key:"title",label:"イベント名",value:existing.title+" | "+incoming.title,combine:true,before:existing.title,after:incoming.title});
+  }
   return r;
 };
 // インポートプレビュー用: 何が新規追加・何が重複スキップになるかを分析
@@ -312,7 +316,11 @@ const mergeData=(current,incoming,mode="merge")=>{
       if(incoming.practices){
         r.practices=r.practices.map(p=>{
           const inc=(incoming.practices||[]).find(ip=>pracDup(p,ip));
-          return inc?mergeFields(p,inc,pFields):p;
+          if(!inc)return p;
+          const merged=mergeFields(p,inc,pFields);
+          // titleは両方あって異なる場合「既存 | 新規」で結合
+          if(p.title&&inc.title&&p.title!==inc.title)merged.title=p.title+" | "+inc.title;
+          return merged;
         });
       }
       if(incoming.trials){
@@ -631,7 +639,7 @@ function QuickAddTournament({onSave,onClose,venues,onAddVenue}){
   </div>;
 }
 function QuickAddPractice({onSave,onClose,rackets,venues,onAddVenue}){
-  const[f,setF]=useState({id:genId(),date:today(),type:"スクール",venue:"",startTime:"",endTime:"",duration:"",racketName:"",stringSetup:"",tension:"",tensionMain:"",tensionCross:"",temp:"",weather:"",focus:"",coachNote:"",goodNote:"",improveNote:"",generalNote:"",visibility:"public"});
+  const[f,setF]=useState({id:genId(),date:today(),title:"",type:"スクール",venue:"",startTime:"",endTime:"",duration:"",racketName:"",stringSetup:"",tension:"",tensionMain:"",tensionCross:"",temp:"",weather:"",focus:"",coachNote:"",goodNote:"",improveNote:"",generalNote:"",visibility:"public"});
   const s=k=>v=>setF(p=>{
     const n={...p,[k]:v};
     // Auto-calculate duration from startTime/endTime
@@ -655,6 +663,7 @@ function QuickAddPractice({onSave,onClose,rackets,venues,onAddVenue}){
         <Field label="日付" value={f.date} onChange={s("date")} type="date"/>
         <VenueSelect label="場所" value={f.venue||""} onChange={s("venue")} venues={venues} onAddVenue={onAddVenue}/>
       </div>
+      <Field label="📝 イベント名（任意）" value={f.title||""} onChange={s("title")} placeholder="例: ナイターレッスン中上級"/>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 12px"}}>
         <FSelect label="種別" value={f.type} onChange={s("type")} options={[{value:"スクール",label:"🏫 スクール"},{value:"自主練",label:"🎾 自主練"},{value:"練習会",label:"👥 練習会"},{value:"ゲーム練習",label:"⚔️ ゲーム練習"},{value:"球出し",label:"🏐 球出し"},{value:"練習試合",label:"🎯 練習試合"},{value:"フィジカル",label:"💪 フィジカル"}]}/>
         <Field label="気温（℃）" value={f.temp} onChange={s("temp")} placeholder="18"/>
@@ -1499,8 +1508,11 @@ function ImportPreviewModal({analysis,incoming,onConfirm,onClose}){
               </div>
               {isOpen&&<div style={{marginLeft:18,marginTop:4,padding:"6px 8px",background:C.panel,borderRadius:4,fontSize:11}}>
                 {mode==="merge"&&hasComplement?<>
-                  <div style={{color:C.accent,fontWeight:600,marginBottom:3}}>補完される項目:</div>
-                  {d.complement.map((c,j)=><div key={j} style={{color:C.text,paddingLeft:8}}>・{c.label}: <b>{c.value}</b></div>)}
+                  <div style={{color:C.accent,fontWeight:600,marginBottom:3}}>補完/結合される項目:</div>
+                  {d.complement.map((c,j)=>c.combine?
+                    <div key={j} style={{color:C.text,paddingLeft:8}}>🔗 {c.label}結合: <span style={{color:C.textMuted}}>{c.before}</span> | <b>{c.after}</b></div>:
+                    <div key={j} style={{color:C.text,paddingLeft:8}}>・{c.label}: <b>{c.value}</b></div>
+                  )}
                 </>:mode==="merge"?<div style={{color:C.textMuted}}>補完項目なし（既存データに値あり or 新規データに値なし）</div>
                 :mode==="overwrite"?<div style={{color:C.red}}>⚠ 全フィールドが新規データで上書きされます</div>
                 :<div style={{color:C.textMuted}}>このアイテムは何も変更されません</div>}
@@ -1530,7 +1542,7 @@ function ImportPreviewModal({analysis,incoming,onConfirm,onClose}){
         <div style={{fontSize:10,color:C.textMuted,lineHeight:1.5}}>{modeDesc[mode]}</div>
       </div>}
       <Section title="大会" icon="🏆" data={t} type="t" renderItem={item=>`${normDate(item.date)} ${item.name||"(名称なし)"}`}/>
-      <Section title="練習" icon="🏃" data={p} type="p" renderItem={item=>`${normDate(item.date)} ${item.type||"練習"}${item.venue?" @ "+item.venue:""}${item.startTime?" "+item.startTime:""}`}/>
+      <Section title="練習" icon="🏃" data={p} type="p" renderItem={item=>`${normDate(item.date)} ${item.title||item.type||"練習"}${item.venue?" @ "+item.venue:""}${item.startTime?" "+item.startTime:""}`}/>
       <Section title="試打" icon="🎾" data={tr} type="tr" renderItem={item=>`${normDate(item.date)} ${item.racketName||"(ラケット未指定)"}`}/>
       {totalAdd===0&&totalDup===0&&<div style={{textAlign:"center",padding:20,color:C.textMuted,fontSize:12}}>インポート対象データがありません</div>}
       <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:14}}>
@@ -1749,6 +1761,7 @@ function PracticeExpanded({practice,trials,toast,onEdit,onDelete}){
   const linkedTrials=(trials||[]).filter(t=>t.linkedPracticeId===p.id);
   return <div style={{padding:"12px 14px",background:"#f0f0f5",borderTop:`1px solid ${C.border}`}}>
     {cfm.el}
+    {p.title&&<div style={{fontSize:12,fontWeight:700,color:C.text,marginBottom:8,padding:"6px 10px",background:C.panel,borderRadius:6,borderLeft:`3px solid ${C.blue}`}}>📝 {p.title}</div>}
     {hasWatch&&<div style={{marginBottom:10,background:"#fff7ed",border:"1px solid #f97316",borderRadius:8,padding:"10px 12px"}}>
       <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",marginBottom:8}}>
         <span style={{fontSize:13,color:"#f97316",fontWeight:700}}>⌚ Apple Watch</span>
@@ -2223,6 +2236,7 @@ function PracticeDetail({practice,rackets,strings,stringSetups,venues,onAddVenue
         <Field label="日付" value={f.date} onChange={s("date")} type="date"/>
         <VenueSelect label="場所" value={f.venue||""} onChange={s("venue")} venues={venues} onAddVenue={onAddVenue}/>
       </div>
+      <Field label="📝 イベント名（任意）" value={f.title||""} onChange={s("title")} placeholder="例: ナイターレッスン中上級"/>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 12px"}}>
         <FSelect label="種別" value={f.type||""} onChange={s("type")} options={typeOpts}/>
         <Field label="気温（℃）" value={f.temp||""} onChange={s("temp")} placeholder="18"/>
@@ -2509,8 +2523,8 @@ function SessionsTab({tournaments,setTournaments,practices,setPractices,trials,s
           <span style={{fontSize:12,color:C.textMuted,fontFamily:"monospace",minWidth:52,flexShrink:0}}>{fmtDate(item.date)}</span>
           <Badge color={pracTypeColor[d.type]||"gray"} minWidth={96}>{(pracTypeIcon[d.type]||"") + (d.type||"練習")}</Badge>
           <div style={{flex:1,minWidth:0}}>
-            <div style={{fontSize:12,fontWeight:600,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.venue||"（場所未入力）"}</div>
-            <div style={{fontSize:10,color:C.textMuted}}>{timeStr}{timeStr&&d.duration?" ("+d.duration+"分)":d.duration?d.duration+"分":""}{d.racketName?" · "+d.racketName:""}{d.focus?" · "+d.focus.slice(0,20):""}</div>
+            <div style={{fontSize:12,fontWeight:600,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.title||d.venue||"（場所未入力）"}</div>
+            <div style={{fontSize:10,color:C.textMuted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.title&&d.venue?d.venue+" · ":""}{timeStr}{timeStr&&d.duration?" ("+d.duration+"分)":d.duration?d.duration+"分":""}{d.racketName?" · "+d.racketName:""}{d.focus?" · "+d.focus.slice(0,20):""}</div>
           </div>
           {!editMode&&<PhysicalBar value={d.physical}/>}
           <span title={d.visibility==="private"?"非公開":"公開"} style={{fontSize:11,flexShrink:0,opacity:d.visibility==="private"?1:0.45}}>{d.visibility==="private"?"🔒":"🌐"}</span>
