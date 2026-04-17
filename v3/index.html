@@ -13,7 +13,7 @@
 const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
 // ── APP ───────────────────────────────────────────
-const APP_VERSION="3.3.18"; // 2026/04/17 インポートプレビュー（補完可視化+モード選択）+重複検出
+const APP_VERSION="3.3.19"; // 2026/04/17 公開/非公開トグル追加（GCal連携準備）
 const font="-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif";
 const C={bg:"#f2f2f7",panel:"#fff",panel2:"#f5f5f7",border:"#e0e0e4",text:"#1a1a1a",textMuted:"#8e8e93",textDim:"#aaa",accent:"#00b87a",accentBg:"rgba(0,184,122,0.08)",red:"#dc2626",redBg:"#fef2f2",blue:"#2563eb",blueBg:"rgba(37,99,235,0.08)",yellow:"#f59e0b",yellowBg:"rgba(245,158,11,0.08)",purple:"#7c3aed",purpleBg:"rgba(124,58,237,0.08)",green:"#00b87a",greenBg:"rgba(0,184,122,0.08)"};
 const Badge=({children,color="gray",sm,minWidth})=>{const cc={green:C.accent,blue:C.blue,yellow:C.yellow,red:C.red,gray:C.textMuted,purple:C.purple};const c=cc[color]||color;const st={display:"inline-block",fontSize:sm?9:10,fontWeight:700,color:c,background:`${c}15`,border:`1px solid ${c}30`,borderRadius:4,padding:sm?"1px 4px":"2px 6px",lineHeight:1.4};if(minWidth){st.minWidth=minWidth;st.textAlign="center";st.boxSizing="border-box";}return<span style={st}>{children}</span>;};
@@ -590,8 +590,21 @@ const GameBar=({games})=>{
 };
 
 // ── QUICK ADD MODALS (v2-style simplified) ───────
+function VisibilityToggle({value,onChange}){
+  const cur=value||"public";
+  const opts=[{v:"public",label:"🌐 公開",note:"プライマリ"},{v:"private",label:"🔒 非公開",note:"仕事関係"}];
+  return <div style={{marginBottom:12}}>
+    <div style={{fontSize:11,color:C.textMuted,marginBottom:4}}>📅 カレンダー公開設定</div>
+    <div style={{display:"flex",gap:6}}>
+      {opts.map(o=><button key={o.v} type="button" onClick={()=>onChange(o.v)} style={{flex:1,padding:"8px 10px",borderRadius:6,border:`1px solid ${cur===o.v?C.accent:C.border}`,background:cur===o.v?C.accentBg:"transparent",color:cur===o.v?C.accent:C.textMuted,fontSize:12,fontWeight:600,cursor:"pointer"}}>
+        <div>{o.label}</div>
+        <div style={{fontSize:10,opacity:0.75,marginTop:1}}>{o.note}</div>
+      </button>)}
+    </div>
+  </div>;
+}
 function QuickAddTournament({onSave,onClose,venues,onAddVenue}){
-  const[f,setF]=useState({id:genId(),date:today(),name:"",level:"中上級",type:"singles",venue:"",racketName:"",stringSetup:"",tension:"",temp:"",overallResult:"",generalNote:"",matches:[]});
+  const[f,setF]=useState({id:genId(),date:today(),name:"",level:"中上級",type:"singles",venue:"",racketName:"",stringSetup:"",tension:"",temp:"",overallResult:"",generalNote:"",matches:[],visibility:"public"});
   const s=k=>v=>setF(p=>({...p,[k]:v}));
   return <div style={{position:"fixed",inset:0,background:"#0004",zIndex:300,display:"flex",alignItems:"flex-start",justifyContent:"center",overflowY:"auto",padding:"20px 16px"}} onClick={e=>e.target===e.currentTarget&&onClose()}>
     <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,width:"100%",maxWidth:400,padding:20}}>
@@ -608,6 +621,7 @@ function QuickAddTournament({onSave,onClose,venues,onAddVenue}){
         <FSelect label="種目" value={f.type} onChange={s("type")} options={[{value:"singles",label:"シングルス"},{value:"doubles",label:"ダブルス"},{value:"mixed",label:"ミックス"}]}/>
       </div>
       <VenueSelect label="会場" value={f.venue||""} onChange={s("venue")} venues={venues} onAddVenue={onAddVenue}/>
+      <VisibilityToggle value={f.visibility} onChange={s("visibility")}/>
       <div style={{fontSize:12,color:C.textMuted,padding:"8px 10px",background:C.panel2,borderRadius:6,borderLeft:`2px solid ${C.accent}`,marginBottom:12}}>まず大会を作成。結果・機材・メモは後から編集で追加できます</div>
       <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
         <button onClick={onClose} style={{padding:"10px 20px",borderRadius:8,background:C.panel2,border:`1px solid ${C.border}`,color:C.textMuted,fontSize:13,fontWeight:600,cursor:"pointer"}}>キャンセル</button>
@@ -617,7 +631,7 @@ function QuickAddTournament({onSave,onClose,venues,onAddVenue}){
   </div>;
 }
 function QuickAddPractice({onSave,onClose,rackets,venues,onAddVenue}){
-  const[f,setF]=useState({id:genId(),date:today(),type:"スクール",venue:"",startTime:"",endTime:"",duration:"",racketName:"",stringSetup:"",tension:"",tensionMain:"",tensionCross:"",temp:"",weather:"",focus:"",coachNote:"",goodNote:"",improveNote:"",generalNote:""});
+  const[f,setF]=useState({id:genId(),date:today(),type:"スクール",venue:"",startTime:"",endTime:"",duration:"",racketName:"",stringSetup:"",tension:"",tensionMain:"",tensionCross:"",temp:"",weather:"",focus:"",coachNote:"",goodNote:"",improveNote:"",generalNote:"",visibility:"public"});
   const s=k=>v=>setF(p=>{
     const n={...p,[k]:v};
     // Auto-calculate duration from startTime/endTime
@@ -656,6 +670,7 @@ function QuickAddPractice({onSave,onClose,rackets,venues,onAddVenue}){
         <Field label="テンション横" value={f.tensionCross||""} onChange={s("tensionCross")} placeholder="43"/>
       </div>
       <FSelect label="ラケット" value={f.racketName||""} onChange={s("racketName")} options={getRacketOpts(rackets)}/>
+      <VisibilityToggle value={f.visibility} onChange={s("visibility")}/>
       <div style={{fontSize:12,color:C.textMuted,padding:"8px 10px",background:C.panel2,borderRadius:6,borderLeft:`2px solid ${C.accent}`,marginBottom:12}}>まず作成 → Watchデータ・メモ・試打は後から編集で追加</div>
       <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
         <button onClick={onClose} style={{padding:"10px 20px",borderRadius:8,background:C.panel2,border:`1px solid ${C.border}`,color:C.textMuted,fontSize:13,fontWeight:600,cursor:"pointer"}}>キャンセル</button>
@@ -2049,6 +2064,7 @@ function TournamentDetail({tournament,rackets,strings,stringSetups,venues,onAddV
         <Field label="テンション横" value={f.tensionCross||""} onChange={s("tensionCross")} placeholder="43"/>
       </div>
       <FSelect label="天気" value={f.weather||""} onChange={s("weather")} options={[{value:"",label:"—"},{value:"晴",label:"☀ 晴"},{value:"曇",label:"☁ 曇"},{value:"雨",label:"🌧 雨"},{value:"屋内",label:"🏠 屋内"}]}/>
+      <VisibilityToggle value={f.visibility} onChange={s("visibility")}/>
 
       <div style={{fontSize:12,color:C.accent,margin:"10px 0 8px",paddingBottom:5,borderBottom:`1px solid ${C.border}`}}>▶ 機材</div>
       <FSelect label="ラケット" value={f.racketName||""} onChange={s("racketName")} options={getRacketOpts(rackets)}/>
@@ -2217,6 +2233,7 @@ function PracticeDetail({practice,rackets,strings,stringSetups,venues,onAddVenue
         <Field label="時間（分）" value={f.duration||""} onChange={s("duration")} placeholder="90"/>
       </div>
       <FSelect label="天気" value={f.weather||""} onChange={s("weather")} options={[{value:"",label:"—"},{value:"晴",label:"☀ 晴"},{value:"曇",label:"☁ 曇"},{value:"雨",label:"🌧 雨"},{value:"屋内",label:"🏠 屋内"}]}/>
+      <VisibilityToggle value={f.visibility} onChange={s("visibility")}/>
 
       {/* Watch連携 */}
       {hasWatch&&<div style={{marginBottom:10,background:"#fff7ed",border:"1px solid #f97316",borderRadius:8,padding:"10px 12px"}}>
@@ -2475,6 +2492,7 @@ function SessionsTab({tournaments,setTournaments,practices,setPractices,trials,s
             <div style={{fontSize:12,fontWeight:700,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.name}</div>
             <div style={{fontSize:10,color:C.textMuted}}>{wins}勝{(d.matches||[]).length-wins}敗{d.racketName?" · "+d.racketName:""}</div>
           </div>
+          <span title={d.visibility==="private"?"非公開":"公開"} style={{fontSize:11,flexShrink:0,opacity:d.visibility==="private"?1:0.45}}>{d.visibility==="private"?"🔒":"🌐"}</span>
           <div style={{color:C.textMuted,fontSize:12,transform:isExpanded?"rotate(90deg)":"none",transition:"transform 0.2s",flexShrink:0}}>▶</div>
         </div>
         {isExpanded&&!editMode&&<TournamentExpanded trn={d} rackets={rackets} strings={strings} opponents={opponents} profile={profile} trials={trials} toast={toast} onUpdate={updated=>{const arr=ds((tournaments||[]).map(t=>t.id===updated.id?updated:t));setTournaments(arr);save(KEYS.tournaments,arr);}} onEdit={()=>setDetailTournament(d)} onDelete={()=>{const arr=(tournaments||[]).filter(t=>t.id!==d.id);setTournaments(arr);save(KEYS.tournaments,arr);setExpandedItem(null);toast.show("🗑 削除しました",C.red);}}/>}
@@ -2495,6 +2513,7 @@ function SessionsTab({tournaments,setTournaments,practices,setPractices,trials,s
             <div style={{fontSize:10,color:C.textMuted}}>{timeStr}{timeStr&&d.duration?" ("+d.duration+"分)":d.duration?d.duration+"分":""}{d.racketName?" · "+d.racketName:""}{d.focus?" · "+d.focus.slice(0,20):""}</div>
           </div>
           {!editMode&&<PhysicalBar value={d.physical}/>}
+          <span title={d.visibility==="private"?"非公開":"公開"} style={{fontSize:11,flexShrink:0,opacity:d.visibility==="private"?1:0.45}}>{d.visibility==="private"?"🔒":"🌐"}</span>
           <div style={{color:C.textMuted,fontSize:12,transform:isExpanded?"rotate(90deg)":"none",transition:"transform 0.2s",flexShrink:0}}>▶</div>
         </div>
         {isExpanded&&!editMode&&<PracticeExpanded practice={d} trials={trials} toast={toast} onEdit={()=>setDetailPractice(d)} onDelete={()=>{const arr=(practices||[]).filter(p=>p.id!==d.id);setPractices(arr);save(KEYS.practices,arr);setExpandedItem(null);toast.show("🗑 削除しました",C.red);}}/>}
