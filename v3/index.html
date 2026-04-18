@@ -13,7 +13,7 @@
 const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
 // ── APP ───────────────────────────────────────────
-const APP_VERSION="3.3.24"; // 2026/04/18 重複判定をdate+startTime主軸に再設計+手動マージ比較ビュー
+const APP_VERSION="3.3.25"; // 2026/04/18 インポートプレビュー: Section再マウント防止でスクロール位置保持
 const font="-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif";
 const C={bg:"#f2f2f7",panel:"#fff",panel2:"#f5f5f7",border:"#e0e0e4",text:"#1a1a1a",textMuted:"#8e8e93",textDim:"#aaa",accent:"#00b87a",accentBg:"rgba(0,184,122,0.08)",red:"#dc2626",redBg:"#fef2f2",blue:"#2563eb",blueBg:"rgba(37,99,235,0.08)",yellow:"#f59e0b",yellowBg:"rgba(245,158,11,0.08)",purple:"#7c3aed",purpleBg:"rgba(124,58,237,0.08)",green:"#00b87a",greenBg:"rgba(0,184,122,0.08)"};
 const Badge=({children,color="gray",sm,minWidth})=>{const cc={green:C.accent,blue:C.blue,yellow:C.yellow,red:C.red,gray:C.textMuted,purple:C.purple};const c=cc[color]||color;const st={display:"inline-block",fontSize:sm?9:10,fontWeight:700,color:c,background:`${c}15`,border:`1px solid ${c}30`,borderRadius:4,padding:sm?"1px 4px":"2px 6px",lineHeight:1.4};if(minWidth){st.minWidth=minWidth;st.textAlign="center";st.boxSizing="border-box";}return<span style={st}>{children}</span>;};
@@ -1690,7 +1690,7 @@ function ImportPreviewModal({analysis,incoming,current,onConfirm,onClose}){
       </div>
     </div>;
   };
-  const Section=({title,icon,data,type,renderItem})=>{
+  const renderSection=({title,icon,data,type,renderItem})=>{
     if(data.add.length===0&&data.dup.length===0)return null;
     return <div style={{marginBottom:14}}>
       <div style={{fontSize:12,fontWeight:700,color:C.text,marginBottom:6}}>{icon} {title}: <span style={{color:C.accent}}>新規{data.add.length}件</span> / <span style={{color:C.yellow}}>重複{data.dup.length}件</span></div>
@@ -1765,17 +1765,17 @@ function ImportPreviewModal({analysis,incoming,current,onConfirm,onClose}){
         </div>
         <div style={{fontSize:10,color:C.textMuted,lineHeight:1.5}}>{modeDesc[mode]}</div>
       </div>}
-      <Section title="大会" icon="🏆" data={tData} type="tournament" renderItem={labelOf.tournament}/>
-      <Section title="練習" icon="🏃" data={pData} type="practice" renderItem={labelOf.practice}/>
-      <Section title="試打" icon="🎾" data={trData} type="trial" renderItem={labelOf.trial}/>
+      {renderSection({title:"大会",icon:"🏆",data:tData,type:"tournament",renderItem:labelOf.tournament})}
+      {renderSection({title:"練習",icon:"🏃",data:pData,type:"practice",renderItem:labelOf.practice})}
+      {renderSection({title:"試打",icon:"🎾",data:trData,type:"trial",renderItem:labelOf.trial})}
       {totalAdd===0&&totalDup===0&&<div style={{textAlign:"center",padding:20,color:C.textMuted,fontSize:12}}>インポート対象データがありません</div>}
       <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:14}}>
         <button onClick={onClose} style={{padding:"10px 20px",borderRadius:8,background:C.panel2,border:`1px solid ${C.border}`,color:C.textMuted,fontSize:13,fontWeight:600,cursor:"pointer"}}>キャンセル</button>
         <button onClick={()=>onConfirm(mode,manualMerges)} disabled={totalAdd===0&&totalDup===0} style={{padding:"10px 20px",borderRadius:8,background:(totalAdd===0&&totalDup===0)?C.panel2:(mode==="overwrite"?C.red:C.accent),border:"none",color:(totalAdd===0&&totalDup===0)?C.textMuted:"#fff",fontSize:13,fontWeight:700,cursor:(totalAdd===0&&totalDup===0)?"default":"pointer"}}>{mode==="overwrite"?"⚠ 上書き実行":"✅ インポート実行"}</button>
       </div>
     </div>
-    <Picker/>
-    <Comparer/>
+    {Picker()}
+    {Comparer()}
   </div>;
 }
 
