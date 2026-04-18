@@ -1,0 +1,28 @@
+<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Tennis DB v4</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7.23.9/babel.min.js"></script>
+<style>*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;background:#f2f2f7;overscroll-behavior:none}input,select,textarea,button{font-family:inherit}::-webkit-scrollbar{display:none}</style>
+</head><body><div id="root"></div>
+<script>(function(){var w=console.warn;console.warn=function(){if(arguments[0]&&typeof arguments[0]==='string'&&arguments[0].indexOf('Babel')!==-1)return;w.apply(console,arguments);}})();</script>
+<script type="text/babel">
+// === src/app.jsx ===
+const {useState,useEffect,useRef,useCallback,useMemo}=React;
+const APP_VERSION="4.0.0-S0";
+
+function TennisDB(){
+  return <div style={{padding:24,fontFamily:"-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif",color:"#1a1a1a"}}>
+    <h1 style={{fontSize:24,fontWeight:700,marginBottom:12}}>🎾 Tennis DB v4 起動</h1>
+    <div style={{fontSize:14,color:"#3a3a3c",marginBottom:4}}>Version: <b>{APP_VERSION}</b></div>
+    <div style={{fontSize:12,color:"#5a5a5f"}}>Stage S0 準備完了 — React 動作確認</div>
+  </div>;
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<TennisDB/>);
+
+</script>
+</body></html>

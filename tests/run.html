@@ -1,0 +1,36 @@
+<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8">
+<title>Tennis DB v4 tests</title>
+<style>body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;background:#f2f2f7;color:#1a1a1a}</style>
+</head><body>
+<script>
+// 簡易テストランナー（inline 版、外部依存なし）
+window.__tests = [];
+window.test = function(name, fn) { window.__tests.push({name: name, fn: fn}); };
+window.assert = function(cond, msg) { if (!cond) throw new Error(msg || "assertion failed"); };
+window.assertEqual = function(a, b, msg) {
+  var sa = typeof a === "object" ? JSON.stringify(a) : String(a);
+  var sb = typeof b === "object" ? JSON.stringify(b) : String(b);
+  if (sa !== sb) throw new Error((msg || "assertEqual failed") + " — expected " + sb + ", got " + sa);
+};
+window.runAllTests = function() {
+  var results = window.__tests.map(function(t) {
+    try { t.fn(); return {name: t.name, ok: true}; }
+    catch (e) { return {name: t.name, ok: false, err: e.message || String(e)}; }
+  });
+  var total = results.length;
+  var failed = results.filter(function(r){return !r.ok;}).length;
+  var ok = total - failed;
+  var color = failed === 0 ? "green" : "red";
+  var html = '<div style="font-family:-apple-system,sans-serif;padding:20px">';
+  html += '<h1 style="color:' + color + ';margin-bottom:12px">' + total + ' tests, ' + ok + ' ok, ' + failed + ' failed</h1>';
+  html += '<ul style="list-style:none;padding:0">';
+  results.forEach(function(r){
+    html += '<li style="padding:4px 0;color:' + (r.ok?'#080':'#c00') + '">' + (r.ok?'✓':'✗') + ' ' + r.name + (r.err?' <span style="color:#666">— '+r.err+'</span>':'') + '</li>';
+  });
+  html += '</ul></div>';
+  document.body.innerHTML = html;
+};
+</script>
+<!-- テストスクリプトは Stage S2 以降で順次追加（現状は0件） -->
+<script>window.runAllTests();</script>
+</body></html>
