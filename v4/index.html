@@ -10,15 +10,384 @@
 </head><body><div id="root"></div>
 <script>(function(){var w=console.warn;console.warn=function(){if(arguments[0]&&typeof arguments[0]==='string'&&arguments[0].indexOf('Babel')!==-1)return;w.apply(console,arguments);}})();</script>
 <script type="text/babel">
+// === src/core/01_constants.js ===
+// ── 定数定義（色・キー・バージョン）─────────────
+const APP_VERSION="4.0.0-S1";
+const font="-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif";
+
+// 色設計（v3 の WCAG 違反を反省し、3段階の情報階層を明示）
+// text: 主情報 AAA 16.5:1 (on white)
+// textSecondary: 副情報 AAA 11.7:1
+// textMuted: 補助情報 AA+ 6.1:1（v3 の textMuted/textDim を統合）
+const C={
+  bg:"#f2f2f7",panel:"#fff",panel2:"#f5f5f7",border:"#e0e0e4",
+  text:"#1a1a1a",
+  textSecondary:"#3a3a3c",
+  textMuted:"#5a5a5f",
+  accent:"#00b87a",accentBg:"rgba(0,184,122,0.08)",
+  red:"#dc2626",redBg:"#fef2f2",
+  blue:"#2563eb",blueBg:"rgba(37,99,235,0.08)",
+  yellow:"#f59e0b",yellowBg:"rgba(245,158,11,0.08)",
+  purple:"#7c3aed",purpleBg:"rgba(124,58,237,0.08)",
+};
+
+// localStorage プレフィックス（v2 時代から継承。変更禁止）
+const LS_PREFIX="yuke-";
+
+// データ種別キー（v3 と同一。Firestore パス users/{uid}/data/{KEY} と一致）
+const KEYS={
+  tournaments:"tournaments",practices:"practices",trials:"trials",
+  rackets:"rackets",strings:"strings",measurements:"measurements",
+  mental:"mental",next:"next",profile:"profile",
+  venues:"venues",stringSetups:"stringSetups",
+  quickTrialCards:"quickTrialCards",opponents:"opponents",
+};
+
+// === src/core/02_firebase.js ===
+// ── Firebase 初期化 ──────────────────────────────
+// v3 の firebaseConfig をそのまま継承（データ互換のため変更禁止）
+const firebaseConfig={
+  apiKey:"AIzaSyAXWAtHjBOi31FoNXZiAwW-A7ywZcDY2mM",
+  authDomain:"tennis-db-ca9ae.firebaseapp.com",
+  projectId:"tennis-db-ca9ae",
+  storageBucket:"tennis-db-ca9ae.firebasestorage.app",
+  messagingSenderId:"1031131288345",
+  appId:"1:1031131288345:web:2adcb9f2eeafa5801ceb88"
+};
+const fbApp=firebase.initializeApp(firebaseConfig);
+const fbAuth=fbApp.auth();
+const fbDb=fbApp.firestore();
+// オフライン永続化（タブ間同期対応）— v2/v3 と同じ挙動
+try{fbDb.enablePersistence({synchronizeTabs:true}).catch(()=>{});}catch(_){}
+
+// === src/core/03_storage.js ===
+// ── データ保存層（localStorage + Firestore 同期）─────────
+// 設計: save() は uid 引数を取らない。fbAuth.currentUser を内部取得。
+// ログイン前は localStorage のみで動作（v2 方式、ログイン後にクラウド同期）
+
+const lsLoad=k=>{
+  try{
+    const v=localStorage.getItem(LS_PREFIX+k+"-v1");
+    if(v)return JSON.parse(v);
+  }catch(_){}
+  return null;
+};
+const lsSave=(k,d)=>{
+  try{
+    localStorage.setItem(LS_PREFIX+k+"-v1",JSON.stringify(d));
+  }catch(_){}
+};
+
+// Firestore 互換変換: undefined 除去 + matchStats.raw/points をサイズ削減のため除外
+// raw/points は localStorage には残るが、Firestore には送らない
+const cleanForFirestore=obj=>{
+  if(obj===undefined)return null;
+  if(obj===null||typeof obj!=="object")return obj;
+  if(obj instanceof Date)return obj;
+  if(Array.isArray(obj))return obj.map(cleanForFirestore);
+  const r={};
+  for(const k in obj){
+    if(!Object.prototype.hasOwnProperty.call(obj,k))continue;
+    if(obj[k]===undefined)continue;
+    if((k==="raw"||k==="points")&&obj.source==="datatennis")continue;
+    r[k]=cleanForFirestore(obj[k]);
+  }
+  return r;
+};
+
+// 保存エラー通知（アプリ内バナー用）
+let _lastSaveError=null;
+const _saveErrorListeners=[];
+const onSaveError=fn=>{
+  _saveErrorListeners.push(fn);
+  return()=>{
+    const i=_saveErrorListeners.indexOf(fn);
+    if(i>=0)_saveErrorListeners.splice(i,1);
+  };
+};
+const notifySaveError=(key,err)=>{
+  _lastSaveError={key,message:err.message||String(err),at:new Date().toISOString()};
+  _saveErrorListeners.forEach(fn=>fn(_lastSaveError));
+};
+
+// save: localStorage 即時 + Firestore デバウンス書き込み（800ms）
+const _saveTimers={};
+const save=(k,d)=>{
+  lsSave(k,d);
+  const user=fbAuth.currentUser;
+  if(!user)return;
+  if(_saveTimers[k])clearTimeout(_saveTimers[k]);
+  _saveTimers[k]=setTimeout(async()=>{
+    try{
+      const ref=fbDb.collection("users").doc(user.uid).collection("data").doc(k);
+      const payload=Array.isArray(d)
+        ?{items:cleanForFirestore(d),obj:null,updatedAt:new Date().toISOString()}
+        :{items:null,obj:cleanForFirestore(d),updatedAt:new Date().toISOString()};
+      await ref.set(payload);
+    }catch(err){
+      notifySaveError(k,err);
+    }
+  },800);
+};
+
+// === src/core/04_id.js ===
+// ── ID生成 / 日付ユーティリティ ─────────────────
+// v3 と同じ挙動を維持（データ互換）
+
+// 一意ID生成: タイムスタンプ36進 + ランダム
+const genId=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+
+// 日付正規化: "2026/4/5" / "2026-04-05" 等を "2026-04-05" に統一
+// v3 はハイフン形式（input type="date" が要求）
+const normDate=d=>{
+  if(!d)return"";
+  const s=String(d);
+  const m=s.match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+  if(!m)return s;
+  return`${m[1]}-${m[2].padStart(2,"0")}-${m[3].padStart(2,"0")}`;
+};
+
+// 短縮表示: "4/5"
+const fmtDate=d=>{
+  const nd=normDate(d);
+  if(!nd)return"";
+  const m=nd.match(/(\d{4})-(\d{2})-(\d{2})/);
+  return m?`${parseInt(m[2])}/${parseInt(m[3])}`:"";
+};
+
+// 完全表示: "2026/4/5"
+const fmtDateFull=d=>{
+  const nd=normDate(d);
+  if(!nd)return"";
+  const m=nd.match(/(\d{4})-(\d{2})-(\d{2})/);
+  return m?`${m[1]}/${parseInt(m[2])}/${parseInt(m[3])}`:"";
+};
+
+// 日付降順ソート（配列の date フィールドを使用）
+const ds=arr=>[...arr].sort((a,b)=>(normDate(b.date)||"").localeCompare(normDate(a.date)||""));
+
+// === src/core/05_schema.js ===
+// ── SCHEMA（データ定義の単一の真実）────────────
+// 新フィールド追加時は SCHEMA[type] に1行追加するだけで
+// マージ/比較/表示 に自動対応する。DISPLAY_FIELDS 等を直接触るのは禁止。
+//
+// フィールド定義のキー:
+//   key: 識別子（オブジェクトのプロパティ名）
+//   label: 表示ラベル
+//   type: "date" | "time" | "text" | "textarea" | "number" | "select" | "rating" | "array" | "object" | "boolean"
+//   required: 必須入力（未入力で保存不可）
+//   combinable: マージ時に「結合」選択肢を表示（テキスト系のみ）
+//   itemType: type="array" の要素タイプ（ネスト構造）
+
+const SCHEMA={
+  tournament:[
+    {key:"date",label:"日付",type:"date",required:true},
+    {key:"startTime",label:"開始時刻",type:"time"},
+    {key:"endTime",label:"終了時刻",type:"time"},
+    {key:"name",label:"大会名",type:"text",combinable:true,required:true},
+    {key:"type",label:"形式",type:"select"},
+    {key:"level",label:"クラス",type:"text"},
+    {key:"venue",label:"会場",type:"text",combinable:true},
+    {key:"racketName",label:"ラケット",type:"text"},
+    {key:"stringSetup",label:"ストリング",type:"text"},
+    {key:"stringMain",label:"縦糸",type:"text"},
+    {key:"stringCross",label:"横糸",type:"text"},
+    {key:"tensionMain",label:"縦T",type:"text"},
+    {key:"tensionCross",label:"横T",type:"text"},
+    {key:"temp",label:"気温",type:"number"},
+    {key:"weather",label:"天気",type:"text"},
+    {key:"overallResult",label:"結果",type:"text"},
+    {key:"generalNote",label:"メモ",type:"textarea",combinable:true},
+    {key:"matches",label:"試合記録",type:"array",itemType:"match"},
+    {key:"visibility",label:"公開",type:"select"},
+  ],
+  practice:[
+    {key:"date",label:"日付",type:"date",required:true},
+    {key:"startTime",label:"開始時刻",type:"time"},
+    {key:"endTime",label:"終了時刻",type:"time"},
+    {key:"duration",label:"時間(分)",type:"number"},
+    {key:"title",label:"イベント名",type:"text",combinable:true},
+    {key:"venue",label:"会場",type:"text",combinable:true},
+    {key:"type",label:"種別",type:"select"},
+    {key:"racketName",label:"ラケット",type:"text"},
+    {key:"stringMain",label:"縦糸",type:"text"},
+    {key:"stringCross",label:"横糸",type:"text"},
+    {key:"tensionMain",label:"縦T",type:"text"},
+    {key:"tensionCross",label:"横T",type:"text"},
+    {key:"temp",label:"気温",type:"number"},
+    {key:"weather",label:"天気",type:"text"},
+    {key:"physical",label:"体調",type:"rating"},
+    {key:"focus",label:"集中",type:"rating"},
+    {key:"coachNote",label:"コーチメモ",type:"textarea",combinable:true},
+    {key:"goodNote",label:"良かった点",type:"textarea",combinable:true},
+    {key:"improveNote",label:"改善点",type:"textarea",combinable:true},
+    {key:"generalNote",label:"メモ",type:"textarea",combinable:true},
+    {key:"heartRateAvg",label:"平均心拍",type:"number"},
+    {key:"calories",label:"消費kcal",type:"number"},
+    {key:"hrZone1",label:"HR Z1",type:"text"},
+    {key:"hrZone2",label:"HR Z2",type:"text"},
+    {key:"hrZone3",label:"HR Z3",type:"text"},
+    {key:"hrZone4",label:"HR Z4",type:"text"},
+    {key:"hrZone5",label:"HR Z5",type:"text"},
+    {key:"visibility",label:"公開",type:"select"},
+  ],
+  trial:[
+    {key:"date",label:"日付",type:"date",required:true},
+    {key:"startTime",label:"開始時刻",type:"time"},
+    {key:"endTime",label:"終了時刻",type:"time"},
+    {key:"racketName",label:"ラケット",type:"text",required:true},
+    {key:"stringMain",label:"縦糸",type:"text"},
+    {key:"stringCross",label:"横糸",type:"text"},
+    {key:"tensionMain",label:"縦T",type:"text"},
+    {key:"tensionCross",label:"横T",type:"text"},
+    {key:"venue",label:"場所",type:"text"},
+    {key:"judgment",label:"判定",type:"select"},
+    {key:"temp",label:"気温",type:"number"},
+    {key:"spin",label:"スピン",type:"rating"},
+    {key:"power",label:"推進力",type:"rating"},
+    {key:"control",label:"コントロール",type:"rating"},
+    {key:"info",label:"打感情報",type:"rating"},
+    {key:"maneuver",label:"操作性",type:"rating"},
+    {key:"swingThrough",label:"振り抜き",type:"rating"},
+    {key:"trajectory",label:"軌道",type:"rating"},
+    {key:"stiffness",label:"硬さ",type:"rating"},
+    {key:"confidence",label:"自信度",type:"rating"},
+    {key:"strokeNote",label:"ストロークメモ",type:"textarea",combinable:true},
+    {key:"serveNote",label:"サーブメモ",type:"textarea",combinable:true},
+    {key:"volleyNote",label:"ボレーメモ",type:"textarea",combinable:true},
+    {key:"generalNote",label:"総合メモ",type:"textarea",combinable:true},
+    {key:"linkedPracticeId",label:"連携練習ID",type:"text"},
+    {key:"linkedMatchId",label:"連携試合ID",type:"text"},
+  ],
+  match:[
+    {key:"round",label:"ラウンド",type:"text"},
+    {key:"opponent",label:"対戦相手",type:"text",combinable:true},
+    {key:"opponent2",label:"対戦相手2(ダブルス)",type:"text",combinable:true},
+    {key:"racketName",label:"ラケット",type:"text"},
+    {key:"stringMain",label:"縦糸",type:"text"},
+    {key:"stringCross",label:"横糸",type:"text"},
+    {key:"tensionMain",label:"縦T",type:"text"},
+    {key:"tensionCross",label:"横T",type:"text"},
+    {key:"result",label:"結果",type:"select"},
+    {key:"setScores",label:"セットスコア",type:"array"},
+    {key:"mental",label:"メンタル",type:"rating"},
+    {key:"physical",label:"フィジカル",type:"rating"},
+    {key:"mentalNote",label:"メンタルメモ",type:"textarea",combinable:true},
+    {key:"techNote",label:"技術メモ",type:"textarea",combinable:true},
+    {key:"opponentNote",label:"相手メモ",type:"textarea",combinable:true},
+    {key:"note",label:"試合メモ",type:"textarea",combinable:true},
+  ],
+};
+
+// ── 自動生成（SCHEMA から派生、手動管理禁止）─────
+const DISPLAY_FIELDS=Object.fromEntries(
+  Object.entries(SCHEMA).map(([type,fields])=>[type,fields.map(f=>[f.key,f.label])])
+);
+const COMBINABLE_FIELDS=new Set(
+  Object.values(SCHEMA).flatMap(fields=>fields.filter(f=>f.combinable).map(f=>f.key))
+);
+const REQUIRED_FIELDS=Object.fromEntries(
+  Object.entries(SCHEMA).map(([type,fields])=>[type,fields.filter(f=>f.required).map(f=>f.key)])
+);
+const FIELD_TYPES=Object.fromEntries(
+  Object.entries(SCHEMA).map(([type,fields])=>[type,Object.fromEntries(fields.map(f=>[f.key,f.type]))])
+);
+
+// ── 共通ユーティリティ（merge/cascade から使用予定）─
+const isEmptyVal=v=>v===undefined||v===null||v===""||(Array.isArray(v)&&v.length===0);
+const INTERNAL_KEYS=new Set(["id"]);
+const keysToInspect=(a,b,type)=>{
+  const fields=SCHEMA[type]||[];
+  const all=new Set([...Object.keys(a||{}),...Object.keys(b||{}),...fields.map(f=>f.key)]);
+  INTERNAL_KEYS.forEach(k=>all.delete(k));
+  return [...all];
+};
+const labelFor=(key,type)=>{
+  const fields=SCHEMA[type]||[];
+  return fields.find(f=>f.key===key)?.label||key;
+};
+
 // === src/app.jsx ===
-const {useState,useEffect,useRef,useCallback,useMemo}=React;
-const APP_VERSION="4.0.0-S0";
+const {useState,useEffect}=React;
 
 function TennisDB(){
-  return <div style={{padding:24,fontFamily:"-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif",color:"#1a1a1a"}}>
-    <h1 style={{fontSize:24,fontWeight:700,marginBottom:12}}>🎾 Tennis DB v4 起動</h1>
-    <div style={{fontSize:14,color:"#3a3a3c",marginBottom:4}}>Version: <b>{APP_VERSION}</b></div>
-    <div style={{fontSize:12,color:"#5a5a5f"}}>Stage S0 準備完了 — React 動作確認</div>
+  const[user,setUser]=useState(null);
+  const[testData,setTestData]=useState("");
+  const[saveErr,setSaveErr]=useState(null);
+
+  useEffect(()=>{
+    const unsubAuth=fbAuth.onAuthStateChanged(u=>setUser(u));
+    const unsubErr=onSaveError(e=>setSaveErr(e));
+    const loaded=lsLoad("test");
+    if(loaded)setTestData(loaded.value||"");
+    return()=>{unsubAuth&&unsubAuth();unsubErr&&unsubErr();};
+  },[]);
+
+  const handleLogin=async()=>{
+    try{
+      const provider=new firebase.auth.GoogleAuthProvider();
+      await fbAuth.signInWithPopup(provider);
+    }catch(e){
+      if(e.code==="auth/popup-blocked"){
+        try{await fbAuth.signInWithRedirect(new firebase.auth.GoogleAuthProvider());}
+        catch(e2){alert("ログイン失敗: "+e2.message);}
+      }else{
+        alert("ログイン失敗: "+e.message);
+      }
+    }
+  };
+  const handleLogout=()=>fbAuth.signOut();
+  const handleSaveTest=()=>{
+    const val="test-"+new Date().toISOString().slice(0,19).replace("T"," ");
+    setTestData(val);
+    save("test",{value:val});
+  };
+
+  const btn={padding:"8px 14px",borderRadius:6,border:`1px solid ${C.border}`,background:C.panel,color:C.text,fontSize:13,cursor:"pointer",fontWeight:600};
+  const btnPrimary={...btn,background:C.accent,color:"#fff",border:"none"};
+  const section={background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:14,marginBottom:10};
+
+  return <div style={{padding:20,fontFamily:font,color:C.text,background:C.bg,minHeight:"100vh"}}>
+    <div style={{maxWidth:520,margin:"0 auto"}}>
+      <h1 style={{fontSize:22,fontWeight:700,marginBottom:4}}>🎾 Tennis DB v4</h1>
+      <div style={{color:C.textSecondary,fontSize:13,marginBottom:2}}>Version: <b>{APP_VERSION}</b></div>
+      <div style={{color:C.textMuted,fontSize:12,marginBottom:16}}>Stage S1 — Core 層 動作確認</div>
+
+      {/* 認証セクション */}
+      <div style={section}>
+        <div style={{fontSize:12,color:C.textMuted,marginBottom:6}}>認証 (Firebase)</div>
+        <div style={{fontSize:14,marginBottom:10}}>
+          状態: <b style={{color:user?C.accent:C.textMuted}}>{user?user.email:"未ログイン"}</b>
+        </div>
+        {user
+          ? <button onClick={handleLogout} style={btn}>ログアウト</button>
+          : <button onClick={handleLogin} style={btnPrimary}>Google ログイン</button>}
+      </div>
+
+      {/* ストレージセクション */}
+      <div style={section}>
+        <div style={{fontSize:12,color:C.textMuted,marginBottom:6}}>ストレージ (localStorage + Firestore)</div>
+        <div style={{fontSize:13,marginBottom:4}}>保存値:</div>
+        <code style={{display:"block",background:C.panel2,padding:"6px 10px",borderRadius:4,fontSize:12,color:C.textSecondary,marginBottom:10,wordBreak:"break-all"}}>{testData||"(なし)"}</code>
+        <button onClick={handleSaveTest} style={btn}>保存して再読み込みテスト</button>
+        <div style={{fontSize:11,color:C.textMuted,marginTop:6}}>保存後にブラウザを再読み込みしても値が残れば localStorage OK。ログイン状態なら Firestore にも保存される。</div>
+        {saveErr&&<div style={{marginTop:8,padding:"6px 10px",background:C.redBg,border:`1px solid ${C.red}`,borderRadius:4,fontSize:11,color:C.red}}>保存エラー ({saveErr.key}): {saveErr.message}</div>}
+      </div>
+
+      {/* SCHEMA 確認 */}
+      <div style={section}>
+        <div style={{fontSize:12,color:C.textMuted,marginBottom:6}}>SCHEMA 定義確認</div>
+        <div style={{fontSize:13,marginBottom:6}}>各データタイプのフィールド数:</div>
+        <pre style={{fontSize:12,background:C.panel2,padding:"8px 10px",borderRadius:4,color:C.textSecondary,margin:0,lineHeight:1.8}}>{Object.entries(SCHEMA).map(([t,f])=>`${t.padEnd(12)}: ${String(f.length).padStart(2)} fields`).join("\n")}</pre>
+        <div style={{fontSize:11,color:C.textMuted,marginTop:6}}>
+          自動生成派生: DISPLAY_FIELDS / COMBINABLE_FIELDS ({COMBINABLE_FIELDS.size} fields) / REQUIRED_FIELDS / FIELD_TYPES
+        </div>
+      </div>
+
+      <div style={{fontSize:10,color:C.textMuted,textAlign:"center",marginTop:20}}>
+        S1 DoD: ログイン成功・保存再読み込み成功・SCHEMA 表示OK → 「S1 OK」
+      </div>
+    </div>
   </div>;
 }
 

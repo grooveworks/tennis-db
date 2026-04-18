@@ -308,3 +308,54 @@ const C = {
 5. setter 内で save() を呼ぶ pattern は OK（ただし StrictMode 未使用前提を明記）
 6. React コンポーネントの内部定義禁止
 7. ファイルが 500 行を超えたら分割を検討、1000行超は必ず分割
+
+---
+
+## 10. Stage 開始前チェックリスト（対処療法防止）
+
+**各 Stage で HANDOFF を書き始める前に、以下を必ず調査・確認すること。実装着手してから気付くのは禁止。**
+
+### 10.1 実行環境の制約を調査
+
+- **preview panel (file:// プロトコル)**
+  - Firebase Auth: 動かない（http/https/chrome-extension 必須）
+  - 相対パスの外部スクリプト (`<script src="./_runner.js">`): 動かない場合あり → inline にする
+  - CORS が必要な API: 動かない
+  - localStorage: 動く
+  - IndexedDB: ブラウザによる
+- **serve.ps1 経由 (http://localhost:8080)**
+  - 上記の制約は解消される
+- **本番 (https://grooveworks.github.io/...)**
+  - Firebase Auth の authorized domains に登録されている前提
+
+### 10.2 使用技術の仕様を調査
+
+- **PowerShell**
+  - `-join` 演算子 / `Set-Content -Encoding UTF8` は環境依存で不安定
+  - **StringBuilder + `[System.IO.File]::WriteAllText` + UTF8Encoding(BOM=false)** が確実
+  - 文字列エスケープは**シングルクォート優先**（ダブルクォート内 backtick は罠）
+- **React 18**
+  - `ReactDOM.createRoot().render()` を使用（legacy `ReactDOM.render` は使わない）
+  - StrictMode は使わない（double-invoke で副作用が2回走るため）
+- **Firebase 10.12 compat**
+  - `firebase.initializeApp` / `.auth()` / `.firestore()` の compat API
+  - Google ログインは `signInWithPopup` → popup blocked 時 `signInWithRedirect`
+
+### 10.3 DoD（完了条件）の妥当性確認
+
+- **preview で確認できる項目のみ DoD に含める**
+- preview で確認不能な項目（Firebase 認証等）は:
+  - 「コードが書かれている」レベルで DoD に含める
+  - 実動作確認は本番 push 後の別タスクとして分ける
+
+### 10.4 着手前の自問
+
+```
+□ このStageで使う技術は、preview / file:// で動くか調べたか
+□ PowerShell で何か出力する場合、-join 等の罠を避けているか
+□ DoD は全て preview で検証可能な項目か
+□ 実装途中でエラーが出たら、根本原因を調べてから直すか（対処療法しない）
+□ このStage の完了条件をユーザー視点で書いたか（ユーザーが「OK/NG」を判定できるか）
+```
+
+**この自問を HANDOFF 作成前に応答テキストに書き出すこと**（書かずに進めたらルール違反）。
