@@ -13,7 +13,7 @@
 const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
 // ── APP ───────────────────────────────────────────
-const APP_VERSION="3.3.25"; // 2026/04/18 インポートプレビュー: Section再マウント防止でスクロール位置保持
+const APP_VERSION="3.3.27"; // 2026/04/18 インポートをインクリメンタル処理+チェックボックス一括処理に刷新
 const font="-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif";
 const C={bg:"#f2f2f7",panel:"#fff",panel2:"#f5f5f7",border:"#e0e0e4",text:"#1a1a1a",textMuted:"#8e8e93",textDim:"#aaa",accent:"#00b87a",accentBg:"rgba(0,184,122,0.08)",red:"#dc2626",redBg:"#fef2f2",blue:"#2563eb",blueBg:"rgba(37,99,235,0.08)",yellow:"#f59e0b",yellowBg:"rgba(245,158,11,0.08)",purple:"#7c3aed",purpleBg:"rgba(124,58,237,0.08)",green:"#00b87a",greenBg:"rgba(0,184,122,0.08)"};
 const Badge=({children,color="gray",sm,minWidth})=>{const cc={green:C.accent,blue:C.blue,yellow:C.yellow,red:C.red,gray:C.textMuted,purple:C.purple};const c=cc[color]||color;const st={display:"inline-block",fontSize:sm?9:10,fontWeight:700,color:c,background:`${c}15`,border:`1px solid ${c}30`,borderRadius:4,padding:sm?"1px 4px":"2px 6px",lineHeight:1.4};if(minWidth){st.minWidth=minWidth;st.textAlign="center";st.boxSizing="border-box";}return<span style={st}>{children}</span>;};
@@ -1544,40 +1544,68 @@ function MatchStatsView({stats,playerA,playerB,myIsA}){
 // 段階1: サマリー表示 + モード選択 + 手動マージ起動
 // 段階2: 候補ピッカー（🔗統合クリック時）
 // 段階3: 比較ビュー（候補クリック時、全フィールド並列表示+per-fieldラジオ）
-function ImportPreviewModal({analysis,incoming,current,onConfirm,onClose}){
-  const[mode,setMode]=useState("merge");
-  const[expandedDup,setExpandedDup]=useState(new Set());
-  const[manualMerges,setManualMerges]=useState({}); // {incomingId: {existingId, choices}}
-  const[pickerFor,setPickerFor]=useState(null); // {type, incoming} or null
-  const[comparing,setComparing]=useState(null); // {type, incoming, existing, choices} or null
-  const toggleExpand=key=>setExpandedDup(prev=>{const n=new Set(prev);if(n.has(key))n.delete(key);else n.add(key);return n;});
-  const modeDesc={
-    skip:"重複は完全スキップ（既存データそのまま、新規データ破棄）",
-    merge:"既存の空フィールドのみ新規データで補完（競合は既存維持）",
-    overwrite:"重複は新規データで上書き（既存データの内容は失われる）",
-  };
-  const typeKeyMap={tournament:"tournaments",practice:"practices",trial:"trials"};
-  const currentMap={tournament:(current?.tournaments)||[],practice:(current?.practices)||[],trial:(current?.trials)||[]};
-  // 手動マージ済み incoming を add から除外し、dup に追加
-  const buildFiltered=(data,type)=>{
-    const curList=currentMap[type];
-    const manualDups=[];
-    const filteredAdd=[];
-    data.add.forEach(item=>{
-      const m=manualMerges[item.id];
-      if(m){
-        const ex=curList.find(e=>e.id===m.existingId);
-        if(ex)manualDups.push({incoming:item,existing:ex,matchType:"manual",complement:computeComplement(ex,item,type),conflicts:computeConflicts(ex,item,type),fieldChoices:m.choices||{}});
-        else filteredAdd.push(item);
-      }else filteredAdd.push(item);
+function ImportPreviewModal({analysis,incoming,current,onCommit,onClose}){
+  // インクリメンタル処理: 個別アクションで即commit。チェックボックスで一括処理。
+  const[processedIds,setProcessedIds]=useState(new Set());
+  const[checkedIds,setCheckedIds]=useState(()=>{
+    // 競合ゼロの自動dupを初期チェック
+    const s=new Set();
+    ["tournaments","practices","trials"].forEach(k=>{
+      (analysis[k]?.dup||[]).forEach(d=>{if(!d.conflicts||d.conflicts.length===0)s.add(d.incoming.id);});
     });
-    return {add:filteredAdd,dup:[...data.dup,...manualDups]};
-  };
+    return s;
+  });
+  const[expandedDup,setExpandedDup]=useState(new Set());
+  const[pickerFor,setPickerFor]=useState(null);
+  const[pickerSearch,setPickerSearch]=useState("");
+  const[comparing,setComparing]=useState(null);
+  const toggleExpand=key=>setExpandedDup(prev=>{const n=new Set(prev);if(n.has(key))n.delete(key);else n.add(key);return n;});
+  const currentMap={tournament:(current?.tournaments)||[],practice:(current?.practices)||[],trial:(current?.trials)||[]};
+  // 処理済みアイテムを除外
+  const buildFiltered=(data,type)=>({
+    add:(data.add||[]).filter(item=>!processedIds.has(item.id)),
+    dup:(data.dup||[]).filter(d=>!processedIds.has(d.incoming.id)),
+  });
   const tData=buildFiltered(analysis.tournaments,"tournament");
   const pData=buildFiltered(analysis.practices,"practice");
   const trData=buildFiltered(analysis.trials,"trial");
   const totalAdd=tData.add.length+pData.add.length+trData.add.length;
   const totalDup=tData.dup.length+pData.dup.length+trData.dup.length;
+  const totalRemaining=totalAdd+totalDup;
+  // 全件処理完了で自動クローズ
+  useEffect(()=>{if(totalRemaining===0&&processedIds.size>0){const t=setTimeout(()=>onClose(),300);return()=>clearTimeout(t);}},[totalRemaining,processedIds.size]);
+  const addProcessed=(ids)=>{
+    setProcessedIds(prev=>{const n=new Set(prev);ids.forEach(id=>n.add(id));return n;});
+    setCheckedIds(prev=>{const n=new Set(prev);ids.forEach(id=>n.delete(id));return n;});
+  };
+  // 個別アクション
+  const approveDup=(type,d)=>{onCommit([{type,item:d.incoming,existing:d.existing,choices:{}}]);addProcessed([d.incoming.id]);};
+  const openEditDup=(type,d)=>{
+    const init={};(d.conflicts||[]).forEach(cf=>{init[cf.key]="existing";});
+    setComparing({type,incoming:d.incoming,existing:d.existing,choices:init});
+  };
+  const addNewItem=(type,item)=>{onCommit([{type,item,asNew:true}]);addProcessed([item.id]);};
+  const skipItem=(item)=>{addProcessed([item.id]);};
+  const toggleCheck=(id)=>setCheckedIds(prev=>{const n=new Set(prev);if(n.has(id))n.delete(id);else n.add(id);return n;});
+  const selectAllSafe=()=>{
+    const s=new Set();
+    ["tournaments","practices","trials"].forEach(k=>{
+      (analysis[k]?.dup||[]).forEach(d=>{
+        if(!processedIds.has(d.incoming.id)&&(!d.conflicts||d.conflicts.length===0))s.add(d.incoming.id);
+      });
+    });
+    setCheckedIds(s);
+  };
+  const batchProcess=()=>{
+    if(checkedIds.size===0)return;
+    if(!confirm(`選択された ${checkedIds.size} 件を処理しますか？（重複は既存維持でマージ、新規は追加）`))return;
+    const commits=[],ids=[];
+    const takeDups=(type,dups)=>{dups.forEach(d=>{if(checkedIds.has(d.incoming.id)){commits.push({type,item:d.incoming,existing:d.existing,choices:{}});ids.push(d.incoming.id);}});};
+    const takeAdds=(type,adds)=>{adds.forEach(item=>{if(checkedIds.has(item.id)){commits.push({type,item,asNew:true});ids.push(item.id);}});};
+    takeDups("tournament",tData.dup);takeDups("practice",pData.dup);takeDups("trial",trData.dup);
+    takeAdds("tournament",tData.add);takeAdds("practice",pData.add);takeAdds("trial",trData.add);
+    onCommit(commits);addProcessed(ids);
+  };
   const daysDiff=(a,b)=>{const da=new Date(normDate(a)),db=new Date(normDate(b));return Math.abs(Math.round((da-db)/(1000*60*60*24)));};
   const labelOf={tournament:(x)=>`${normDate(x.date)} ${x.name||"(名称なし)"}${x.startTime?" "+x.startTime:""}`,practice:(x)=>`${normDate(x.date)} ${x.title||x.type||"練習"}${x.venue?" @ "+x.venue:""}${x.startTime?" "+x.startTime:""}`,trial:(x)=>`${normDate(x.date)} ${x.racketName||"(ラケット未指定)"}`};
   const fmtVal=v=>{
@@ -1586,51 +1614,55 @@ function ImportPreviewModal({analysis,incoming,current,onConfirm,onClose}){
     if(typeof v==="object")return JSON.stringify(v).slice(0,40);
     return String(v);
   };
-  // 候補ピッカー
-  const Picker=()=>{
+  // 候補ピッカー（render関数: 再マウント防止）
+  const renderPicker=()=>{
     if(!pickerFor)return null;
     const{type,incoming:item}=pickerFor;
     const curList=currentMap[type];
-    const sameDateCand=curList.filter(c=>normDate(c.date)===normDate(item.date));
-    const nearbyCand=curList.filter(c=>normDate(c.date)!==normDate(item.date)&&daysDiff(c.date,item.date)<=7);
-    const candidates=[...sameDateCand,...nearbyCand];
-    return <div style={{position:"fixed",inset:0,background:"#000a",zIndex:800,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={e=>e.target===e.currentTarget&&setPickerFor(null)}>
+    // 全候補を日付近い順にソート
+    const sorted=[...curList].map(c=>({item:c,diff:daysDiff(c.date,item.date)})).sort((a,b)=>a.diff-b.diff).map(x=>x.item);
+    const lower=(pickerSearch||"").toLowerCase();
+    const candidates=lower?sorted.filter(c=>labelOf[type](c).toLowerCase().includes(lower)):sorted;
+    return <div style={{position:"fixed",inset:0,background:"#000a",zIndex:800,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={e=>{if(e.target===e.currentTarget){setPickerFor(null);setPickerSearch("");}}}>
       <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:10,width:"100%",maxWidth:480,maxHeight:"80vh",display:"flex",flexDirection:"column"}}>
         <div style={{padding:"12px 14px",borderBottom:`1px solid ${C.border}`}}>
           <div style={{fontSize:13,fontWeight:700,color:C.text,marginBottom:4}}>🔗 既存と統合 — 候補を選択</div>
-          <div style={{fontSize:11,color:C.textMuted}}>新規: {labelOf[type](item)}</div>
+          <div style={{fontSize:11,color:C.textMuted,marginBottom:8}}>新規: {labelOf[type](item)}</div>
+          <input type="text" value={pickerSearch} onChange={e=>setPickerSearch(e.target.value)} placeholder="🔍 名前・会場で絞り込み" style={{width:"100%",padding:"6px 10px",borderRadius:6,border:`1px solid ${C.border}`,background:C.panel2,color:C.text,fontSize:12,boxSizing:"border-box"}}/>
+          <div style={{fontSize:10,color:C.textMuted,marginTop:4}}>全{curList.length}件 / 表示{candidates.length}件（日付近い順）</div>
         </div>
         <div style={{flex:1,overflowY:"auto",padding:8}}>
-          {candidates.length===0?<div style={{padding:"20px",textAlign:"center",fontSize:12,color:C.textMuted}}>±7日以内に既存データなし</div>:candidates.map(c=>{
+          {candidates.length===0?<div style={{padding:"20px",textAlign:"center",fontSize:12,color:C.textMuted}}>{curList.length===0?"既存データなし":"検索に一致する候補なし"}</div>:candidates.map(c=>{
             const isSameDay=normDate(c.date)===normDate(item.date);
+            const diff=daysDiff(c.date,item.date);
             return <div key={c.id} onClick={()=>{
-              // 比較ビューに遷移（デフォルト=全競合を既存側に）
               const conflicts=computeConflicts(c,item,type);
               const initChoices={};
               conflicts.forEach(cf=>{initChoices[cf.key]="existing";});
               setComparing({type,incoming:item,existing:c,choices:initChoices});
-              setPickerFor(null);
+              setPickerFor(null);setPickerSearch("");
             }} style={{padding:"8px 10px",borderRadius:6,background:isSameDay?C.accentBg:C.panel2,border:`1px solid ${isSameDay?C.accent:C.border}`,marginBottom:4,cursor:"pointer",fontSize:12}}>
               <div style={{color:C.text,fontWeight:600}}>{labelOf[type](c)}</div>
-              {!isSameDay&&<div style={{fontSize:10,color:C.yellow,marginTop:2}}>⚠ 日付が{daysDiff(c.date,item.date)}日ずれ</div>}
+              {!isSameDay&&<div style={{fontSize:10,color:diff<=7?C.yellow:C.textMuted,marginTop:2}}>{diff<=7?"⚠ ":""}日付が{diff}日ずれ</div>}
             </div>;
           })}
         </div>
         <div style={{padding:10,borderTop:`1px solid ${C.border}`,display:"flex",justifyContent:"flex-end"}}>
-          <button onClick={()=>setPickerFor(null)} style={{padding:"8px 16px",borderRadius:6,background:C.panel2,border:`1px solid ${C.border}`,color:C.textMuted,fontSize:12,cursor:"pointer"}}>キャンセル</button>
+          <button onClick={()=>{setPickerFor(null);setPickerSearch("");}} style={{padding:"8px 16px",borderRadius:6,background:C.panel2,border:`1px solid ${C.border}`,color:C.textMuted,fontSize:12,cursor:"pointer"}}>キャンセル</button>
         </div>
       </div>
     </div>;
   };
-  // 比較ビュー
-  const Comparer=()=>{
+  // 比較ビュー（render関数）
+  const renderComparer=()=>{
     if(!comparing)return null;
     const{type,incoming:item,existing:ex,choices}=comparing;
     const fields=DISPLAY_FIELDS[type]||[];
     const setChoice=(key,val)=>setComparing(c=>({...c,choices:{...c.choices,[key]:val}}));
     const isEmpty=v=>v===undefined||v===null||v===""||(Array.isArray(v)&&v.length===0);
-    const confirm=()=>{
-      setManualMerges(prev=>({...prev,[item.id]:{existingId:ex.id,choices}}));
+    const confirmMerge=()=>{
+      onCommit([{type,item,existing:ex,choices}]);
+      addProcessed([item.id]);
       setComparing(null);
     };
     return <div style={{position:"fixed",inset:0,background:"#000c",zIndex:900,display:"flex",alignItems:"flex-start",justifyContent:"center",padding:20,overflowY:"auto"}} onClick={e=>e.target===e.currentTarget&&setComparing(null)}>
@@ -1684,7 +1716,7 @@ function ImportPreviewModal({analysis,incoming,current,onConfirm,onClose}){
           <button onClick={()=>{setComparing(null);setPickerFor({type,incoming:item});}} style={{padding:"8px 12px",borderRadius:6,background:C.panel2,border:`1px solid ${C.border}`,color:C.textMuted,fontSize:11,cursor:"pointer"}}>◀ 候補選択に戻る</button>
           <div style={{display:"flex",gap:8}}>
             <button onClick={()=>setComparing(null)} style={{padding:"8px 14px",borderRadius:6,background:C.panel2,border:`1px solid ${C.border}`,color:C.textMuted,fontSize:12,cursor:"pointer"}}>キャンセル</button>
-            <button onClick={confirm} style={{padding:"8px 16px",borderRadius:6,background:C.accent,border:"none",color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>✅ この内容で統合</button>
+            <button onClick={confirmMerge} style={{padding:"8px 16px",borderRadius:6,background:C.accent,border:"none",color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>✅ この内容で統合</button>
           </div>
         </div>
       </div>
@@ -1692,54 +1724,59 @@ function ImportPreviewModal({analysis,incoming,current,onConfirm,onClose}){
   };
   const renderSection=({title,icon,data,type,renderItem})=>{
     if(data.add.length===0&&data.dup.length===0)return null;
+    const btn=(label,onClick,color,bg)=><button onClick={e=>{e.stopPropagation();onClick();}} style={{padding:"2px 6px",borderRadius:4,background:bg||C.panel,border:`1px solid ${color}`,color,fontSize:10,cursor:"pointer",fontWeight:700,whiteSpace:"nowrap"}}>{label}</button>;
     return <div style={{marginBottom:14}}>
       <div style={{fontSize:12,fontWeight:700,color:C.text,marginBottom:6}}>{icon} {title}: <span style={{color:C.accent}}>新規{data.add.length}件</span> / <span style={{color:C.yellow}}>重複{data.dup.length}件</span></div>
       {data.add.length>0&&<div style={{marginBottom:6}}>
-        <div style={{fontSize:11,color:C.accent,marginBottom:4}}>＋ 新規追加（🔗で既存と手動統合可）</div>
-        <div style={{maxHeight:160,overflowY:"auto",background:C.accentBg,borderRadius:6,padding:"6px 10px"}}>
-          {data.add.map((item,i)=><div key={i} style={{display:"flex",alignItems:"center",gap:6,fontSize:11,color:C.text,padding:"2px 0"}}>
-            <span style={{flex:1}}>{renderItem(item)}</span>
-            <button onClick={()=>setPickerFor({type,incoming:item})} title="既存と手動統合" style={{padding:"2px 8px",borderRadius:4,background:C.panel,border:`1px solid ${C.accent}`,color:C.accent,fontSize:10,cursor:"pointer",fontWeight:700}}>🔗 統合</button>
-          </div>)}
+        <div style={{fontSize:11,color:C.accent,marginBottom:4}}>＋ 新規追加</div>
+        <div style={{maxHeight:200,overflowY:"auto",background:C.accentBg,borderRadius:6,padding:"4px 8px"}}>
+          {data.add.map((item,i)=>{
+            const checked=checkedIds.has(item.id);
+            return <div key={item.id} style={{display:"flex",alignItems:"center",gap:6,fontSize:11,color:C.text,padding:"3px 0",borderBottom:i<data.add.length-1?`1px solid ${C.accent}20`:"none"}}>
+              <input type="checkbox" checked={checked} onChange={()=>toggleCheck(item.id)} style={{cursor:"pointer"}}/>
+              <span style={{flex:1}}>{renderItem(item)}</span>
+              {btn("➕ 追加",()=>addNewItem(type,item),C.accent)}
+              {btn("🔗 統合",()=>setPickerFor({type,incoming:item}),C.blue)}
+              {btn("✕",()=>skipItem(item),C.textMuted)}
+            </div>;
+          })}
         </div>
       </div>}
       {data.dup.length>0&&<div>
-        <div style={{fontSize:11,color:C.yellow,marginBottom:4}}>{mode==="overwrite"?"⚠ 重複は上書き":mode==="skip"?"= 重複スキップ":"= 重複（補完あり）"}</div>
-        <div style={{maxHeight:200,overflowY:"auto",background:C.yellowBg,borderRadius:6,padding:"4px 8px"}}>
+        <div style={{fontSize:11,color:C.yellow,marginBottom:4}}>= 重複（補完あり）</div>
+        <div style={{maxHeight:260,overflowY:"auto",background:C.yellowBg,borderRadius:6,padding:"4px 8px"}}>
           {data.dup.map((d,i)=>{
-            const key=`${type}-${i}`;
+            const key=`${type}-${d.incoming.id}`;
             const isOpen=expandedDup.has(key);
             const hasComplement=d.complement&&d.complement.length>0;
             const hasConflict=d.conflicts&&d.conflicts.length>0;
             const mtLabel={id:"ID",strict:"厳密",soft:"同日1件",manual:"手動"}[d.matchType]||"";
             const mtColor={id:C.textMuted,strict:C.textMuted,soft:"#d97706",manual:C.blue}[d.matchType]||C.textMuted;
-            return <div key={i} style={{borderBottom:i<data.dup.length-1?`1px solid ${C.yellow}30`:"none",padding:"3px 0"}}>
-              <div onClick={()=>toggleExpand(key)} style={{display:"flex",alignItems:"center",gap:6,fontSize:11,color:C.text,cursor:"pointer"}}>
-                <span style={{transform:isOpen?"rotate(90deg)":"none",transition:"transform 0.2s",fontSize:9,color:C.textMuted}}>▶</span>
-                <span style={{flex:1}}>{renderItem(d.incoming)}</span>
+            const checked=checkedIds.has(d.incoming.id);
+            return <div key={d.incoming.id} style={{borderBottom:i<data.dup.length-1?`1px solid ${C.yellow}30`:"none",padding:"3px 0"}}>
+              <div style={{display:"flex",alignItems:"center",gap:6,fontSize:11,color:C.text}}>
+                <input type="checkbox" checked={checked} onChange={()=>toggleCheck(d.incoming.id)} style={{cursor:"pointer"}}/>
+                <span onClick={()=>toggleExpand(key)} style={{cursor:"pointer",fontSize:9,color:C.textMuted,transform:isOpen?"rotate(90deg)":"none",transition:"transform 0.2s"}}>▶</span>
+                <span onClick={()=>toggleExpand(key)} style={{flex:1,cursor:"pointer"}}>{renderItem(d.incoming)}</span>
                 {mtLabel&&<span style={{fontSize:9,color:mtColor,background:C.panel,padding:"1px 5px",borderRadius:3,border:`1px solid ${mtColor}40`}}>{mtLabel}</span>}
-                {mode==="merge"&&hasComplement&&<span style={{fontSize:10,color:C.accent,background:C.accentBg,padding:"1px 5px",borderRadius:3}}>➕{d.complement.length}</span>}
-                {mode==="merge"&&hasConflict&&<span style={{fontSize:10,color:"#d97706",background:"#fef3c7",padding:"1px 5px",borderRadius:3}}>⚠{d.conflicts.length}</span>}
-                {d.matchType==="manual"&&<button onClick={e=>{e.stopPropagation();setManualMerges(p=>{const n={...p};delete n[d.incoming.id];return n;});}} title="手動統合を解除" style={{padding:"1px 5px",borderRadius:3,background:C.panel,border:"none",color:C.red,fontSize:10,cursor:"pointer"}}>✕</button>}
+                {hasComplement&&<span style={{fontSize:10,color:C.accent,background:C.accentBg,padding:"1px 5px",borderRadius:3}}>➕{d.complement.length}</span>}
+                {hasConflict&&<span style={{fontSize:10,color:"#d97706",background:"#fef3c7",padding:"1px 5px",borderRadius:3}}>⚠{d.conflicts.length}</span>}
+                {btn("✓ 承認",()=>approveDup(type,d),C.accent)}
+                {hasConflict&&btn("⚙️ 編集",()=>openEditDup(type,d),C.blue)}
+                {btn("🔗 変更",()=>setPickerFor({type,incoming:d.incoming}),C.textMuted)}
+                {btn("✕",()=>skipItem(d.incoming),C.textMuted)}
               </div>
-              {isOpen&&<div style={{marginLeft:18,marginTop:4,padding:"6px 8px",background:C.panel,borderRadius:4,fontSize:11}}>
-                {d.matchType==="manual"&&<div style={{color:C.blue,fontWeight:600,marginBottom:4,paddingBottom:4,borderBottom:`1px solid ${C.border}`}}>🔗 手動統合: 既存「{renderItem(d.existing)}」</div>}
-                {mode==="merge"?<>
-                  {hasComplement&&<>
-                    <div style={{color:C.accent,fontWeight:600,marginBottom:3}}>➕ 補完される項目（既存が空）:</div>
-                    {d.complement.map((c,j)=><div key={j} style={{color:C.text,paddingLeft:8}}>・{c.label}: <b>{fmtVal(c.value)}</b></div>)}
-                  </>}
-                  {hasConflict&&<>
-                    <div style={{color:"#d97706",fontWeight:600,marginTop:6,marginBottom:3}}>⚠ 競合項目（{d.matchType==="manual"?"選択済み":"既定=既存維持"}）:</div>
-                    {d.conflicts.map((c,j)=>{
-                      const ch=(d.fieldChoices&&d.fieldChoices[c.key])||"existing";
-                      const adopted=ch==="new"?c.newValue:ch==="combined"?`${c.existingValue} | ${c.newValue}`:c.existingValue;
-                      return <div key={j} style={{color:C.text,paddingLeft:8}}>・{c.label}: <span style={{color:C.textMuted}}>{fmtVal(c.existingValue)}</span> vs <span style={{color:C.textMuted}}>{fmtVal(c.newValue)}</span> → <b>{fmtVal(adopted)}</b> <span style={{fontSize:9,color:ch==="existing"?C.textMuted:ch==="new"?C.red:C.blue}}>[{ch==="existing"?"既":ch==="new"?"新":"結"}]</span></div>;
-                    })}
-                  </>}
-                  {!hasComplement&&!hasConflict&&<div style={{color:C.textMuted}}>変更なし</div>}
-                </>:mode==="overwrite"?<div style={{color:C.red}}>⚠ 全フィールドが新規データで上書きされます</div>
-                :<div style={{color:C.textMuted}}>このアイテムは変更されません</div>}
+              {isOpen&&<div style={{marginLeft:36,marginTop:4,padding:"6px 8px",background:C.panel,borderRadius:4,fontSize:11}}>
+                <div style={{color:C.textMuted,fontWeight:600,marginBottom:4,paddingBottom:4,borderBottom:`1px solid ${C.border}`}}>既存: {renderItem(d.existing)}</div>
+                {hasComplement&&<>
+                  <div style={{color:C.accent,fontWeight:600,marginBottom:3}}>➕ 補完される項目（既存が空）:</div>
+                  {d.complement.map((c,j)=><div key={j} style={{color:C.text,paddingLeft:8}}>・{c.label}: <b>{fmtVal(c.value)}</b></div>)}
+                </>}
+                {hasConflict&&<>
+                  <div style={{color:"#d97706",fontWeight:600,marginTop:6,marginBottom:3}}>⚠ 競合項目（承認時の既定=既存維持）:</div>
+                  {d.conflicts.map((c,j)=><div key={j} style={{color:C.text,paddingLeft:8}}>・{c.label}: <span style={{color:C.textMuted}}>{fmtVal(c.existingValue)}</span> vs <span style={{color:C.textMuted}}>{fmtVal(c.newValue)}</span></div>)}
+                </>}
+                {!hasComplement&&!hasConflict&&<div style={{color:C.textMuted}}>変更なし（既存と内容一致）</div>}
               </div>}
             </div>;
           })}
@@ -1748,34 +1785,32 @@ function ImportPreviewModal({analysis,incoming,current,onConfirm,onClose}){
     </div>;
   };
   return <div style={{position:"fixed",inset:0,background:"#0006",zIndex:600,display:"flex",alignItems:"flex-start",justifyContent:"center",overflowY:"auto",padding:20}} onClick={e=>e.target===e.currentTarget&&onClose()}>
-    <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,width:"100%",maxWidth:560,padding:20}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-        <span style={{fontSize:14,fontWeight:700,color:C.text}}>📥 インポート確認</span>
-        <button onClick={onClose} style={{background:"none",border:"none",fontSize:18,cursor:"pointer",color:C.textMuted,padding:4}}>✕</button>
+    <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,width:"100%",maxWidth:640,padding:20}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+        <span style={{fontSize:14,fontWeight:700,color:C.text}}>📥 インポート — 残り{totalRemaining}件</span>
+        <button onClick={onClose} style={{background:"none",border:"none",fontSize:18,cursor:"pointer",color:C.textMuted,padding:4}} title="閉じる（処理済みは保存済）">✕</button>
       </div>
-      <div style={{fontSize:12,color:C.text,marginBottom:10,padding:"8px 10px",background:C.panel2,borderRadius:6}}>
-        合計: <b style={{color:C.accent}}>新規{totalAdd}件</b> / <b style={{color:C.yellow}}>重複{totalDup}件</b>
+      <div style={{fontSize:11,color:C.textMuted,marginBottom:10,padding:"6px 10px",background:C.panel2,borderRadius:6}}>
+        新規{totalAdd}件 / 重複{totalDup}件 &nbsp;|&nbsp; 処理済み{processedIds.size}件
       </div>
-      {totalDup>0&&<div style={{marginBottom:14,padding:"10px 12px",background:C.panel2,borderRadius:6,border:`1px solid ${C.border}`}}>
-        <div style={{fontSize:11,color:C.textMuted,marginBottom:6,fontWeight:700}}>重複時の動作</div>
-        <div style={{display:"flex",gap:6,marginBottom:6}}>
-          {[["skip","スキップ",C.textMuted],["merge","マージ",C.accent],["overwrite","上書き",C.red]].map(([v,l,c])=>
-            <button key={v} onClick={()=>setMode(v)} style={{flex:1,padding:"6px 8px",borderRadius:6,background:mode===v?`${c}15`:C.panel,border:`1px solid ${mode===v?c:C.border}`,color:mode===v?c:C.textMuted,fontSize:11,fontWeight:700,cursor:"pointer"}}>{l}</button>
-          )}
-        </div>
-        <div style={{fontSize:10,color:C.textMuted,lineHeight:1.5}}>{modeDesc[mode]}</div>
+      {totalRemaining>0&&<div style={{marginBottom:10,padding:"8px 10px",background:C.panel2,borderRadius:6,border:`1px solid ${C.border}`,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+        <span style={{fontSize:11,color:C.text,fontWeight:700}}>選択 {checkedIds.size}件</span>
+        <button onClick={selectAllSafe} style={{padding:"4px 8px",borderRadius:4,background:C.panel,border:`1px solid ${C.border}`,color:C.textMuted,fontSize:10,cursor:"pointer"}}>☑ 競合なしを全選択</button>
+        <button onClick={()=>setCheckedIds(new Set())} style={{padding:"4px 8px",borderRadius:4,background:C.panel,border:`1px solid ${C.border}`,color:C.textMuted,fontSize:10,cursor:"pointer"}}>選択解除</button>
+        <div style={{flex:1}}/>
+        <button onClick={batchProcess} disabled={checkedIds.size===0} style={{padding:"6px 12px",borderRadius:6,background:checkedIds.size===0?C.panel:C.accent,border:"none",color:checkedIds.size===0?C.textMuted:"#fff",fontSize:11,fontWeight:700,cursor:checkedIds.size===0?"default":"pointer"}}>☑ 一括処理 ({checkedIds.size})</button>
       </div>}
-      {renderSection({title:"大会",icon:"🏆",data:tData,type:"tournament",renderItem:labelOf.tournament})}
-      {renderSection({title:"練習",icon:"🏃",data:pData,type:"practice",renderItem:labelOf.practice})}
-      {renderSection({title:"試打",icon:"🎾",data:trData,type:"trial",renderItem:labelOf.trial})}
-      {totalAdd===0&&totalDup===0&&<div style={{textAlign:"center",padding:20,color:C.textMuted,fontSize:12}}>インポート対象データがありません</div>}
+      {totalRemaining===0?<div style={{textAlign:"center",padding:30,color:C.textMuted,fontSize:13}}>{processedIds.size>0?`✅ 全${processedIds.size}件処理完了`:"インポート対象データがありません"}</div>:<>
+        {renderSection({title:"大会",icon:"🏆",data:tData,type:"tournament",renderItem:labelOf.tournament})}
+        {renderSection({title:"練習",icon:"🏃",data:pData,type:"practice",renderItem:labelOf.practice})}
+        {renderSection({title:"試打",icon:"🎾",data:trData,type:"trial",renderItem:labelOf.trial})}
+      </>}
       <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:14}}>
-        <button onClick={onClose} style={{padding:"10px 20px",borderRadius:8,background:C.panel2,border:`1px solid ${C.border}`,color:C.textMuted,fontSize:13,fontWeight:600,cursor:"pointer"}}>キャンセル</button>
-        <button onClick={()=>onConfirm(mode,manualMerges)} disabled={totalAdd===0&&totalDup===0} style={{padding:"10px 20px",borderRadius:8,background:(totalAdd===0&&totalDup===0)?C.panel2:(mode==="overwrite"?C.red:C.accent),border:"none",color:(totalAdd===0&&totalDup===0)?C.textMuted:"#fff",fontSize:13,fontWeight:700,cursor:(totalAdd===0&&totalDup===0)?"default":"pointer"}}>{mode==="overwrite"?"⚠ 上書き実行":"✅ インポート実行"}</button>
+        <button onClick={onClose} style={{padding:"8px 16px",borderRadius:6,background:C.panel2,border:`1px solid ${C.border}`,color:C.textMuted,fontSize:12,fontWeight:600,cursor:"pointer"}}>{totalRemaining===0?"閉じる":"中断して閉じる"}</button>
       </div>
     </div>
-    {Picker()}
-    {Comparer()}
+    {renderPicker()}
+    {renderComparer()}
   </div>;
 }
 
@@ -3052,6 +3087,40 @@ function TennisDB(){
       toast.show("📤 エクスポート完了");
     }
   };
+  // インクリメンタルcommit: {type, item, existing?, choices?, asNew?} の配列を受けて一括state更新
+  const handleImportCommits=(commits)=>{
+    if(!commits||commits.length===0)return;
+    if(!importSnapshot.current)importSnapshot.current={tournaments,practices,trials,rackets,strings,stringSetups,mental,next,profile,venues,opponents,measurements,quickTrialCards};
+    const keyMap={tournament:"tournaments",practice:"practices",trial:"trials"};
+    const setterMap={tournament:setTournaments,practice:setPractices,trial:setTrials};
+    const stateMap={tournament:tournaments,practice:practices,trial:trials};
+    const buckets={tournament:[],practice:[],trial:[]};
+    commits.forEach(c=>{if(buckets[c.type])buckets[c.type].push(c);});
+    Object.entries(buckets).forEach(([type,items])=>{
+      if(items.length===0)return;
+      let arr=[...(stateMap[type]||[])];
+      items.forEach(c=>{
+        if(c.asNew){
+          arr.push(c.item);
+        }else if(c.existing){
+          const idx=arr.findIndex(e=>e.id===c.existing.id);
+          if(idx<0)return;
+          const merged={...arr[idx]};
+          const complement=computeComplement(c.existing,c.item,type);
+          complement.forEach(cf=>{merged[cf.key]=cf.value;});
+          const conflicts=computeConflicts(c.existing,c.item,type);
+          conflicts.forEach(cf=>{
+            const ch=(c.choices&&c.choices[cf.key])||"existing";
+            if(ch==="new")merged[cf.key]=cf.newValue;
+            else if(ch==="combined")merged[cf.key]=`${cf.existingValue} | ${cf.newValue}`;
+          });
+          arr[idx]=merged;
+        }
+      });
+      setterMap[type](arr);
+      save(keyMap[type],arr);
+    });
+  };
   const executeImport=(data,mode="merge",manualMerges={},analysis=null)=>{
     importSnapshot.current={tournaments,practices,trials,rackets,strings,stringSetups,mental,next,profile,venues,opponents,measurements,quickTrialCards};
     const current={tournaments,practices,trials,rackets,strings,stringSetups,mental,next,profile,venues,opponents,measurements,quickTrialCards};
@@ -3169,7 +3238,7 @@ function TennisDB(){
     {!detailOpen&&<TabBar tab={tab} setTab={setTab}/>}
 
     {showClaudeShare&&<ClaudeShareModal onClose={()=>setShowClaudeShare(false)} data={{tournaments,practices,trials,rackets,strings,stringSetups,mental,next,profile,venues,opponents,measurements,quickTrialCards}} toast={toast}/>}
-    {importPreview&&<ImportPreviewModal analysis={importPreview.analysis} incoming={importPreview.incoming} current={{tournaments,practices,trials}} onConfirm={(mode,manualMerges)=>executeImport(importPreview.incoming,mode,manualMerges,importPreview.analysis)} onClose={()=>setImportPreview(null)}/>}
+    {importPreview&&<ImportPreviewModal analysis={importPreview.analysis} incoming={importPreview.incoming} current={{tournaments,practices,trials}} onCommit={handleImportCommits} onClose={()=>setImportPreview(null)}/>}
     {pasteImport&&<div style={{position:"fixed",inset:0,background:"#0008",zIndex:400,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
       <div style={{background:C.panel,borderRadius:12,padding:20,width:"100%",maxWidth:400}}>
         <div style={{fontSize:14,fontWeight:700,marginBottom:10}}>📋→📥 JSONを貼り付け</div>
