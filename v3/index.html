@@ -13,7 +13,7 @@
 const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
 // ── APP ───────────────────────────────────────────
-const APP_VERSION="3.3.22"; // 2026/04/18 pracDup改善: 空venueはstartTimeで補完判定
+const APP_VERSION="3.3.23"; // 2026/04/18 インポート時の手動マージ機能
 const font="-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif";
 const C={bg:"#f2f2f7",panel:"#fff",panel2:"#f5f5f7",border:"#e0e0e4",text:"#1a1a1a",textMuted:"#8e8e93",textDim:"#aaa",accent:"#00b87a",accentBg:"rgba(0,184,122,0.08)",red:"#dc2626",redBg:"#fef2f2",blue:"#2563eb",blueBg:"rgba(37,99,235,0.08)",yellow:"#f59e0b",yellowBg:"rgba(245,158,11,0.08)",purple:"#7c3aed",purpleBg:"rgba(124,58,237,0.08)",green:"#00b87a",greenBg:"rgba(0,184,122,0.08)"};
 const Badge=({children,color="gray",sm,minWidth})=>{const cc={green:C.accent,blue:C.blue,yellow:C.yellow,red:C.red,gray:C.textMuted,purple:C.purple};const c=cc[color]||color;const st={display:"inline-block",fontSize:sm?9:10,fontWeight:700,color:c,background:`${c}15`,border:`1px solid ${c}30`,borderRadius:4,padding:sm?"1px 4px":"2px 6px",lineHeight:1.4};if(minWidth){st.minWidth=minWidth;st.textAlign="center";st.boxSizing="border-box";}return<span style={st}>{children}</span>;};
@@ -300,8 +300,11 @@ const overwriteArr=(exist,incoming,isDup)=>{
   });
   return merged;
 };
-const mergeData=(current,incoming,mode="merge")=>{
+const mergeData=(current,incoming,mode="merge",manualMerges={})=>{
   // mode: "skip"=重複は完全スキップ / "merge"=空フィールドのみ補完(デフォルト) / "overwrite"=重複を上書き
+  // manualMerges: {incomingId: existingId} - 手動統合マップ: incoming項目のidをexistingIdに差し替えることで通常のdup判定ルートで処理
+  const applyManual=arr=>(arr||[]).map(it=>manualMerges[it.id]?{...it,id:manualMerges[it.id]}:it);
+  incoming={...incoming,tournaments:applyManual(incoming.tournaments),practices:applyManual(incoming.practices),trials:applyManual(incoming.trials)};
   const r={...current};
   if(mode==="overwrite"){
     r.tournaments=overwriteArr(current.tournaments||[],incoming.tournaments,trnDup);
@@ -1501,26 +1504,81 @@ function MatchStatsView({stats,playerA,playerB,myIsA}){
 
 // ── CSV IMPORT MODAL ──
 // インポート前のプレビューモーダル: 新規/重複の内訳と詳細を表示、モード選択
-function ImportPreviewModal({analysis,incoming,onConfirm,onClose}){
+function ImportPreviewModal({analysis,incoming,current,onConfirm,onClose}){
   const t=analysis.tournaments,p=analysis.practices,tr=analysis.trials;
-  const totalAdd=t.add.length+p.add.length+tr.add.length;
-  const totalDup=t.dup.length+p.dup.length+tr.dup.length;
   const[mode,setMode]=useState("merge");
   const[expandedDup,setExpandedDup]=useState(new Set());
+  const[manualMerges,setManualMerges]=useState({}); // {incomingId: existingId}
+  const[pickerFor,setPickerFor]=useState(null); // {type, incoming} or null
   const toggleExpand=key=>setExpandedDup(prev=>{const n=new Set(prev);if(n.has(key))n.delete(key);else n.add(key);return n;});
   const modeDesc={
     skip:"重複は完全スキップ（既存データそのまま、新規データ破棄）",
     merge:"既存の空フィールドのみ新規データで補完（心拍・メモ等は保持）",
     overwrite:"重複は新規データで上書き（既存データの内容は失われる）",
   };
+  const currentMap={tournament:(current?.tournaments)||[],practice:(current?.practices)||[],trial:(current?.trials)||[]};
+  // 手動マージ済み incoming を add から除外し、dup に追加
+  const buildFiltered=(data,type)=>{
+    const curList=currentMap[type];
+    const manualDups=[];
+    const filteredAdd=[];
+    data.add.forEach(item=>{
+      const exId=manualMerges[item.id];
+      if(exId){
+        const ex=curList.find(e=>e.id===exId);
+        if(ex)manualDups.push({incoming:item,existing:ex,complement:computeComplement(ex,item,type),manual:true});
+        else filteredAdd.push(item);
+      }else filteredAdd.push(item);
+    });
+    return {add:filteredAdd,dup:[...data.dup,...manualDups]};
+  };
+  const tData=buildFiltered(t,"tournament");
+  const pData=buildFiltered(p,"practice");
+  const trData=buildFiltered(tr,"trial");
+  const totalAdd=tData.add.length+pData.add.length+trData.add.length;
+  const totalDup=tData.dup.length+pData.dup.length+trData.dup.length;
+  const daysDiff=(a,b)=>{const da=new Date(normDate(a)),db=new Date(normDate(b));return Math.abs(Math.round((da-db)/(1000*60*60*24)));};
+  const Picker=()=>{
+    if(!pickerFor)return null;
+    const{type,incoming:item}=pickerFor;
+    const curList=currentMap[type];
+    // 候補: 同一日付優先、なければ±7日
+    const sameDate=curList.filter(c=>normDate(c.date)===normDate(item.date));
+    const nearby=curList.filter(c=>normDate(c.date)!==normDate(item.date)&&daysDiff(c.date,item.date)<=7);
+    const candidates=[...sameDate,...nearby];
+    const label={tournament:(x)=>`${normDate(x.date)} ${x.name||"(名称なし)"}`,practice:(x)=>`${normDate(x.date)} ${x.title||x.type||"練習"}${x.venue?" @ "+x.venue:""}`,trial:(x)=>`${normDate(x.date)} ${x.racketName||"(ラケット未指定)"}`}[type];
+    return <div style={{position:"fixed",inset:0,background:"#0008",zIndex:800,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={e=>e.target===e.currentTarget&&setPickerFor(null)}>
+      <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:10,width:"100%",maxWidth:480,maxHeight:"80vh",display:"flex",flexDirection:"column"}}>
+        <div style={{padding:"12px 14px",borderBottom:`1px solid ${C.border}`}}>
+          <div style={{fontSize:13,fontWeight:700,color:C.text,marginBottom:4}}>🔗 既存と統合</div>
+          <div style={{fontSize:11,color:C.textMuted}}>新規: {label(item)}</div>
+        </div>
+        <div style={{flex:1,overflowY:"auto",padding:8}}>
+          {candidates.length===0?<div style={{padding:"20px",textAlign:"center",fontSize:12,color:C.textMuted}}>±7日以内に既存データなし</div>:candidates.map(c=>{
+            const isSameDay=normDate(c.date)===normDate(item.date);
+            return <div key={c.id} onClick={()=>{setManualMerges(p=>({...p,[item.id]:c.id}));setPickerFor(null);}} style={{padding:"8px 10px",borderRadius:6,background:isSameDay?C.accentBg:C.panel2,border:`1px solid ${isSameDay?C.accent:C.border}`,marginBottom:4,cursor:"pointer",fontSize:12}}>
+              <div style={{color:C.text,fontWeight:600}}>{label(c)}</div>
+              {!isSameDay&&<div style={{fontSize:10,color:C.yellow,marginTop:2}}>⚠ 日付が異なる（{daysDiff(c.date,item.date)}日差）</div>}
+            </div>;
+          })}
+        </div>
+        <div style={{padding:10,borderTop:`1px solid ${C.border}`,display:"flex",justifyContent:"flex-end"}}>
+          <button onClick={()=>setPickerFor(null)} style={{padding:"8px 16px",borderRadius:6,background:C.panel2,border:`1px solid ${C.border}`,color:C.textMuted,fontSize:12,cursor:"pointer"}}>キャンセル</button>
+        </div>
+      </div>
+    </div>;
+  };
   const Section=({title,icon,data,type,renderItem})=>{
     if(data.add.length===0&&data.dup.length===0)return null;
     return <div style={{marginBottom:14}}>
       <div style={{fontSize:12,fontWeight:700,color:C.text,marginBottom:6}}>{icon} {title}: <span style={{color:C.accent}}>新規{data.add.length}件</span> / <span style={{color:C.yellow}}>重複{data.dup.length}件</span></div>
       {data.add.length>0&&<div style={{marginBottom:6}}>
-        <div style={{fontSize:11,color:C.accent,marginBottom:4}}>＋ 新規追加</div>
-        <div style={{maxHeight:120,overflowY:"auto",background:C.accentBg,borderRadius:6,padding:"6px 10px"}}>
-          {data.add.map((item,i)=><div key={i} style={{fontSize:11,color:C.text,padding:"2px 0"}}>{renderItem(item)}</div>)}
+        <div style={{fontSize:11,color:C.accent,marginBottom:4}}>＋ 新規追加（🔗で既存と手動統合可）</div>
+        <div style={{maxHeight:160,overflowY:"auto",background:C.accentBg,borderRadius:6,padding:"6px 10px"}}>
+          {data.add.map((item,i)=><div key={i} style={{display:"flex",alignItems:"center",gap:6,fontSize:11,color:C.text,padding:"2px 0"}}>
+            <span style={{flex:1}}>{renderItem(item)}</span>
+            <button onClick={()=>setPickerFor({type,incoming:item})} title="既存と手動統合" style={{padding:"2px 8px",borderRadius:4,background:C.panel,border:`1px solid ${C.accent}`,color:C.accent,fontSize:10,cursor:"pointer",fontWeight:700}}>🔗 統合</button>
+          </div>)}
         </div>
       </div>}
       {data.dup.length>0&&<div>
@@ -1534,9 +1592,12 @@ function ImportPreviewModal({analysis,incoming,onConfirm,onClose}){
               <div onClick={()=>toggleExpand(key)} style={{display:"flex",alignItems:"center",gap:6,fontSize:11,color:C.text,cursor:"pointer"}}>
                 <span style={{transform:isOpen?"rotate(90deg)":"none",transition:"transform 0.2s",fontSize:9,color:C.textMuted}}>▶</span>
                 <span style={{flex:1}}>{renderItem(d.incoming)}</span>
+                {d.manual&&<span style={{fontSize:10,color:C.blue,background:"#dbeafe",padding:"1px 5px",borderRadius:3}}>手動</span>}
                 {mode==="merge"&&hasComplement&&<span style={{fontSize:10,color:C.accent,background:C.accentBg,padding:"1px 5px",borderRadius:3}}>+{d.complement.length}補完</span>}
+                {d.manual&&<button onClick={e=>{e.stopPropagation();setManualMerges(p=>{const n={...p};delete n[d.incoming.id];return n;});}} title="手動統合を解除" style={{padding:"1px 5px",borderRadius:3,background:C.panel,border:"none",color:C.red,fontSize:10,cursor:"pointer"}}>✕</button>}
               </div>
               {isOpen&&<div style={{marginLeft:18,marginTop:4,padding:"6px 8px",background:C.panel,borderRadius:4,fontSize:11}}>
+                {d.manual&&<div style={{color:C.blue,fontWeight:600,marginBottom:4,paddingBottom:4,borderBottom:`1px solid ${C.border}`}}>🔗 手動統合: 既存「{renderItem(d.existing)}」</div>}
                 {mode==="merge"&&hasComplement?<>
                   <div style={{color:C.accent,fontWeight:600,marginBottom:3}}>補完/結合される項目:</div>
                   {d.complement.map((c,j)=>c.combine?
@@ -1571,15 +1632,16 @@ function ImportPreviewModal({analysis,incoming,onConfirm,onClose}){
         </div>
         <div style={{fontSize:10,color:C.textMuted,lineHeight:1.5}}>{modeDesc[mode]}</div>
       </div>}
-      <Section title="大会" icon="🏆" data={t} type="t" renderItem={item=>`${normDate(item.date)} ${item.name||"(名称なし)"}`}/>
-      <Section title="練習" icon="🏃" data={p} type="p" renderItem={item=>`${normDate(item.date)} ${item.title||item.type||"練習"}${item.venue?" @ "+item.venue:""}${item.startTime?" "+item.startTime:""}`}/>
-      <Section title="試打" icon="🎾" data={tr} type="tr" renderItem={item=>`${normDate(item.date)} ${item.racketName||"(ラケット未指定)"}`}/>
+      <Section title="大会" icon="🏆" data={tData} type="tournament" renderItem={item=>`${normDate(item.date)} ${item.name||"(名称なし)"}`}/>
+      <Section title="練習" icon="🏃" data={pData} type="practice" renderItem={item=>`${normDate(item.date)} ${item.title||item.type||"練習"}${item.venue?" @ "+item.venue:""}${item.startTime?" "+item.startTime:""}`}/>
+      <Section title="試打" icon="🎾" data={trData} type="trial" renderItem={item=>`${normDate(item.date)} ${item.racketName||"(ラケット未指定)"}`}/>
       {totalAdd===0&&totalDup===0&&<div style={{textAlign:"center",padding:20,color:C.textMuted,fontSize:12}}>インポート対象データがありません</div>}
       <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:14}}>
         <button onClick={onClose} style={{padding:"10px 20px",borderRadius:8,background:C.panel2,border:`1px solid ${C.border}`,color:C.textMuted,fontSize:13,fontWeight:600,cursor:"pointer"}}>キャンセル</button>
-        <button onClick={()=>onConfirm(mode)} disabled={totalAdd===0&&totalDup===0} style={{padding:"10px 20px",borderRadius:8,background:(totalAdd===0&&totalDup===0)?C.panel2:(mode==="overwrite"?C.red:C.accent),border:"none",color:(totalAdd===0&&totalDup===0)?C.textMuted:"#fff",fontSize:13,fontWeight:700,cursor:(totalAdd===0&&totalDup===0)?"default":"pointer"}}>{mode==="overwrite"?"⚠ 上書き実行":"✅ インポート実行"}</button>
+        <button onClick={()=>onConfirm(mode,manualMerges)} disabled={totalAdd===0&&totalDup===0} style={{padding:"10px 20px",borderRadius:8,background:(totalAdd===0&&totalDup===0)?C.panel2:(mode==="overwrite"?C.red:C.accent),border:"none",color:(totalAdd===0&&totalDup===0)?C.textMuted:"#fff",fontSize:13,fontWeight:700,cursor:(totalAdd===0&&totalDup===0)?"default":"pointer"}}>{mode==="overwrite"?"⚠ 上書き実行":"✅ インポート実行"}</button>
       </div>
     </div>
+    <Picker/>
   </div>;
 }
 
@@ -2856,10 +2918,10 @@ function TennisDB(){
       toast.show("📤 エクスポート完了");
     }
   };
-  const executeImport=(data,mode="merge")=>{
+  const executeImport=(data,mode="merge",manualMerges={})=>{
     importSnapshot.current={tournaments,practices,trials,rackets,strings,stringSetups,mental,next,profile,venues,opponents,measurements,quickTrialCards};
     const current={tournaments,practices,trials,rackets,strings,stringSetups,mental,next,profile,venues,opponents,measurements,quickTrialCards};
-    const merged=mergeData(current,data,mode);applyData(merged);
+    const merged=mergeData(current,data,mode,manualMerges);applyData(merged);
     Object.entries(KEYS).forEach(([name,key])=>{if(merged[name])save(key,merged[name]);});
     if(merged.profile)save("profile",merged.profile);
     setImportPreview(null);setPasteImport(false);setPasteText("");
@@ -2972,7 +3034,7 @@ function TennisDB(){
     {!detailOpen&&<TabBar tab={tab} setTab={setTab}/>}
 
     {showClaudeShare&&<ClaudeShareModal onClose={()=>setShowClaudeShare(false)} data={{tournaments,practices,trials,rackets,strings,stringSetups,mental,next,profile,venues,opponents,measurements,quickTrialCards}} toast={toast}/>}
-    {importPreview&&<ImportPreviewModal analysis={importPreview.analysis} incoming={importPreview.incoming} onConfirm={mode=>executeImport(importPreview.incoming,mode)} onClose={()=>setImportPreview(null)}/>}
+    {importPreview&&<ImportPreviewModal analysis={importPreview.analysis} incoming={importPreview.incoming} current={{tournaments,practices,trials}} onConfirm={(mode,manualMerges)=>executeImport(importPreview.incoming,mode,manualMerges)} onClose={()=>setImportPreview(null)}/>}
     {pasteImport&&<div style={{position:"fixed",inset:0,background:"#0008",zIndex:400,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
       <div style={{background:C.panel,borderRadius:12,padding:20,width:"100%",maxWidth:400}}>
         <div style={{fontSize:14,fontWeight:700,marginBottom:10}}>📋→📥 JSONを貼り付け</div>
