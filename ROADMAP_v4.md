@@ -1,156 +1,171 @@
 # Tennis DB v4.0 — 実装ロードマップ
 
-作成日: 2026-04-19 / 前提: REQUIREMENTS_v4.md, ARCHITECTURE_v4.md
+最終更新: 2026-04-19 / 前提: REQUIREMENTS_v4.md, ARCHITECTURE_v4.md, CLAUDE.md
 
 ---
 
-## 0. 基本ルール
+## 0. 基本方針（v3 の失敗を踏まえた転換）
 
-- **1 Stage = 1〜3セッション**、**1セッション = 1 commit、可能なら1 push**
-- **各 Stage の DoD（完了条件）を満たすまで次に進まない**
-- **ユーザー検証OKを DoD に含む**
-- **Stage 途中で問題発生時は対処療法せず、当該 Stage の設計から見直す**
-- **HANDOFF を各セッション開始時・終了時に更新**（中断なしを目指すが、長時間作業になる場合の引き継ぎに備える）
+### 0.1 UI/UX 先行
+**デザインシステムとワイヤフレームが確定するまで、機能実装のStageに入らない**。
+- v3 は機能実装を先行したため、デザインが後回しになり、最後まで UI 統一感が出なかった
+- v4 はこの順序を逆転する
+- デザイン確定前に機能を作りたい欲求が出たら、ストップサイン発動
+
+### 0.2 v3 Firestore 共有
+**v3 と v4 は同じ Firestore collection を使う**（データ移行不要）。
+- `users/{uid}/data/{key}` の構造は v3 と同一
+- ユーザーは URL 切替だけで v3/v4 を行き来できる
+- v4 でバグったら v3 に戻れる安全網
+- 最終的に v3 を凍結、v4 に完全移行するが、それまで並行運用
+
+### 0.3 段階実装（各 Stage で使える状態を保つ）
+- S5 以降は「各 Stage 終了時点で v4 が何らかの役に立つ」状態を維持
+- 全機能完成を待たず、段階的に v3 → v4 へ使用を移していける
+
+### 0.4 対処療法の即時停止
+- 規律違反（CLAUDE.md §「厳守プロトコル」参照）を感知した瞬間、作業を止めて報告
+- 「とりあえず」「後で直す」は禁止
+- 詳細は CLAUDE.md と ARCHITECTURE_v4.md §10 参照
 
 ---
 
-## 1. Stage 構成
+## 1. Stage 構成（UI/UX 先行型）
 
-| Stage | 内容 | 見込み | 依存 |
-|---|---|---|---|
-| **S0** | 準備: ディレクトリ作成、build.ps1、serve.ps1、tests/run.html の土台 | 1セッション | なし |
-| **S1** | Core 層: constants, firebase, storage, id, schema | 1セッション | S0 |
-| **S2** | Domain 層: merge, cascade, duplicate, import_gcal, import_csv, import_watch, stats + unit tests | 2-3セッション | S1 |
-| **S3** | UI 共通コンポーネント: Badge, Card, ConfirmDialog, Toast, VenueSelect, InfoCell | 1セッション | S1 |
-| **S4** | SessionsTab 骨格: 一覧、ジャンプ、月展開、編集モード（まだCRUDなし） | 1セッション | S3 |
-| **S5** | Session CRUD: 作成（QuickAdd）、展開表示、削除（cascade込み） | 2セッション | S4, S2 |
-| **S6** | Session Detail: 全画面編集、matches 追加/編集/削除（cascade込み） | 2セッション | S5 |
-| **S7** | Sessions マージ機能（F1.10） | 1セッション | S5, S2 |
-| **S8** | HomeTab: 3ボタン、Next Actions、MiniCalendar、好成績、バックアップ警告 | 1-2セッション | S5 |
-| **S9** | インポート: GCal JSON, CSV, Watch, バックアップJSON + プレビューモーダル + 取り消し | 2-3セッション | S2, S5 |
-| **S10** | GearTab: ラケット/ストリング/セッティング/実測値 | 2セッション | S3 |
-| **S11** | PlanTab: Next Actions 詳細、対戦相手管理 | 1-2セッション | S3 |
-| **S12** | InsightsTab: スタッツ集計、推移グラフ | 2-3セッション | S2 |
-| **S13** | 移行: v3 → v4 データ変換スクリプト、本番データで検証 | 1-2セッション | 全 Stage |
-| **S14** | リリース: v4.0.0 として GitHub Pages デプロイ、v3 凍結 | 1セッション | S13 |
+| Stage | 内容 | 完了時点で何が達成されるか |
+|---|---|---|
+| **S0** ✅ | ビルド土台 | `build.ps1` で v4/index.html 生成、最小起動 |
+| **S1** ✅ | Core 層（定数・Firebase・storage・id・schema） | SCHEMA 中央定義、localStorage/Firestore 層動作 |
+| **S2** 🎨 | **デザインシステム定義** | 色・タイポ・余白・コンポーネント仕様書が完成（画面実装なし） |
+| **S3** 🎨 | **ワイヤフレーム／画面遷移設計** | 全画面のレイアウト案、戻る/主アクション/メニューの位置が統一で決まる |
+| **S4** 🎨 | **共通UIコンポーネント実装** | Badge/Card/Button/Input/Modal/Toast 等、デザインシステム準拠 |
+| **S5** | Sessions 一覧（v3 Firestore を読むだけ） | ログインして v3 のデータが v4 の UI で一覧表示される |
+| **S6** | Session 展開 | 一覧タップで詳細概要を展開表示 |
+| **S7** | Session 編集（Detail 画面） | 既存記録の更新が v4 で可能 |
+| **S8** | Session 追加（QuickAdd） | v4 だけで新規記録可能、ここで v3 から移行可能な実運用状態 |
+| **S9** | Session 削除 + cascade | 関連する linkedXxx を自動クリアする安全削除 |
+| **S10** | Home タブ | 3ボタン登録導線、MiniCalendar、Next Actions |
+| **S11** | Sessions マージ機能 | 同タイプ2件の統合、A/B 切替・競合選択 |
+| **S12** | **Gear タブ（v3 未実装を v4 で初実装）** | ラケット/ガット/セッティング/実測値 |
+| **S13** | **Plan タブ（v3 未実装を v4 で初実装）** | Next Actions 詳細、対戦相手管理 |
+| **S14** | **Insights タブ（v3 未実装を v4 で初実装）** | 集計・推移・メンタル・検索 |
+| **S15** | インポート（GCal / CSV / Watch） | 外部データ取込 + プレビュー + 取り消し |
+| **S16** | リリース準備 | v3 を凍結、/v4/ を正式化、ドキュメント整備 |
 
-**合計見込み: 20〜30セッション**
+合計 **17 Stage**。S2-S4 が UI/UX 先行、S5-S11 がコア機能、S12-S14 が v3 未実装を v4 で新規実装、S15-S16 が仕上げ。
 
 ---
 
 ## 2. 各 Stage の完了条件（DoD）
 
-### S0: 準備
-- `v4/` ディレクトリ作成
-- `build.ps1` が src/ を連結して `v4/index.html` を生成できる
-- `serve.ps1` が v4 配信に対応
-- `tests/run.html` を開くと「テスト0件: 全成功」と表示
-- ユーザーが preview で `v4/index.html` を開き「真っ白画面が表示される」を確認
+### 共通 DoD（全 Stage）
+1. 実装完了後、preview で動作確認（S2-S3 は文書確認）
+2. 受入基準6項目を満たす（REQUIREMENTS_v4.md §5）
+3. ユーザー検証OK（手順は私が用意、ユーザーは「OK/NG」判定のみ）
+4. 1 commit にまとめる
+5. push 承認 → push
+6. 次 HANDOFF 作成 + 現 HANDOFF 削除
 
-### S1: Core
-- SCHEMA が tournament/practice/trial/match の全フィールド定義済み
-- DISPLAY_FIELDS / COMBINABLE_FIELDS / REQUIRED_FIELDS が SCHEMA から自動生成される
-- localStorage + Firestore 同期層が動作
-- Firebase Google ログインが動作
-- ユーザーが preview で「ログインできる、localStorage 読み書きできる」を確認
+### Stage 個別 DoD
 
-### S2: Domain
-- merge.js: `mergeItems`, `computeComplement`, `computeConflicts` の unit test 全通過
-- cascade.js: `deleteItemCascade` の unit test 全通過（practice/tournament/trial/match 全ケース）
-- duplicate.js: `strictMatch`, `analyzeImport` の unit test 全通過
-- import_gcal.js / import_csv.js / import_watch.js の unit test 全通過
-- tests/run.html を開くと「全 XX 件成功」と表示
-- ユーザーが tests/run.html でグリーン全確認
+#### S2: デザインシステム定義
+- `DESIGN_SYSTEM_v4.md` 作成、以下を明文化:
+  - 色パレット（主/副/補助の3段階、AA 以上、主要は AAA）
+  - タイポグラフィ（見出し/本文/補助、フォントサイズ階層、行間、文字間）
+  - 余白（基本単位、コンポーネント内/間の余白）
+  - コンポーネント仕様（ボタン/カード/入力欄/モーダル/タブバー の形・サイズ・状態変化）
+  - アイコンの扱い方
+  - モーション（transition 時間・イージング）
+  - タップ領域（最小 44×44px）
+- ユニバーサルデザイン要件（色弱・文字サイズ可変・キーボード操作・スクリーンリーダー）
 
-### S3: 共通UI
-- 各コンポーネントを tests/ui.html で単体表示確認
-- ConfirmDialog が開閉・確定・キャンセル全動作
-- Toast が自動消滅、undo callback 動作
-- ユーザーが preview で「各コンポーネントが表示され、操作できる」を確認
+#### S3: ワイヤフレーム
+- `WIREFRAMES_v4.md` 作成（Markdown+ASCII アート or 画像リンク）:
+  - 全画面のレイアウト案（Home / Sessions一覧 / Session展開 / Detail / 各モーダル）
+  - 戻るボタン・主アクション・メニューの固定位置
+  - 画面遷移図（どこからどこへどう行けるか）
 
-### S4: SessionsTab 骨格
-- 空データで「データがありません」表示
-- 手動で localStorage に練習1件入れた後に再ロードすると一覧に出る
-- フィルタ切替、月ジャンプ、編集モード切替が動作
-- ユーザーが preview で「ダミーデータで一覧が動く」を確認
+#### S4: 共通UIコンポーネント
+- `src/ui/common/` に Badge/Card/Button/Input/Select/Modal/Toast/ConfirmDialog 実装
+- DESIGN_SYSTEM_v4.md に完全準拠
+- tests/run.html で単体動作確認
 
-### S5: Session CRUD
-- `＋練習`/`＋大会`/`＋試打` で作成できる
-- 一覧タップで展開、再タップで閉じる
-- 展開内の🗑削除で cascade 削除（trial.linkedXxx 自動クリア）
-- 連続作成・削除で state 不整合が起きない（受入基準N1.2, N1.3）
-- ユーザーが preview で「5シナリオ実地確認」OK
-
-### S6: Session Detail
-- 展開内の✏️編集で全画面 Detail ページ
-- matches 追加/編集/削除が動作
-- Detail 保存時に tournament.matches の差分検出で trial.linkedMatchId cascade クリア
-- ユーザー検証OK
-
-### S7: Sessions マージ
-- 編集モードで同タイプ2件選択→🔗マージボタン
-- A/B 切替、競合選択、結合オプション
-- 確認ダイアログ経由で確定
-- 確定後 A を cascade 削除、B に統合結果を保存
-- ユーザー検証OK
-
-### S8〜S14: 略（各 Stage で受入基準 6項目を満たす）
+#### S5-S16 の DoD は各 HANDOFF で個別定義
+着手直前の HANDOFF で、その Stage の具体的 DoD と検証手順を記載。
 
 ---
 
-## 3. 受入基準の確認フロー（各 Stage 共通）
+## 3. 各 Stage 着手前の必須手順（守らないと作業しない）
 
-1. 実装完了時、私が以下を確認:
-   - 受入基準1〜5 が満たされる
-   - domain 関連なら unit test 全通過
-2. ユーザー承認フェーズ:
-   - 私が検証手順（具体的な preview 操作手順）を用意
-   - ユーザーは手順通り操作して「OK」「NG」を返答
-3. OK なら:
-   - 変更を 1 commit にまとめ、push 承認を求める
-   - push 完了
-4. NG なら:
-   - 私がその Stage の設計から見直す（対処療法禁止）
-   - 再度受入基準確認→ユーザー承認
+以下を応答テキストに明示的に書き出してから実装を開始する。詳細は CLAUDE.md §「厳守プロトコル」。
+
+```
+□ 関連設計書を読んだ(読んだ要点3行)
+□ 実行環境の制約を調査した(preview/file://, PowerShell, Firebase 等)
+□ DoD の各項目が preview で検証可能か判定(○×で)
+□ 使用技術の仕様を調査した(具体的な罠を書き出す)
+□ ユーザー承認を得た
+```
+
+書き出した内容が形式的・空ならその時点で自己停止 → ユーザー報告。
 
 ---
 
-## 4. 今セッション（次の一手）以降の動き
+## 4. v3 → v4 の並行運用とリリース判断
 
-### 今セッション残タスク
-- REQUIREMENTS_v4.md / ARCHITECTURE_v4.md / ROADMAP_v4.md（本書） の3本を書き上げ、**ユーザー承認を取る**
-- 承認が取れたら、**その場で HANDOFF_v4_S0.md を作成**して次セッションの最初の指示をまとめる
-- 1 commit にまとめて push 承認依頼
+### 並行運用期間（S5 〜 S15）
+- v3: `https://grooveworks.github.io/tennis-db/v3/` 本番継続
+- v4: `https://grooveworks.github.io/tennis-db/v4/` 開発版
+- 両方とも同じ Firestore を読む → データ一貫性保持
+- v4 でバグ発覚時は URL を v3 に戻すだけ（5秒復旧）
 
-### 次セッション
-- HANDOFF_v4_S0.md から開始
-- S0（準備）を実行
-- 終了時に HANDOFF_v4_S1.md を作成
+### v4 への切替判断（S8 完了時点）
+- S8 完了時点で「v4 だけで記録 → 表示 → 編集」が完結
+- この時点でユーザーが「v4 常用」に切り替え可能
+- v3 は「万一用」として残す
+
+### v3 凍結（S16）
+- S12-S14 完了で v3 を超える機能揃う
+- S16 で v3 を正式凍結（index.html の v3/ ディレクトリは残すが新機能追加しない）
 
 ---
 
 ## 5. 作業規律（対処療法を繰り返さないために）
 
-1. **設計文書を読み返してから実装開始**（REQUIREMENTS / ARCHITECTURE / ROADMAP）
-2. **type 分岐を書きそうになったら SCHEMA を疑う**
-3. **UI で困ったら Domain 層を疑う**（UI で複雑ロジックを書かない）
-4. **エラーメッセージで「動かなくなった」を直接修正しない**（根本原因を特定する）
-5. **「とりあえず」「対処的に」という言葉が出たら一度止める**
-6. **ユーザーに判断を投げそうになったら、情報を集めて私が決める**
-7. **先延ばし禁止**（中断を提案しない、今セッションで完結させる）
-8. **テンプレ的に書かない**（その場の状況に応じて判断する）
+CLAUDE.md §「厳守プロトコル」に詳細記載。要約:
+
+1. 設計書を読み直してから実装開始（毎 Stage）
+2. type 分岐は domain 層の1箇所のみ、UI で書いたら却下
+3. エラーは根本原因を特定してから直す
+4. 「とりあえず」「後で直す」禁止
+5. 判断を投げない（「こうします」と宣言）
+6. 先延ばし禁止（中断を軽率に提案しない）
+7. 同一ファイル 3 回目の Edit をしようとしたら一度止まる
+8. テンプレ的応答禁止（状況に応じた判断）
 
 ---
 
 ## 6. 失敗時のエスカレーション
 
-- Stage 内で 3 回以上の設計見直しが発生したら、その Stage の前提を REQUIREMENTS に立ち返って疑う
-- 致命的なデータロスリスクが発覚したら、実装を止めて報告
-- ユーザーに「これでいいか」ではなく「私はこう判断した、理由はX」と伝える
+- Stage 内で設計見直しが 3 回以上発生 → REQUIREMENTS/ARCHITECTURE に立ち返って前提を疑う
+- 規律違反を自覚 → 即時ユーザー報告、作業中断
+- 致命的データロスリスク → 即停止、ユーザー判断仰ぐ
 
 ---
 
-## 7. この文書の更新
+## 7. タイムライン（見込み）
 
-- 各 Stage 完了時に進捗を反映
-- 実装中に見つかった設計の穴は、本書 + ARCHITECTURE を更新してから実装に戻る
+1 Stage = 1-2 セッション想定。17 Stage で **20〜25 セッション**程度。
+
+ただし:
+- S2-S4（デザイン先行）は実装前の重要投資で、時間をかけてよい
+- S5-S8 完了 = v4 実運用可能、ここまでがクリティカルパス
+- S12-S14（v3 未実装機能の v4 初実装）は、v3 に引きずられないクリーンな実装が可能
+
+---
+
+## 8. 更新ルール
+
+- Stage 完了時、このファイルの進捗を反映
+- 設計の穴が発覚したら、実装ではなくこのファイル+ARCHITECTURE を更新してから実装に戻る
+- ユーザーからの重要な指示は「設計判断ログ」セクションを新設して記録

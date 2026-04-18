@@ -1,237 +1,201 @@
-# HANDOFF v4 — Stage S2（Domain 層）開始用
+# HANDOFF v4 — Stage S2（デザインシステム定義）開始用
 
-作成: 2026-04-19 / 前セッション(S1)末尾で作成
+作成: 2026-04-19 / 前セッション末尾で作成
 
-> **次セッション最初にやること**: このファイル + REQUIREMENTS_v4.md + ARCHITECTURE_v4.md + ROADMAP_v4.md を読む。
-> **特に ARCHITECTURE_v4.md §10「Stage 開始前チェックリスト」を応答テキストに書き出してから着手すること**。
-> コードから書き始めない。
-
----
-
-## 0. 前セッション(S1)の結果
-
-### 完了事項
-- `src/core/` に5ファイル分離:
-  - 01_constants.js (APP_VERSION, C, KEYS, LS_PREFIX)
-  - 02_firebase.js (Firebase 初期化)
-  - 03_storage.js (lsLoad, lsSave, save, cleanForFirestore)
-  - 04_id.js (genId, normDate, fmtDate, fmtDateFull, ds)
-  - 05_schema.js (SCHEMA + DISPLAY_FIELDS/COMBINABLE_FIELDS/REQUIRED_FIELDS/FIELD_TYPES/isEmptyVal/INTERNAL_KEYS/keysToInspect/labelFor)
-- app.jsx を S1 動作確認用に拡張（認証 / ストレージ / SCHEMA 表示 の3セクション）
-- build OK (18,737 bytes)
-- preview で SCHEMA 表示 OK、localStorage 保存 OK
-- ARCHITECTURE_v4.md に §10「Stage 開始前チェックリスト」追加
-
-### S1 で犯した失敗 → 再発防止策
-1. **Firebase ログイン動作確認を DoD に入れた**
-   - preview (file://) で原理的に動かないことを事前調査しなかった
-   - → ARCHITECTURE_v4.md §10.1 に環境制約の調査リスト追加
-2. **PowerShell の `-join`/`Set-Content -Encoding UTF8` で時間を浪費（S0）**
-   - → §10.2 に使用技術仕様の事前調査リスト追加
-   - 結論: StringBuilder + `[System.IO.File]::WriteAllText` + UTF8Encoding(BOM=false) が確実
-
-### DoD 未達成項目（S2 以降に持ち越し）
-- Firebase ログイン動作確認 → 本番 push 後に https:// で実動作確認する
+> **次セッション最初にやること**: このファイルを読み、CLAUDE.md + REQUIREMENTS_v4.md + ARCHITECTURE_v4.md + ROADMAP_v4.md を読む。
+> **ARCHITECTURE_v4.md §10「Stage 開始前チェックリスト」を応答に書き出してから着手**。
+> **CLAUDE.md §「ストップサイン」を常に意識**。
 
 ---
 
-## 1. S2 の目的（Domain 層実装 + unit test）
+## 0. 前セッションの結果（v3→v4 再設計の根本見直し）
 
-v3 のロジックを**純関数として再実装**する。React に依存しないため、tests/run.html で unit test 可能。
+### 重要な経緯
+2026-04-19、v3.3.28 の実装が対処療法の繰り返しと指摘され、白紙化 → v4.0.0 として再構築開始。
+その後、ユーザーから以下の指摘を受けて、v4 の設計思想を根本から見直した:
 
-作成するファイル（`src/domain/` 配下）:
+1. **v2→v3 も v3→v4 と全く同じパターン**（対処療法 → 白紙化）
+2. **再設計しただけでは救われない**（実行の質が伴わなければ v5 行き）
+3. **デザインを軽視していた**（ユーザーは元デザイナー、UI/UX に強い関心）
+4. **判断を投げるな・専門用語を使うな**（素人扱いの最たる問題）
 
-1. `merge.js` — `mergeItems`, `computeComplement`, `computeConflicts`
-2. `cascade.js` — `deleteItemCascade`（practice/tournament/trial/match 全ケース）
-3. `duplicate.js` — `strictMatch`, `sameDate`, `analyzeImport`, `analyzeType`
-4. `import_gcal.js` — GCal JSON → sessions 変換
-5. `import_csv.js` — データテニス CSV → matches 変換
-6. `import_watch.js` — Apple Watch JSON → practice 変換
-7. `stats.js` — 集計ロジック（勝率・推移等の純粋計算）
+### 方針転換
+- **UI/UX 先行**: デザインシステム・ワイヤフレーム確定まで機能実装に進まない
+- **v3 Firestore 共有**: データ移行不要、並行運用で段階的に v4 へ移行
+- **厳守プロトコル**: CLAUDE.md に対処療法防止の仕組みを明文化、毎セッション開始時に読む
 
-テスト（`tests/` 配下、ただし run.html に inline で追加する方針。S0 で外部 JS が file:// で動かない事が判明済み）:
+### 完了したもの（コミット履歴）
+- `11dbe1e`: v4.0.0 再構築開始（初期設計文書）
+- `a9f0711`: v4 S0（ビルド土台）
+- `dbb176d`: v4 S1（Core 層）
+- 次コミット: 設計書の UI/UX 先行型書き直し + 規律文書化 + S2 HANDOFF
 
-- `tests/run.html` に各 domain モジュールの test を inline で追加
-- test 関数は S0 で作成済み（window.test, window.assert, window.assertEqual, window.runAllTests）
+### 更新された文書
+- `ROADMAP_v4.md`: UI/UX 先行型に書き直し、17 Stage 構成
+- `REQUIREMENTS_v4.md`: UI/UX・ユニバーサルデザイン要件追加、v3 Firestore 共有方針
+- `ARCHITECTURE_v4.md`: §10 強化、§11 ストップサイン、§12 UI/UX 先行ルール追加
+- `CLAUDE.md`: 新規作成、厳守プロトコル集約
+- `memory/*.md`: 失敗パターン・デザイン要件・規律を保存
+
+---
+
+## 1. S2 の目的
+
+**デザインシステムを定義する文書 `DESIGN_SYSTEM_v4.md` を作成する**。
+コード実装はなし。文書のみ。
+
+ユーザーは元デザイナーなので、**ユーザー主導でデザイン方向性を固め、Claude は文書化を担当**する。ユーザーから得た指針（前セッションで収集済み）:
+
+### ユーザーから得た指針（memory/feedback_ui_design_first.md 参照）
+- 色: **暗い・モノトーンは避ける**、明るい基調 + アクセント
+- 文字: 情報量に応じた文字間調整、画面全体のバランス優先
+- タップ領域: 小さなボタン禁止、44px 以上
+- 導線: 戻る・主アクションは全画面で固定位置、統一性
+- 情報構造: LINE/SNS 的な時系列垂れ流し禁止、階層でまとめる
+- アニメーション: 状態変化のフィードバックとして適度に
+- 確認ダイアログ: 破壊的操作のみ
+- 嫌うアプリ: LINE（文字ぎっしり）、Facebook、Instagram
+
+### 前セッションで示した叩き台（ユーザー確認済みではない、S2 で詰める）
+- 色パレット: bg #f8f8fa / panel #fff / text #1a1a1a / textSecondary #4a4a4e / textMuted #6b6b70 / accent緑#00b87a / 青#2563eb / 黄#f59e0b / 赤#dc2626
+- 画面構造: 上部 [←タイトル⋯] / 中央スクロール / 下部[主アクション] / 最下部タブ5つ
+- コンポーネント統一: ボタン角丸8px・44px以上 / カード角丸10px / モーダル閉じるボタン左上固定
+- ユニバーサルデザイン: 全AA以上・小文字AAA / 色以外の情報ラベル / 文字拡大対応 / キーボード操作 / スクリーンリーダー対応
 
 ---
 
 ## 2. S2 の完了条件（DoD）
 
-1. `src/domain/` に上記7ファイル存在（Stage 分割する場合は後述）
-2. `build.ps1` で v4/index.html が正しく生成される
-3. `tests/run.html` を preview で開くと **全テスト green** (例: "24 tests, 24 ok, 0 failed")
-4. 以下の unit test が全 pass:
-   - **merge.js**: 補完される / 競合は existing 優先 / combined / 配列型の扱い / 空値の扱い
-   - **cascade.js**: practice 削除 → trial.linkedPracticeId クリア / tournament 削除 → matches 全体 + 連携 trial クリア / trial 削除 単独 / match 削除 → 親tournament.matches から除外 + trial.linkedMatchId クリア
-   - **duplicate.js**: id一致 / date+startTime strict / same-date soft / 3パス順序 / 複数候補での排他
-   - **import_gcal.js**: 最小入力での parse / 異常値での graceful fallback
-   - **import_csv.js**: 最小入力での parse / データテニス特有の列マッピング
-   - **import_watch.js**: 心拍ゾーン計算 / 時刻範囲マッチング
-5. ユーザーが preview で tests/run.html を開いて「全 green」確認
-6. ユーザーが「S2 OK」と返答
-7. 1 commit で push 承認
+1. `DESIGN_SYSTEM_v4.md` が以下を全て明文化して作成される:
+   - **色パレット**: 用途別の具体値、WCAG コントラスト検証済み
+   - **タイポグラフィ**: フォントファミリー、見出し/本文/補助のサイズ・太さ・行間・文字間
+   - **余白システム**: 基本単位（例: 4px grid）、コンポーネント内/間の余白ルール
+   - **コンポーネント仕様**: Badge / Card / Button / Input / Select / Modal / Toast / ConfirmDialog / TabBar の形・サイズ・状態（hover/active/disabled）
+   - **アイコン**: 使い方、サイズ、色指定
+   - **モーション**: transition 時間、イージング、`prefers-reduced-motion` 対応
+   - **タップ領域**: 44×44px 最小、padding での確保方法
+   - **ユニバーサルデザイン仕様**: 色以外の情報表現、文字拡大対応、aria 属性、`prefers-reduced-motion`
+2. ユーザーがこの文書を読んで方向性を承認（「S2 OK」）
+3. 1 commit で push
 
-### S2 を分割する場合（ロードマップの見直し）
-S2 は7モジュール + 多数のテストでボリュームが大きい。次の2サブ Stage に分割を検討:
-- **S2a**: merge + cascade + duplicate + tests（Session系ロジック）
-- **S2b**: import_gcal + import_csv + import_watch + stats + tests（Import/分析系）
-
-セッション内で S2a が完了しそうにない場合、S2a だけで1 commit して S2b を次セッションに回す。ROADMAP_v4.md を更新すること。
+### 非 DoD（この Stage ではやらないこと）
+- コード実装（S4 で行う）
+- ワイヤフレーム（S3 で行う）
+- 個別画面のデザイン（DESIGN_SYSTEM は「全画面で使う共通ルール」のみ）
 
 ---
 
 ## 3. S2 実装手順
 
-### 3.1 Stage 開始前チェックリストを応答に書き出す（必須）
-
-ARCHITECTURE_v4.md §10.4 の自問5項目を応答テキストに明示。書かずに着手したらルール違反。
-
-### 3.2 src/domain/ ディレクトリ作成
-
-### 3.3 merge.js 実装
-
-SCHEMA と keysToInspect を前提に以下を実装:
-
-```js
-// 中央マージヘルパー: A + B を choices に従って統合
-// choices: {fieldKey: 'existing'|'new'|'combined'}（デフォルト existing）
-const mergeItems = (a, b, choices, type) => {
-  const merged = {...a};
-  keysToInspect(a, b, type).forEach(key => {
-    const av = a?.[key], bv = b?.[key];
-    if (isEmptyVal(bv)) return;
-    if (isEmptyVal(av)) { merged[key] = bv; return; }
-    const as = typeof av === "object" ? JSON.stringify(av) : String(av);
-    const bs = typeof bv === "object" ? JSON.stringify(bv) : String(bv);
-    if (as === bs) return;
-    const ch = choices?.[key] || "existing";
-    if (ch === "new") merged[key] = bv;
-    else if (ch === "combined" && COMBINABLE_FIELDS.has(key)) merged[key] = `${av} | ${bv}`;
-  });
-  return merged;
-};
-
-const computeComplement = (a, b, type) => {
-  const r = [];
-  keysToInspect(a, b, type).forEach(key => {
-    const av = a?.[key], bv = b?.[key];
-    if (isEmptyVal(av) && !isEmptyVal(bv)) r.push({ key, label: labelFor(key, type), value: bv });
-  });
-  return r;
-};
-
-const computeConflicts = (a, b, type) => {
-  const r = [];
-  keysToInspect(a, b, type).forEach(key => {
-    const av = a?.[key], bv = b?.[key];
-    if (!isEmptyVal(av) && !isEmptyVal(bv)) {
-      const as = typeof av === "object" ? JSON.stringify(av) : String(av);
-      const bs = typeof bv === "object" ? JSON.stringify(bv) : String(bv);
-      if (as !== bs) r.push({ key, label: labelFor(key, type), existingValue: av, newValue: bv, combinable: COMBINABLE_FIELDS.has(key) });
-    }
-  });
-  return r;
-};
+### 3.1 着手前チェックリスト（応答に明示必須）
+```
+□ CLAUDE.md を読んだ（厳守プロトコル §0-§5 の要点3行）
+□ REQUIREMENTS_v4.md §N1, §N1a を読んだ（UI/UX・ユニバーサルデザイン要件）
+□ ARCHITECTURE_v4.md §6 (色設計), §10 (チェックリスト), §11 (ストップサイン), §12 (UI/UX先行) を読んだ
+□ ROADMAP_v4.md S2 の DoD を確認した
+□ memory/feedback_ui_design_first.md を読んだ
+□ 実行環境制約: 今回は文書作成のみ、preview/PowerShell 制約なし
+□ DoD 検証可能性: ユーザーの目視確認のみ（preview 不要）
+□ ユーザー承認を得た
 ```
 
-### 3.4 cascade.js 実装
+### 3.2 ユーザーに「追加で決めたいこと」を先に聞く
+前セッションで得た指針は大枠のみ。S2 着手時に、以下をユーザーに確認:
 
-```js
-const deleteItemCascade = (type, id, state, matchParentId) => {
-  const r = { tournaments: state.tournaments || [], practices: state.practices || [], trials: state.trials || [] };
-  if (type === "practice") {
-    r.practices = r.practices.filter(p => p.id !== id);
-    const updated = r.trials.map(tr => tr.linkedPracticeId === id ? {...tr, linkedPracticeId: ""} : tr);
-    if (updated.some((t, i) => t !== r.trials[i])) r.trials = updated;
-  } else if (type === "tournament") {
-    const trn = r.tournaments.find(t => t.id === id);
-    const matchIds = (trn?.matches || []).map(m => m.id);
-    r.tournaments = r.tournaments.filter(t => t.id !== id);
-    if (matchIds.length > 0) {
-      const updated = r.trials.map(tr => matchIds.includes(tr.linkedMatchId) ? {...tr, linkedMatchId: ""} : tr);
-      if (updated.some((t, i) => t !== r.trials[i])) r.trials = updated;
-    }
-  } else if (type === "trial") {
-    r.trials = r.trials.filter(t => t.id !== id);
-  } else if (type === "match" && matchParentId) {
-    r.tournaments = r.tournaments.map(t => t.id === matchParentId ? {...t, matches: (t.matches || []).filter(m => m.id !== id)} : t);
-    const updated = r.trials.map(tr => tr.linkedMatchId === id ? {...tr, linkedMatchId: ""} : tr);
-    if (updated.some((t, i) => t !== r.trials[i])) r.trials = updated;
-  }
-  return r;
-};
-```
+1. **前セッションの叩き台（色・画面構造・コンポーネント統一）でそのまま進めるか**
+2. **追加で指定したいデザイン要素**（フォント候補、アクセント色の好み、アイコンスタイル）
+3. **参考にしたいアプリ・サイト**（好きな UI の例）
 
-### 3.5 duplicate.js 実装
+ただし「選択肢 A/B/C」の形で聞かない。「叩き台をベースに詰めます。具体的に変えたい点があれば指示ください」の形。
 
-v3 の strictMatch / analyzeType / analyzeImport を移植。
+### 3.3 DESIGN_SYSTEM_v4.md の骨格作成
+前セッションの叩き台を起点に、§2 DoD の全項目を Markdown で明文化。
 
-### 3.6 import_gcal.js, import_csv.js, import_watch.js
+#### 色セクション
+- 用途別の具体値表
+- WCAG コントラスト比（計算結果を表に記載）
+- 使用例（どの要素にどの色）
+- 禁止事項（例: 背景グレー上の textMuted 細字）
 
-v3 の既存実装（`v3/index.html` 内の該当関数）を参照し、純関数として切り出す。v3 コードは `git show 264ed7f:v3/index.html` または worktree の `v3/index.html` で参照可。
+#### タイポグラフィセクション
+- フォントファミリー: `-apple-system, BlinkMacSystemFont, 'Hiragino Sans', sans-serif`（v3 継承）
+- サイズ階層: H1 / H2 / H3 / body / small / tiny の具体値（px）
+- 行間・文字間の基本ルール
 
-### 3.7 stats.js
+#### 余白セクション
+- 基本単位: 4px グリッド
+- コンポーネント内余白: padding 12-16px
+- コンポーネント間余白: margin 8-12px
+- セクション間: 16-24px
 
-集計ロジック（勝率、種別別、期間別）の純関数。
+#### コンポーネントセクション
+各コンポーネントについて以下を記述:
+- 形（角丸半径、ボーダー、シャドウ）
+- サイズ（最小・標準）
+- 状態（default / hover / active / focused / disabled）
+- 変種（primary / secondary / danger）
+- 使用例
 
-### 3.8 tests/run.html にテスト追加（inline）
+#### ユニバーサルデザインセクション
+- WCAG AA/AAA 基準の遵守箇所
+- 色以外の情報表現ルール（アイコン + 文字ラベル）
+- 文字サイズ拡大対応（相対単位の使用等）
+- キーボード操作（Tab 順序、Enter/Esc の挙動）
+- スクリーンリーダー対応（aria-label, role 等）
+- `prefers-reduced-motion` 対応
 
-run.html の `<!-- テストスクリプトは Stage S2 以降で順次追加 -->` の位置に、各モジュールのテストを inline script で追加:
-
-```html
-<script>
-// ── merge.js tests ──
-test("空フィールドは補完される", () => {
-  const a = {id: "1", name: ""};
-  const b = {id: "2", name: "大会A"};
-  const merged = mergeItems(a, b, {}, "tournament");
-  assertEqual(merged.name, "大会A", "name が補完されるべき");
-});
-// ... 他のテスト
-</script>
-```
-
-テストは各モジュールごとに明確にセクション分けする。最低15〜25 tests。
-
-### 3.9 app.jsx を S2 動作確認用に軽く拡張（任意）
-
-SCHEMA 確認セクションの下に「Domain 動作確認」セクションを追加し、mergeItems や deleteItemCascade を小さなサンプルで試せるボタンを置く。**DoD には含めない**（tests/run.html で十分なため）。
-
-### 3.10 build 実行
-
-### 3.11 preview で確認
-
-- `tests/run.html` を preview で開いて全 green
-- `v4/index.html` を preview で開いてコンソールエラーなし
+### 3.4 ユーザー確認
+- 文書を全部書いたら、ユーザーに**平易な要約**を提示して承認を求める
+- 専門用語を使わない（色の具体値は見せるが、「コントラスト 4.5:1」等は言い換え）
+- 視覚イメージが伝わる書き方（表・図・具体例）
 
 ---
 
 ## 4. 完了時にやること
 
-1. ユーザーに `tests/run.html` の表示を確認してもらう（全 green 画面）
+1. ユーザーに `DESIGN_SYSTEM_v4.md` の要点を説明（平易な言葉で）
 2. 「S2 OK」確認
-3. 1 commit（例: `v4 S2: Domain 層 — merge/cascade/duplicate/import + unit tests`）
+3. 1 commit（例: `v4 S2: デザインシステム定義`）
 4. push 承認 → push
-5. `HANDOFF_v4_S3.md` 作成（UI 共通コンポーネント）
+5. `HANDOFF_v4_S3.md` 作成（S3 = ワイヤフレーム）
 6. `HANDOFF_v4_S2.md` 削除
 
 ---
 
-## 5. 自戒（S1 で犯した失敗の再発防止）
+## 5. S2 で守ること（CLAUDE.md 厳守プロトコル）
 
-### S1 の失敗パターン
-- 事前調査せずに実装 → 動かないものを DoD に入れる
-- 「ミスでした」と軽口で流す → 失敗の重さを認識していない態度
+以下を違反したら即停止・ユーザー報告:
 
-### 次セッションで変えること
-- ARCHITECTURE_v4.md §10.4 の自問5項目を応答に書き出してから着手
-- 謝罪は単独で（次のアクションと混ぜない）
-- ユーザーが指摘する前に、自分で対処療法のパターンに気付いて止まる
-- 「素人に判断を投げる」禁止、「こうします」と宣言する
+- 「とりあえず」「後で直す」を書く（ストップサイン §11.3）
+- 判断を投げる（「どちらにしますか?」禁止、§11.4）
+- デザインより機能実装を先にやりたくなる（§11.6）
+- ユーザーに専門用語で説明する（§0.6）
+- 同じファイルを 3 回目編集する（§11.1）
 
-### ユーザーからの重要な指摘（記録）
-- 「対処療法ばかりで根本解決しようとしない」→ 設計文書に立ち返る規律
-- 「軽口で謝罪しない」→ 反省の重みを態度で示す
-- 「判断を人に任せるな」→ 私が判断して責任を取る
-- 「先延ばしは大嫌い」→ 中断を軽率に提案しない、今セッションで完結させる
+---
+
+## 6. 自戒（v4 S0/S1 で犯した失敗）
+
+- **S0**: PowerShell の `-join`/`Set-Content` の罠で時間浪費 → 事前調査なしで書き始めた
+- **S1**: Firebase Auth を preview (file://) で検証する DoD を書いた → 環境制約を事前に考えなかった
+- **今日の主な失敗**: 判断投げ、軽口謝罪、独善的に設計書を書いて中身を説明しなかった、専門用語で素人を置き去りにした
+
+**S2 ではこれらを繰り返さない**:
+- 文書作成前にユーザーに指針を再確認
+- 文書完成後、**平易な言葉で要約**してユーザーに説明
+- 専門用語は Claude 作業用の詳細記述に留め、ユーザー応答では言い換える
+- ユーザー判断が必要な部分（色の好み等）は「こうします、違えば指示ください」の形で提示
+
+---
+
+## 7. ファイル参照マップ
+
+- **CLAUDE.md** — 厳守プロトコル（最優先、毎セッション冒頭で読む）
+- **REQUIREMENTS_v4.md** — 何を作るか、UI/UX・ユニバーサルデザイン要件含む
+- **ARCHITECTURE_v4.md** — どう作るか、§10-§12 に規律集約
+- **ROADMAP_v4.md** — いつ作るか、17 Stage 構成
+- **memory/feedback_*.md** — 失敗パターンと守るべき規律
+- **memory/project_v4_reboot.md** — v4 プロジェクト全体のサマリ
+- **HANDOFF_v4_S2.md** — 本書（次セッション指示）
+- **v3/index.html** — v3.3.27 本番コード（参照用、v4 では直接コピーしない）
+- **index.html** — v2.2.8 本番（凍結）
