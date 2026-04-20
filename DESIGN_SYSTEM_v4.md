@@ -135,15 +135,27 @@ font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Helvetica Neue
 | 属性 | 値 |
 |---|---|
 | 高さ | 22px |
-| padding | `4px 8px` |
+| padding | `2px 8px` |
 | border-radius | 4px |
 | font-size | 11px |
 | font-weight | 600 |
-| 背景 | `{color}Light` |
-| 文字色 | `{color}` |
-| ボーダー | 1px solid `{color}33` |
+| line-height | 1 |
+| アイコン (内包時) font-size | 13px |
+| white-space | nowrap |
 
-例: `🏆 大会` (Orange), `✅ 完了` (Green), `⚠️ 注意` (Yellow)
+**色指定（背景は Semantic Light、文字は暗色系で AA 以上を確保）**:
+
+鮮やかな Semantic 原色（#f9ab00 等）は **Light 背景上で直接文字色に使わない**（コントラスト 1.6:1 等で不足）。バッジ文字には以下の暗色系を使う。
+
+| variant | 背景 | 文字色 | コントラスト |
+|---|---|---|---|
+| tournament / warning | `#feefc3` | `#a04f00` | 5.5:1 (AA+) |
+| practice / success | `#e6f4ea` | `#0a5b35` | 4.9:1 (AA) |
+| trial | `#f3e8fd` | `#6a25a8` | 7.8:1 (AAA) |
+| error | `#fce8e6` | `#a31511` | 7.2:1 (AAA) |
+| ボーダー | — | 文字色と同系 opacity 35% | — |
+
+例: `🏆 優勝` (tournament), `✅ 勝利` (success), `⚠️ 注意` (warning)
 
 ### 4.2 Card（カード）
 
