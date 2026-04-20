@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Icon Sets ①③⑦ 実使用比較 — Tennis DB v4</title>
+
+<!-- 3 セット: Material Symbols Outlined / Phosphor / Lucide -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2/src/regular/style.css" />
+
+<style>
+:root {
+  --primary: #1a73e8;
+  --primary-hover: #1765cc;
+  --primary-light: #e8f0fe;
+  --tournament: #a04f00;  --tournament-bg: #feefc3;
+  --practice: #0a5b35;    --practice-bg: #e6f4ea;
+  --trial: #6a25a8;       --trial-bg: #f3e8fd;
+  --info: #0d47a1;        --info-bg: #e8f0fe;
+  --warning: #7e5d00;     --warning-bg: #fef7e0;
+  --error: #a31511;       --error-bg: #fce8e6;
+  --text: #202124;
+  --text-secondary: #5f6368;
+  --text-muted: #80868b;
+  --bg: #f8f9fa;
+  --panel: #fff;
+  --panel2: #f1f3f4;
+  --border: #dadce0;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", sans-serif;
+  background: #e5e7eb;
+  color: var(--text);
+  padding: 24px 16px;
+  line-height: 1.5;
+}
+h1 { font-size: 22px; margin-bottom: 8px; text-align: center; }
+.intro { font-size: 13px; color: var(--text-secondary); margin-bottom: 24px; max-width: 1200px; margin-left: auto; margin-right: auto; text-align: center; line-height: 1.6; }
+
+/* 3カラム横並び (PC)、モバイルは縦 */
+.compare-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+@media (max-width: 900px) {
+  .compare-grid { grid-template-columns: 1fr; }
+}
+
+.column {
+  background: var(--bg);
+  border-radius: 16px;
+  padding: 16px;
+  border: 2px solid transparent;
+}
+.column-title {
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.column-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
+.column-material { border-color: #a04f00; }
+.column-phosphor { border-color: #6a25a8; }
+.column-lucide { border-color: #1a73e8; }
+
+.block-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: 16px;
+  margin-bottom: 8px;
+}
+.block-label:first-child { margin-top: 0; }
+
+/* ===== Badge ===== */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  height: 22px;
+  white-space: nowrap;
+}
+.badge-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+.b-tournament { background: var(--tournament-bg); color: var(--tournament); border: 1px solid rgba(160,79,0,0.35); }
+.b-info { background: var(--info-bg); color: var(--info); border: 1px solid rgba(13,71,161,0.35); }
+.b-trial { background: var(--trial-bg); color: var(--trial); border: 1px solid rgba(106,37,168,0.35); }
+.b-practice { background: var(--practice-bg); color: var(--practice); border: 1px solid rgba(10,91,53,0.35); }
+.b-warning { background: var(--warning-bg); color: var(--warning); border: 1px solid rgba(126,93,0,0.35); }
+.b-error { background: var(--error-bg); color: var(--error); border: 1px solid rgba(163,21,17,0.35); }
+.b-default { background: var(--panel2); color: var(--text-secondary); border: 1px solid rgba(95,99,104,0.35); }
+
+/* ===== Session Card ===== */
+.session-card {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 12px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 6px;
+}
+.session-card.tournament { border-left-color: #f9ab00; }
+.session-card.practice { border-left-color: #0f9d58; }
+.session-card.trial { border-left-color: #9334e0; }
+.session-card .date {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  font-family: "SF Mono", Menlo, Consolas, monospace;
+  min-width: 38px;
+  text-align: center;
+  line-height: 1.1;
+}
+.session-card .date .dow {
+  display: block;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-top: 2px;
+  font-family: inherit;
+}
+.session-card .body { flex: 1; min-width: 0; }
+.session-card .title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.session-card .meta {
+  font-size: 11px;
+  color: var(--text-secondary);
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* ===== TabBar ===== */
+.tabbar {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  height: 56px;
+  margin-top: 6px;
+  overflow: hidden;
+}
+.tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  color: var(--text-muted);
+  font-size: 10px;
+}
+.tab.active { background: var(--primary-light); color: var(--primary); font-weight: 600; }
+
+/* ===== Buttons ===== */
+.btn-row { display: flex; gap: 6px; margin-bottom: 6px; flex-wrap: wrap; }
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+}
+.btn-primary { background: var(--primary); color: white; }
+.btn-secondary { background: white; color: var(--primary); border: 1px solid var(--primary); }
+.btn-danger { background: var(--error); color: white; }
+
+/* ===== Icon grid (large display) ===== */
+.icon-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 8px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+}
+.icon-grid > div {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  font-size: 8px;
+  color: var(--text-muted);
+  text-align: center;
+  line-height: 1.2;
+}
+
+/* ===== Icon set specific sizing ===== */
+.badge .material-symbols-outlined { font-size: 13px; }
+.badge .ph { font-size: 13px; }
+.badge .lucide-icon { width: 13px; height: 13px; stroke-width: 2; }
+
+.btn .material-symbols-outlined { font-size: 15px; }
+.btn .ph { font-size: 15px; }
+.btn .lucide-icon { width: 15px; height: 15px; stroke-width: 2; }
+
+.tab .material-symbols-outlined { font-size: 22px; color: inherit; }
+.tab .ph { font-size: 22px; color: inherit; }
+.tab .lucide-icon { width: 22px; height: 22px; color: inherit; stroke: currentColor; }
+
+.session-card .meta .material-symbols-outlined { font-size: 13px; }
+.session-card .meta .ph { font-size: 13px; }
+.session-card .meta .lucide-icon { width: 13px; height: 13px; stroke-width: 2; }
+
+.icon-grid .material-symbols-outlined { font-size: 22px; color: var(--primary); }
+.icon-grid .ph { font-size: 22px; color: var(--primary); }
+.icon-grid .lucide-icon { width: 22px; height: 22px; color: var(--primary); stroke: var(--primary); }
+</style>
+</head>
+<body>
+
+<h1>①③⑦ アイコンセット 実使用比較</h1>
+<div class="intro">
+  ① Material Symbols Outlined (現状) / ③ Phosphor / ⑦ Lucide の3セットを実際の画面に適用して並列表示。<br>
+  Session カード・バッジ・タブバー・ボタン・主要アイコン集で全体の印象を比較できます。
+</div>
+
+<div class="compare-grid">
+
+  <!-- ============================================================
+       ① Material Symbols Outlined (現状)
+       ============================================================ -->
+  <div class="column column-material">
+    <div class="column-title" style="color: #a04f00;">① Material Symbols Outlined</div>
+    <div class="column-desc">Google 公式・細線アウトライン<br>業務ツール・現状採用</div>
+
+    <div class="block-label">Session カード</div>
+    <div class="session-card tournament">
+      <div class="date">4/18<span class="dow">土</span></div>
+      <div class="body">
+        <div class="title">所沢ベテラン大会</div>
+        <div class="meta">
+          <span class="badge b-tournament"><span class="material-symbols-outlined">emoji_events</span>優勝</span>
+          シングルス 3-0
+        </div>
+      </div>
+    </div>
+    <div class="session-card practice">
+      <div class="date">4/16<span class="dow">木</span></div>
+      <div class="body">
+        <div class="title">イトマンテニス</div>
+        <div class="meta">
+          <span class="badge b-practice"><span class="material-symbols-outlined">directions_run</span>自主練</span>
+          90分
+        </div>
+      </div>
+    </div>
+    <div class="session-card trial">
+      <div class="date">4/14<span class="dow">火</span></div>
+      <div class="body">
+        <div class="title">Ezone98 2025</div>
+        <div class="meta">
+          <span class="badge b-trial"><span class="material-symbols-outlined">sports_tennis</span>採用候補</span>
+          スピン4
+        </div>
+      </div>
+    </div>
+
+    <div class="block-label">大会結果</div>
+    <div class="badge-row">
+      <span class="badge b-tournament"><span class="material-symbols-outlined">emoji_events</span>優勝</span>
+      <span class="badge b-info"><span class="material-symbols-outlined">workspace_premium</span>準優勝</span>
+      <span class="badge b-trial"><span class="material-symbols-outlined">military_tech</span>3位</span>
+      <span class="badge b-warning">ベスト8</span>
+      <span class="badge b-practice">予選突破</span>
+      <span class="badge b-error">敗退</span>
+    </div>
+
+    <div class="block-label">試合結果 / 試打判定</div>
+    <div class="badge-row">
+      <span class="badge b-practice"><span class="material-symbols-outlined">check_circle</span>勝利</span>
+      <span class="badge b-error"><span class="material-symbols-outlined">close</span>敗北</span>
+      <span class="badge b-default"><span class="material-symbols-outlined">remove</span>棄権</span>
+      <span class="badge b-practice"><span class="material-symbols-outlined">thumb_up</span>採用候補</span>
+      <span class="badge b-warning">保留</span>
+      <span class="badge b-error">却下</span>
+    </div>
+
+    <div class="block-label">ボタン</div>
+    <div class="btn-row">
+      <button class="btn btn-primary"><span class="material-symbols-outlined">save</span>保存</button>
+      <button class="btn btn-secondary"><span class="material-symbols-outlined">edit</span>編集</button>
+      <button class="btn btn-danger"><span class="material-symbols-outlined">delete</span>削除</button>
+    </div>
+
+    <div class="block-label">TabBar</div>
+    <div class="tabbar">
+      <div class="tab active"><span class="material-symbols-outlined">home</span>ホーム</div>
+      <div class="tab"><span class="material-symbols-outlined">list_alt</span>記録</div>
+      <div class="tab"><span class="material-symbols-outlined">sports_tennis</span>機材</div>
+      <div class="tab"><span class="material-symbols-outlined">edit_note</span>計画</div>
+      <div class="tab"><span class="material-symbols-outlined">analytics</span>分析</div>
+    </div>
+
+    <div class="block-label">主要アイコン</div>
+    <div class="icon-grid">
+      <div><span class="material-symbols-outlined">emoji_events</span>優勝</div>
+      <div><span class="material-symbols-outlined">workspace_premium</span>2位</div>
+      <div><span class="material-symbols-outlined">military_tech</span>3位</div>
+      <div><span class="material-symbols-outlined">home</span>ホーム</div>
+      <div><span class="material-symbols-outlined">list_alt</span>記録</div>
+      <div><span class="material-symbols-outlined">sports_tennis</span>試打</div>
+      <div><span class="material-symbols-outlined">directions_run</span>練習</div>
+      <div><span class="material-symbols-outlined">edit</span>編集</div>
+      <div><span class="material-symbols-outlined">delete</span>削除</div>
+      <div><span class="material-symbols-outlined">save</span>保存</div>
+      <div><span class="material-symbols-outlined">add</span>追加</div>
+      <div><span class="material-symbols-outlined">search</span>検索</div>
+      <div><span class="material-symbols-outlined">settings</span>設定</div>
+      <div><span class="material-symbols-outlined">schedule</span>時間</div>
+      <div><span class="material-symbols-outlined">place</span>場所</div>
+      <div><span class="material-symbols-outlined">wb_sunny</span>天気</div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       ③ Phosphor
+       ============================================================ -->
+  <div class="column column-phosphor">
+    <div class="column-title" style="color: #6a25a8;">③ Phosphor</div>
+    <div class="column-desc">モダン・柔らか・表情豊か<br>トレンド系デザイン</div>
+
+    <div class="block-label">Session カード</div>
+    <div class="session-card tournament">
+      <div class="date">4/18<span class="dow">土</span></div>
+      <div class="body">
+        <div class="title">所沢ベテラン大会</div>
+        <div class="meta">
+          <span class="badge b-tournament"><i class="ph ph-trophy"></i>優勝</span>
+          シングルス 3-0
+        </div>
+      </div>
+    </div>
+    <div class="session-card practice">
+      <div class="date">4/16<span class="dow">木</span></div>
+      <div class="body">
+        <div class="title">イトマンテニス</div>
+        <div class="meta">
+          <span class="badge b-practice"><i class="ph ph-person-simple-run"></i>自主練</span>
+          90分
+        </div>
+      </div>
+    </div>
+    <div class="session-card trial">
+      <div class="date">4/14<span class="dow">火</span></div>
+      <div class="body">
+        <div class="title">Ezone98 2025</div>
+        <div class="meta">
+          <span class="badge b-trial"><i class="ph ph-tennis-ball"></i>採用候補</span>
+          スピン4
+        </div>
+      </div>
+    </div>
+
+    <div class="block-label">大会結果</div>
+    <div class="badge-row">
+      <span class="badge b-tournament"><i class="ph ph-trophy"></i>優勝</span>
+      <span class="badge b-info"><i class="ph ph-medal"></i>準優勝</span>
+      <span class="badge b-trial"><i class="ph ph-medal-military"></i>3位</span>
+      <span class="badge b-warning">ベスト8</span>
+      <span class="badge b-practice">予選突破</span>
+      <span class="badge b-error">敗退</span>
+    </div>
+
+    <div class="block-label">試合結果 / 試打判定</div>
+    <div class="badge-row">
+      <span class="badge b-practice"><i class="ph ph-check-circle"></i>勝利</span>
+      <span class="badge b-error"><i class="ph ph-x"></i>敗北</span>
+      <span class="badge b-default"><i class="ph ph-minus"></i>棄権</span>
+      <span class="badge b-practice"><i class="ph ph-thumbs-up"></i>採用候補</span>
+      <span class="badge b-warning">保留</span>
+      <span class="badge b-error">却下</span>
+    </div>
+
+    <div class="block-label">ボタン</div>
+    <div class="btn-row">
+      <button class="btn btn-primary"><i class="ph ph-floppy-disk"></i>保存</button>
+      <button class="btn btn-secondary"><i class="ph ph-pencil-simple"></i>編集</button>
+      <button class="btn btn-danger"><i class="ph ph-trash"></i>削除</button>
+    </div>
+
+    <div class="block-label">TabBar</div>
+    <div class="tabbar">
+      <div class="tab active"><i class="ph ph-house"></i>ホーム</div>
+      <div class="tab"><i class="ph ph-list-dashes"></i>記録</div>
+      <div class="tab"><i class="ph ph-tennis-ball"></i>機材</div>
+      <div class="tab"><i class="ph ph-note-pencil"></i>計画</div>
+      <div class="tab"><i class="ph ph-chart-bar"></i>分析</div>
+    </div>
+
+    <div class="block-label">主要アイコン</div>
+    <div class="icon-grid">
+      <div><i class="ph ph-trophy"></i>優勝</div>
+      <div><i class="ph ph-medal"></i>2位</div>
+      <div><i class="ph ph-medal-military"></i>3位</div>
+      <div><i class="ph ph-house"></i>ホーム</div>
+      <div><i class="ph ph-list-dashes"></i>記録</div>
+      <div><i class="ph ph-tennis-ball"></i>試打</div>
+      <div><i class="ph ph-person-simple-run"></i>練習</div>
+      <div><i class="ph ph-pencil-simple"></i>編集</div>
+      <div><i class="ph ph-trash"></i>削除</div>
+      <div><i class="ph ph-floppy-disk"></i>保存</div>
+      <div><i class="ph ph-plus"></i>追加</div>
+      <div><i class="ph ph-magnifying-glass"></i>検索</div>
+      <div><i class="ph ph-gear"></i>設定</div>
+      <div><i class="ph ph-clock"></i>時間</div>
+      <div><i class="ph ph-map-pin"></i>場所</div>
+      <div><i class="ph ph-sun"></i>天気</div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       ⑦ Lucide
+       ============================================================ -->
+  <div class="column column-lucide">
+    <div class="column-title" style="color: #1a73e8;">⑦ Lucide</div>
+    <div class="column-desc">Feather 後継・ミニマル<br>シンプル好みのトレンド</div>
+
+    <div class="block-label">Session カード</div>
+    <div class="session-card tournament">
+      <div class="date">4/18<span class="dow">土</span></div>
+      <div class="body">
+        <div class="title">所沢ベテラン大会</div>
+        <div class="meta">
+          <span class="badge b-tournament"><i data-lucide="trophy" class="lucide-icon"></i>優勝</span>
+          シングルス 3-0
+        </div>
+      </div>
+    </div>
+    <div class="session-card practice">
+      <div class="date">4/16<span class="dow">木</span></div>
+      <div class="body">
+        <div class="title">イトマンテニス</div>
+        <div class="meta">
+          <span class="badge b-practice"><i data-lucide="person-standing" class="lucide-icon"></i>自主練</span>
+          90分
+        </div>
+      </div>
+    </div>
+    <div class="session-card trial">
+      <div class="date">4/14<span class="dow">火</span></div>
+      <div class="body">
+        <div class="title">Ezone98 2025</div>
+        <div class="meta">
+          <span class="badge b-trial"><i data-lucide="circle-dot" class="lucide-icon"></i>採用候補</span>
+          スピン4
+        </div>
+      </div>
+    </div>
+
+    <div class="block-label">大会結果</div>
+    <div class="badge-row">
+      <span class="badge b-tournament"><i data-lucide="trophy" class="lucide-icon"></i>優勝</span>
+      <span class="badge b-info"><i data-lucide="medal" class="lucide-icon"></i>準優勝</span>
+      <span class="badge b-trial"><i data-lucide="award" class="lucide-icon"></i>3位</span>
+      <span class="badge b-warning">ベスト8</span>
+      <span class="badge b-practice">予選突破</span>
+      <span class="badge b-error">敗退</span>
+    </div>
+
+    <div class="block-label">試合結果 / 試打判定</div>
+    <div class="badge-row">
+      <span class="badge b-practice"><i data-lucide="circle-check" class="lucide-icon"></i>勝利</span>
+      <span class="badge b-error"><i data-lucide="x" class="lucide-icon"></i>敗北</span>
+      <span class="badge b-default"><i data-lucide="minus" class="lucide-icon"></i>棄権</span>
+      <span class="badge b-practice"><i data-lucide="thumbs-up" class="lucide-icon"></i>採用候補</span>
+      <span class="badge b-warning">保留</span>
+      <span class="badge b-error">却下</span>
+    </div>
+
+    <div class="block-label">ボタン</div>
+    <div class="btn-row">
+      <button class="btn btn-primary"><i data-lucide="save" class="lucide-icon"></i>保存</button>
+      <button class="btn btn-secondary"><i data-lucide="pencil" class="lucide-icon"></i>編集</button>
+      <button class="btn btn-danger"><i data-lucide="trash-2" class="lucide-icon"></i>削除</button>
+    </div>
+
+    <div class="block-label">TabBar</div>
+    <div class="tabbar">
+      <div class="tab active"><i data-lucide="house" class="lucide-icon"></i>ホーム</div>
+      <div class="tab"><i data-lucide="list" class="lucide-icon"></i>記録</div>
+      <div class="tab"><i data-lucide="circle-dot" class="lucide-icon"></i>機材</div>
+      <div class="tab"><i data-lucide="notebook-pen" class="lucide-icon"></i>計画</div>
+      <div class="tab"><i data-lucide="bar-chart-3" class="lucide-icon"></i>分析</div>
+    </div>
+
+    <div class="block-label">主要アイコン</div>
+    <div class="icon-grid">
+      <div><i data-lucide="trophy" class="lucide-icon"></i>優勝</div>
+      <div><i data-lucide="medal" class="lucide-icon"></i>2位</div>
+      <div><i data-lucide="award" class="lucide-icon"></i>3位</div>
+      <div><i data-lucide="house" class="lucide-icon"></i>ホーム</div>
+      <div><i data-lucide="list" class="lucide-icon"></i>記録</div>
+      <div><i data-lucide="circle-dot" class="lucide-icon"></i>試打</div>
+      <div><i data-lucide="person-standing" class="lucide-icon"></i>練習</div>
+      <div><i data-lucide="pencil" class="lucide-icon"></i>編集</div>
+      <div><i data-lucide="trash-2" class="lucide-icon"></i>削除</div>
+      <div><i data-lucide="save" class="lucide-icon"></i>保存</div>
+      <div><i data-lucide="plus" class="lucide-icon"></i>追加</div>
+      <div><i data-lucide="search" class="lucide-icon"></i>検索</div>
+      <div><i data-lucide="settings" class="lucide-icon"></i>設定</div>
+      <div><i data-lucide="clock" class="lucide-icon"></i>時間</div>
+      <div><i data-lucide="map-pin" class="lucide-icon"></i>場所</div>
+      <div><i data-lucide="sun" class="lucide-icon"></i>天気</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Lucide は JS で SVG に変換 -->
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>
+  if (window.lucide && window.lucide.createIcons) {
+    window.lucide.createIcons({ attrs: { class: "lucide-icon" } });
+  }
+</script>
+
+</body>
+</html>

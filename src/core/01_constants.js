@@ -1,5 +1,8 @@
+// ── React Hooks 分解代入（全コンポーネントで useState/useEffect 等を使えるように）─
+const {useState,useEffect,useRef,useCallback,useMemo}=React;
+
 // ── 定数定義（色・キー・バージョン）─────────────
-const APP_VERSION="4.0.0-S1";
+const APP_VERSION="4.0.0-S4";
 const font="-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif";
 
 // 色設計（v3 の WCAG 違反を反省し、3段階の情報階層を明示）

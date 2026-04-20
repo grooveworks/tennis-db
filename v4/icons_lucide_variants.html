@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Lucide 試打・機材アイコン候補 — Tennis DB v4</title>
+
+<style>
+:root {
+  --primary: #1a73e8;
+  --primary-light: #e8f0fe;
+  --tournament: #a04f00;  --tournament-bg: #feefc3;
+  --practice: #0a5b35;    --practice-bg: #e6f4ea;
+  --trial: #6a25a8;       --trial-bg: #f3e8fd;
+  --text: #202124;
+  --text-secondary: #5f6368;
+  --text-muted: #80868b;
+  --bg: #f8f9fa;
+  --panel: #fff;
+  --panel2: #f1f3f4;
+  --border: #dadce0;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", sans-serif;
+  background: #e5e7eb;
+  color: var(--text);
+  padding: 24px 16px;
+  line-height: 1.5;
+}
+h1 { font-size: 22px; margin-bottom: 8px; text-align: center; }
+.intro { font-size: 13px; color: var(--text-secondary); margin-bottom: 24px; max-width: 900px; margin-left: auto; margin-right: auto; text-align: center; line-height: 1.6; }
+
+.section {
+  max-width: 900px;
+  margin: 0 auto 24px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 20px;
+}
+.section-title {
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.section-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+}
+
+.candidates {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+@media (max-width: 700px) {
+  .candidates { grid-template-columns: repeat(2, 1fr); }
+}
+.candidate {
+  background: var(--bg);
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: border 150ms;
+}
+.candidate:hover { border-color: var(--primary); }
+.candidate .big {
+  width: 40px; height: 40px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--panel);
+  border-radius: 10px;
+}
+.candidate .big .lucide-icon {
+  width: 28px; height: 28px;
+  color: var(--primary);
+  stroke: var(--primary);
+  stroke-width: 2;
+}
+.candidate .name {
+  font-family: "SF Mono", Menlo, Consolas, monospace;
+  font-size: 11px;
+  color: var(--text-secondary);
+  text-align: center;
+}
+.candidate .meaning {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-align: center;
+  line-height: 1.3;
+}
+
+/* Badge / TabBar / SessionCard samples */
+.sample-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 10px;
+  background: var(--bg);
+  border-radius: 8px;
+}
+.sample-row .label {
+  font-size: 10px;
+  color: var(--text-muted);
+  padding: 4px 4px 0;
+  width: 100%;
+  margin-top: 4px;
+}
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  height: 22px;
+  white-space: nowrap;
+}
+.b-trial { background: var(--trial-bg); color: var(--trial); border: 1px solid rgba(106,37,168,0.35); }
+.b-tournament { background: var(--tournament-bg); color: var(--tournament); border: 1px solid rgba(160,79,0,0.35); }
+
+.session-card {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 10px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-left: 4px solid #9334e0;
+  border-radius: 8px;
+  font-size: 11px;
+}
+.session-card .date { font-family: monospace; font-weight: 700; }
+
+.tabbar-mini {
+  display: inline-flex;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.tab-mini {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 6px 12px;
+  gap: 2px;
+  font-size: 10px;
+  color: var(--text-muted);
+  min-width: 56px;
+}
+.tab-mini.active { background: var(--primary-light); color: var(--primary); font-weight: 600; }
+.tab-mini .lucide-icon { width: 20px; height: 20px; color: inherit; stroke: currentColor; }
+
+.badge .lucide-icon { width: 13px; height: 13px; stroke-width: 2; }
+.session-card .lucide-icon { width: 13px; height: 13px; stroke-width: 2; }
+
+.hint {
+  max-width: 900px;
+  margin: 24px auto 0;
+  padding: 16px;
+  background: var(--primary-light);
+  border: 1px solid rgba(26,115,232,0.35);
+  border-radius: 12px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+.hint b { color: var(--text); }
+</style>
+</head>
+<body>
+
+<h1>🎯 Lucide 試打・機材アイコン候補</h1>
+<div class="intro">
+  Lucide には「テニスボール」「ラケット」専用アイコンがないため、代替候補から選びます。
+  各候補でバッジ・カード・タブバーにどう見えるかサンプル付きで確認できます。
+</div>
+
+<!-- ============================================================
+     試打 (trial) のアイコン候補
+     ============================================================ -->
+<div class="section">
+  <div class="section-title" style="color: var(--trial);">🎾 試打 (trial) のアイコン候補</div>
+  <div class="section-desc">ラケット・ボールの代替として、「試し打ち = 実験・テスト」のニュアンスで選ぶ。</div>
+
+  <div class="section-desc" style="background:var(--bg); padding:8px 10px; border-radius:6px; margin-bottom:10px;">
+    <b>最有力</b>: badge-check (認定バッジ) ／ <b>追加</b>: シンプル系4案を比較
+  </div>
+
+  <div style="font-size:11px; font-weight:700; color:var(--text-secondary); margin:8px 0;">最有力候補</div>
+  <div class="candidates">
+    <div class="candidate" style="border-color:var(--primary); background:var(--primary-light);">
+      <div class="big"><i data-lucide="badge-check" class="lucide-icon"></i></div>
+      <div class="name">badge-check</div>
+      <div class="meaning">認定バッジ<br>採用判定</div>
+    </div>
+  </div>
+
+  <div style="font-size:11px; font-weight:700; color:var(--text-secondary); margin:16px 0 8px;">シンプル系 (線が少なく記号性強め)</div>
+  <div class="candidates">
+    <div class="candidate">
+      <div class="big"><i data-lucide="star" class="lucide-icon"></i></div>
+      <div class="name">star</div>
+      <div class="meaning">星<br>評価・ランク</div>
+    </div>
+    <div class="candidate">
+      <div class="big"><i data-lucide="flag" class="lucide-icon"></i></div>
+      <div class="name">flag</div>
+      <div class="meaning">旗<br>マーキング・採用</div>
+    </div>
+    <div class="candidate">
+      <div class="big"><i data-lucide="eye" class="lucide-icon"></i></div>
+      <div class="name">eye</div>
+      <div class="meaning">目<br>見る・試す</div>
+    </div>
+    <div class="candidate">
+      <div class="big"><i data-lucide="bookmark" class="lucide-icon"></i></div>
+      <div class="name">bookmark</div>
+      <div class="meaning">しおり<br>気になる・保存</div>
+    </div>
+  </div>
+
+  <div class="sample-row">
+    <span class="label">バッジでの見え方 (5案横並び)</span>
+    <span class="badge b-trial"><i data-lucide="badge-check" class="lucide-icon"></i>採用候補</span>
+    <span class="badge b-trial"><i data-lucide="star" class="lucide-icon"></i>採用候補</span>
+    <span class="badge b-trial"><i data-lucide="flag" class="lucide-icon"></i>採用候補</span>
+    <span class="badge b-trial"><i data-lucide="eye" class="lucide-icon"></i>採用候補</span>
+    <span class="badge b-trial"><i data-lucide="bookmark" class="lucide-icon"></i>採用候補</span>
+  </div>
+
+  <div class="sample-row">
+    <span class="label">Session カードでの見え方</span>
+    <div class="session-card"><div class="date">4/14</div><div>Ezone98 · <span class="badge b-trial"><i data-lucide="badge-check" class="lucide-icon"></i>採用候補</span></div></div>
+    <div class="session-card"><div class="date">4/14</div><div>Ezone98 · <span class="badge b-trial"><i data-lucide="star" class="lucide-icon"></i>採用候補</span></div></div>
+    <div class="session-card"><div class="date">4/14</div><div>Ezone98 · <span class="badge b-trial"><i data-lucide="flag" class="lucide-icon"></i>採用候補</span></div></div>
+    <div class="session-card"><div class="date">4/14</div><div>Ezone98 · <span class="badge b-trial"><i data-lucide="eye" class="lucide-icon"></i>採用候補</span></div></div>
+    <div class="session-card"><div class="date">4/14</div><div>Ezone98 · <span class="badge b-trial"><i data-lucide="bookmark" class="lucide-icon"></i>採用候補</span></div></div>
+  </div>
+</div>
+
+<!-- ============================================================
+     機材 (gear) タブのアイコン候補
+     ============================================================ -->
+<div class="section">
+  <div class="section-title" style="color: var(--primary);">⚙️ 機材 (gear タブ) のアイコン候補</div>
+  <div class="section-desc">ラケット・ストリング管理 = 「道具・装備」のニュアンスで選ぶ。</div>
+
+  <div class="candidates">
+    <div class="candidate">
+      <div class="big"><i data-lucide="wrench" class="lucide-icon"></i></div>
+      <div class="name">wrench</div>
+      <div class="meaning">レンチ<br>整備・メンテ感</div>
+    </div>
+    <div class="candidate">
+      <div class="big"><i data-lucide="package" class="lucide-icon"></i></div>
+      <div class="name">package</div>
+      <div class="meaning">箱<br>装備・持ち物感</div>
+    </div>
+    <div class="candidate">
+      <div class="big"><i data-lucide="backpack" class="lucide-icon"></i></div>
+      <div class="name">backpack</div>
+      <div class="meaning">リュック<br>テニスバッグ感</div>
+    </div>
+    <div class="candidate">
+      <div class="big"><i data-lucide="dumbbell" class="lucide-icon"></i></div>
+      <div class="name">dumbbell</div>
+      <div class="meaning">ダンベル<br>スポーツ用品感</div>
+    </div>
+  </div>
+
+  <div class="sample-row">
+    <span class="label">タブバーでの見え方 (各候補で 機材タブをアクティブ表示)</span>
+    <div class="tabbar-mini">
+      <div class="tab-mini"><i data-lucide="house" class="lucide-icon"></i>ホーム</div>
+      <div class="tab-mini"><i data-lucide="list" class="lucide-icon"></i>記録</div>
+      <div class="tab-mini active"><i data-lucide="wrench" class="lucide-icon"></i>機材</div>
+      <div class="tab-mini"><i data-lucide="notebook-pen" class="lucide-icon"></i>計画</div>
+      <div class="tab-mini"><i data-lucide="bar-chart-3" class="lucide-icon"></i>分析</div>
+    </div>
+    <div class="tabbar-mini">
+      <div class="tab-mini"><i data-lucide="house" class="lucide-icon"></i>ホーム</div>
+      <div class="tab-mini"><i data-lucide="list" class="lucide-icon"></i>記録</div>
+      <div class="tab-mini active"><i data-lucide="package" class="lucide-icon"></i>機材</div>
+      <div class="tab-mini"><i data-lucide="notebook-pen" class="lucide-icon"></i>計画</div>
+      <div class="tab-mini"><i data-lucide="bar-chart-3" class="lucide-icon"></i>分析</div>
+    </div>
+    <div class="tabbar-mini">
+      <div class="tab-mini"><i data-lucide="house" class="lucide-icon"></i>ホーム</div>
+      <div class="tab-mini"><i data-lucide="list" class="lucide-icon"></i>記録</div>
+      <div class="tab-mini active"><i data-lucide="backpack" class="lucide-icon"></i>機材</div>
+      <div class="tab-mini"><i data-lucide="notebook-pen" class="lucide-icon"></i>計画</div>
+      <div class="tab-mini"><i data-lucide="bar-chart-3" class="lucide-icon"></i>分析</div>
+    </div>
+    <div class="tabbar-mini">
+      <div class="tab-mini"><i data-lucide="house" class="lucide-icon"></i>ホーム</div>
+      <div class="tab-mini"><i data-lucide="list" class="lucide-icon"></i>記録</div>
+      <div class="tab-mini active"><i data-lucide="dumbbell" class="lucide-icon"></i>機材</div>
+      <div class="tab-mini"><i data-lucide="notebook-pen" class="lucide-icon"></i>計画</div>
+      <div class="tab-mini"><i data-lucide="bar-chart-3" class="lucide-icon"></i>分析</div>
+    </div>
+  </div>
+</div>
+
+<div class="hint">
+  <div style="font-weight:600;margin-bottom:8px;">👉 選び方</div>
+  試打・機材それぞれから <b>1 つずつ</b> 選んで「試打は○○、機材は△△」の形で指示ください。<br>
+  もしくは「どちらも pending、別案を見たい」なら別候補を追加します。<br>
+  <br>
+  <b>参考・私の推奨</b>:<br>
+  - 試打: <b>flask-conical</b>（新ラケットの試験=実験感がしっくり来る）<br>
+  - 機材: <b>backpack</b>（テニスバッグで道具を運ぶイメージ、スポーツ感もある）
+</div>
+
+<!-- Lucide SVG 変換 -->
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>
+  if (window.lucide && window.lucide.createIcons) {
+    window.lucide.createIcons({ attrs: { class: "lucide-icon" } });
+  }
+</script>
+
+</body>
+</html>

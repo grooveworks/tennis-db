@@ -37,12 +37,14 @@
 
 ### 1.3 Semantic（状態表現）
 
-| 用途 | HEX | Light | 使う場所 |
-|---|---|---|---|
-| Success | `#0f9d58` | `#e6f4ea` | 完了トースト、勝利バッジ |
-| Warning | `#f9ab00` | `#feefc3` | 注意通知、未入力警告 |
-| Error / Danger | `#d93025` | `#fce8e6` | エラー、削除ボタン |
-| Info | `#1a73e8` | `#e8f0fe` | 情報通知（Primary と統合） |
+Sessions Category (§1.2) と色被りしないよう、Warning は Yellow 独立色を使う。
+
+| 用途 | HEX | Light | Dark (バッジ文字用) | 使う場所 |
+|---|---|---|---|---|
+| Info | `#1a73e8` | `#e8f0fe` | `#0d47a1` | 情報通知、準優勝等（Primary 系） |
+| Success | `#0f9d58` | `#e6f4ea` | `#0a5b35` | 完了トースト、勝利、予選突破 |
+| Warning | `#fbbc04` | `#fef7e0` | `#7e5d00` | 注意通知、ベスト8/16、未入力警告（Yellow 独立） |
+| Error / Danger | `#d93025` | `#fce8e6` | `#a31511` | エラー、敗退、削除ボタン |
 
 ### 1.4 テキスト（On Surface、3 段階）
 
@@ -147,13 +149,17 @@ font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Helvetica Neue
 
 鮮やかな Semantic 原色（#f9ab00 等）は **Light 背景上で直接文字色に使わない**（コントラスト 1.6:1 等で不足）。バッジ文字には以下の暗色系を使う。
 
-| variant | 背景 | 文字色 | コントラスト |
-|---|---|---|---|
-| tournament / warning | `#feefc3` | `#a04f00` | 5.5:1 (AA+) |
-| practice / success | `#e6f4ea` | `#0a5b35` | 4.9:1 (AA) |
-| trial | `#f3e8fd` | `#6a25a8` | 7.8:1 (AAA) |
-| error | `#fce8e6` | `#a31511` | 7.2:1 (AAA) |
-| ボーダー | — | 文字色と同系 opacity 35% | — |
+| variant | 背景 | 文字色 | コントラスト | 用途例 |
+|---|---|---|---|---|
+| tournament | `#feefc3` | `#a04f00` | 5.5:1 (AA+) | 大会カテゴリ、優勝 |
+| practice | `#e6f4ea` | `#0a5b35` | 4.9:1 (AA) | 練習カテゴリ |
+| trial | `#f3e8fd` | `#6a25a8` | 7.8:1 (AAA) | 試打カテゴリ、3位 |
+| info | `#e8f0fe` | `#0d47a1` | 8.6:1 (AAA) | 準優勝、情報通知 |
+| success | `#e6f4ea` | `#0a5b35` | 4.9:1 (AA) | 勝利、予選突破 |
+| warning | `#fef7e0` | `#7e5d00` | 5.6:1 (AA+) | ベスト8/16、注意（Yellow独立） |
+| error | `#fce8e6` | `#a31511` | 7.2:1 (AAA) | 敗北、敗退、削除 |
+| default | `#f1f3f4` | `#5f6368` | 5.3:1 (AA+) | 未設定、棄権 |
+| ボーダー | — | 文字色と同系 opacity 35% | — | — |
 
 例: `🏆 優勝` (tournament), `✅ 勝利` (success), `⚠️ 注意` (warning)
 
@@ -263,68 +269,76 @@ Modal の形式。以下を追加:
 
 ---
 
-## 5. アイコン (Material Symbols Outlined)
+## 5. アイコン (Lucide)
 
-### 5.1 読み込み
+### 5.1 採用理由
+
+Material Symbols Outlined / Rounded, Phosphor, Tabler, Bootstrap Icons, Remix Icon, Lucide の 7 候補を比較検討した結果、**Lucide** を採用。
+- Feather Icons の後継でミニマルな線画デザイン
+- 1,500+ 種類、SVG ベース、動的カラー・サイズ変更が容易
+- Google/Apple 系アプリと異なる、独立した中立的な印象
+- v4 の「シンプル・モダン」方針と整合
+
+### 5.2 読み込み
 
 ```html
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
 ```
 
-### 5.2 使い方
+### 5.3 使い方（React コンポーネント）
 
-```html
-<span class="material-symbols-outlined">sports_tennis</span>
+共通 `Icon` コンポーネント経由で利用:
+
+```jsx
+<Icon name="trophy" size={24} color="#1a73e8" ariaLabel="大会" />
 ```
 
-```css
-.material-symbols-outlined {
-  font-size: 24px;  /* 必要に応じて変更 */
-  color: #1a73e8;   /* カラー化 */
-  vertical-align: middle;
-}
-```
+内部実装: `window.lucide.icons[PascalCase(name)].toSvg(options)` で SVG を取得、`dangerouslySetInnerHTML` で埋め込む。
 
-### 5.3 主要アイコンマッピング
+### 5.4 主要アイコンマッピング（v4 で使う 30 アイコン）
 
-| 用途 | Symbol 名 |
+| 用途 | Lucide 名 |
 |---|---|
-| 大会 | `emoji_events` |
-| 練習 | `directions_run` |
-| 試打 | `sports_tennis` |
-| ホーム | `home` |
-| Sessions | `list_alt` |
-| Gear | `sports_tennis` (タブでは別アイコン検討) |
-| Plan | `edit_note` |
-| Insights | `analytics` |
-| 戻る | `arrow_back` |
-| 閉じる | `close` |
-| メニュー | `more_vert` |
-| 追加 | `add` |
-| 編集 | `edit` |
-| 削除 | `delete` |
+| 大会 (優勝) | `trophy` |
+| 準優勝 | `medal` |
+| 3位 | `award` |
+| 練習 | `person-standing` |
+| 試打 | `badge-check` |
+| ホームタブ | `house` |
+| 記録タブ (Sessions) | `list` |
+| 機材タブ (Gear) | `backpack` |
+| 計画タブ (Plan) | `notebook-pen` |
+| 分析タブ (Insights) | `bar-chart-3` |
+| 戻る | `arrow-left` |
+| 閉じる | `x` |
+| メニュー | `more-vertical` |
+| 追加 | `plus` |
+| 編集 | `pencil` |
+| 削除 | `trash-2` |
 | 保存 | `save` |
 | 検索 | `search` |
 | 設定 | `settings` |
-| ログイン | `login` |
-| ログアウト | `logout` |
-| 同期 | `sync` |
+| ログイン | `log-in` |
+| ログアウト | `log-out` |
+| 同期 | `refresh-cw` |
 | Apple Watch | `watch` |
-| カレンダー | `calendar_month` |
-| 警告 | `warning` |
-| エラー | `error` |
+| カレンダー | `calendar` |
+| 警告 | `triangle-alert` |
+| エラー | `circle-alert` |
 | 情報 | `info` |
-| 成功 | `check_circle` |
-| 時計 | `schedule` |
-| 場所 | `place` |
-| 天気 | `wb_sunny` |
+| 成功/完了 | `circle-check` |
+| 時計 | `clock` |
+| 場所 | `map-pin` |
+| 天気 | `sun` |
+| フラグ (次の行動等) | `flag` |
 
-### 5.4 アイコン使用ルール
+### 5.5 アイコン使用ルール
 
 - **アイコンのみのボタンには aria-label 必須**（スクリーンリーダー対応）
-- サイズは 18 / 20 / 24px の 3 段階に制限
+- サイズは 14 / 18 / 20 / 24px の 4 段階に制限（バッジ内 13-14px、本文 18-24px）
+- stroke-width: 2 を標準（Lucide デフォルト）。細身にしたい時のみ 1.5
 - 色はパレット内のみ（独自色禁止）
-- 絵文字（🏆 等）は既存データ表示では許可、UI チャームとしては Material Symbols に統一
+- 絵文字（🏆 等）は既存データ表示では許可、UI チャームとしては Lucide に統一
 
 ---
 

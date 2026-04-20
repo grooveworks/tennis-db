@@ -6,13 +6,26 @@
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone@7.23.9/babel.min.js"></script>
-<style>*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;background:#f2f2f7;overscroll-behavior:none}input,select,textarea,button{font-family:inherit}::-webkit-scrollbar{display:none}</style>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;background:#f8f9fa;overscroll-behavior:none;color:#202124}
+input,select,textarea,button{font-family:inherit}
+::-webkit-scrollbar{display:none}
+@keyframes modalEnter{from{opacity:0;transform:scale(0.95)}to{opacity:1;transform:scale(1)}}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:0.01ms!important;animation-iteration-count:1!important;transition-duration:0.01ms!important;scroll-behavior:auto!important}
+}
+</style>
 </head><body><div id="root"></div>
 <script>(function(){var w=console.warn;console.warn=function(){if(arguments[0]&&typeof arguments[0]==='string'&&arguments[0].indexOf('Babel')!==-1)return;w.apply(console,arguments);}})();</script>
 <script type="text/babel">
 // === src/core/01_constants.js ===
+// ── React Hooks 分解代入（全コンポーネントで useState/useEffect 等を使えるように）─
+const {useState,useEffect,useRef,useCallback,useMemo}=React;
+
 // ── 定数定義（色・キー・バージョン）─────────────
-const APP_VERSION="4.0.0-S1";
+const APP_VERSION="4.0.0-S4";
 const font="-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif";
 
 // 色設計（v3 の WCAG 違反を反省し、3段階の情報階層を明示）
@@ -307,91 +320,979 @@ const labelFor=(key,type)=>{
   return fields.find(f=>f.key===key)?.label||key;
 };
 
-// === src/app.jsx ===
-const {useState,useEffect}=React;
-
-function TennisDB(){
-  const[user,setUser]=useState(null);
-  const[testData,setTestData]=useState("");
-  const[saveErr,setSaveErr]=useState(null);
-
-  useEffect(()=>{
-    const unsubAuth=fbAuth.onAuthStateChanged(u=>setUser(u));
-    const unsubErr=onSaveError(e=>setSaveErr(e));
-    const loaded=lsLoad("test");
-    if(loaded)setTestData(loaded.value||"");
-    return()=>{unsubAuth&&unsubAuth();unsubErr&&unsubErr();};
-  },[]);
-
-  const handleLogin=async()=>{
-    try{
-      const provider=new firebase.auth.GoogleAuthProvider();
-      await fbAuth.signInWithPopup(provider);
-    }catch(e){
-      if(e.code==="auth/popup-blocked"){
-        try{await fbAuth.signInWithRedirect(new firebase.auth.GoogleAuthProvider());}
-        catch(e2){alert("ログイン失敗: "+e2.message);}
-      }else{
-        alert("ログイン失敗: "+e.message);
-      }
-    }
-  };
-  const handleLogout=()=>fbAuth.signOut();
-  const handleSaveTest=()=>{
-    const val="test-"+new Date().toISOString().slice(0,19).replace("T"," ");
-    setTestData(val);
-    save("test",{value:val});
-  };
-
-  const btn={padding:"8px 14px",borderRadius:6,border:`1px solid ${C.border}`,background:C.panel,color:C.text,fontSize:13,cursor:"pointer",fontWeight:600};
-  const btnPrimary={...btn,background:C.accent,color:"#fff",border:"none"};
-  const section={background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:14,marginBottom:10};
-
-  return <div style={{padding:20,fontFamily:font,color:C.text,background:C.bg,minHeight:"100vh"}}>
-    <div style={{maxWidth:520,margin:"0 auto"}}>
-      <h1 style={{fontSize:22,fontWeight:700,marginBottom:4}}>🎾 Tennis DB v4</h1>
-      <div style={{color:C.textSecondary,fontSize:13,marginBottom:2}}>Version: <b>{APP_VERSION}</b></div>
-      <div style={{color:C.textMuted,fontSize:12,marginBottom:16}}>Stage S1 — Core 層 動作確認</div>
-
-      {/* 認証セクション */}
-      <div style={section}>
-        <div style={{fontSize:12,color:C.textMuted,marginBottom:6}}>認証 (Firebase)</div>
-        <div style={{fontSize:14,marginBottom:10}}>
-          状態: <b style={{color:user?C.accent:C.textMuted}}>{user?user.email:"未ログイン"}</b>
-        </div>
-        {user
-          ? <button onClick={handleLogout} style={btn}>ログアウト</button>
-          : <button onClick={handleLogin} style={btnPrimary}>Google ログイン</button>}
-      </div>
-
-      {/* ストレージセクション */}
-      <div style={section}>
-        <div style={{fontSize:12,color:C.textMuted,marginBottom:6}}>ストレージ (localStorage + Firestore)</div>
-        <div style={{fontSize:13,marginBottom:4}}>保存値:</div>
-        <code style={{display:"block",background:C.panel2,padding:"6px 10px",borderRadius:4,fontSize:12,color:C.textSecondary,marginBottom:10,wordBreak:"break-all"}}>{testData||"(なし)"}</code>
-        <button onClick={handleSaveTest} style={btn}>保存して再読み込みテスト</button>
-        <div style={{fontSize:11,color:C.textMuted,marginTop:6}}>保存後にブラウザを再読み込みしても値が残れば localStorage OK。ログイン状態なら Firestore にも保存される。</div>
-        {saveErr&&<div style={{marginTop:8,padding:"6px 10px",background:C.redBg,border:`1px solid ${C.red}`,borderRadius:4,fontSize:11,color:C.red}}>保存エラー ({saveErr.key}): {saveErr.message}</div>}
-      </div>
-
-      {/* SCHEMA 確認 */}
-      <div style={section}>
-        <div style={{fontSize:12,color:C.textMuted,marginBottom:6}}>SCHEMA 定義確認</div>
-        <div style={{fontSize:13,marginBottom:6}}>各データタイプのフィールド数:</div>
-        <pre style={{fontSize:12,background:C.panel2,padding:"8px 10px",borderRadius:4,color:C.textSecondary,margin:0,lineHeight:1.8}}>{Object.entries(SCHEMA).map(([t,f])=>`${t.padEnd(12)}: ${String(f.length).padStart(2)} fields`).join("\n")}</pre>
-        <div style={{fontSize:11,color:C.textMuted,marginTop:6}}>
-          自動生成派生: DISPLAY_FIELDS / COMBINABLE_FIELDS ({COMBINABLE_FIELDS.size} fields) / REQUIRED_FIELDS / FIELD_TYPES
-        </div>
-      </div>
-
-      <div style={{fontSize:10,color:C.textMuted,textAlign:"center",marginTop:20}}>
-        S1 DoD: ログイン成功・保存再読み込み成功・SCHEMA 表示OK → 「S1 OK」
-      </div>
-    </div>
-  </div>;
+// === src/ui/common/Badge.jsx ===
+// Badge — カテゴリ・状態表示
+// props:
+//   variant: tournament | practice | trial | success | warning | error | default
+//   icon: Material Symbols 名 (省略可)
+//   children: 表示テキスト
+// DESIGN_SYSTEM §4.1 完全準拠、コントラストは AA 以上確保
+// v4 カラー体系:
+//   Sessions Category: tournament (Orange) / practice (Green) / trial (Purple)
+//   Semantic: info (Blue=Primary) / success (Green) / warning (Yellow独立) / error (Red)
+//   default: Gray
+// 全てコントラスト AA 以上 (主要 AAA)
+const BADGE_STYLES = {
+  tournament: { bg: "#feefc3", text: "#a04f00", border: "rgba(160,79,0,0.35)" },   // Orange (大会カテゴリ)
+  practice:   { bg: "#e6f4ea", text: "#0a5b35", border: "rgba(10,91,53,0.35)" },   // Green (練習カテゴリ)
+  trial:      { bg: "#f3e8fd", text: "#6a25a8", border: "rgba(106,37,168,0.35)" }, // Purple (試打カテゴリ)
+  info:       { bg: "#e8f0fe", text: "#0d47a1", border: "rgba(13,71,161,0.35)" },  // Blue (Primary 系, 準優勝など)
+  success:    { bg: "#e6f4ea", text: "#0a5b35", border: "rgba(10,91,53,0.35)" },   // Green (予選突破など)
+  warning:    { bg: "#fef7e0", text: "#7e5d00", border: "rgba(126,93,0,0.35)" },   // Yellow (ベスト8/16など、tournamentから独立)
+  error:      { bg: "#fce8e6", text: "#a31511", border: "rgba(163,21,17,0.35)" },  // Red (敗退など)
+  default:    { bg: "#f1f3f4", text: "#5f6368", border: "rgba(95,99,104,0.35)" },  // Gray (未設定など)
+};
+function Badge({ variant = "default", icon, children }) {
+  const s = BADGE_STYLES[variant] || BADGE_STYLES.default;
+  return (
+    <span style={{
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 3,
+      height: 22,
+      padding: "2px 8px",
+      borderRadius: 4,
+      fontSize: 11,
+      fontWeight: 600,
+      lineHeight: 1,
+      verticalAlign: "middle",
+      whiteSpace: "nowrap",
+      background: s.bg,
+      color: s.text,
+      border: `1px solid ${s.border}`,
+    }}>
+      {icon && <Icon name={icon} size={13} color={s.text} />}
+      {children}
+    </span>
+  );
 }
 
-ReactDOM.createRoot(document.getElementById("root")).render(<TennisDB/>);
+// === src/ui/common/Button.jsx ===
+// Button — 5 variants
+// props:
+//   variant: primary | secondary | ghost | danger | disabled (default primary)
+//   icon: Material Symbols 名 (省略可)
+//   onClick, disabled, children, style (追加 style 上書き)
+// DESIGN_SYSTEM §4.3 準拠、最小 44×44px のタップ領域
+const BUTTON_STYLES = {
+  primary:   { bg: "#1a73e8", text: "#ffffff", border: "none", hover: "#1765cc" },
+  secondary: { bg: "#ffffff", text: "#1a73e8", border: "1px solid #1a73e8", hover: "#e8f0fe" },
+  ghost:     { bg: "transparent", text: "#1a73e8", border: "none", hover: "#e8f0fe" },
+  danger:    { bg: "#d93025", text: "#ffffff", border: "none", hover: "#b3271e" },
+  disabled:  { bg: "#f1f3f4", text: "#80868b", border: "none", hover: "#f1f3f4" },
+};
+function Button({ variant = "primary", icon, onClick, disabled, children, style: ext = {}, ...rest }) {
+  const isDisabled = disabled || variant === "disabled";
+  const s = BUTTON_STYLES[isDisabled ? "disabled" : variant] || BUTTON_STYLES.primary;
+  const [hover, setHover] = useState(false);
+  return (
+    <button
+      onClick={isDisabled ? undefined : onClick}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      disabled={isDisabled}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 8,
+        minHeight: 44,
+        padding: "10px 20px",
+        borderRadius: 8,
+        fontFamily: font,
+        fontSize: 14,
+        fontWeight: 500,
+        cursor: isDisabled ? "not-allowed" : "pointer",
+        border: s.border,
+        background: hover && !isDisabled ? s.hover : s.bg,
+        color: s.text,
+        transition: "background 150ms ease-out, opacity 150ms",
+        ...ext,
+      }}
+      {...rest}
+    >
+      {icon && <Icon name={icon} size={18} color={s.text} />}
+      {children}
+    </button>
+  );
+}
+
+// === src/ui/common/Card.jsx ===
+// Card — 基本カード
+// props:
+//   onClick: 指定ありでクリック可能カード (hover 効果あり)
+//   style: 追加 style 上書き
+// DESIGN_SYSTEM §4.2 準拠 (角丸12px、border 1px、padding 16px)
+function Card({ onClick, children, style: ext = {}, ...rest }) {
+  const [hover, setHover] = useState(false);
+  const clickable = !!onClick;
+  return (
+    <div
+      onClick={onClick}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      role={clickable ? "button" : undefined}
+      tabIndex={clickable ? 0 : undefined}
+      onKeyDown={clickable ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(e); } } : undefined}
+      style={{
+        background: clickable && hover ? C.panel2 : C.panel,
+        border: `1px solid ${C.border}`,
+        borderRadius: 12,
+        padding: 16,
+        marginBottom: 8,
+        cursor: clickable ? "pointer" : "default",
+        transition: "background 150ms ease-out",
+        ...ext,
+      }}
+      {...rest}
+    >
+      {children}
+    </div>
+  );
+}
+
+// === src/ui/common/ConfirmDialog.jsx ===
+// ConfirmDialog — 破壊的操作の確認ダイアログ
+// props:
+//   open: boolean
+//   title: ダイアログタイトル (default "確認")
+//   message: 説明テキスト
+//   yesLabel (default "削除する"), noLabel (default "キャンセル")
+//   yesVariant: Button variant (default "danger")
+//   icon: 先頭アイコン (default "delete")
+//   onYes, onNo
+// DESIGN_SYSTEM §4.7 準拠、キャンセル左・確定右の配置
+function ConfirmDialog({
+  open, title = "確認", message, icon = "trash-2",
+  yesLabel = "削除する", noLabel = "キャンセル",
+  yesVariant = "danger",
+  onYes, onNo,
+}) {
+  if (!open) return null;
+  return (
+    <Modal open={open} onClose={onNo}>
+      <div style={{ textAlign: "center", marginTop: 16 }}>
+        <Icon name={icon} size={40} color={yesVariant === "danger" ? "#d93025" : C.primary} />
+      </div>
+      <div style={{ fontSize: 16, fontWeight: 600, textAlign: "center", marginTop: 12, marginBottom: 8, color: C.text }}>
+        {title}
+      </div>
+      {message && (
+        <div style={{ fontSize: 14, color: C.textSecondary, textAlign: "center", marginBottom: 20, lineHeight: 1.6 }}>
+          {message}
+        </div>
+      )}
+      <div style={{ display: "flex", gap: 8 }}>
+        <Button variant="secondary" onClick={onNo} style={{ flex: 1 }}>{noLabel}</Button>
+        <Button variant={yesVariant} onClick={onYes} style={{ flex: 1 }}>{yesLabel}</Button>
+      </div>
+    </Modal>
+  );
+}
+
+// フック: useConfirm()
+// 返り値: { ask(message, onYes, options?), el }
+// options: { title, yesLabel, noLabel, yesVariant, icon }
+function useConfirm() {
+  const [state, setState] = useState(null);
+  const ask = (message, onYes, options = {}) => {
+    setState({ message, onYes, ...options });
+  };
+  const el = state ? (
+    <ConfirmDialog
+      open={true}
+      message={state.message}
+      title={state.title}
+      yesLabel={state.yesLabel}
+      noLabel={state.noLabel}
+      yesVariant={state.yesVariant}
+      icon={state.icon}
+      onYes={() => { state.onYes(); setState(null); }}
+      onNo={() => setState(null)}
+    />
+  ) : null;
+  return { ask, el };
+}
+
+// === src/ui/common/Header.jsx ===
+// Header — 画面上部共通ヘッダ
+// props:
+//   title: 画面タイトル
+//   onBack: 戻るコールバック (省略時は戻るボタン非表示)
+//   onMenu: メニューコールバック (省略時はメニューボタン非表示)
+//   right: 右側にカスタム要素 (onMenu の代わり、例: 保存ボタン)
+// DESIGN_SYSTEM §4.9 準拠、左上=戻る・右上=メニュー の位置固定
+function Header({ title, onBack, onMenu, right }) {
+  const iconBtn = (icon, onClick, label) => (
+    <button
+      onClick={onClick}
+      aria-label={label}
+      style={{
+        width: 40, height: 40,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        borderRadius: 8,
+        border: "none",
+        background: "transparent",
+        color: C.textSecondary,
+        cursor: "pointer",
+        transition: "background 150ms",
+      }}
+      onMouseEnter={(e) => { e.currentTarget.style.background = C.panel2; }}
+      onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+    >
+      <Icon name={icon} size={24} ariaLabel={label} />
+    </button>
+  );
+  return (
+    <header style={{
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      height: 56,
+      padding: "0 16px",
+      background: C.panel,
+      borderBottom: `1px solid ${C.border}`,
+    }}>
+      <div style={{ width: 40, height: 40 }}>
+        {onBack && iconBtn("arrow-left", onBack, "戻る")}
+      </div>
+      <div style={{ fontSize: 16, fontWeight: 600, color: C.text, flex: 1, textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        {title}
+      </div>
+      <div style={{ width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
+        {right ? right : (onMenu && iconBtn("more-vertical", onMenu, "メニュー"))}
+      </div>
+    </header>
+  );
+}
+
+// === src/ui/common/Icon.jsx ===
+// Icon — Lucide SVG のラッパー
+// props:
+//   name: Lucide アイコン名 (kebab-case、例: "trophy", "arrow-left", "badge-check")
+//   size: px (default 24)
+//   color: CSS color (default "currentColor")
+//   strokeWidth: SVG stroke 幅 (default 2)
+//   ariaLabel: スクリーンリーダー用ラベル（アイコンのみのボタンでは必須）
+// 依存: _head.html で Lucide UMD CDN 読み込み済み (window.lucide.icons)
+// 実装: window.lucide.icons[PascalCase(name)] から IconNode を取得し、SVG 文字列として構築
+
+const _toPascalCase = (kebab) => String(kebab || "").replace(/(^|-)(\w)/g, (_, __, c) => c.toUpperCase());
+
+// IconNode を再帰的に SVG 文字列に変換
+// IconNode 形式: [[tagName, attrs, children?], ...]
+const _iconNodeToSvgString = (node) => {
+  if (!Array.isArray(node)) return "";
+  return node.map((entry) => {
+    if (!Array.isArray(entry)) return "";
+    const [tag, attrs, children] = entry;
+    const attrStr = Object.entries(attrs || {})
+      .map(([k, v]) => `${k}="${String(v).replace(/"/g, "&quot;")}"`)
+      .join(" ");
+    const inner = children ? _iconNodeToSvgString(children) : "";
+    return `<${tag}${attrStr ? " " + attrStr : ""}>${inner}</${tag}>`;
+  }).join("");
+};
+
+function Icon({ name, size = 24, color = "currentColor", strokeWidth = 2, ariaLabel, style: ext = {} }) {
+  const svgString = useMemo(() => {
+    if (typeof window === "undefined" || !window.lucide || !window.lucide.icons) return "";
+    const key = _toPascalCase(name);
+    const iconData = window.lucide.icons[key];
+    if (!iconData || !Array.isArray(iconData)) return "";
+    const inner = _iconNodeToSvgString(iconData);
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
+  }, [name, size, color, strokeWidth]);
+
+  if (!svgString) {
+    return <span style={{ display: "inline-block", width: size, height: size, ...ext }} />;
+  }
+
+  return (
+    <span
+      role={ariaLabel ? "img" : undefined}
+      aria-label={ariaLabel}
+      aria-hidden={ariaLabel ? undefined : true}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        lineHeight: 0,
+        verticalAlign: "middle",
+        ...ext,
+      }}
+      dangerouslySetInnerHTML={{ __html: svgString }}
+    />
+  );
+}
+
+// === src/ui/common/Input.jsx ===
+// Input — テキスト入力欄
+// props:
+//   label: ラベル
+//   value, onChange
+//   type: "text" | "number" | "date" | "time" (default "text")
+//   placeholder
+//   required
+//   error: エラーメッセージ (指定で赤枠 + メッセージ)
+// DESIGN_SYSTEM §4.4 準拠
+function Input({ label, value, onChange, type = "text", placeholder, required, error, style: ext = {}, ...rest }) {
+  const [focus, setFocus] = useState(false);
+  const hasError = !!error;
+  const borderColor = hasError ? "#d93025" : (focus ? C.primary : C.border);
+  const shadow = focus ? `0 0 0 2px ${hasError ? "rgba(217,48,37,0.2)" : "#e8f0fe"}` : "none";
+  return (
+    <div style={{ marginBottom: 12, ...ext }}>
+      {label && (
+        <label style={{ display: "block", fontSize: 12, color: C.textSecondary, fontWeight: 500, marginBottom: 4 }}>
+          {label}{required && <span style={{ color: "#d93025", marginLeft: 4 }}>*</span>}
+        </label>
+      )}
+      <input
+        type={type}
+        value={value ?? ""}
+        onChange={(e) => onChange(e.target.value)}
+        onFocus={() => setFocus(true)}
+        onBlur={() => setFocus(false)}
+        placeholder={placeholder}
+        aria-required={required}
+        aria-invalid={hasError}
+        style={{
+          width: "100%",
+          minHeight: 44,
+          padding: "10px 14px",
+          border: `1px solid ${borderColor}`,
+          borderRadius: 8,
+          fontFamily: font,
+          fontSize: 14,
+          color: C.text,
+          background: C.panel,
+          outline: "none",
+          boxShadow: shadow,
+          transition: "border 150ms, box-shadow 150ms",
+        }}
+        {...rest}
+      />
+      {hasError && (
+        <div style={{ fontSize: 12, color: "#d93025", marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}>
+          <Icon name="circle-alert" size={14} color="#d93025" /> {error}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// === src/ui/common/Modal.jsx ===
+// Modal — モーダル基本枠
+// props:
+//   open: boolean
+//   onClose: 閉じる時のコールバック (オーバーレイクリック・Escキー・閉じるボタン)
+//   title: モーダル内タイトル (省略可)
+//   children: コンテンツ
+// DESIGN_SYSTEM §4.5 準拠、閉じるボタンは左上固定（戻ると位置統一）
+function Modal({ open, onClose, title, children }) {
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e) => { if (e.key === "Escape") onClose && onClose(); };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [open, onClose]);
+  if (!open) return null;
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={title ? "modal-title" : undefined}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose && onClose(); }}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.4)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 20,
+        zIndex: 1000,
+      }}
+    >
+      <div
+        style={{
+          background: C.panel,
+          borderRadius: 16,
+          padding: 20,
+          width: "100%",
+          maxWidth: 400,
+          maxHeight: "90vh",
+          overflow: "auto",
+          position: "relative",
+          animation: "modalEnter 250ms ease-out",
+        }}
+      >
+        {onClose && (
+          <button
+            onClick={onClose}
+            aria-label="閉じる"
+            style={{
+              position: "absolute",
+              top: 12,
+              left: 12,
+              width: 40, height: 40,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              borderRadius: 8,
+              border: "none",
+              background: "transparent",
+              color: C.textSecondary,
+              cursor: "pointer",
+            }}
+          >
+            <Icon name="x" size={24} />
+          </button>
+        )}
+        {title && (
+          <div id="modal-title" style={{ fontSize: 16, fontWeight: 600, textAlign: "center", marginTop: onClose ? 16 : 0, marginBottom: 12, color: C.text }}>
+            {title}
+          </div>
+        )}
+        <div style={{ marginTop: (onClose && !title) ? 16 : 0 }}>{children}</div>
+      </div>
+    </div>
+  );
+}
+
+// === src/ui/common/SectionTitle.jsx ===
+// SectionTitle — セクション見出し (アイコン + 文字)
+// props:
+//   icon: Material Symbols 名 (省略可)
+//   children: タイトルテキスト
+//   style: 追加 style 上書き
+function SectionTitle({ icon, children, style: ext = {} }) {
+  return (
+    <div style={{
+      display: "flex",
+      alignItems: "center",
+      gap: 4,
+      fontSize: 14,
+      fontWeight: 600,
+      color: C.text,
+      marginTop: 20,
+      marginBottom: 12,
+      ...ext,
+    }}>
+      {icon && <Icon name={icon} size={18} color={C.primary} />}
+      <span>{children}</span>
+    </div>
+  );
+}
+
+// === src/ui/common/Select.jsx ===
+// Select — セレクトボックス
+// props:
+//   label, value, onChange
+//   options: [{ value, label }]
+//   required, error
+function Select({ label, value, onChange, options = [], required, error, style: ext = {} }) {
+  const [focus, setFocus] = useState(false);
+  const hasError = !!error;
+  const borderColor = hasError ? "#d93025" : (focus ? C.primary : C.border);
+  const shadow = focus ? `0 0 0 2px ${hasError ? "rgba(217,48,37,0.2)" : "#e8f0fe"}` : "none";
+  return (
+    <div style={{ marginBottom: 12, ...ext }}>
+      {label && (
+        <label style={{ display: "block", fontSize: 12, color: C.textSecondary, fontWeight: 500, marginBottom: 4 }}>
+          {label}{required && <span style={{ color: "#d93025", marginLeft: 4 }}>*</span>}
+        </label>
+      )}
+      <select
+        value={value ?? ""}
+        onChange={(e) => onChange(e.target.value)}
+        onFocus={() => setFocus(true)}
+        onBlur={() => setFocus(false)}
+        aria-required={required}
+        aria-invalid={hasError}
+        style={{
+          width: "100%",
+          minHeight: 44,
+          padding: "10px 14px",
+          border: `1px solid ${borderColor}`,
+          borderRadius: 8,
+          fontFamily: font,
+          fontSize: 14,
+          color: C.text,
+          background: C.panel,
+          outline: "none",
+          boxShadow: shadow,
+          cursor: "pointer",
+          transition: "border 150ms, box-shadow 150ms",
+        }}
+      >
+        {options.map((opt) => (
+          <option key={opt.value} value={opt.value}>{opt.label}</option>
+        ))}
+      </select>
+      {hasError && (
+        <div style={{ fontSize: 12, color: "#d93025", marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}>
+          <Icon name="circle-alert" size={14} color="#d93025" /> {error}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// === src/ui/common/TabBar.jsx ===
+// TabBar — 最下部ナビゲーション (5タブ固定)
+// props:
+//   tab: 現在のタブ ID
+//   onTabChange: タブ変更コールバック
+// DESIGN_SYSTEM §4.8 準拠
+const TABS = [
+  { id: "home",     label: "ホーム", icon: "house" },
+  { id: "sessions", label: "記録",   icon: "list" },
+  { id: "gear",     label: "機材",   icon: "backpack" },
+  { id: "plan",     label: "計画",   icon: "notebook-pen" },
+  { id: "insights", label: "分析",   icon: "bar-chart-3" },
+];
+function TabBar({ tab, onTabChange }) {
+  return (
+    <div
+      role="tablist"
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(5, 1fr)",
+        background: C.panel,
+        borderTop: `1px solid ${C.border}`,
+        height: 56,
+        paddingBottom: "env(safe-area-inset-bottom, 0)",
+      }}
+    >
+      {TABS.map((t) => {
+        const active = t.id === tab;
+        return (
+          <button
+            key={t.id}
+            role="tab"
+            aria-selected={active}
+            onClick={() => onTabChange(t.id)}
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 2,
+              color: active ? C.primary : "#80868b",
+              background: active ? "#e8f0fe" : "transparent",
+              border: "none",
+              cursor: "pointer",
+              fontSize: 11,
+              fontFamily: font,
+              fontWeight: active ? 600 : 400,
+              transition: "background 150ms",
+            }}
+          >
+            <Icon name={t.icon} size={24} color={active ? C.primary : "#80868b"} />
+            <span>{t.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// === src/ui/common/Textarea.jsx ===
+// Textarea — 複数行入力
+// props:
+//   label, value, onChange, rows (default 3), placeholder, required, error
+function Textarea({ label, value, onChange, rows = 3, placeholder, required, error, style: ext = {} }) {
+  const [focus, setFocus] = useState(false);
+  const hasError = !!error;
+  const borderColor = hasError ? "#d93025" : (focus ? C.primary : C.border);
+  const shadow = focus ? `0 0 0 2px ${hasError ? "rgba(217,48,37,0.2)" : "#e8f0fe"}` : "none";
+  return (
+    <div style={{ marginBottom: 12, ...ext }}>
+      {label && (
+        <label style={{ display: "block", fontSize: 12, color: C.textSecondary, fontWeight: 500, marginBottom: 4 }}>
+          {label}{required && <span style={{ color: "#d93025", marginLeft: 4 }}>*</span>}
+        </label>
+      )}
+      <textarea
+        value={value ?? ""}
+        onChange={(e) => onChange(e.target.value)}
+        onFocus={() => setFocus(true)}
+        onBlur={() => setFocus(false)}
+        placeholder={placeholder}
+        rows={rows}
+        aria-required={required}
+        aria-invalid={hasError}
+        style={{
+          width: "100%",
+          minHeight: 80,
+          padding: "10px 14px",
+          border: `1px solid ${borderColor}`,
+          borderRadius: 8,
+          fontFamily: font,
+          fontSize: 14,
+          color: C.text,
+          background: C.panel,
+          outline: "none",
+          boxShadow: shadow,
+          resize: "vertical",
+          transition: "border 150ms, box-shadow 150ms",
+        }}
+      />
+      {hasError && (
+        <div style={{ fontSize: 12, color: "#d93025", marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}>
+          <Icon name="circle-alert" size={14} color="#d93025" /> {error}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// === src/ui/common/Toast.jsx ===
+// Toast — 操作フィードバック (画面下、3秒自動消失)
+// props:
+//   message: 表示メッセージ
+//   type: success | warning | error | info (default success)
+//   duration: ms (default 3000)
+//   onDismiss: 消失時コールバック
+// DESIGN_SYSTEM §4.6 準拠
+const TOAST_ICONS = {
+  success: { icon: "circle-check", color: "#6fcc8d" },
+  warning: { icon: "triangle-alert", color: "#fbc02d" },
+  error:   { icon: "circle-alert", color: "#ef5350" },
+  info:    { icon: "info", color: "#82b1ff" },
+};
+function Toast({ message, type = "success", duration = 3000, onDismiss }) {
+  useEffect(() => {
+    if (!onDismiss) return;
+    const t = setTimeout(() => onDismiss(), duration);
+    return () => clearTimeout(t);
+  }, [message, duration, onDismiss]);
+  if (!message) return null;
+  const s = TOAST_ICONS[type] || TOAST_ICONS.success;
+  return (
+    <div
+      role={type === "error" ? "alert" : "status"}
+      aria-live={type === "error" ? "assertive" : "polite"}
+      style={{
+        position: "fixed",
+        bottom: 72,  // TabBar の上 (TabBar 56px + 16px)
+        left: "50%",
+        transform: "translateX(-50%)",
+        background: "#202124",
+        color: "#ffffff",
+        borderRadius: 6,
+        padding: "12px 16px",
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 8,
+        fontSize: 13,
+        boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
+        zIndex: 2000,
+        maxWidth: "calc(100vw - 40px)",
+      }}
+    >
+      <Icon name={s.icon} size={18} color={s.color} />
+      <span>{message}</span>
+    </div>
+  );
+}
+
+// フック: useToast()
+// show(message, type?, duration?) で表示
+function useToast() {
+  const [state, setState] = useState(null);
+  const show = (message, type = "success", duration = 3000) => {
+    setState({ message, type, duration });
+  };
+  const el = state ? (
+    <Toast
+      message={state.message}
+      type={state.type}
+      duration={state.duration}
+      onDismiss={() => setState(null)}
+    />
+  ) : null;
+  return { show, el };
+}
+
+// === src/app.jsx ===
+// v4 共通UIコンポーネント ショーケース (Stage S4)
+// Lucide アイコン採用版
+
+function TennisDB() {
+  const [tab, setTab] = useState("home");
+  const [inputVal, setInputVal] = useState("");
+  const [selectVal, setSelectVal] = useState("option1");
+  const [textVal, setTextVal] = useState("");
+  const [timeVal, setTimeVal] = useState("09:00");
+  const [numVal, setNumVal] = useState("");
+  const [modalOpen, setModalOpen] = useState(false);
+  const cfm = useConfirm();
+  const toast = useToast();
+
+  const section = { marginBottom: 24, paddingBottom: 16, borderBottom: `1px solid ${C.border}` };
+  const sectionTitle = { fontSize: 13, fontWeight: 700, color: C.textSecondary, marginBottom: 12, textTransform: "uppercase", letterSpacing: "0.05em" };
+  const row = { display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 8 };
+
+  return (
+    <div style={{ minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column" }}>
+      <Header title="v4 UI ショーケース" onMenu={() => alert("メニュー")} />
+
+      <div style={{ flex: 1, overflow: "auto", padding: 20, maxWidth: 520, margin: "0 auto", width: "100%" }}>
+        <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 16 }}>
+          Stage S4 共通UIコンポーネント一覧。DESIGN_SYSTEM_v4.md 準拠。アイコンは Lucide。
+        </div>
+
+        {/* 1. Icon */}
+        <div style={section}>
+          <div style={sectionTitle}>1. Icon (Lucide)</div>
+          <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 10 }}>
+            Lucide — 1,500+ 種類から任意で選択可。DESIGN_SYSTEM §5.4 に記載の主要30個:
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 8, marginBottom: 8 }}>
+            {[
+              ["trophy", "優勝"], ["medal", "2位"], ["award", "3位"],
+              ["person-standing", "練習"], ["badge-check", "試打"],
+              ["house", "ホーム"], ["list", "記録"], ["backpack", "機材"], ["notebook-pen", "計画"], ["bar-chart-3", "分析"],
+              ["arrow-left", "戻る"], ["x", "閉じる"], ["more-vertical", "メニュー"],
+              ["plus", "追加"], ["pencil", "編集"], ["trash-2", "削除"], ["save", "保存"],
+              ["search", "検索"], ["settings", "設定"], ["log-in", "ログイン"], ["log-out", "ログアウト"],
+              ["refresh-cw", "同期"], ["watch", "Watch"], ["calendar", "予定"],
+              ["triangle-alert", "警告"], ["circle-alert", "エラー"], ["info", "情報"], ["circle-check", "完了"],
+              ["clock", "時間"], ["map-pin", "場所"], ["sun", "天気"], ["flag", "フラグ"],
+            ].map(([name, label]) => (
+              <div key={name} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, padding: 4 }}>
+                <Icon name={name} size={22} color={C.primary} />
+                <span style={{ fontSize: 9, color: C.textMuted, textAlign: "center", lineHeight: 1.2 }}>{label}</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ fontSize: 11, color: C.textMuted }}>
+            サイズ: 14 / 18 / 20 / 24px 標準。stroke-width は 2 がデフォルト。
+          </div>
+        </div>
+
+        {/* 2. Badge */}
+        <div style={section}>
+          <div style={sectionTitle}>2. Badge</div>
+          <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 8 }}>
+            色 variant は 8 種類。全色ペア AA 以上（主要 AAA）。
+          </div>
+
+          <div style={{ fontSize: 11, fontWeight: 600, color: C.textSecondary, marginTop: 8, marginBottom: 6 }}>基本 variants (8種)</div>
+          <div style={row}>
+            <Badge variant="tournament" icon="trophy">tournament</Badge>
+            <Badge variant="practice" icon="person-standing">practice</Badge>
+            <Badge variant="trial" icon="badge-check">trial</Badge>
+            <Badge variant="success" icon="circle-check">success</Badge>
+            <Badge variant="warning" icon="triangle-alert">warning</Badge>
+            <Badge variant="error" icon="circle-alert">error</Badge>
+            <Badge variant="info" icon="info">info</Badge>
+            <Badge variant="default">default</Badge>
+          </div>
+
+          <div style={{ fontSize: 11, fontWeight: 600, color: C.textSecondary, marginTop: 12, marginBottom: 6 }}>
+            大会の結果 (8種) — カテゴリ色 tournament を核に意味で差別化
+          </div>
+          <div style={row}>
+            <Badge variant="tournament" icon="trophy">優勝</Badge>
+            <Badge variant="info" icon="medal">準優勝</Badge>
+            <Badge variant="trial" icon="award">3位</Badge>
+            <Badge variant="warning">ベスト8</Badge>
+            <Badge variant="warning">ベスト16</Badge>
+            <Badge variant="success">予選突破</Badge>
+            <Badge variant="error">敗退</Badge>
+            <Badge variant="error">予選敗退</Badge>
+          </div>
+
+          <div style={{ fontSize: 11, fontWeight: 600, color: C.textSecondary, marginTop: 12, marginBottom: 6 }}>試合結果 (3種)</div>
+          <div style={row}>
+            <Badge variant="success" icon="circle-check">勝利</Badge>
+            <Badge variant="error" icon="x">敗北</Badge>
+            <Badge variant="default" icon="minus">棄権</Badge>
+          </div>
+
+          <div style={{ fontSize: 11, fontWeight: 600, color: C.textSecondary, marginTop: 12, marginBottom: 6 }}>試打の判定 (3種)</div>
+          <div style={row}>
+            <Badge variant="success" icon="badge-check">採用候補</Badge>
+            <Badge variant="warning">保留</Badge>
+            <Badge variant="error">却下</Badge>
+          </div>
+
+          <div style={{ fontSize: 11, fontWeight: 600, color: C.textSecondary, marginTop: 12, marginBottom: 6 }}>
+            練習の種別 (v3 からの 7種、アイコン併用で差別化)
+          </div>
+          <div style={row}>
+            <Badge variant="practice" icon="graduation-cap">スクール</Badge>
+            <Badge variant="practice" icon="person-standing">自主練</Badge>
+            <Badge variant="practice" icon="users">練習会</Badge>
+            <Badge variant="practice" icon="swords">ゲーム練習</Badge>
+            <Badge variant="practice" icon="target">球出し</Badge>
+            <Badge variant="practice" icon="trophy">練習試合</Badge>
+            <Badge variant="practice" icon="dumbbell">フィジカル</Badge>
+          </div>
+
+          <div style={{ fontSize: 11, fontWeight: 600, color: C.textSecondary, marginTop: 12, marginBottom: 6 }}>大会形式 (3種)</div>
+          <div style={row}>
+            <Badge variant="default">S シングルス</Badge>
+            <Badge variant="default">D ダブルス</Badge>
+            <Badge variant="default">Mix ミックス</Badge>
+          </div>
+
+          <div style={{ fontSize: 11, fontWeight: 600, color: C.textSecondary, marginTop: 12, marginBottom: 6 }}>ラウンド (8種、v3 ROUND_OPTS 準拠)</div>
+          <div style={row}>
+            <Badge variant="default">1回戦</Badge>
+            <Badge variant="default">2回戦</Badge>
+            <Badge variant="default">3回戦</Badge>
+            <Badge variant="default">準々決勝</Badge>
+            <Badge variant="default">準決勝</Badge>
+            <Badge variant="default">決勝</Badge>
+            <Badge variant="default">予選</Badge>
+            <Badge variant="default">エキシビション</Badge>
+          </div>
+
+          <div style={{ fontSize: 11, fontWeight: 600, color: C.textSecondary, marginTop: 12, marginBottom: 6 }}>公開状態・システム (5種)</div>
+          <div style={row}>
+            <Badge variant="success" icon="globe">公開</Badge>
+            <Badge variant="default" icon="lock">非公開</Badge>
+            <Badge variant="info" icon="watch">Watch連携</Badge>
+            <Badge variant="success" icon="cloud-check">同期済み</Badge>
+            <Badge variant="warning" icon="cloud-off">未同期</Badge>
+          </div>
+        </div>
+
+        {/* 3. Button */}
+        <div style={section}>
+          <div style={sectionTitle}>3. Button</div>
+          <div style={row}>
+            <Button variant="primary" icon="save">保存</Button>
+            <Button variant="secondary">キャンセル</Button>
+            <Button variant="ghost">詳細</Button>
+          </div>
+          <div style={row}>
+            <Button variant="danger" icon="trash-2">削除</Button>
+            <Button variant="disabled" disabled>無効</Button>
+          </div>
+          <div style={row}>
+            <Button variant="primary" style={{ width: "100%" }}>フル幅ボタン</Button>
+          </div>
+          <div style={{ fontSize: 11, color: C.textMuted }}>最小 44×44px、hover でカラー変化</div>
+        </div>
+
+        {/* 4. Card */}
+        <div style={section}>
+          <div style={sectionTitle}>4. Card</div>
+          <Card>
+            <div style={{ fontSize: 14, color: C.text }}>通常のカード</div>
+            <div style={{ fontSize: 12, color: C.textSecondary, marginTop: 4 }}>静的な情報表示に使用</div>
+          </Card>
+          <Card onClick={() => toast.show("カードがクリックされました", "info")}>
+            <div style={{ fontSize: 14, color: C.text }}>クリック可能なカード (hover で背景変化)</div>
+            <div style={{ fontSize: 12, color: C.textSecondary, marginTop: 4 }}>タップしてみてください</div>
+          </Card>
+        </div>
+
+        {/* 5. SectionTitle */}
+        <div style={section}>
+          <div style={sectionTitle}>5. SectionTitle</div>
+          <SectionTitle icon="flag" style={{ marginTop: 0 }}>次の行動</SectionTitle>
+          <SectionTitle icon="calendar">近日予定</SectionTitle>
+          <SectionTitle icon="trophy">最近の好成績</SectionTitle>
+        </div>
+
+        {/* 6. Input / Select / Textarea */}
+        <div style={section}>
+          <div style={sectionTitle}>6. 入力フィールド</div>
+          <Input label="大会名 (text)" value={inputVal} onChange={setInputVal} placeholder="例: 所沢ベテラン大会" required />
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            <Input label="日付 (date)" type="date" value="2026-04-21" onChange={() => {}} />
+            <Input label="時刻 (time)" type="time" value={timeVal} onChange={setTimeVal} />
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            <Input label="気温 (number)" type="number" value={numVal} onChange={setNumVal} placeholder="22" />
+            <Input label="エラー例" value="" onChange={() => {}} error="必須項目です" />
+          </div>
+          <Select
+            label="会場"
+            value={selectVal}
+            onChange={setSelectVal}
+            options={[
+              { value: "option1", label: "所沢市総合運動場" },
+              { value: "option2", label: "イトマンテニス" },
+              { value: "option3", label: "航空記念公園" },
+            ]}
+          />
+          <Textarea label="メモ" value={textVal} onChange={setTextVal} placeholder="試合の振り返りを記入..." />
+        </div>
+
+        {/* 7. Modal / ConfirmDialog */}
+        <div style={section}>
+          <div style={sectionTitle}>7. Modal / ConfirmDialog</div>
+          <div style={row}>
+            <Button variant="primary" onClick={() => setModalOpen(true)}>モーダルを開く</Button>
+            <Button
+              variant="danger"
+              onClick={() => cfm.ask("このデータを削除します。この操作は取り消せません。", () => toast.show("削除しました", "success"))}
+            >
+              削除確認ダイアログ
+            </Button>
+          </div>
+          <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="モーダルのサンプル">
+            <div style={{ fontSize: 14, color: C.text, lineHeight: 1.6 }}>
+              これは Modal コンポーネントのサンプルです。<br />
+              閉じるボタン (左上)、オーバーレイクリック、Esc キーで閉じます。
+            </div>
+            <div style={{ marginTop: 20, display: "flex", gap: 8 }}>
+              <Button variant="secondary" style={{ flex: 1 }} onClick={() => setModalOpen(false)}>キャンセル</Button>
+              <Button variant="primary" style={{ flex: 1 }} onClick={() => { setModalOpen(false); toast.show("OK を押しました"); }}>OK</Button>
+            </div>
+          </Modal>
+        </div>
+
+        {/* 8. Toast */}
+        <div style={section}>
+          <div style={sectionTitle}>8. Toast</div>
+          <div style={row}>
+            <Button variant="primary" onClick={() => toast.show("保存しました", "success")}>成功</Button>
+            <Button variant="secondary" onClick={() => toast.show("注意: 未保存の変更があります", "warning")}>警告</Button>
+            <Button variant="danger" onClick={() => toast.show("エラー: 保存失敗", "error")}>エラー</Button>
+            <Button variant="ghost" onClick={() => toast.show("ログインしました", "info")}>情報</Button>
+          </div>
+          <div style={{ fontSize: 11, color: C.textMuted }}>3秒で自動消失</div>
+        </div>
+
+        {/* 9. Header */}
+        <div style={section}>
+          <div style={sectionTitle}>9. Header (この画面上部)</div>
+          <div style={{ fontSize: 12, color: C.textSecondary }}>
+            画面上部に固定表示。左=戻る / 中央=タイトル / 右=メニュー。
+            この画面ではメニューボタンのみ表示。
+          </div>
+        </div>
+
+        {/* 10. TabBar (この画面下部) */}
+        <div style={section}>
+          <div style={sectionTitle}>10. TabBar (この画面下部)</div>
+          <div style={{ fontSize: 12, color: C.textSecondary }}>
+            画面最下部に固定表示。アクティブタブは背景色+文字色で強調。現在: <b>{tab}</b>
+          </div>
+        </div>
+
+        <div style={{ textAlign: "center", padding: 40, color: C.textMuted, fontSize: 11 }}>
+          Tennis DB v4 — Stage S4 共通UIコンポーネント<br />
+          src/ui/common/ : Icon / Badge / Button / Card / Input / Select / Textarea / Modal / ConfirmDialog / Toast / TabBar / Header / SectionTitle
+        </div>
+      </div>
+
+      <TabBar tab={tab} onTabChange={setTab} />
+
+      {cfm.el}
+      {toast.el}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<TennisDB />);
 
 </script>
 </body></html>
