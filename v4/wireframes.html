@@ -101,6 +101,7 @@ body {
   border: 8px solid #1f1f1f;
   border-radius: 28px;
   overflow: hidden;
+  position: relative;
   box-shadow: 0 4px 20px rgba(0,0,0,0.15);
 }
 
@@ -661,111 +662,331 @@ body {
 </div>
 
 <!-- ========================================================================
-     3. Sessions 一覧
+     3. Sessions タブ (2026-04-21 再設計、3 モード + 共通操作帯 + FAB)
      ======================================================================== -->
+
+<!-- 3a. リストモード (既定) -->
 <div class="wireframe-section">
-  <h2>3. 記録一覧 (Sessions)</h2>
-  <p class="desc">大会・練習・試打を時系列で統合表示。カード左端の色で種別を区別。</p>
+  <h2>3a. Sessions — リストモード (既定)</h2>
+  <p class="desc">v3 からの刷新: 時間軸密度可変 (週/月/年)、サマリーヘッダ、結果の階層表示、検索・絞り込み、右下 FAB。アコーディオン展開は廃止、タップで詳細画面へスライド遷移。</p>
   <div class="frame">
     <div class="header">
-      <div class="left"><span class="material-symbols-outlined">arrow_back</span></div>
+      <div class="left"></div>
       <div class="title">記録</div>
       <div class="right"><span class="material-symbols-outlined">more_vert</span></div>
     </div>
-    <div class="content">
-      <!-- Filter tabs -->
-      <div class="row" style="margin-bottom:12px;flex-wrap:wrap;">
-        <button class="btn btn-primary" style="min-height:36px;padding:6px 14px;font-size:12px;">全て</button>
-        <button class="btn btn-secondary" style="min-height:36px;padding:6px 14px;font-size:12px;">🏆 大会</button>
-        <button class="btn btn-secondary" style="min-height:36px;padding:6px 14px;font-size:12px;">🏃 練習</button>
-        <button class="btn btn-secondary" style="min-height:36px;padding:6px 14px;font-size:12px;">🎾 試打</button>
-        <div style="flex:1;"></div>
-        <button class="btn btn-ghost" style="min-height:36px;padding:6px 10px;font-size:12px;"><span class="material-symbols-outlined" style="font-size:18px;">edit</span>編集</button>
+    <div class="content" style="padding:0;">
+
+      <!-- ① 検索 + 表示切替 -->
+      <div style="padding:10px 12px 6px;display:flex;gap:8px;align-items:center;">
+        <div style="flex:1;display:flex;align-items:center;gap:6px;padding:8px 12px;background:var(--panel);border:1px solid var(--border);border-radius:20px;min-height:40px;">
+          <span class="material-symbols-outlined" style="color:var(--text-secondary);font-size:18px;">search</span>
+          <span style="color:var(--text-muted);font-size:13px;">タイトル・相手・メモを検索</span>
+        </div>
+        <button class="btn btn-secondary" style="min-height:40px;padding:8px 12px;font-size:12px;display:flex;align-items:center;gap:4px;">
+          <span class="material-symbols-outlined" style="font-size:18px;">list</span>
+          リスト
+          <span class="material-symbols-outlined" style="font-size:16px;">arrow_drop_down</span>
+        </button>
       </div>
 
-      <!-- Jump selector -->
-      <div class="field" style="margin-bottom:16px;">
-        <select>
-          <option>▼ 月を選択 ▼</option>
-          <option>2026年4月</option>
-          <option>2026年3月</option>
-        </select>
+      <!-- ② 絞り込みチップ (横スクロール) -->
+      <div style="padding:6px 12px;display:flex;gap:6px;overflow-x:auto;white-space:nowrap;">
+        <span style="display:inline-flex;align-items:center;gap:4px;padding:6px 12px;background:var(--panel);border:1px solid var(--border);border-radius:16px;font-size:13px;color:var(--text-secondary);font-weight:500;min-height:32px;">
+          種類 <span class="material-symbols-outlined" style="font-size:14px;">arrow_drop_down</span>
+        </span>
+        <span style="display:inline-flex;align-items:center;gap:4px;padding:6px 12px;background:var(--primary-light);border:1px solid var(--primary);border-radius:16px;font-size:13px;color:var(--primary);font-weight:600;min-height:32px;">
+          ラケット: Ezone98 <span class="material-symbols-outlined" style="font-size:14px;">close</span>
+        </span>
+        <span style="display:inline-flex;align-items:center;gap:4px;padding:6px 12px;background:var(--panel);border:1px solid var(--border);border-radius:16px;font-size:13px;color:var(--text-secondary);font-weight:500;min-height:32px;">
+          相手 <span class="material-symbols-outlined" style="font-size:14px;">arrow_drop_down</span>
+        </span>
+        <span style="display:inline-flex;align-items:center;gap:4px;padding:6px 12px;background:var(--panel);border:1px solid var(--border);border-radius:16px;font-size:13px;color:var(--text-secondary);font-weight:500;min-height:32px;">
+          結果 <span class="material-symbols-outlined" style="font-size:14px;">arrow_drop_down</span>
+        </span>
       </div>
 
-      <!-- Month: April -->
-      <div class="section-title" style="font-size:13px;color:var(--text-secondary);margin-top:0;">2026年4月 (3件)</div>
+      <!-- ③ サマリー行 -->
+      <div style="padding:8px 16px;background:var(--primary-light);color:var(--primary);font-size:13px;font-weight:500;border-top:1px solid var(--divider);border-bottom:1px solid var(--divider);">
+        今月: 18件（練15 / 大2 / 試1）・直近10試合 7勝3敗
+      </div>
 
-      <div class="session-card tournament">
-        <div class="date">4/18<span class="dow">土</span></div>
-        <div class="body">
-          <div class="title">所沢ベテラン大会</div>
-          <div class="meta">
-            <span class="badge badge-tournament"><span class="material-symbols-outlined">emoji_events</span>優勝</span>
-            <span>シングルス 3勝0敗</span>
-            <span class="sep">·</span>
-            <span>9:00</span>
-            <span class="sep">·</span>
-            <span>所沢市総合運動場</span>
+      <!-- ④ リスト (時間軸密度可変) -->
+      <div style="padding:10px 12px 80px;">
+
+        <!-- 予定 (未来) -->
+        <div style="font-size:13px;font-weight:700;color:var(--text-secondary);margin:8px 2px 6px;display:flex;align-items:center;justify-content:space-between;">
+          <span>予定（未来） <span style="font-weight:500;color:var(--text-muted);font-size:11px;">(12件)</span></span>
+          <span class="material-symbols-outlined" style="font-size:18px;color:var(--text-muted);">expand_more</span>
+        </div>
+
+        <!-- 今週 (日曜始まり) -->
+        <div style="font-size:12px;font-weight:700;color:var(--text-secondary);margin:12px 2px 6px;">
+          今週 (4/19-4/25)
+        </div>
+
+        <!-- 優勝カード: ハイライト + 試打リンクバッジ -->
+        <div style="position:relative;background:var(--tournament-light);border:1.5px solid var(--tournament);border-radius:12px;padding:14px 16px 14px 20px;margin-bottom:6px;box-shadow:0 0 0 3px rgba(249,171,0,0.15);">
+          <div style="position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--tournament);border-radius:12px 0 0 12px;"></div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap;">
+            <span style="font-size:13px;font-weight:600;color:var(--text-secondary);">4/25</span>
+            <span class="badge badge-tournament" style="font-weight:700;"><span class="material-symbols-outlined" style="font-size:13px;">emoji_events</span>優勝</span>
+            <span class="badge badge-trial"><span class="material-symbols-outlined" style="font-size:13px;">verified</span>試打</span>
           </div>
+          <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:2px;">所沢ベテラン大会</div>
+          <div style="font-size:12px;color:var(--text-secondary);">シングルス 3勝0敗 / 所沢市総合運動場</div>
+        </div>
+
+        <!-- 練習カード (種別バッジ + 試打リンクバッジ) -->
+        <div style="position:relative;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px 16px 14px 20px;margin-bottom:6px;">
+          <div style="position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--practice);border-radius:12px 0 0 12px;"></div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap;">
+            <span style="font-size:13px;font-weight:600;color:var(--text-secondary);">4/23</span>
+            <span class="badge badge-practice"><span class="material-symbols-outlined" style="font-size:13px;">person</span>自主練</span>
+            <span class="badge badge-trial"><span class="material-symbols-outlined" style="font-size:13px;">verified</span>試打</span>
+          </div>
+          <div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:2px;">イトマンテニス</div>
+          <div style="font-size:12px;color:var(--text-secondary);">90分 / 心拍145</div>
+        </div>
+
+        <!-- 練習カード (試打リンクなし) -->
+        <div style="position:relative;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px 16px 14px 20px;margin-bottom:6px;">
+          <div style="position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--practice);border-radius:12px 0 0 12px;"></div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+            <span style="font-size:13px;font-weight:600;color:var(--text-secondary);">4/21</span>
+            <span class="badge badge-practice"><span class="material-symbols-outlined" style="font-size:13px;">school</span>スクール</span>
+          </div>
+          <div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:2px;">テニススクール(イトマンテニス)</div>
+          <div style="font-size:12px;color:var(--text-secondary);">90分</div>
+        </div>
+
+        <!-- 先週 -->
+        <div style="font-size:12px;font-weight:700;color:var(--text-secondary);margin:16px 2px 6px;">
+          先週 (4/12-4/18)
+        </div>
+        <div style="position:relative;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px 16px 14px 20px;margin-bottom:6px;">
+          <div style="position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--practice);border-radius:12px 0 0 12px;"></div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+            <span style="font-size:13px;font-weight:600;color:var(--text-secondary);">4/13</span>
+            <span class="badge badge-practice"><span class="material-symbols-outlined" style="font-size:13px;">groups</span>練習会</span>
+          </div>
+          <div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:2px;">航空記念公園</div>
+          <div style="font-size:12px;color:var(--text-secondary);">120分 / 4名</div>
+        </div>
+
+        <!-- 2026年3月 (月畳み) -->
+        <div style="font-size:13px;font-weight:700;color:var(--text-secondary);margin:16px 2px 6px;display:flex;align-items:center;justify-content:space-between;">
+          <span>2026年3月 (16件)</span>
+          <span class="material-symbols-outlined" style="font-size:18px;color:var(--text-muted);">expand_more</span>
+        </div>
+
+        <!-- 準優勝カード: ハイライト表現 (info 系) -->
+        <div style="position:relative;background:#e8f0fe;border:1.5px solid var(--primary);border-radius:12px;padding:14px 16px 14px 20px;margin-bottom:6px;">
+          <div style="position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--tournament);border-radius:12px 0 0 12px;"></div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+            <span style="font-size:13px;font-weight:600;color:var(--text-secondary);">3/22</span>
+            <span class="badge badge-info" style="font-weight:700;"><span class="material-symbols-outlined" style="font-size:13px;">military_tech</span>準優勝</span>
+          </div>
+          <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:2px;">春季市民大会</div>
+          <div style="font-size:12px;color:var(--text-secondary);">ダブルス 2勝1敗 / 大宮けんぽ</div>
+        </div>
+
+        <!-- 2025年 (年畳み) -->
+        <div style="font-size:14px;font-weight:700;color:var(--text);margin:16px 2px 6px;display:flex;align-items:center;justify-content:space-between;">
+          <span>2025年 (245件)</span>
+          <span class="material-symbols-outlined" style="font-size:20px;color:var(--text-muted);">expand_more</span>
         </div>
       </div>
 
-      <div class="session-card practice">
-        <div class="date">4/16<span class="dow">木</span></div>
-        <div class="body">
-          <div class="title">イトマンテニス</div>
-          <div class="meta">
-            <span class="badge badge-practice"><span class="material-symbols-outlined">directions_run</span>自主練</span>
-            <span>19:00-20:30</span>
-            <span class="sep">·</span>
-            <span>90分</span>
-            <span class="sep">·</span>
-            <span>心拍145</span>
-          </div>
+      <!-- ⑤ FAB (画面右下) -->
+      <button style="position:absolute;bottom:72px;right:16px;width:56px;height:56px;border-radius:50%;background:var(--primary);color:#fff;border:none;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,0.15), 0 4px 12px rgba(26,115,232,0.3);cursor:pointer;z-index:100;">
+        <span class="material-symbols-outlined" style="font-size:28px;color:#fff;">add</span>
+      </button>
+    </div>
+    <div class="tabbar">
+      <div class="tab"><span class="material-symbols-outlined">home</span><span>ホーム</span></div>
+      <div class="tab active"><span class="material-symbols-outlined">list_alt</span><span>記録</span></div>
+      <div class="tab"><span class="material-symbols-outlined">sports_tennis</span><span>機材</span></div>
+      <div class="tab"><span class="material-symbols-outlined">edit_note</span><span>計画</span></div>
+      <div class="tab"><span class="material-symbols-outlined">analytics</span><span>分析</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- 3b. カレンダーモード -->
+<div class="wireframe-section">
+  <h2>3b. Sessions — カレンダーモード</h2>
+  <p class="desc">月のマス目で活動を色濃度表示。日タップで小窓に一覧。「今月どれだけ打ったか」が 1 画面で伝わる。</p>
+  <div class="frame">
+    <div class="header">
+      <div class="left"></div>
+      <div class="title">記録</div>
+      <div class="right"><span class="material-symbols-outlined">more_vert</span></div>
+    </div>
+    <div class="content" style="padding:0;">
+      <!-- 表示切替だけ (検索/絞り込みは折り畳み) -->
+      <div style="padding:10px 12px;display:flex;justify-content:space-between;align-items:center;">
+        <button class="btn btn-ghost" style="min-height:36px;padding:4px 10px;font-size:12px;">
+          <span class="material-symbols-outlined" style="font-size:18px;">search</span>
+        </button>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <button class="btn btn-ghost" style="min-height:36px;padding:4px 6px;"><span class="material-symbols-outlined">chevron_left</span></button>
+          <div style="font-size:15px;font-weight:700;color:var(--text);">2026年4月</div>
+          <button class="btn btn-ghost" style="min-height:36px;padding:4px 6px;"><span class="material-symbols-outlined">chevron_right</span></button>
         </div>
+        <button class="btn btn-secondary" style="min-height:36px;padding:6px 10px;font-size:12px;">
+          <span class="material-symbols-outlined" style="font-size:16px;">calendar_month</span>
+          <span class="material-symbols-outlined" style="font-size:14px;">arrow_drop_down</span>
+        </button>
       </div>
 
-      <div class="session-card trial">
-        <div class="date">4/14<span class="dow">火</span></div>
-        <div class="body">
-          <div class="title">Ezone98 2025</div>
-          <div class="meta">
-            <span class="badge badge-trial"><span class="material-symbols-outlined">sports_tennis</span>採用候補</span>
-            <span>Hyper-G 50p</span>
-            <span class="sep">·</span>
-            <span>スピン4 / 推進4</span>
-          </div>
-        </div>
+      <!-- サマリー -->
+      <div style="padding:6px 16px;background:var(--primary-light);color:var(--primary);font-size:13px;font-weight:500;border-top:1px solid var(--divider);border-bottom:1px solid var(--divider);">
+        4月: 18件（練15 / 大2 / 試1）
       </div>
 
-      <!-- Month: March -->
-      <div class="section-title" style="font-size:13px;color:var(--text-secondary);">2026年3月 (5件)</div>
-      <div class="session-card practice">
-        <div class="date">3/28<span class="dow">土</span></div>
-        <div class="body">
-          <div class="title">航空記念公園</div>
-          <div class="meta">
-            <span class="badge badge-practice">練習会</span>
-            <span>13:00-15:00</span>
-            <span class="sep">·</span>
-            <span>120分</span>
-            <span class="sep">·</span>
-            <span>4名</span>
-          </div>
-        </div>
+      <!-- 曜日ヘッダ -->
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);padding:8px 8px 4px;gap:4px;text-align:center;font-size:11px;font-weight:600;color:var(--text-muted);">
+        <div>月</div><div>火</div><div>水</div><div>木</div><div>金</div><div style="color:var(--primary);">土</div><div style="color:var(--error);">日</div>
       </div>
-      <div class="session-card tournament">
-        <div class="date">3/22<span class="dow">日</span></div>
-        <div class="body">
-          <div class="title">春季市民大会</div>
-          <div class="meta">
-            <span class="badge badge-tournament"><span class="material-symbols-outlined">emoji_events</span>準優勝</span>
-            <span>ダブルス 2勝1敗</span>
-            <span class="sep">·</span>
-            <span>大宮けんぽ</span>
-          </div>
-        </div>
+
+      <!-- カレンダーグリッド -->
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);padding:0 8px;gap:4px;">
+        <!-- Week 1 (3/30, 3/31, 4/1, 4/2, 4/3, 4/4, 4/5) -->
+        <div style="aspect-ratio:1;background:var(--panel2);border-radius:6px;display:flex;flex-direction:column;padding:4px;"><span style="font-size:11px;color:var(--text-muted);">30</span></div>
+        <div style="aspect-ratio:1;background:var(--panel2);border-radius:6px;display:flex;flex-direction:column;padding:4px;"><span style="font-size:11px;color:var(--text-muted);">31</span></div>
+        <div style="aspect-ratio:1;background:var(--panel);border:1px solid var(--border);border-radius:6px;display:flex;flex-direction:column;padding:4px;"><span style="font-size:12px;color:var(--text);">1</span></div>
+        <div style="aspect-ratio:1;background:var(--practice-light);border:1px solid var(--border);border-radius:6px;display:flex;flex-direction:column;padding:4px;"><span style="font-size:12px;">2</span><div style="flex:1;"></div><div style="width:6px;height:6px;background:var(--practice);border-radius:50%;margin-top:auto;"></div></div>
+        <div style="aspect-ratio:1;background:var(--panel);border:1px solid var(--border);border-radius:6px;display:flex;flex-direction:column;padding:4px;"><span style="font-size:12px;">3</span></div>
+        <div style="aspect-ratio:1;background:var(--practice-light);border:1px solid var(--border);border-radius:6px;display:flex;flex-direction:column;padding:4px;"><span style="font-size:12px;color:var(--primary);">4</span><div style="flex:1;"></div><div style="width:6px;height:6px;background:var(--practice);border-radius:50%;"></div></div>
+        <div style="aspect-ratio:1;background:var(--panel);border:1px solid var(--border);border-radius:6px;display:flex;flex-direction:column;padding:4px;"><span style="font-size:12px;color:var(--error);">5</span></div>
+
+        <!-- Week 2 -->
+        <div style="aspect-ratio:1;background:var(--panel);border:1px solid var(--border);border-radius:6px;display:flex;flex-direction:column;padding:4px;"><span style="font-size:12px;">6</span></div>
+        <div style="aspect-ratio:1;background:var(--practice-light);border:1px solid var(--border);border-radius:6px;display:flex;flex-direction:column;padding:4px;"><span style="font-size:12px;">7</span><div style="flex:1;"></div><div style="width:6px;height:6px;background:var(--practice);border-radius:50%;"></div></div>
+        <div style="aspect-ratio:1;background:var(--practice-light);border:1px solid var(--border);border-radius:6px;display:flex;flex-direction:column;padding:4px;"><span style="font-size:12px;">8</span><div style="flex:1;"></div><div style="display:flex;gap:2px;"><div style="width:6px;height:6px;background:var(--practice);border-radius:50%;"></div><div style="width:6px;height:6px;background:var(--trial);border-radius:50%;"></div></div></div>
+        <div style="aspect-ratio:1;background:var(--panel);border:1px solid var(--border);border-radius:6px;display:flex;flex-direction:column;padding:4px;"><span style="font-size:12px;">9</span></div>
+        <div style="aspect-ratio:1;background:var(--panel);border:1px solid var(--border);border-radius:6px;display:flex;flex-direction:column;padding:4px;"><span style="font-size:12px;">10</span></div>
+        <div style="aspect-ratio:1;background:var(--practice-light);border:1px solid var(--border);border-radius:6px;display:flex;flex-direction:column;padding:4px;"><span style="font-size:12px;color:var(--primary);">11</span><div style="flex:1;"></div><div style="width:6px;height:6px;background:var(--practice);border-radius:50%;"></div></div>
+        <div style="aspect-ratio:1;background:var(--panel);border:1px solid var(--border);border-radius:6px;display:flex;flex-direction:column;padding:4px;"><span style="font-size:12px;color:var(--error);">12</span></div>
+
+        <!-- Week 3 -->
+        <div style="aspect-ratio:1;background:var(--panel);border:1px solid var(--border);border-radius:6px;display:flex;flex-direction:column;padding:4px;"><span style="font-size:12px;">13</span></div>
+        <div style="aspect-ratio:1;background:var(--trial-light);border:1px solid var(--border);border-radius:6px;display:flex;flex-direction:column;padding:4px;"><span style="font-size:12px;">14</span><div style="flex:1;"></div><div style="width:6px;height:6px;background:var(--trial);border-radius:50%;"></div></div>
+        <div style="aspect-ratio:1;background:var(--panel);border:1px solid var(--border);border-radius:6px;display:flex;flex-direction:column;padding:4px;"><span style="font-size:12px;">15</span></div>
+        <div style="aspect-ratio:1;background:var(--practice-light);border:1px solid var(--practice);border-radius:6px;display:flex;flex-direction:column;padding:4px;"><span style="font-size:12px;">16</span><div style="flex:1;"></div><div style="width:6px;height:6px;background:var(--practice);border-radius:50%;"></div></div>
+        <div style="aspect-ratio:1;background:var(--panel);border:1px solid var(--border);border-radius:6px;display:flex;flex-direction:column;padding:4px;"><span style="font-size:12px;">17</span></div>
+        <div style="aspect-ratio:1;background:var(--tournament-light);border:1.5px solid var(--tournament);border-radius:6px;display:flex;flex-direction:column;padding:4px;"><span style="font-size:12px;font-weight:700;color:var(--primary);">18</span><div style="flex:1;display:flex;align-items:center;justify-content:center;"><span class="material-symbols-outlined" style="font-size:14px;color:var(--tournament);">emoji_events</span></div></div>
+        <div style="aspect-ratio:1;background:var(--panel);border:1px solid var(--border);border-radius:6px;display:flex;flex-direction:column;padding:4px;"><span style="font-size:12px;color:var(--error);">19</span></div>
+
+        <!-- Week 4 -->
+        <div style="aspect-ratio:1;background:var(--panel);border:2px solid var(--primary);border-radius:6px;display:flex;flex-direction:column;padding:4px;"><span style="font-size:12px;font-weight:700;color:var(--primary);">20</span></div>
+        <div style="aspect-ratio:1;background:var(--panel);border:1px solid var(--border);border-radius:6px;display:flex;flex-direction:column;padding:4px;"><span style="font-size:12px;">21</span></div>
+        <div style="aspect-ratio:1;background:var(--panel);border:1px solid var(--border);border-radius:6px;display:flex;flex-direction:column;padding:4px;"><span style="font-size:12px;">22</span></div>
+        <div style="aspect-ratio:1;background:var(--panel);border:1px solid var(--border);border-radius:6px;display:flex;flex-direction:column;padding:4px;"><span style="font-size:12px;">23</span></div>
+        <div style="aspect-ratio:1;background:var(--panel);border:1px solid var(--border);border-radius:6px;display:flex;flex-direction:column;padding:4px;"><span style="font-size:12px;">24</span></div>
+        <div style="aspect-ratio:1;background:var(--panel);border:1px solid var(--border);border-radius:6px;display:flex;flex-direction:column;padding:4px;"><span style="font-size:12px;">25</span></div>
+        <div style="aspect-ratio:1;background:var(--panel);border:1px solid var(--border);border-radius:6px;display:flex;flex-direction:column;padding:4px;"><span style="font-size:12px;color:var(--error);">26</span></div>
+
+        <!-- Week 5 -->
+        <div style="aspect-ratio:1;background:var(--panel);border:1px solid var(--border);border-radius:6px;display:flex;flex-direction:column;padding:4px;"><span style="font-size:12px;">27</span></div>
+        <div style="aspect-ratio:1;background:var(--panel);border:1px solid var(--border);border-radius:6px;display:flex;flex-direction:column;padding:4px;"><span style="font-size:12px;">28</span></div>
+        <div style="aspect-ratio:1;background:var(--panel);border:1px solid var(--border);border-radius:6px;display:flex;flex-direction:column;padding:4px;"><span style="font-size:12px;">29</span></div>
+        <div style="aspect-ratio:1;background:var(--panel);border:1px solid var(--border);border-radius:6px;display:flex;flex-direction:column;padding:4px;"><span style="font-size:12px;">30</span></div>
       </div>
+
+      <!-- 凡例 -->
+      <div style="padding:12px 16px;display:flex;gap:12px;flex-wrap:wrap;font-size:11px;color:var(--text-secondary);border-top:1px solid var(--divider);margin-top:8px;">
+        <span><span style="display:inline-block;width:10px;height:10px;background:var(--practice);border-radius:50%;vertical-align:middle;"></span> 練習</span>
+        <span><span style="display:inline-block;width:10px;height:10px;background:var(--tournament);border-radius:2px;vertical-align:middle;"></span> 大会</span>
+        <span><span style="display:inline-block;width:10px;height:10px;background:var(--trial);border-radius:50%;vertical-align:middle;"></span> 試打</span>
+        <span><span style="display:inline-block;width:10px;height:10px;background:var(--panel);border:2px solid var(--primary);border-radius:2px;vertical-align:middle;"></span> 今日</span>
+      </div>
+
+      <!-- FAB -->
+      <button style="position:absolute;bottom:72px;right:16px;width:56px;height:56px;border-radius:50%;background:var(--primary);color:#fff;border:none;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,0.15), 0 4px 12px rgba(26,115,232,0.3);cursor:pointer;z-index:100;">
+        <span class="material-symbols-outlined" style="font-size:28px;color:#fff;">add</span>
+      </button>
+    </div>
+    <div class="tabbar">
+      <div class="tab"><span class="material-symbols-outlined">home</span><span>ホーム</span></div>
+      <div class="tab active"><span class="material-symbols-outlined">list_alt</span><span>記録</span></div>
+      <div class="tab"><span class="material-symbols-outlined">sports_tennis</span><span>機材</span></div>
+      <div class="tab"><span class="material-symbols-outlined">edit_note</span><span>計画</span></div>
+      <div class="tab"><span class="material-symbols-outlined">analytics</span><span>分析</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- 3c. 年間濃淡モード -->
+<div class="wireframe-section">
+  <h2>3c. Sessions — 年間濃淡モード</h2>
+  <p class="desc">1 年 365 マスで活動密度を一望。空白期間と集中期間が一目で伝わる。年切替で過去 3 年を比較可能。</p>
+  <div class="frame">
+    <div class="header">
+      <div class="left"></div>
+      <div class="title">記録</div>
+      <div class="right"><span class="material-symbols-outlined">more_vert</span></div>
+    </div>
+    <div class="content" style="padding:0;">
+      <div style="padding:10px 12px;display:flex;justify-content:space-between;align-items:center;">
+        <button class="btn btn-ghost" style="min-height:36px;padding:4px 10px;font-size:12px;">
+          <span class="material-symbols-outlined" style="font-size:18px;">search</span>
+        </button>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <button class="btn btn-ghost" style="min-height:36px;padding:4px 6px;"><span class="material-symbols-outlined">chevron_left</span></button>
+          <div style="font-size:15px;font-weight:700;color:var(--text);">2026年</div>
+          <button class="btn btn-ghost" style="min-height:36px;padding:4px 6px;"><span class="material-symbols-outlined">chevron_right</span></button>
+        </div>
+        <button class="btn btn-secondary" style="min-height:36px;padding:6px 10px;font-size:12px;">
+          <span class="material-symbols-outlined" style="font-size:16px;">grid_view</span>
+          <span class="material-symbols-outlined" style="font-size:14px;">arrow_drop_down</span>
+        </button>
+      </div>
+
+      <div style="padding:6px 16px;background:var(--primary-light);color:var(--primary);font-size:13px;font-weight:500;border-top:1px solid var(--divider);border-bottom:1px solid var(--divider);">
+        2026年: 156件 (練習 138 / 大会 10 / 試打 8)
+      </div>
+
+      <!-- 365 マスのグリッド (12ヶ月 × 最大31日) -->
+      <div style="padding:12px 10px;">
+        <!-- 日付ヘッダ -->
+        <div style="display:grid;grid-template-columns:30px repeat(31,1fr);gap:2px;margin-bottom:2px;">
+          <span></span>
+          <span style="font-size:9px;color:var(--text-muted);text-align:center;">1</span>
+          <span></span><span></span><span></span>
+          <span style="font-size:9px;color:var(--text-muted);text-align:center;">5</span>
+          <span></span><span></span><span></span><span></span>
+          <span style="font-size:9px;color:var(--text-muted);text-align:center;">10</span>
+          <span></span><span></span><span></span><span></span>
+          <span style="font-size:9px;color:var(--text-muted);text-align:center;">15</span>
+          <span></span><span></span><span></span><span></span>
+          <span style="font-size:9px;color:var(--text-muted);text-align:center;">20</span>
+          <span></span><span></span><span></span><span></span>
+          <span style="font-size:9px;color:var(--text-muted);text-align:center;">25</span>
+          <span></span><span></span><span></span><span></span>
+          <span style="font-size:9px;color:var(--text-muted);text-align:center;">30</span>
+          <span></span>
+        </div>
+        <div id="year-heatmap" style="display:grid;grid-template-columns:30px repeat(31,1fr);gap:2px;"></div>
+      </div>
+
+      <!-- 凡例 -->
+      <div style="padding:12px 16px;display:flex;gap:8px;align-items:center;font-size:11px;color:var(--text-secondary);border-top:1px solid var(--divider);">
+        <span>活動量</span>
+        <div style="width:10px;height:10px;background:var(--panel2);border-radius:2px;"></div>
+        <div style="width:10px;height:10px;background:var(--practice-light);border-radius:2px;"></div>
+        <div style="width:10px;height:10px;background:#a8dcb8;border-radius:2px;"></div>
+        <div style="width:10px;height:10px;background:var(--practice);border-radius:2px;"></div>
+        <span>少なめ — 多め</span>
+        <div style="width:10px;height:10px;background:var(--tournament);border-radius:2px;margin-left:auto;"></div>
+        <span>大会日</span>
+      </div>
+
+      <!-- FAB -->
+      <button style="position:absolute;bottom:72px;right:16px;width:56px;height:56px;border-radius:50%;background:var(--primary);color:#fff;border:none;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,0.15), 0 4px 12px rgba(26,115,232,0.3);cursor:pointer;z-index:100;">
+        <span class="material-symbols-outlined" style="font-size:28px;color:#fff;">add</span>
+      </button>
     </div>
     <div class="tabbar">
       <div class="tab"><span class="material-symbols-outlined">home</span><span>ホーム</span></div>
@@ -778,64 +999,79 @@ body {
 </div>
 
 <!-- ========================================================================
-     4. Sessions 展開
+     4. Session 詳細画面 (slide-in、2026-04-21 改訂、アコーディオン廃止)
      ======================================================================== -->
 <div class="wireframe-section">
-  <h2>4. カード展開時の詳細</h2>
-  <p class="desc">一覧カードをタップすると、カード下部に詳細概要がアコーディオンで展開されます。</p>
+  <h2>4. Session 詳細画面 (slide-in)</h2>
+  <p class="desc">カードタップで横スライドして遷移。リストが崩れず、戻ると前のスクロール位置が復元される。v3 のアコーディオン展開を廃止。</p>
   <div class="frame">
     <div class="header">
       <div class="left"><span class="material-symbols-outlined">arrow_back</span></div>
-      <div class="title">記録</div>
-      <div class="right"><span class="material-symbols-outlined">more_vert</span></div>
+      <div class="title">所沢ベテラン大会</div>
+      <div class="right"><span class="material-symbols-outlined">edit</span></div>
     </div>
     <div class="content">
-      <!-- Expanded card -->
-      <div class="session-card tournament" style="border-bottom-left-radius:0;border-bottom-right-radius:0;background:var(--panel2);">
-        <div class="date">4/18<span class="dow">土</span></div>
-        <div class="body">
-          <div class="title">所沢ベテラン大会</div>
-          <div class="meta">
-            <span class="badge badge-tournament"><span class="material-symbols-outlined">emoji_events</span>優勝</span>
-            <span>シングルス 3勝0敗</span>
-            <span class="sep">·</span>
-            <span>9:00</span>
-          </div>
-        </div>
-        <div><span class="material-symbols-outlined" style="transform:rotate(90deg);color:var(--primary);">chevron_right</span></div>
+      <!-- 日付・種類・結果 -->
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
+        <span style="font-size:14px;color:var(--text-secondary);font-weight:500;">2026/4/18 (土)</span>
+        <span class="badge badge-tournament" style="font-weight:700;"><span class="material-symbols-outlined" style="font-size:13px;">emoji_events</span>優勝</span>
       </div>
-      <!-- Expansion -->
-      <div style="background:var(--panel);border:1px solid var(--border);border-top:none;border-radius:0 0 12px 12px;padding:var(--lg);margin-bottom:8px;">
-        <div class="grid-2" style="margin-bottom:12px;">
-          <div><div style="font-size:11px;color:var(--text-muted);">会場</div><div style="font-size:13px;">所沢市総合運動場</div></div>
-          <div><div style="font-size:11px;color:var(--text-muted);">ラケット</div><div style="font-size:13px;">Ezone98 2025</div></div>
-          <div><div style="font-size:11px;color:var(--text-muted);">気温</div><div style="font-size:13px;">22℃</div></div>
-          <div><div style="font-size:11px;color:var(--text-muted);">天気</div><div style="font-size:13px;">晴れ</div></div>
-        </div>
 
-        <div style="margin-bottom:12px;">
-          <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;"><span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle;">note</span> 大会メモ</div>
-          <div style="font-size:13px;background:var(--panel2);padding:8px 12px;border-radius:6px;border-left:3px solid var(--border);">集中力を最後まで維持できた。サーブの調子が特に良かった。</div>
-        </div>
+      <!-- 概要グリッド -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;background:var(--panel2);padding:14px;border-radius:10px;">
+        <div><div style="font-size:11px;color:var(--text-muted);margin-bottom:2px;">📍 会場</div><div style="font-size:13px;font-weight:500;">所沢市総合運動場</div></div>
+        <div><div style="font-size:11px;color:var(--text-muted);margin-bottom:2px;">🎾 ラケット</div><div style="font-size:13px;font-weight:500;">Ezone98 2025</div></div>
+        <div><div style="font-size:11px;color:var(--text-muted);margin-bottom:2px;">🧵 ストリング</div><div style="font-size:13px;font-weight:500;">Hyper-G 1.25 50p</div></div>
+        <div><div style="font-size:11px;color:var(--text-muted);margin-bottom:2px;">🌤 天気</div><div style="font-size:13px;font-weight:500;">22℃ 晴れ</div></div>
+      </div>
 
-        <div style="font-size:13px;font-weight:600;color:var(--primary);margin-bottom:8px;">▶ 試合記録 (3試合)</div>
-        <div style="background:var(--panel2);border-radius:6px;padding:8px 12px;margin-bottom:6px;font-size:13px;">
-          <span style="font-weight:600;">1回戦</span> vs 田中さん — <span class="badge badge-success">勝利</span> 6-2 6-3
+      <!-- メモ -->
+      <div style="margin-bottom:16px;">
+        <div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;">📝 大会メモ</div>
+        <div style="font-size:13px;background:var(--panel);padding:10px 12px;border-radius:8px;border:1px solid var(--border);border-left:3px solid var(--tournament);line-height:1.6;">
+          集中力を最後まで維持できた。サーブの調子が特に良かった。決勝の 7-5 が大きかった。
         </div>
-        <div style="background:var(--panel2);border-radius:6px;padding:8px 12px;margin-bottom:6px;font-size:13px;">
-          <span style="font-weight:600;">準決勝</span> vs 鈴木さん — <span class="badge badge-success">勝利</span> 6-4 6-4
-        </div>
-        <div style="background:var(--panel2);border-radius:6px;padding:8px 12px;margin-bottom:12px;font-size:13px;">
-          <span style="font-weight:600;">決勝</span> vs 佐藤さん — <span class="badge badge-success">勝利</span> 7-5 6-4
-        </div>
+      </div>
 
-        <div style="display:flex;gap:8px;">
-          <button class="btn btn-secondary" style="flex:1;"><span class="material-symbols-outlined">edit</span>編集</button>
-          <button class="btn btn-ghost"><span class="material-symbols-outlined">content_copy</span></button>
-          <button class="btn btn-danger" style="padding:10px 14px;"><span class="material-symbols-outlined">delete</span></button>
+      <!-- 試合記録 -->
+      <div style="margin-bottom:16px;">
+        <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:8px;display:flex;align-items:center;gap:4px;">
+          <span class="material-symbols-outlined" style="font-size:16px;">sports_tennis</span>
+          試合記録 (3試合)
         </div>
+        <div style="background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:6px;font-size:13px;">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;"><span style="font-weight:700;color:var(--text-secondary);font-size:12px;">1回戦</span><span>vs 田中さん</span><span class="badge badge-success" style="margin-left:auto;">勝利</span></div>
+          <div style="color:var(--text-secondary);font-size:12px;">6-2, 6-3</div>
+        </div>
+        <div style="background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:6px;font-size:13px;">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;"><span style="font-weight:700;color:var(--text-secondary);font-size:12px;">準決勝</span><span>vs 鈴木さん</span><span class="badge badge-success" style="margin-left:auto;">勝利</span></div>
+          <div style="color:var(--text-secondary);font-size:12px;">6-4, 6-4</div>
+        </div>
+        <div style="background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:6px;font-size:13px;">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;"><span style="font-weight:700;color:var(--text-secondary);font-size:12px;">決勝</span><span>vs 佐藤さん</span><span class="badge badge-success" style="margin-left:auto;">勝利</span></div>
+          <div style="color:var(--text-secondary);font-size:12px;">7-5, 6-3</div>
+        </div>
+      </div>
+
+      <!-- 関連セッション (v4 新機能、S20) -->
+      <div style="margin-bottom:16px;padding:12px;background:var(--primary-light);border-radius:10px;border-left:3px solid var(--primary);">
+        <div style="font-size:12px;font-weight:700;color:var(--primary);margin-bottom:8px;display:flex;align-items:center;gap:4px;">
+          <span class="material-symbols-outlined" style="font-size:14px;">link</span>
+          関連セッション <span style="font-size:10px;font-weight:400;opacity:0.8;">(機械的に推論)</span>
+        </div>
+        <div style="font-size:12px;color:var(--text);margin-bottom:4px;">• 直前 2 週間の練習: <b>5 回</b> (合計 8 時間)</div>
+        <div style="font-size:12px;color:var(--text);margin-bottom:4px;">• 同ラケット構成の過去大会: <b>3 件</b> (優勝 1 / ベスト 8 / 予選敗退)</div>
+        <div style="font-size:12px;color:var(--text);">• 試打採用から使用開始: <b>2026/3/15 採用</b></div>
+      </div>
+
+      <!-- アクション -->
+      <div style="display:flex;gap:8px;margin-top:20px;">
+        <button class="btn btn-secondary" style="flex:1;"><span class="material-symbols-outlined">edit</span>編集</button>
+        <button class="btn btn-ghost"><span class="material-symbols-outlined">content_copy</span></button>
+        <button class="btn btn-danger" style="padding:10px 14px;"><span class="material-symbols-outlined">delete</span></button>
       </div>
     </div>
+    <!-- TabBar はこの画面では表示 (全画面編集ではない、閲覧のみ) -->
     <div class="tabbar">
       <div class="tab"><span class="material-symbols-outlined">home</span><span>ホーム</span></div>
       <div class="tab active"><span class="material-symbols-outlined">list_alt</span><span>記録</span></div>
@@ -1002,9 +1238,58 @@ body {
 </div>
 
 <div class="intro" style="text-align:center;margin-top:var(--3xl);">
-  <p style="color:var(--text-muted);font-size:12px;">Tennis DB v4 Wireframes — Stage S3</p>
+  <p style="color:var(--text-muted);font-size:12px;">Tennis DB v4 Wireframes — Stage S5 (2026-04-21 再設計)</p>
   <p style="color:var(--text-muted);font-size:12px;">DESIGN_SYSTEM_v4.md / WIREFRAMES_v4.md に基づく視覚プロトタイプ</p>
 </div>
+
+<script>
+// 年間濃淡 (3c) の 365 マスを生成
+(function(){
+  var grid = document.getElementById('year-heatmap');
+  if (!grid) return;
+  var months = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+  var daysInMonth = [31,28,31,30,31,30,31,31,30,31,30,31]; // 2026 is not leap
+  // ダミーの活動量データ (現実的な密度で散らす)
+  function activityFor(mIdx, d) {
+    // 大会日
+    if ((mIdx===3 && d===18) || (mIdx===2 && d===22) || (mIdx===1 && d===8)) return {type:'tournament'};
+    // 週末・平日の傾向
+    var dayOfYear = 0;
+    for (var i=0;i<mIdx;i++) dayOfYear += daysInMonth[i];
+    dayOfYear += d;
+    // 擬似ランダム (再現性のため)
+    var seed = (dayOfYear * 9301 + 49297) % 233280;
+    var rand = seed / 233280;
+    if (rand < 0.55) return null; // 休み
+    if (rand < 0.75) return {type:'practice', intensity:1};
+    if (rand < 0.9) return {type:'practice', intensity:2};
+    return {type:'practice', intensity:3};
+  }
+  var today = {m:3, d:21}; // 2026/4/21
+  var html = '';
+  for (var m=0; m<12; m++) {
+    html += '<div style="font-size:10px;color:var(--text-muted);padding:2px 4px;line-height:10px;align-self:center;">' + months[m] + '</div>';
+    for (var d=1; d<=31; d++) {
+      if (d > daysInMonth[m]) {
+        html += '<div style="background:transparent;"></div>';
+        continue;
+      }
+      var act = activityFor(m, d);
+      var bg = 'var(--panel2)';
+      var border = '';
+      if (act) {
+        if (act.type === 'tournament') bg = 'var(--tournament)';
+        else if (act.intensity === 1) bg = 'var(--practice-light)';
+        else if (act.intensity === 2) bg = '#a8dcb8';
+        else bg = 'var(--practice)';
+      }
+      if (today.m === m && today.d === d) border = 'border:1.5px solid var(--primary);';
+      html += '<div title="'+(m+1)+'/'+d+(act?' '+act.type:'')+'" style="aspect-ratio:1;background:'+bg+';border-radius:2px;'+border+'"></div>';
+    }
+  }
+  grid.innerHTML = html;
+})();
+</script>
 
 </body>
 </html>

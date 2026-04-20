@@ -2,23 +2,27 @@
 const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
 // ── 定数定義（色・キー・バージョン）─────────────
-const APP_VERSION="4.0.0-S4";
+const APP_VERSION="4.0.0-S5";
 const font="-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif";
 
-// 色設計（v3 の WCAG 違反を反省し、3段階の情報階層を明示）
-// text: 主情報 AAA 16.5:1 (on white)
-// textSecondary: 副情報 AAA 11.7:1
-// textMuted: 補助情報 AA+ 6.1:1（v3 の textMuted/textDim を統合）
+// 色設計（DESIGN_SYSTEM_v4.md §1 準拠）
+// Primary (青) を主色、Sessions カテゴリ (Orange/Green/Purple)、Semantic (Info/Success/Warning/Error)
 const C={
-  bg:"#f2f2f7",panel:"#fff",panel2:"#f5f5f7",border:"#e0e0e4",
-  text:"#1a1a1a",
-  textSecondary:"#3a3a3c",
-  textMuted:"#5a5a5f",
-  accent:"#00b87a",accentBg:"rgba(0,184,122,0.08)",
-  red:"#dc2626",redBg:"#fef2f2",
-  blue:"#2563eb",blueBg:"rgba(37,99,235,0.08)",
-  yellow:"#f59e0b",yellowBg:"rgba(245,158,11,0.08)",
-  purple:"#7c3aed",purpleBg:"rgba(124,58,237,0.08)",
+  // Surface (§1.5)
+  bg:"#f8f9fa",panel:"#ffffff",panel2:"#f1f3f4",border:"#dadce0",divider:"#e8eaed",
+  // Text (§1.4)
+  text:"#202124",textSecondary:"#5f6368",textMuted:"#80868b",
+  // Primary (§1.1)
+  primary:"#1a73e8",primaryHover:"#1765cc",primaryLight:"#e8f0fe",
+  // Sessions カテゴリ (§1.2) — 左端色帯・アイコン色に使用
+  tournamentAccent:"#f9ab00",tournamentLight:"#feefc3",
+  practiceAccent:"#0f9d58",practiceLight:"#e6f4ea",
+  trialAccent:"#9334e0",trialLight:"#f3e8fd",
+  // Semantic (§1.3)
+  info:"#1a73e8",infoLight:"#e8f0fe",
+  success:"#0f9d58",successLight:"#e6f4ea",
+  warning:"#fbbc04",warningLight:"#fef7e0",
+  error:"#d93025",errorLight:"#fce8e6",
 };
 
 // localStorage プレフィックス（v2 時代から継承。変更禁止）

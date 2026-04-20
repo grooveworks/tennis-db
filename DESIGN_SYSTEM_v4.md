@@ -450,6 +450,209 @@ focus リング: `outline: 2px solid #1a73e8; outline-offset: 2px;` を全 focus
 
 ---
 
+## 8.5 Sessions タブ専用コンポーネント (2026-04-21 追加)
+
+Sessions タブ再設計に伴い追加される新コンポーネント群。§4 の基本コンポーネントと整合するよう同一トークン (色・余白・半径) を使う。
+
+### 8.5.1 SearchBar (検索入力)
+
+| 属性 | 値 |
+|---|---|
+| 高さ | 40px |
+| padding | `8px 12px` |
+| border | 1px solid `border` (#dadce0) |
+| border-radius | 20px (完全な丸端) |
+| font-size | 14px |
+| 左端 | `search` アイコン (18px, textSecondary) |
+| 右端 | 入力中のみ `x` アイコン (クリア) |
+| focus | border `primary`, shadow `0 0 0 2px #e8f0fe` |
+| placeholder | 「タイトル・相手・メモを検索」 |
+
+### 8.5.2 FilterChip (絞り込みチップ)
+
+複数同時掛け可、横スクロールで並べる。選択状態で primary 色に変化。
+
+| 属性 | 値 |
+|---|---|
+| 高さ | 32px |
+| padding | `6px 12px` (アイコン付 左側 6px) |
+| border-radius | 16px (pill) |
+| font-size | 13px |
+| font-weight | 未選択 500 / 選択 600 |
+| gap (アイコン-文字) | 4px |
+
+| 状態 | 背景 | 文字 | border |
+|---|---|---|---|
+| 非選択 (チップ既定) | `panel` (#fff) | `textSecondary` | 1px `border` |
+| 選択中 (単体、例: 「種類」だけ) | `primaryLight` | `primary` | 1px `primary` |
+| 選択中 (値が決まっている、例:「ラケット: Ezone98」) | `primaryLight` | `primary` | 1px `primary` |
+| タップ | 上記 + `scale(0.98)` 150ms |
+
+タップで **ドロワー** (画面下から出るシート) が開き、候補を選択する。単一値でも複数値でも対応。
+
+### 8.5.3 ViewModeToggle (表示切替)
+
+リスト / カレンダー / 年間濃淡 の 3 択。
+
+- 形態: ドロップダウン (Select ではなく、アイコン付)
+- 高さ 40px、右端にアイコン + 現在モード名
+- タップでポップオーバーメニューが開く
+- メニュー項目: アイコン + ラベル + (現在選択中のチェックマーク)
+
+| アイコン | ラベル | Lucide 名 |
+|---|---|---|
+| リスト | `list` |
+| カレンダー | `calendar-days` |
+| 年間濃淡 | `grid-3x3` |
+
+### 8.5.4 SummaryHeader (サマリー行)
+
+Sessions タブ上部の状況ダイジェスト行。
+
+| 属性 | 値 |
+|---|---|
+| padding | `8px 16px` |
+| background | `primaryLight` (#e8f0fe) |
+| 文字色 | `primary` (#1a73e8) |
+| font-size | 13px |
+| font-weight | 500 |
+| 形態 | 1 行テキスト (必要に応じ 2 行) |
+
+例:
+- 通常: 「今月: 18件（練習15 / 大会2 / 試打1）・直近10試合 7勝3敗」
+- 絞り込み中: 「絞り込み結果: 12件 / 950件」
+
+### 8.5.5 SessionCard (改訂版、§4.2 Card をベースに拡張)
+
+§4.2 Card に以下を追加:
+
+| 属性 | 値 |
+|---|---|
+| 左端色帯 | 3px 幅、種類色 (tournament / practice) |
+| padding | `14px 16px 14px 20px` (左帯分だけ padding-left を厚めに) |
+| margin-bottom | 6px |
+
+**Sessions 一覧に出すカードは大会と練習のみ**。試打は独立カードにせず、trialBadge として付随表示（後述）。
+
+**結果の階層表現** (大会カードのみ):
+
+| 結果 | 表現 |
+|---|---|
+| 優勝 | カード背景 `tournamentLight`、枠 1.5px `tournamentAccent`、shadow `0 0 0 3px rgba(249,171,0,0.15)` |
+| 準優勝 | カード背景 `primaryLight`、枠 1.5px `primary` |
+| 3位 | カード背景 `trialLight`、枠 1.5px `trialAccent` |
+| ベスト8/16、予選突破 | 通常カード + Badge |
+| 敗退・予選敗退 | 通常カード + Badge (error) |
+| 練習 (既定) | 通常カード + 種別バッジ (スクール/自主練/練習会/ゲーム練習/球出し/練習試合/フィジカル、practice variant) |
+
+**カード 1 行目 (メタ行)**:
+- 日付 (13px, `textSecondary`, 通常字体): 「4/18」
+- [resultBadge] 大会の結果 (優勝/準優勝等、該当時のみ)
+- [sideBadge] 練習の種別 (該当時)
+- [trialBadge] 試打リンク表示 (該当時、後述)
+
+**カード 2 行目 (タイトル)**:
+- 15px, `text`, font-weight 600 (優勝/準優勝/3位は 700): 「所沢ベテラン大会」
+
+**カード 3 行目 (メタ行)**:
+- 12px, `textSecondary`: 「シングルス 3勝0敗 / 所沢市総合運動場」
+
+### 8.5.5.1 試打リンクバッジ (trialBadge)
+
+試打 (trial) は大会内の試合や練習中に行う付随活動と定義し、独立したカードにしない。その代わり、**紐付き先の大会/練習カードに `trial variant` の小さなバッジを追加** して「この記録には試打が含まれる」ことを示す。
+
+| 属性 | 値 |
+|---|---|
+| ラベル | 「試打」固定 |
+| variant | `trial` (紫系) |
+| icon | `badge-check` |
+| 位置 | カード 1 行目の末尾 (resultBadge/sideBadge の右) |
+
+**紐付き判定**:
+- 大会: `trial.linkedMatchId` が大会の `matches[].id` のいずれかと一致
+- 練習: `trial.linkedPracticeId` が練習の `id` と一致
+
+孤立試打 (link 無し) は S6 時点では非表示。S16 (機材タブ) / S20 (自動連関) で扱いを確定。
+
+### 8.5.6 TimeGroupHeader (時間軸の区切り見出し)
+
+リストの週/月/年の区切り。
+
+| 属性 | 値 |
+|---|---|
+| 週 (直近 4 週) | font-size 12px, font-weight 700, `textSecondary`, 例: 「今週 (4/15-4/21)」 |
+| 月 (4 週〜1 年) | font-size 13px, font-weight 700, `textSecondary`, 例: 「2026年3月 (16件)」 |
+| 年 (1 年以上) | font-size 14px, font-weight 700, `text`, 例: 「2025年 (245件)」+ 折り畳み矢印 |
+| sticky | 位置: scroll 親の top 0、背景 `bg`、上下 padding 4px |
+
+### 8.5.7 CalendarGrid (カレンダーマス)
+
+月のマス目。7 列 × 最大 6 行。
+
+| 属性 | 値 |
+|---|---|
+| 1 マスのサイズ | `1fr` (可変) × 44px 以上 (タップ領域) |
+| 1 マスの padding | 4px |
+| 背景 | `panel` |
+| 空マス (月外) | `panel2`、日付文字は `textMuted` |
+| 今日マス | 枠 2px `primary` |
+| 活動マーカー | マス下部に色ドット、練習=緑・大会=オレンジ・試打=紫 |
+| 活動量濃淡 (練習) | 時間 30分未満=Light、30-60分=中、60分超=Accent (3段階) |
+| 大会日 | マス全体が `tournamentLight` で塗られる |
+| タップ | マス全体を `scale(0.95)` 150ms + 日一覧モーダル |
+
+### 8.5.8 YearHeatmap (年間濃淡マス)
+
+1 年 365 マス。縦 12 行 (月) × 横最大 31 列 (日)。
+
+| 属性 | 値 |
+|---|---|
+| 1 マスのサイズ | 10px × 10px |
+| 1 マスの間隔 | 2px |
+| 空マス (その月に無い日) | 透明 |
+| 活動無し | `panel2` |
+| 活動 1 種類 (練習のみ) | `practiceLight` → `practiceAccent` の 3 段階 |
+| 活動 2 種類以上 | 主活動の色で表示、強度は最大で |
+| 大会日 | `tournamentAccent`、枠 1px で強調 |
+| 今日 | 枠 1.5px `primary` |
+| タップ | 日のセッション一覧モーダル |
+
+横軸にヘッダ: `1, 5, 10, 15, 20, 25, 30` (日)。左軸にヘッダ: `1月、2月、...12月`。
+
+### 8.5.9 FAB (Floating Action Button)
+
+画面右下に常に浮かぶ主アクション。
+
+| 属性 | 値 |
+|---|---|
+| サイズ | 56px × 56px (正円) |
+| 位置 | `position: fixed`, `bottom: 72px` (TabBar 56 + 16), `right: 16px` |
+| 背景 | `primary` (#1a73e8) |
+| 文字・アイコン色 | `#ffffff` |
+| アイコン | `plus` 28px |
+| shadow | `0 2px 6px rgba(0,0,0,0.15), 0 4px 12px rgba(26,115,232,0.3)` |
+| hover | 背景 `primaryHover`、shadow 強調 |
+| active | `scale(0.95)` 150ms |
+| z-index | 100 (TabBar より上、モーダルより下) |
+
+タップ → QuickAdd ミニメニュー (ポップオーバー):
+- 「🏆 大会」「🏃 練習」「🎾 試打」の 3 択
+- 各 56px 高さの行、タップで対応する Detail 画面 (新規) を開く
+
+### 8.5.10 SessionDetailView (slide-in 詳細画面)
+
+カードタップで横スライドで出る。アコーディオン展開の代替。
+
+| 属性 | 値 |
+|---|---|
+| 位置 | 全画面 (TabBar 含めて覆う、戻るボタンで戻す) |
+| enter アニメ | `transform: translateX(100% → 0%)` 250ms `cubic-bezier(0.4, 0, 0.2, 1)` |
+| exit アニメ | `transform: translateX(0% → 100%)` 200ms |
+| ヘッダ | §4.9 Header、左=戻る、中央=タイトル、右=編集ボタン |
+| スクロール位置 | 戻る時にリスト側のスクロール位置を復元（ref + scrollTop 保存） |
+
+---
+
 ## 9. 更新ルール
 
 - 新しいコンポーネントが必要なら、まずこのファイルに仕様を追記してから実装
