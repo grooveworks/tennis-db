@@ -151,17 +151,20 @@ font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Helvetica Neue
 
 | variant | 背景 | 文字色 | コントラスト | 用途例 |
 |---|---|---|---|---|
-| tournament | `#feefc3` | `#a04f00` | 5.5:1 (AA+) | 大会カテゴリ、優勝 |
-| practice | `#e6f4ea` | `#0a5b35` | 4.9:1 (AA) | 練習カテゴリ |
-| trial | `#f3e8fd` | `#6a25a8` | 7.8:1 (AAA) | 試打カテゴリ、3位 |
-| info | `#e8f0fe` | `#0d47a1` | 8.6:1 (AAA) | 準優勝、情報通知 |
-| success | `#e6f4ea` | `#0a5b35` | 4.9:1 (AA) | 勝利、予選突破 |
-| warning | `#fef7e0` | `#7e5d00` | 5.6:1 (AA+) | ベスト8/16、注意（Yellow独立） |
-| error | `#fce8e6` | `#a31511` | 7.2:1 (AAA) | 敗北、敗退、削除 |
+| tournament | `#ffffff` | `#a04f00` | 7.0:1 (AAA) | 大会カテゴリ ([シングルス]/[ダブルス]/[ミックス])、[優勝] |
+| practice | `#e6f4ea` | `#0a5b35` | 4.9:1 (AA) | 練習カテゴリ ([スクール]/[自主練] 等) |
+| trial | `#f3e8fd` | `#6a25a8` | 7.8:1 (AAA) | 試打リンクバッジ ([試打]) |
+| bronze | `#ffffff` | `#6a25a8` | 7.8:1 (AAA) | [3位] (試打と分離した結果バッジ専用) |
+| info | `#ffffff` | `#0d47a1` | 9.7:1 (AAA) | [準優勝]、情報通知 |
+| success | `#e6f4ea` | `#0a5b35` | 4.9:1 (AA) | [予選突破]、勝利 |
+| warning | `#fef7e0` | `#7e5d00` | 5.6:1 (AA+) | [ベスト8]/[ベスト16]、注意（Yellow独立） |
+| error | `#fce8e6` | `#a31511` | 7.2:1 (AAA) | [敗退]/[予選敗退]、削除 |
 | default | `#f1f3f4` | `#5f6368` | 5.3:1 (AA+) | 未設定、棄権 |
-| ボーダー | — | 文字色と同系 opacity 35% | — | — |
+| ボーダー | — | 白背景バッジは opacity 70%、その他は opacity 35% | — | — |
 
-例: `🏆 優勝` (tournament), `✅ 勝利` (success), `⚠️ 注意` (warning)
+**S7 改訂 (2026-04-23)**: 結果系バッジ ([優勝]/[準優勝]/[3位]) のカード強調背景 (gold/silver/bronze tinted) との色衝突を解消するため、tournament / info / 新設 bronze の背景を白に変更。文字色は元の semantic 色を維持し、ボーダー opacity を 70% に上げて白背景でも形を出す。trial variant は [試打] バッジ専用に分離（[3位] は新設 bronze へ）。
+
+例: `🏆 優勝` (tournament 白bg), `🥈 準優勝` (info 白bg), `🥉 3位` (bronze 白bg), `🎾 試打` (trial パステル紫), `✅ 予選突破` (success), `⚠️ ベスト8` (warning)
 
 ### 4.2 Card（カード）
 
@@ -534,28 +537,32 @@ Sessions タブ上部の状況ダイジェスト行。
 
 **Sessions 一覧に出すカードは大会と練習のみ**。試打は独立カードにせず、trialBadge として付随表示（後述）。
 
-**結果の階層表現** (大会カードのみ):
+**結果の階層表現** (大会カードのみ。S5 仕様、S7 で結果バッジを白背景化して輪郭衝突を解消):
 
 | 結果 | 表現 |
 |---|---|
-| 優勝 | カード背景 `tournamentLight`、枠 1.5px `tournamentAccent`、shadow `0 0 0 3px rgba(249,171,0,0.15)` |
-| 準優勝 | カード背景 `primaryLight`、枠 1.5px `primary` |
-| 3位 | カード背景 `trialLight`、枠 1.5px `trialAccent` |
-| ベスト8/16、予選突破 | 通常カード + Badge |
+| 優勝 | カード背景 `tournamentLight`、枠 1.5px `tournamentAccent`、shadow `0 0 0 3px rgba(249,171,0,0.15)` + [優勝] バッジ (tournament=白bg) |
+| 準優勝 | カード背景 `primaryLight`、枠 1.5px `primary` + [準優勝] バッジ (info=白bg) |
+| 3位 | カード背景 `trialLight`、枠 1.5px `trialAccent` + [3位] バッジ (bronze=白bg、§4.1 新設) |
+| ベスト8/16、予選突破 | 通常カード + Badge (warning / success) |
 | 敗退・予選敗退 | 通常カード + Badge (error) |
 | 練習 (既定) | 通常カード + 種別バッジ (スクール/自主練/練習会/ゲーム練習/球出し/練習試合/フィジカル、practice variant) |
 
-**カード 1 行目 (メタ行)**:
-- 日付 (13px, `textSecondary`, 通常字体): 「4/18」
-- [resultBadge] 大会の結果 (優勝/準優勝等、該当時のみ)
-- [sideBadge] 練習の種別 (該当時)
-- [trialBadge] 試打リンク表示 (該当時、後述)
+**カード 1 行目 (メタ行、S7 で順序確定)**:
+- 日付 (13px, `textSecondary`, font-weight 600, minWidth 42px で揃える): 「4/18」
+- [sideBadge] カテゴリーバッジ (大会=形式 [シングルス]/[ダブルス]/[ミックス]、練習=種別、minWidth 96px)
+- [resultBadge] 結果バッジ (優勝/ベスト8 等、該当時のみ、minWidth 80px)
+- [trialBadge] 試打リンク表示 (該当時、後述、minWidth 60px)
+
+minWidth は v3 の typeLabel2 minWidth=32 / result minWidth=60 / pracTypeColor minWidth=96 から移植・調整。並んだカードでバッジ右端を揃えてリズムを作る。バッジは `justify-content: center` で中央寄せ。
 
 **カード 2 行目 (タイトル)**:
 - 15px, `text`, font-weight 600 (優勝/準優勝/3位は 700): 「所沢ベテラン大会」
 
 **カード 3 行目 (メタ行)**:
-- 12px, `textSecondary`: 「シングルス 3勝0敗 / 所沢市総合運動場」
+- 12px, `textSecondary`: 例「3勝0敗 / 8:30 / 所沢市総合運動場」(大会)、「19:00-20:30 / 90分 / 心拍145」(練習)
+- 大会: 形式は §4.1 の sideBadge 化に伴い meta から外し、勝敗 / 開始時刻 / 会場 を出す
+- 練習: 開始-終了時刻 / 時間 / 心拍 / (会場) を出す
 
 ### 8.5.5.1 試打リンクバッジ (trialBadge)
 

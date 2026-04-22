@@ -3,10 +3,12 @@
 //   onClick: タップ時コールバック
 //   icon: Lucide 名 (default "plus")
 //   ariaLabel: スクリーンリーダー用 (必須)
+//   bottom: 画面下からの距離 px (default 72 = TabBar56+16)。
+//           下端に操作帯が乗るタブ (Sessions S7) では大きめの値で操作帯の上に浮かせる。
 //
-// 画面右下に fixed、TabBar の上 16px に浮かぶ。
+// 画面右下に fixed、既定では TabBar の上 16px に浮かぶ。
 
-function FAB({ onClick, icon = "plus", ariaLabel = "追加" }) {
+function FAB({ onClick, icon = "plus", ariaLabel = "追加", bottom = 72 }) {
   const [hover, setHover] = useState(false);
   const [active, setActive] = useState(false);
   return (
@@ -21,7 +23,7 @@ function FAB({ onClick, icon = "plus", ariaLabel = "追加" }) {
       aria-label={ariaLabel}
       style={{
         position: "fixed",
-        bottom: 72,            // TabBar (56) + 16
+        bottom: bottom,
         right: 16,
         width: 56,
         height: 56,

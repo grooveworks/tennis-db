@@ -1,4 +1,4 @@
-// SessionCard — Sessions 一覧の1枚カード (S6 改訂、DESIGN_SYSTEM §8.5.5 準拠)
+// SessionCard — Sessions 一覧の1枚カード (DESIGN_SYSTEM §8.5.5 準拠、S6 仕様)
 // props:
 //   type: "tournament" | "practice" (trial は一覧表示から除外、リンクバッジ経由で表示)
 //   date: 日付文字列 (YYYY-MM-DD / YYYY/M/D 両対応、内部で normDate)
@@ -17,6 +17,9 @@
 //   null        → 通常カード
 //
 // 使う色は C.tournamentAccent 等を経由 (独自スタイル禁止)
+//
+// S7 で残した拡張: 日付 span に minWidth (4 文字日付でも潰れない揃え)、
+//                  Badge 呼び出しに minWidth を渡してカード間で右端を揃える
 
 const SESSION_TYPE_ACCENT = {
   tournament: { accent: C.tournamentAccent, light: C.tournamentLight },
@@ -53,8 +56,8 @@ function SessionCard({ type, date, title, metaLine, highlight, resultBadge, side
         background: bg,
         border,
         borderRadius: 12,
-        padding: "14px 16px 14px 20px",
-        marginBottom: 6,
+        padding: "10px 14px 10px 18px",
+        marginBottom: 4,
         cursor: clickable ? "pointer" : "default",
         transition: "background 150ms ease-out, transform 150ms",
         boxShadow: shadow,
@@ -68,19 +71,26 @@ function SessionCard({ type, date, title, metaLine, highlight, resultBadge, side
         borderTopLeftRadius: 12, borderBottomLeftRadius: 12,
       }} />
 
-      {/* 1 行目: 日付 + 結果バッジ + サイドバッジ */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
-        <span style={{ fontSize: 13, fontWeight: 600, color: C.textSecondary }}>
+      {/* 1 行目: 日付 + カテゴリー (sideBadge) + 結果 (resultBadge) + 試打 (trialBadge) */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2, flexWrap: "wrap" }}>
+        <span style={{
+          fontSize: 13,
+          fontWeight: 600,
+          color: C.textSecondary,
+          minWidth: 42,      // 「4/11」(4文字) でも潰れず、「4/8」(3文字) でも幅を確保
+          flexShrink: 0,     // バッジ増えても日付が圧縮されない
+        }}>
           {fmtDate(date)}
         </span>
-        {resultBadge && (
-          <Badge variant={resultBadge.variant} icon={resultBadge.icon}>{resultBadge.label}</Badge>
-        )}
+        {/* minWidth は役割ごとに固定: 並んだカードでバッジ右端を揃えてリズムを作る */}
         {sideBadge && (
-          <Badge variant={sideBadge.variant} icon={sideBadge.icon}>{sideBadge.label}</Badge>
+          <Badge variant={sideBadge.variant} icon={sideBadge.icon} minWidth={96}>{sideBadge.label}</Badge>
+        )}
+        {resultBadge && (
+          <Badge variant={resultBadge.variant} icon={resultBadge.icon} minWidth={80}>{resultBadge.label}</Badge>
         )}
         {trialBadge && (
-          <Badge variant={trialBadge.variant} icon={trialBadge.icon}>{trialBadge.label}</Badge>
+          <Badge variant={trialBadge.variant} icon={trialBadge.icon} minWidth={60}>{trialBadge.label}</Badge>
         )}
       </div>
 

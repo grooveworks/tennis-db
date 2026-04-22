@@ -1,14 +1,16 @@
-// SessionsTab — Sessions タブ本体 (S6 作り直し、DESIGN_SYSTEM §8.5 / WIREFRAMES §2.2.1)
+// SessionsTab — Sessions タブ本体 (S7 検索・絞り込み追加、DESIGN_SYSTEM §8.5 / WIREFRAMES §2.2.0/§2.2.1)
 // props:
 //   tournaments, practices, trials: 配列 (親から渡る、normDate は親で正規化済みでも未正規化でも OK)
 //   loading: ロード中
-//   onCardClick: カードタップ (S10 で画面遷移に接続、S6 は toast 表示のみ)
-//   onFabClick:  FAB タップ (S12 で QuickAdd に接続、S6 は toast 表示のみ)
+//   onCardClick: カードタップ (S10 で画面遷移に接続、S7 は toast 表示のみ)
+//   onFabClick:  FAB タップ (S12 で QuickAdd に接続、S7 は toast 表示のみ)
 // やること:
-//   - サマリーヘッダ + 時間軸密度可変リスト (週/月/年)
+//   - 検索窓 (タイトル/会場/対戦相手/メモを横断) + 軸別絞り込みチップ (種類/ラケット/対戦相手/結果)
+//   - サマリーヘッダ (絞り込み中は件数表示に切替) + 時間軸密度可変リスト (週/月/年)
 //   - 結果の階層表現を反映 (優勝=gold, 準優勝=silver, 3位=bronze, 他=通常)
 //   - FAB 右下
-// やらないこと (別 Stage): 検索 (S7), 絞り込みチップ (S7), 表示切替 (S8), カレンダー (S8), 年間濃淡 (S9), 詳細画面 (S10)
+//   - 検索・絞り込み state は localStorage に保存 (v4-sessions-search / v4-sessions-filters)
+// やらないこと (別 Stage): 表示切替 (S8), カレンダー (S8), 年間濃淡 (S9), 詳細画面 (S10)
 
 // ── 時間軸密度化ヘルパー (カレンダー通りの日曜始まり)
 const _getSundayOfWeek = (d) => {
@@ -38,13 +40,26 @@ const _monthLabel = (key) => {
 };
 const _yearLabel = (key) => `${key}年`;
 
+// ── 大会の形式 (singles/doubles/mixed) → カテゴリーバッジ
+// v3 line 2746-2747, 2764 から移植 (S6 で漏れていた)。練習の種別バッジと対称に「③ 何の種類」を伝える。
+// 色は v4 DESIGN_SYSTEM §1.2 準拠の tournament variant (オレンジ系) で統一、区別はアイコンで。
+const _mapTournamentType = (t) => {
+  if (!t) return null;
+  const map = {
+    "singles": { variant: "tournament", icon: "user",  label: "シングルス" },
+    "doubles": { variant: "tournament", icon: "users", label: "ダブルス" },
+    "mixed":   { variant: "tournament", icon: "users", label: "ミックス" },
+  };
+  return map[t] || null;
+};
+
 // ── 結果 → Badge + highlight マッピング (大会のみ)
 const _mapTournamentResult = (result) => {
   if (!result) return { badge: null, highlight: null };
   const map = {
     "優勝":     { badge: { variant: "tournament", icon: "trophy", label: "優勝" },   highlight: "gold" },
     "準優勝":   { badge: { variant: "info",       icon: "medal",  label: "準優勝" }, highlight: "silver" },
-    "3位":      { badge: { variant: "trial",      icon: "award",  label: "3位" },    highlight: "bronze" },
+    "3位":      { badge: { variant: "bronze",     icon: "award",  label: "3位" },    highlight: "bronze" },
     "ベスト8":   { badge: { variant: "warning", label: "ベスト8" },   highlight: null },
     "ベスト16":  { badge: { variant: "warning", label: "ベスト16" },  highlight: null },
     "予選突破": { badge: { variant: "success", label: "予選突破" }, highlight: null },
@@ -54,7 +69,7 @@ const _mapTournamentResult = (result) => {
   return map[result] || { badge: { variant: "default", label: result }, highlight: null };
 };
 
-// ── 試打 judgment → sideBadge マッピング
+// ── 試打 judgment → sideBadge マッピング (S6 残置、将来の試打一覧で再利用予定)
 const _mapTrialJudgment = (judgment) => {
   if (!judgment) return null;
   const map = {
@@ -65,7 +80,9 @@ const _mapTrialJudgment = (judgment) => {
   return map[judgment] || { variant: "trial", label: judgment };
 };
 
-// ── 練習 type → sideBadge マッピング (S6 revision: 種別を一目で分かるよう復活)
+// ── 練習 type → カテゴリーバッジ (「③ 何の種類」の役割を担う)
+// 左の緑帯でカテゴリーは「練習」と分かるが、どの種別 (スクール/自主練/練習試合 等) かは
+// バッジで明示しないと 800 件のスクロール中に視線が情報を掴めない。
 const _mapPracticeType = (t) => {
   if (!t) return null;
   const iconMap = {
@@ -85,25 +102,32 @@ const _joinMeta = (parts) => parts.filter(x => x).join(" / ");
 // ── 1 件を SessionCard props に変換
 const _buildCardProps = (type, item) => {
   if (type === "tournament") {
+    const typeBadge = _mapTournamentType(item.type);  // 形式 (S/D/Mix) を category badge に
     const { badge, highlight } = _mapTournamentResult(item.overallResult);
     const matches = Array.isArray(item.matches) ? item.matches : [];
     const wins = matches.filter(m => m.result === "勝利" || m.result === "win").length;
     const losses = matches.filter(m => m.result === "敗北" || m.result === "loss").length;
     const parts = [];
-    if (item.type) parts.push(item.type);
+    // 形式 (singles/doubles/mixed) は category badge に出すので meta からは除外
     if (matches.length > 0) parts.push(`${wins}勝${losses}敗`);
+    if (item.startTime) parts.push(item.startTime);   // 開始時刻 (「いつやるか」は一次情報)
     if (item.venue) parts.push(item.venue);
     return {
       type, date: item.date,
       title: item.name || "(無題の大会)",
       metaLine: _joinMeta(parts),
-      highlight, resultBadge: badge,
+      highlight,
+      sideBadge: typeBadge,
+      resultBadge: badge,
     };
   }
   if (type === "practice") {
     const typeBadge = _mapPracticeType(item.type);
     const parts = [];
-    // 種別は badge に移したので meta からは外す
+    // 時間帯 (start-end) は「いつやるか」の一次情報、meta 先頭に出す (v3 line 2788 相当)
+    if (item.startTime) {
+      parts.push(item.endTime ? `${item.startTime}-${item.endTime}` : item.startTime);
+    }
     if (item.duration) parts.push(`${item.duration}分`);
     if (item.heartRateAvg) parts.push(`心拍${item.heartRateAvg}`);
     if (item.venue && item.title !== item.venue) parts.push(item.venue);
@@ -142,6 +166,123 @@ const _buildTrialLinkedSets = (tournaments, practices, trials) => {
 
 const TRIAL_BADGE = { variant: "trial", icon: "badge-check", label: "試打" };
 
+// ── S7: 検索・絞り込み ─────────────────────────────────
+const LS_SEARCH  = "v4-sessions-search";
+const LS_FILTERS = "v4-sessions-filters";
+const FILTER_AXES = ["type", "racket", "opponent", "result"];
+const RESULT_OPTIONS = ["優勝","準優勝","3位","ベスト8","ベスト16","予選突破","敗退","予選敗退"];
+const TYPE_OPTIONS   = ["大会", "練習"];
+const FILTER_CHIP_LABEL    = { type: "種類",        racket: "ラケット",        opponent: "対戦相手",        result: "結果" };
+const FILTER_DRAWER_TITLE  = { type: "種類で絞り込む", racket: "ラケットで絞り込む", opponent: "対戦相手で絞り込む", result: "結果で絞り込む" };
+
+const _emptyFilters = () => ({ type: [], racket: [], opponent: [], result: [] });
+const _loadSearch = () => { try { return localStorage.getItem(LS_SEARCH) || ""; } catch { return ""; } };
+const _loadFilters = () => {
+  try {
+    const raw = localStorage.getItem(LS_FILTERS);
+    if (!raw) return _emptyFilters();
+    const obj = JSON.parse(raw);
+    const base = _emptyFilters();
+    FILTER_AXES.forEach(k => {
+      if (Array.isArray(obj[k])) base[k] = obj[k].filter(v => typeof v === "string" && v.length > 0);
+    });
+    return base;
+  } catch { return _emptyFilters(); }
+};
+
+// ラケット候補: 大会/練習の racketName + 試合 match.racketName の union
+const _extractRackets = (tournaments, practices) => {
+  const s = new Set();
+  tournaments.forEach(t => {
+    if (t.racketName) s.add(t.racketName);
+    (Array.isArray(t.matches) ? t.matches : []).forEach(m => { if (m && m.racketName) s.add(m.racketName); });
+  });
+  practices.forEach(p => { if (p.racketName) s.add(p.racketName); });
+  return [...s].sort((a, b) => a.localeCompare(b, "ja"));
+};
+
+// 対戦相手候補: matches[].opponent / opponent2 の union (大会のみ)
+const _extractOpponents = (tournaments) => {
+  const s = new Set();
+  tournaments.forEach(t => {
+    (Array.isArray(t.matches) ? t.matches : []).forEach(m => {
+      if (m && m.opponent)  s.add(m.opponent);
+      if (m && m.opponent2) s.add(m.opponent2);
+    });
+  });
+  return [...s].sort((a, b) => a.localeCompare(b, "ja"));
+};
+
+// 1 件のエントリから取り得るラケット名を配列で返す
+const _entryRackets = (entry) => {
+  const it = entry.item;
+  const out = [];
+  if (it.racketName) out.push(it.racketName);
+  if (entry.type === "tournament") {
+    (Array.isArray(it.matches) ? it.matches : []).forEach(m => { if (m && m.racketName) out.push(m.racketName); });
+  }
+  return out;
+};
+
+// 1 件のエントリから取り得る対戦相手名を配列で返す (大会のみ、練習は空)
+const _entryOpponents = (entry) => {
+  if (entry.type !== "tournament") return [];
+  const out = [];
+  (Array.isArray(entry.item.matches) ? entry.item.matches : []).forEach(m => {
+    if (m && m.opponent)  out.push(m.opponent);
+    if (m && m.opponent2) out.push(m.opponent2);
+  });
+  return out;
+};
+
+// 検索語 (q) がエントリのどこかに含まれるか (部分一致、大小英字無視)
+const _matchesSearch = (entry, q) => {
+  const trimmed = (q || "").trim();
+  if (!trimmed) return true;
+  const lower = trimmed.toLowerCase();
+  const hit = (s) => !!s && String(s).toLowerCase().includes(lower);
+  const it = entry.item;
+  if (entry.type === "tournament") {
+    if (hit(it.name) || hit(it.venue) || hit(it.generalNote)) return true;
+    const matches = Array.isArray(it.matches) ? it.matches : [];
+    for (const m of matches) {
+      if (!m) continue;
+      if (hit(m.opponent) || hit(m.opponent2) || hit(m.opponentNote) || hit(m.mentalNote) || hit(m.techNote) || hit(m.note)) return true;
+    }
+    return false;
+  }
+  if (entry.type === "practice") {
+    return hit(it.title) || hit(it.venue) || hit(it.coachNote) || hit(it.goodNote) || hit(it.improveNote) || hit(it.generalNote);
+  }
+  return false;
+};
+
+// 各絞り込み軸の判定 (全て AND、同一軸の複数値は OR)
+const _matchesFilters = (entry, filters) => {
+  if (filters.type.length > 0) {
+    const label = entry.type === "tournament" ? "大会" : entry.type === "practice" ? "練習" : "";
+    if (!filters.type.includes(label)) return false;
+  }
+  if (filters.racket.length > 0) {
+    const rs = _entryRackets(entry);
+    if (!filters.racket.some(r => rs.includes(r))) return false;
+  }
+  if (filters.opponent.length > 0) {
+    const ops = _entryOpponents(entry);
+    if (!filters.opponent.some(o => ops.includes(o))) return false;
+  }
+  if (filters.result.length > 0) {
+    if (entry.type !== "tournament") return false;
+    if (!filters.result.includes(entry.item.overallResult)) return false;
+  }
+  return true;
+};
+
+const _hasAnyFilter = (filters, search) => {
+  if ((search || "").trim().length > 0) return true;
+  return FILTER_AXES.some(k => (filters[k] || []).length > 0);
+};
+
 // ── 本体
 function SessionsTab({ tournaments = [], practices = [], trials = [], loading = false, onCardClick, onFabClick }) {
   const [collapsedYears, setCollapsedYears] = useState(() => {
@@ -172,6 +313,13 @@ function SessionsTab({ tournaments = [], practices = [], trials = [], loading = 
     });
   };
 
+  // S7: 検索・絞り込み state (localStorage 永続化)
+  const [search, setSearch] = useState(_loadSearch);
+  const [filters, setFilters] = useState(_loadFilters);
+  const [openDrawerAxis, setOpenDrawerAxis] = useState(null); // "type"|"racket"|"opponent"|"result"|null
+  useEffect(() => { try { localStorage.setItem(LS_SEARCH, search || ""); } catch {} }, [search]);
+  useEffect(() => { try { localStorage.setItem(LS_FILTERS, JSON.stringify(filters)); } catch {} }, [filters]);
+
   // 全アイテムを {type, item} にまとめて date desc ソート
   // 試打 (trial) は大会/練習への付随活動なので一覧からは除外 (バッジで示す)
   const allItems = useMemo(() => {
@@ -182,7 +330,18 @@ function SessionsTab({ tournaments = [], practices = [], trials = [], loading = 
     return list;
   }, [tournaments, practices]);
 
-  // 試打の紐付き Set
+  // S7: 絞り込み軸の候補 (元データから動的抽出)
+  const racketOptions   = useMemo(() => _extractRackets(tournaments, practices), [tournaments, practices]);
+  const opponentOptions = useMemo(() => _extractOpponents(tournaments), [tournaments]);
+
+  // S7: 検索 + 絞り込み適用後のアイテム
+  const filteredItems = useMemo(
+    () => allItems.filter(e => _matchesSearch(e, search) && _matchesFilters(e, filters)),
+    [allItems, search, filters]
+  );
+  const filterActive = _hasAnyFilter(filters, search);
+
+  // 試打の紐付き Set (元データ基準でバッジ判定、絞り込みには影響しない)
   const trialLinks = useMemo(() => _buildTrialLinkedSets(tournaments, practices, trials), [tournaments, practices, trials]);
 
   // 時間軸密度でグループ化 (未来/週/月/年の 4 バケット、週はカレンダー通り日曜始まり)
@@ -201,7 +360,7 @@ function SessionsTab({ tournaments = [], practices = [], trials = [], loading = 
     const weeks = {}, months = {}, years = {};
     const weekOrder = [], monthOrder = [], yearOrder = [];
 
-    allItems.forEach((entry) => {
+    filteredItems.forEach((entry) => {
       const nd = normDate(entry.item.date);
       const m = nd.match(/^(\d{4})-(\d{2})-(\d{2})/);
       if (!m) return;
@@ -236,7 +395,7 @@ function SessionsTab({ tournaments = [], practices = [], trials = [], loading = 
     future.sort((a, b) => normDate(a.item.date).localeCompare(normDate(b.item.date)));
 
     return { future, weeks, weekOrder, months, monthOrder, years, yearOrder, now };
-  }, [allItems]);
+  }, [filteredItems]);
 
   const renderCard = (entry, i) => {
     const props = _buildCardProps(entry.type, entry.item);
@@ -257,22 +416,33 @@ function SessionsTab({ tournaments = [], practices = [], trials = [], loading = 
 
   const hasAny = grouped.future.length > 0 || grouped.weekOrder.length > 0 || grouped.monthOrder.length > 0 || grouped.yearOrder.length > 0;
 
+  // S7: Drawer が現在開いている軸の選択肢
+  const axisOptions =
+    openDrawerAxis === "type"     ? TYPE_OPTIONS     :
+    openDrawerAxis === "racket"   ? racketOptions    :
+    openDrawerAxis === "opponent" ? opponentOptions  :
+    openDrawerAxis === "result"   ? RESULT_OPTIONS   : [];
+  const clearAxis = (axis) => setFilters(prev => ({ ...prev, [axis]: [] }));
+
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
       <SummaryHeader
         tournaments={tournaments}
         practices={practices}
+        filtered={filterActive}
+        filteredCount={filteredItems.length}
+        totalCount={allItems.length}
       />
 
       {/* スクロール領域 */}
-      <div style={{ flex: 1, overflow: "auto", padding: "12px 16px 80px" }}>
+      <div style={{ flex: 1, overflow: "auto", padding: "12px 16px 12px" }}>
         {loading ? (
           <div style={{ textAlign: "center", padding: 40, color: C.textMuted, fontSize: 13 }}>
             読み込み中...
           </div>
         ) : !hasAny ? (
           <div style={{ textAlign: "center", padding: 40, color: C.textMuted, fontSize: 13 }}>
-            データがありません
+            {filterActive ? "条件に合う記録がありません" : "データがありません"}
           </div>
         ) : (
           <>
@@ -335,7 +505,49 @@ function SessionsTab({ tournaments = [], practices = [], trials = [], loading = 
         )}
       </div>
 
-      <FAB onClick={onFabClick} ariaLabel="記録を追加" />
+      {/* S7: 操作帯 (画面下、TabBar 直上) — タップした直上に Drawer がせり上がる導線 */}
+      <div style={{
+        borderTop: `1px solid ${C.divider}`,
+        background: C.bg,
+        flexShrink: 0,
+      }}>
+        {/* 絞り込みチップ行 (横スクロール) */}
+        <div style={{
+          display: "flex", gap: 8,
+          padding: "8px 16px",
+          overflowX: "auto",
+        }}>
+          {FILTER_AXES.map(axis => (
+            <FilterChip
+              key={axis}
+              label={FILTER_CHIP_LABEL[axis]}
+              selectedValues={filters[axis]}
+              onOpen={() => setOpenDrawerAxis(axis)}
+              onClear={filters[axis].length > 0 ? () => clearAxis(axis) : undefined}
+            />
+          ))}
+        </div>
+        {/* 検索行 */}
+        <div style={{ padding: "0 16px 8px" }}>
+          <SearchBar value={search} onChange={setSearch} />
+        </div>
+      </div>
+
+      {/* FAB: 操作帯 (約 108px) + TabBar (56px) の上に浮かせる */}
+      <FAB onClick={onFabClick} ariaLabel="記録を追加" bottom={180} />
+
+      {/* S7: 絞り込みドロワー (画面下シート) */}
+      <FilterDrawer
+        open={!!openDrawerAxis}
+        title={openDrawerAxis ? FILTER_DRAWER_TITLE[openDrawerAxis] : ""}
+        options={axisOptions}
+        selected={openDrawerAxis ? (filters[openDrawerAxis] || []) : []}
+        onApply={(newSel) => {
+          if (openDrawerAxis) setFilters(prev => ({ ...prev, [openDrawerAxis]: newSel }));
+          setOpenDrawerAxis(null);
+        }}
+        onClose={() => setOpenDrawerAxis(null)}
+      />
     </div>
   );
 }

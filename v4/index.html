@@ -13,6 +13,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;bac
 input,select,textarea,button{font-family:inherit}
 ::-webkit-scrollbar{display:none}
 @keyframes modalEnter{from{opacity:0;transform:scale(0.95)}to{opacity:1;transform:scale(1)}}
+@keyframes drawerEnter{from{transform:translateY(100%)}to{transform:translateY(0)}}
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:0.01ms!important;animation-iteration-count:1!important;transition-duration:0.01ms!important;scroll-behavior:auto!important}
 }
@@ -25,7 +26,7 @@ input,select,textarea,button{font-family:inherit}
 const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
 // ── 定数定義（色・キー・バージョン）─────────────
-const APP_VERSION="4.0.0-S6";
+const APP_VERSION="4.0.0-S7";
 const font="-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif";
 
 // 色設計（DESIGN_SYSTEM_v4.md §1 準拠）
@@ -329,6 +330,8 @@ const labelFor=(key,type)=>{
 // props:
 //   variant: tournament | practice | trial | success | warning | error | default
 //   icon: Material Symbols 名 (省略可)
+//   minWidth: 最小幅 px (省略可)。指定時は中央寄せで並んだ時のリズムを作る
+//            (v3 の minWidth=32/60/96 パターンを移植、v4 は役割ごとに SessionCard で指定)
 //   children: 表示テキスト
 // DESIGN_SYSTEM §4.1 完全準拠、コントラストは AA 以上確保
 // v4 カラー体系:
@@ -337,21 +340,25 @@ const labelFor=(key,type)=>{
 //   default: Gray
 // 全てコントラスト AA 以上 (主要 AAA)
 const BADGE_STYLES = {
-  tournament: { bg: "#feefc3", text: "#a04f00", border: "rgba(160,79,0,0.35)" },   // Orange (大会カテゴリ)
+  // S7 改訂: 大会形式 [シングルス] と 優勝 (どちらも tournament variant) は白背景に。
+  // 同じく info (準優勝) も白背景。優勝 card / 準優勝 card の tinted bg と被らず輪郭が出る。
+  tournament: { bg: "#ffffff", text: "#a04f00", border: "rgba(160,79,0,0.7)" },    // 大会カテゴリ + 優勝 (白)
   practice:   { bg: "#e6f4ea", text: "#0a5b35", border: "rgba(10,91,53,0.35)" },   // Green (練習カテゴリ)
-  trial:      { bg: "#f3e8fd", text: "#6a25a8", border: "rgba(106,37,168,0.35)" }, // Purple (試打カテゴリ)
-  info:       { bg: "#e8f0fe", text: "#0d47a1", border: "rgba(13,71,161,0.35)" },  // Blue (Primary 系, 準優勝など)
+  trial:      { bg: "#f3e8fd", text: "#6a25a8", border: "rgba(106,37,168,0.35)" }, // Purple (試打リンクバッジ専用、3位 とは分離)
+  bronze:     { bg: "#ffffff", text: "#6a25a8", border: "rgba(106,37,168,0.7)" },  // 3位 専用 (白、文字は紫系維持)
+  info:       { bg: "#ffffff", text: "#0d47a1", border: "rgba(13,71,161,0.7)" },   // 準優勝 (白)
   success:    { bg: "#e6f4ea", text: "#0a5b35", border: "rgba(10,91,53,0.35)" },   // Green (予選突破など)
   warning:    { bg: "#fef7e0", text: "#7e5d00", border: "rgba(126,93,0,0.35)" },   // Yellow (ベスト8/16など、tournamentから独立)
   error:      { bg: "#fce8e6", text: "#a31511", border: "rgba(163,21,17,0.35)" },  // Red (敗退など)
   default:    { bg: "#f1f3f4", text: "#5f6368", border: "rgba(95,99,104,0.35)" },  // Gray (未設定など)
 };
-function Badge({ variant = "default", icon, children }) {
+function Badge({ variant = "default", icon, minWidth, children }) {
   const s = BADGE_STYLES[variant] || BADGE_STYLES.default;
   return (
     <span style={{
       display: "inline-flex",
       alignItems: "center",
+      justifyContent: minWidth ? "center" : "flex-start",
       gap: 3,
       height: 22,
       padding: "2px 8px",
@@ -364,6 +371,7 @@ function Badge({ variant = "default", icon, children }) {
       background: s.bg,
       color: s.text,
       border: `1px solid ${s.border}`,
+      minWidth: minWidth ? `${minWidth}px` : undefined,
     }}>
       {icon && <Icon name={icon} size={13} color={s.text} />}
       {children}
@@ -1098,10 +1106,12 @@ function LoginScreen({ onLogin, onError }) {
 //   onClick: タップ時コールバック
 //   icon: Lucide 名 (default "plus")
 //   ariaLabel: スクリーンリーダー用 (必須)
+//   bottom: 画面下からの距離 px (default 72 = TabBar56+16)。
+//           下端に操作帯が乗るタブ (Sessions S7) では大きめの値で操作帯の上に浮かせる。
 //
-// 画面右下に fixed、TabBar の上 16px に浮かぶ。
+// 画面右下に fixed、既定では TabBar の上 16px に浮かぶ。
 
-function FAB({ onClick, icon = "plus", ariaLabel = "追加" }) {
+function FAB({ onClick, icon = "plus", ariaLabel = "追加", bottom = 72 }) {
   const [hover, setHover] = useState(false);
   const [active, setActive] = useState(false);
   return (
@@ -1116,7 +1126,7 @@ function FAB({ onClick, icon = "plus", ariaLabel = "追加" }) {
       aria-label={ariaLabel}
       style={{
         position: "fixed",
-        bottom: 72,            // TabBar (56) + 16
+        bottom: bottom,
         right: 16,
         width: 56,
         height: 56,
@@ -1141,8 +1151,327 @@ function FAB({ onClick, icon = "plus", ariaLabel = "追加" }) {
   );
 }
 
+// === src/ui/sessions/FilterChip.jsx ===
+// FilterChip — Sessions 絞り込みチップ (DESIGN_SYSTEM §8.5.2)
+// props:
+//   label: 軸ラベル (例: "種類", "ラケット", "対戦相手", "結果")
+//   selectedValues: string[] (この軸で選択中の値、0件なら「未選択」表示)
+//   onOpen: タップで Drawer を開くコールバック
+//   onClear: 選択済み時のクリア (× ボタンから通知、省略可)
+// 仕様:
+//   - 高さ 32, pill (border-radius 16)
+//   - 未選択: panel 背景 / textSecondary / border 1px
+//   - 選択中: primaryLight 背景 / primary / border 1px primary
+//   - 選択中の表示: 「ラケット: Ezone98」, 2件以上は「ラケット: Ezone98 +1」
+//   - tap: scale(0.98) 150ms
+
+function FilterChip({ label, selectedValues = [], onOpen, onClear }) {
+  const [press, setPress] = useState(false);
+  const selected = selectedValues.length > 0;
+  const bg = selected ? C.primaryLight : C.panel;
+  const fg = selected ? C.primary : C.textSecondary;
+  const bd = selected ? C.primary : C.border;
+
+  let display = label;
+  if (selected) {
+    if (selectedValues.length === 1) display = `${label}: ${selectedValues[0]}`;
+    else display = `${label}: ${selectedValues[0]} +${selectedValues.length - 1}`;
+  }
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onOpen}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen && onOpen(); } }}
+      onMouseDown={() => setPress(true)}
+      onMouseUp={() => setPress(false)}
+      onMouseLeave={() => setPress(false)}
+      onTouchStart={() => setPress(true)}
+      onTouchEnd={() => setPress(false)}
+      aria-pressed={selected}
+      aria-label={selected ? `${label} (${selectedValues.length}件選択中)` : `${label} を絞り込む`}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 4,
+        height: 32,
+        paddingLeft: 12,
+        paddingRight: selected && onClear ? 4 : 12,
+        border: `1px solid ${bd}`,
+        borderRadius: 16,
+        background: bg,
+        color: fg,
+        fontSize: 13,
+        fontWeight: selected ? 600 : 500,
+        fontFamily: font,
+        cursor: "pointer",
+        whiteSpace: "nowrap",
+        userSelect: "none",
+        transition: "background 150ms, border 150ms, transform 150ms",
+        transform: press ? "scale(0.98)" : "scale(1)",
+      }}
+    >
+      <span>{display}</span>
+      {selected && onClear ? (
+        <button
+          onClick={(e) => { e.stopPropagation(); onClear(); }}
+          aria-label={`${label} の絞り込みをクリア`}
+          style={{
+            width: 22, height: 22,
+            display: "inline-flex", alignItems: "center", justifyContent: "center",
+            border: "none", background: "transparent",
+            color: C.primary, cursor: "pointer",
+            padding: 0, borderRadius: 11,
+          }}
+        >
+          <Icon name="x" size={14} color={C.primary} />
+        </button>
+      ) : (
+        <Icon name="chevron-down" size={14} color={fg} />
+      )}
+    </div>
+  );
+}
+
+// === src/ui/sessions/FilterDrawer.jsx ===
+// FilterDrawer — 画面下からせり上がる候補選択シート (DESIGN_SYSTEM §8.5.2 補助)
+// props:
+//   open: boolean
+//   title: シート見出し (例: 「ラケットで絞り込む」)
+//   options: string[] (選択肢)
+//   selected: string[] (現在選択中)
+//   onApply: 新しい選択配列を親に通知
+//   onClose: シートを閉じる
+// 挙動:
+//   - 開くと下から 250ms でスライドイン (drawerEnter キーフレーム)
+//   - チェックリスト (複数選択可)、タップでトグル
+//   - 下部に「クリア」「適用 (N)」ボタン
+//   - オーバーレイタップ / Esc / × で閉じる (draft は破棄)
+
+function FilterDrawer({ open, title, options = [], selected = [], onApply, onClose }) {
+  const [draft, setDraft] = useState(selected);
+
+  // open のたびに最新の selected を draft に取り込む (親が外で変えても追従)
+  useEffect(() => { if (open) setDraft(selected); }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e) => { if (e.key === "Escape") onClose && onClose(); };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  const toggle = (v) => {
+    setDraft(d => d.includes(v) ? d.filter(x => x !== v) : [...d, v]);
+  };
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose && onClose(); }}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.4)",
+        zIndex: 1000,
+        display: "flex",
+        alignItems: "flex-end",
+        justifyContent: "center",
+      }}
+    >
+      <div
+        style={{
+          background: C.panel,
+          borderRadius: "16px 16px 0 0",
+          width: "100%",
+          maxWidth: 500,
+          maxHeight: "70vh",
+          display: "flex",
+          flexDirection: "column",
+          animation: "drawerEnter 250ms ease-out",
+        }}
+      >
+        {/* ドラッグハンドル (視覚のみ) */}
+        <div style={{
+          width: 40, height: 4,
+          background: C.border, borderRadius: 2,
+          margin: "8px auto 4px",
+        }} />
+
+        {/* ヘッダ */}
+        <div style={{
+          display: "flex", alignItems: "center",
+          padding: "8px 8px 8px 16px",
+          borderBottom: `1px solid ${C.divider}`,
+        }}>
+          <div style={{ flex: 1, fontSize: 15, fontWeight: 600, color: C.text }}>{title}</div>
+          <button
+            onClick={onClose}
+            aria-label="閉じる"
+            style={{
+              width: 40, height: 40,
+              display: "inline-flex", alignItems: "center", justifyContent: "center",
+              border: "none", background: "transparent", cursor: "pointer",
+              color: C.textSecondary, padding: 0, borderRadius: 8,
+            }}
+          >
+            <Icon name="x" size={22} color={C.textSecondary} />
+          </button>
+        </div>
+
+        {/* 候補リスト */}
+        <div style={{ flex: 1, overflow: "auto", padding: "4px 0" }}>
+          {options.length === 0 ? (
+            <div style={{ padding: "24px 16px", textAlign: "center", fontSize: 13, color: C.textMuted }}>
+              候補がありません
+            </div>
+          ) : options.map((opt) => {
+            const on = draft.includes(opt);
+            return (
+              <div
+                key={opt}
+                role="checkbox"
+                aria-checked={on}
+                tabIndex={0}
+                onClick={() => toggle(opt)}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(opt); } }}
+                style={{
+                  display: "flex", alignItems: "center", gap: 12,
+                  padding: "10px 16px",
+                  minHeight: 44,
+                  cursor: "pointer",
+                  color: on ? C.primary : C.text,
+                  fontWeight: on ? 600 : 400,
+                  fontSize: 14,
+                  background: on ? C.primaryLight : "transparent",
+                  transition: "background 120ms",
+                }}
+              >
+                <Icon name={on ? "check-square" : "square"} size={20} color={on ? C.primary : C.textSecondary} />
+                <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{opt}</span>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* フッタ */}
+        <div style={{
+          display: "flex", gap: 8,
+          padding: 12,
+          borderTop: `1px solid ${C.divider}`,
+        }}>
+          <button
+            onClick={() => setDraft([])}
+            style={{
+              flex: 1, minHeight: 44,
+              border: `1px solid ${C.border}`,
+              borderRadius: 8,
+              background: C.panel,
+              color: C.textSecondary,
+              fontSize: 14,
+              fontWeight: 500,
+              cursor: "pointer",
+              fontFamily: font,
+            }}
+          >
+            クリア
+          </button>
+          <button
+            onClick={() => onApply && onApply(draft)}
+            style={{
+              flex: 2, minHeight: 44,
+              border: "none",
+              borderRadius: 8,
+              background: C.primary,
+              color: "#fff",
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: "pointer",
+              fontFamily: font,
+            }}
+          >
+            適用{draft.length > 0 ? ` (${draft.length})` : ""}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// === src/ui/sessions/SearchBar.jsx ===
+// SearchBar — Sessions 横断テキスト検索入力 (DESIGN_SYSTEM §8.5.1)
+// props:
+//   value: 現在の検索語
+//   onChange: 文字列で通知 (空文字可)
+//   placeholder: 任意 (既定: 「タイトル・相手・メモを検索」)
+// 仕様:
+//   - 高さ 40, border-radius 20 (pill), 左端 search アイコン, 入力中のみ右端 × でクリア
+//   - focus で border primary + shadow
+
+function SearchBar({ value, onChange, placeholder = "タイトル・相手・メモを検索" }) {
+  const [focus, setFocus] = useState(false);
+  const borderColor = focus ? C.primary : C.border;
+  const shadow = focus ? "0 0 0 2px #e8f0fe" : "none";
+  return (
+    <div style={{
+      position: "relative",
+      height: 40,
+      border: `1px solid ${borderColor}`,
+      borderRadius: 20,
+      background: C.panel,
+      display: "flex",
+      alignItems: "center",
+      padding: "0 12px",
+      boxShadow: shadow,
+      transition: "border 150ms, box-shadow 150ms",
+    }}>
+      <Icon name="search" size={18} color={C.textSecondary} />
+      <input
+        type="text"
+        value={value ?? ""}
+        onChange={(e) => onChange(e.target.value)}
+        onFocus={() => setFocus(true)}
+        onBlur={() => setFocus(false)}
+        placeholder={placeholder}
+        aria-label="セッションを検索"
+        style={{
+          flex: 1,
+          minWidth: 0,
+          height: 36,
+          border: "none",
+          outline: "none",
+          background: "transparent",
+          fontFamily: font,
+          fontSize: 14,
+          color: C.text,
+          padding: "0 8px",
+        }}
+      />
+      {value && (
+        <button
+          onClick={() => onChange("")}
+          aria-label="検索をクリア"
+          style={{
+            width: 28, height: 28,
+            display: "inline-flex", alignItems: "center", justifyContent: "center",
+            border: "none", background: "transparent", cursor: "pointer",
+            color: C.textSecondary, padding: 0, borderRadius: 14,
+          }}
+        >
+          <Icon name="x" size={16} color={C.textSecondary} />
+        </button>
+      )}
+    </div>
+  );
+}
+
 // === src/ui/sessions/SessionCard.jsx ===
-// SessionCard — Sessions 一覧の1枚カード (S6 改訂、DESIGN_SYSTEM §8.5.5 準拠)
+// SessionCard — Sessions 一覧の1枚カード (DESIGN_SYSTEM §8.5.5 準拠、S6 仕様)
 // props:
 //   type: "tournament" | "practice" (trial は一覧表示から除外、リンクバッジ経由で表示)
 //   date: 日付文字列 (YYYY-MM-DD / YYYY/M/D 両対応、内部で normDate)
@@ -1161,6 +1490,9 @@ function FAB({ onClick, icon = "plus", ariaLabel = "追加" }) {
 //   null        → 通常カード
 //
 // 使う色は C.tournamentAccent 等を経由 (独自スタイル禁止)
+//
+// S7 で残した拡張: 日付 span に minWidth (4 文字日付でも潰れない揃え)、
+//                  Badge 呼び出しに minWidth を渡してカード間で右端を揃える
 
 const SESSION_TYPE_ACCENT = {
   tournament: { accent: C.tournamentAccent, light: C.tournamentLight },
@@ -1197,8 +1529,8 @@ function SessionCard({ type, date, title, metaLine, highlight, resultBadge, side
         background: bg,
         border,
         borderRadius: 12,
-        padding: "14px 16px 14px 20px",
-        marginBottom: 6,
+        padding: "10px 14px 10px 18px",
+        marginBottom: 4,
         cursor: clickable ? "pointer" : "default",
         transition: "background 150ms ease-out, transform 150ms",
         boxShadow: shadow,
@@ -1212,19 +1544,26 @@ function SessionCard({ type, date, title, metaLine, highlight, resultBadge, side
         borderTopLeftRadius: 12, borderBottomLeftRadius: 12,
       }} />
 
-      {/* 1 行目: 日付 + 結果バッジ + サイドバッジ */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
-        <span style={{ fontSize: 13, fontWeight: 600, color: C.textSecondary }}>
+      {/* 1 行目: 日付 + カテゴリー (sideBadge) + 結果 (resultBadge) + 試打 (trialBadge) */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2, flexWrap: "wrap" }}>
+        <span style={{
+          fontSize: 13,
+          fontWeight: 600,
+          color: C.textSecondary,
+          minWidth: 42,      // 「4/11」(4文字) でも潰れず、「4/8」(3文字) でも幅を確保
+          flexShrink: 0,     // バッジ増えても日付が圧縮されない
+        }}>
           {fmtDate(date)}
         </span>
-        {resultBadge && (
-          <Badge variant={resultBadge.variant} icon={resultBadge.icon}>{resultBadge.label}</Badge>
-        )}
+        {/* minWidth は役割ごとに固定: 並んだカードでバッジ右端を揃えてリズムを作る */}
         {sideBadge && (
-          <Badge variant={sideBadge.variant} icon={sideBadge.icon}>{sideBadge.label}</Badge>
+          <Badge variant={sideBadge.variant} icon={sideBadge.icon} minWidth={96}>{sideBadge.label}</Badge>
+        )}
+        {resultBadge && (
+          <Badge variant={resultBadge.variant} icon={resultBadge.icon} minWidth={80}>{resultBadge.label}</Badge>
         )}
         {trialBadge && (
-          <Badge variant={trialBadge.variant} icon={trialBadge.icon}>{trialBadge.label}</Badge>
+          <Badge variant={trialBadge.variant} icon={trialBadge.icon} minWidth={60}>{trialBadge.label}</Badge>
         )}
       </div>
 
@@ -1250,17 +1589,19 @@ function SessionCard({ type, date, title, metaLine, highlight, resultBadge, side
 }
 
 // === src/ui/sessions/SessionsTab.jsx ===
-// SessionsTab — Sessions タブ本体 (S6 作り直し、DESIGN_SYSTEM §8.5 / WIREFRAMES §2.2.1)
+// SessionsTab — Sessions タブ本体 (S7 検索・絞り込み追加、DESIGN_SYSTEM §8.5 / WIREFRAMES §2.2.0/§2.2.1)
 // props:
 //   tournaments, practices, trials: 配列 (親から渡る、normDate は親で正規化済みでも未正規化でも OK)
 //   loading: ロード中
-//   onCardClick: カードタップ (S10 で画面遷移に接続、S6 は toast 表示のみ)
-//   onFabClick:  FAB タップ (S12 で QuickAdd に接続、S6 は toast 表示のみ)
+//   onCardClick: カードタップ (S10 で画面遷移に接続、S7 は toast 表示のみ)
+//   onFabClick:  FAB タップ (S12 で QuickAdd に接続、S7 は toast 表示のみ)
 // やること:
-//   - サマリーヘッダ + 時間軸密度可変リスト (週/月/年)
+//   - 検索窓 (タイトル/会場/対戦相手/メモを横断) + 軸別絞り込みチップ (種類/ラケット/対戦相手/結果)
+//   - サマリーヘッダ (絞り込み中は件数表示に切替) + 時間軸密度可変リスト (週/月/年)
 //   - 結果の階層表現を反映 (優勝=gold, 準優勝=silver, 3位=bronze, 他=通常)
 //   - FAB 右下
-// やらないこと (別 Stage): 検索 (S7), 絞り込みチップ (S7), 表示切替 (S8), カレンダー (S8), 年間濃淡 (S9), 詳細画面 (S10)
+//   - 検索・絞り込み state は localStorage に保存 (v4-sessions-search / v4-sessions-filters)
+// やらないこと (別 Stage): 表示切替 (S8), カレンダー (S8), 年間濃淡 (S9), 詳細画面 (S10)
 
 // ── 時間軸密度化ヘルパー (カレンダー通りの日曜始まり)
 const _getSundayOfWeek = (d) => {
@@ -1290,13 +1631,26 @@ const _monthLabel = (key) => {
 };
 const _yearLabel = (key) => `${key}年`;
 
+// ── 大会の形式 (singles/doubles/mixed) → カテゴリーバッジ
+// v3 line 2746-2747, 2764 から移植 (S6 で漏れていた)。練習の種別バッジと対称に「③ 何の種類」を伝える。
+// 色は v4 DESIGN_SYSTEM §1.2 準拠の tournament variant (オレンジ系) で統一、区別はアイコンで。
+const _mapTournamentType = (t) => {
+  if (!t) return null;
+  const map = {
+    "singles": { variant: "tournament", icon: "user",  label: "シングルス" },
+    "doubles": { variant: "tournament", icon: "users", label: "ダブルス" },
+    "mixed":   { variant: "tournament", icon: "users", label: "ミックス" },
+  };
+  return map[t] || null;
+};
+
 // ── 結果 → Badge + highlight マッピング (大会のみ)
 const _mapTournamentResult = (result) => {
   if (!result) return { badge: null, highlight: null };
   const map = {
     "優勝":     { badge: { variant: "tournament", icon: "trophy", label: "優勝" },   highlight: "gold" },
     "準優勝":   { badge: { variant: "info",       icon: "medal",  label: "準優勝" }, highlight: "silver" },
-    "3位":      { badge: { variant: "trial",      icon: "award",  label: "3位" },    highlight: "bronze" },
+    "3位":      { badge: { variant: "bronze",     icon: "award",  label: "3位" },    highlight: "bronze" },
     "ベスト8":   { badge: { variant: "warning", label: "ベスト8" },   highlight: null },
     "ベスト16":  { badge: { variant: "warning", label: "ベスト16" },  highlight: null },
     "予選突破": { badge: { variant: "success", label: "予選突破" }, highlight: null },
@@ -1306,7 +1660,7 @@ const _mapTournamentResult = (result) => {
   return map[result] || { badge: { variant: "default", label: result }, highlight: null };
 };
 
-// ── 試打 judgment → sideBadge マッピング
+// ── 試打 judgment → sideBadge マッピング (S6 残置、将来の試打一覧で再利用予定)
 const _mapTrialJudgment = (judgment) => {
   if (!judgment) return null;
   const map = {
@@ -1317,7 +1671,9 @@ const _mapTrialJudgment = (judgment) => {
   return map[judgment] || { variant: "trial", label: judgment };
 };
 
-// ── 練習 type → sideBadge マッピング (S6 revision: 種別を一目で分かるよう復活)
+// ── 練習 type → カテゴリーバッジ (「③ 何の種類」の役割を担う)
+// 左の緑帯でカテゴリーは「練習」と分かるが、どの種別 (スクール/自主練/練習試合 等) かは
+// バッジで明示しないと 800 件のスクロール中に視線が情報を掴めない。
 const _mapPracticeType = (t) => {
   if (!t) return null;
   const iconMap = {
@@ -1337,25 +1693,32 @@ const _joinMeta = (parts) => parts.filter(x => x).join(" / ");
 // ── 1 件を SessionCard props に変換
 const _buildCardProps = (type, item) => {
   if (type === "tournament") {
+    const typeBadge = _mapTournamentType(item.type);  // 形式 (S/D/Mix) を category badge に
     const { badge, highlight } = _mapTournamentResult(item.overallResult);
     const matches = Array.isArray(item.matches) ? item.matches : [];
     const wins = matches.filter(m => m.result === "勝利" || m.result === "win").length;
     const losses = matches.filter(m => m.result === "敗北" || m.result === "loss").length;
     const parts = [];
-    if (item.type) parts.push(item.type);
+    // 形式 (singles/doubles/mixed) は category badge に出すので meta からは除外
     if (matches.length > 0) parts.push(`${wins}勝${losses}敗`);
+    if (item.startTime) parts.push(item.startTime);   // 開始時刻 (「いつやるか」は一次情報)
     if (item.venue) parts.push(item.venue);
     return {
       type, date: item.date,
       title: item.name || "(無題の大会)",
       metaLine: _joinMeta(parts),
-      highlight, resultBadge: badge,
+      highlight,
+      sideBadge: typeBadge,
+      resultBadge: badge,
     };
   }
   if (type === "practice") {
     const typeBadge = _mapPracticeType(item.type);
     const parts = [];
-    // 種別は badge に移したので meta からは外す
+    // 時間帯 (start-end) は「いつやるか」の一次情報、meta 先頭に出す (v3 line 2788 相当)
+    if (item.startTime) {
+      parts.push(item.endTime ? `${item.startTime}-${item.endTime}` : item.startTime);
+    }
     if (item.duration) parts.push(`${item.duration}分`);
     if (item.heartRateAvg) parts.push(`心拍${item.heartRateAvg}`);
     if (item.venue && item.title !== item.venue) parts.push(item.venue);
@@ -1394,6 +1757,123 @@ const _buildTrialLinkedSets = (tournaments, practices, trials) => {
 
 const TRIAL_BADGE = { variant: "trial", icon: "badge-check", label: "試打" };
 
+// ── S7: 検索・絞り込み ─────────────────────────────────
+const LS_SEARCH  = "v4-sessions-search";
+const LS_FILTERS = "v4-sessions-filters";
+const FILTER_AXES = ["type", "racket", "opponent", "result"];
+const RESULT_OPTIONS = ["優勝","準優勝","3位","ベスト8","ベスト16","予選突破","敗退","予選敗退"];
+const TYPE_OPTIONS   = ["大会", "練習"];
+const FILTER_CHIP_LABEL    = { type: "種類",        racket: "ラケット",        opponent: "対戦相手",        result: "結果" };
+const FILTER_DRAWER_TITLE  = { type: "種類で絞り込む", racket: "ラケットで絞り込む", opponent: "対戦相手で絞り込む", result: "結果で絞り込む" };
+
+const _emptyFilters = () => ({ type: [], racket: [], opponent: [], result: [] });
+const _loadSearch = () => { try { return localStorage.getItem(LS_SEARCH) || ""; } catch { return ""; } };
+const _loadFilters = () => {
+  try {
+    const raw = localStorage.getItem(LS_FILTERS);
+    if (!raw) return _emptyFilters();
+    const obj = JSON.parse(raw);
+    const base = _emptyFilters();
+    FILTER_AXES.forEach(k => {
+      if (Array.isArray(obj[k])) base[k] = obj[k].filter(v => typeof v === "string" && v.length > 0);
+    });
+    return base;
+  } catch { return _emptyFilters(); }
+};
+
+// ラケット候補: 大会/練習の racketName + 試合 match.racketName の union
+const _extractRackets = (tournaments, practices) => {
+  const s = new Set();
+  tournaments.forEach(t => {
+    if (t.racketName) s.add(t.racketName);
+    (Array.isArray(t.matches) ? t.matches : []).forEach(m => { if (m && m.racketName) s.add(m.racketName); });
+  });
+  practices.forEach(p => { if (p.racketName) s.add(p.racketName); });
+  return [...s].sort((a, b) => a.localeCompare(b, "ja"));
+};
+
+// 対戦相手候補: matches[].opponent / opponent2 の union (大会のみ)
+const _extractOpponents = (tournaments) => {
+  const s = new Set();
+  tournaments.forEach(t => {
+    (Array.isArray(t.matches) ? t.matches : []).forEach(m => {
+      if (m && m.opponent)  s.add(m.opponent);
+      if (m && m.opponent2) s.add(m.opponent2);
+    });
+  });
+  return [...s].sort((a, b) => a.localeCompare(b, "ja"));
+};
+
+// 1 件のエントリから取り得るラケット名を配列で返す
+const _entryRackets = (entry) => {
+  const it = entry.item;
+  const out = [];
+  if (it.racketName) out.push(it.racketName);
+  if (entry.type === "tournament") {
+    (Array.isArray(it.matches) ? it.matches : []).forEach(m => { if (m && m.racketName) out.push(m.racketName); });
+  }
+  return out;
+};
+
+// 1 件のエントリから取り得る対戦相手名を配列で返す (大会のみ、練習は空)
+const _entryOpponents = (entry) => {
+  if (entry.type !== "tournament") return [];
+  const out = [];
+  (Array.isArray(entry.item.matches) ? entry.item.matches : []).forEach(m => {
+    if (m && m.opponent)  out.push(m.opponent);
+    if (m && m.opponent2) out.push(m.opponent2);
+  });
+  return out;
+};
+
+// 検索語 (q) がエントリのどこかに含まれるか (部分一致、大小英字無視)
+const _matchesSearch = (entry, q) => {
+  const trimmed = (q || "").trim();
+  if (!trimmed) return true;
+  const lower = trimmed.toLowerCase();
+  const hit = (s) => !!s && String(s).toLowerCase().includes(lower);
+  const it = entry.item;
+  if (entry.type === "tournament") {
+    if (hit(it.name) || hit(it.venue) || hit(it.generalNote)) return true;
+    const matches = Array.isArray(it.matches) ? it.matches : [];
+    for (const m of matches) {
+      if (!m) continue;
+      if (hit(m.opponent) || hit(m.opponent2) || hit(m.opponentNote) || hit(m.mentalNote) || hit(m.techNote) || hit(m.note)) return true;
+    }
+    return false;
+  }
+  if (entry.type === "practice") {
+    return hit(it.title) || hit(it.venue) || hit(it.coachNote) || hit(it.goodNote) || hit(it.improveNote) || hit(it.generalNote);
+  }
+  return false;
+};
+
+// 各絞り込み軸の判定 (全て AND、同一軸の複数値は OR)
+const _matchesFilters = (entry, filters) => {
+  if (filters.type.length > 0) {
+    const label = entry.type === "tournament" ? "大会" : entry.type === "practice" ? "練習" : "";
+    if (!filters.type.includes(label)) return false;
+  }
+  if (filters.racket.length > 0) {
+    const rs = _entryRackets(entry);
+    if (!filters.racket.some(r => rs.includes(r))) return false;
+  }
+  if (filters.opponent.length > 0) {
+    const ops = _entryOpponents(entry);
+    if (!filters.opponent.some(o => ops.includes(o))) return false;
+  }
+  if (filters.result.length > 0) {
+    if (entry.type !== "tournament") return false;
+    if (!filters.result.includes(entry.item.overallResult)) return false;
+  }
+  return true;
+};
+
+const _hasAnyFilter = (filters, search) => {
+  if ((search || "").trim().length > 0) return true;
+  return FILTER_AXES.some(k => (filters[k] || []).length > 0);
+};
+
 // ── 本体
 function SessionsTab({ tournaments = [], practices = [], trials = [], loading = false, onCardClick, onFabClick }) {
   const [collapsedYears, setCollapsedYears] = useState(() => {
@@ -1424,6 +1904,13 @@ function SessionsTab({ tournaments = [], practices = [], trials = [], loading = 
     });
   };
 
+  // S7: 検索・絞り込み state (localStorage 永続化)
+  const [search, setSearch] = useState(_loadSearch);
+  const [filters, setFilters] = useState(_loadFilters);
+  const [openDrawerAxis, setOpenDrawerAxis] = useState(null); // "type"|"racket"|"opponent"|"result"|null
+  useEffect(() => { try { localStorage.setItem(LS_SEARCH, search || ""); } catch {} }, [search]);
+  useEffect(() => { try { localStorage.setItem(LS_FILTERS, JSON.stringify(filters)); } catch {} }, [filters]);
+
   // 全アイテムを {type, item} にまとめて date desc ソート
   // 試打 (trial) は大会/練習への付随活動なので一覧からは除外 (バッジで示す)
   const allItems = useMemo(() => {
@@ -1434,7 +1921,18 @@ function SessionsTab({ tournaments = [], practices = [], trials = [], loading = 
     return list;
   }, [tournaments, practices]);
 
-  // 試打の紐付き Set
+  // S7: 絞り込み軸の候補 (元データから動的抽出)
+  const racketOptions   = useMemo(() => _extractRackets(tournaments, practices), [tournaments, practices]);
+  const opponentOptions = useMemo(() => _extractOpponents(tournaments), [tournaments]);
+
+  // S7: 検索 + 絞り込み適用後のアイテム
+  const filteredItems = useMemo(
+    () => allItems.filter(e => _matchesSearch(e, search) && _matchesFilters(e, filters)),
+    [allItems, search, filters]
+  );
+  const filterActive = _hasAnyFilter(filters, search);
+
+  // 試打の紐付き Set (元データ基準でバッジ判定、絞り込みには影響しない)
   const trialLinks = useMemo(() => _buildTrialLinkedSets(tournaments, practices, trials), [tournaments, practices, trials]);
 
   // 時間軸密度でグループ化 (未来/週/月/年の 4 バケット、週はカレンダー通り日曜始まり)
@@ -1453,7 +1951,7 @@ function SessionsTab({ tournaments = [], practices = [], trials = [], loading = 
     const weeks = {}, months = {}, years = {};
     const weekOrder = [], monthOrder = [], yearOrder = [];
 
-    allItems.forEach((entry) => {
+    filteredItems.forEach((entry) => {
       const nd = normDate(entry.item.date);
       const m = nd.match(/^(\d{4})-(\d{2})-(\d{2})/);
       if (!m) return;
@@ -1488,7 +1986,7 @@ function SessionsTab({ tournaments = [], practices = [], trials = [], loading = 
     future.sort((a, b) => normDate(a.item.date).localeCompare(normDate(b.item.date)));
 
     return { future, weeks, weekOrder, months, monthOrder, years, yearOrder, now };
-  }, [allItems]);
+  }, [filteredItems]);
 
   const renderCard = (entry, i) => {
     const props = _buildCardProps(entry.type, entry.item);
@@ -1509,22 +2007,33 @@ function SessionsTab({ tournaments = [], practices = [], trials = [], loading = 
 
   const hasAny = grouped.future.length > 0 || grouped.weekOrder.length > 0 || grouped.monthOrder.length > 0 || grouped.yearOrder.length > 0;
 
+  // S7: Drawer が現在開いている軸の選択肢
+  const axisOptions =
+    openDrawerAxis === "type"     ? TYPE_OPTIONS     :
+    openDrawerAxis === "racket"   ? racketOptions    :
+    openDrawerAxis === "opponent" ? opponentOptions  :
+    openDrawerAxis === "result"   ? RESULT_OPTIONS   : [];
+  const clearAxis = (axis) => setFilters(prev => ({ ...prev, [axis]: [] }));
+
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
       <SummaryHeader
         tournaments={tournaments}
         practices={practices}
+        filtered={filterActive}
+        filteredCount={filteredItems.length}
+        totalCount={allItems.length}
       />
 
       {/* スクロール領域 */}
-      <div style={{ flex: 1, overflow: "auto", padding: "12px 16px 80px" }}>
+      <div style={{ flex: 1, overflow: "auto", padding: "12px 16px 12px" }}>
         {loading ? (
           <div style={{ textAlign: "center", padding: 40, color: C.textMuted, fontSize: 13 }}>
             読み込み中...
           </div>
         ) : !hasAny ? (
           <div style={{ textAlign: "center", padding: 40, color: C.textMuted, fontSize: 13 }}>
-            データがありません
+            {filterActive ? "条件に合う記録がありません" : "データがありません"}
           </div>
         ) : (
           <>
@@ -1587,7 +2096,49 @@ function SessionsTab({ tournaments = [], practices = [], trials = [], loading = 
         )}
       </div>
 
-      <FAB onClick={onFabClick} ariaLabel="記録を追加" />
+      {/* S7: 操作帯 (画面下、TabBar 直上) — タップした直上に Drawer がせり上がる導線 */}
+      <div style={{
+        borderTop: `1px solid ${C.divider}`,
+        background: C.bg,
+        flexShrink: 0,
+      }}>
+        {/* 絞り込みチップ行 (横スクロール) */}
+        <div style={{
+          display: "flex", gap: 8,
+          padding: "8px 16px",
+          overflowX: "auto",
+        }}>
+          {FILTER_AXES.map(axis => (
+            <FilterChip
+              key={axis}
+              label={FILTER_CHIP_LABEL[axis]}
+              selectedValues={filters[axis]}
+              onOpen={() => setOpenDrawerAxis(axis)}
+              onClear={filters[axis].length > 0 ? () => clearAxis(axis) : undefined}
+            />
+          ))}
+        </div>
+        {/* 検索行 */}
+        <div style={{ padding: "0 16px 8px" }}>
+          <SearchBar value={search} onChange={setSearch} />
+        </div>
+      </div>
+
+      {/* FAB: 操作帯 (約 108px) + TabBar (56px) の上に浮かせる */}
+      <FAB onClick={onFabClick} ariaLabel="記録を追加" bottom={180} />
+
+      {/* S7: 絞り込みドロワー (画面下シート) */}
+      <FilterDrawer
+        open={!!openDrawerAxis}
+        title={openDrawerAxis ? FILTER_DRAWER_TITLE[openDrawerAxis] : ""}
+        options={axisOptions}
+        selected={openDrawerAxis ? (filters[openDrawerAxis] || []) : []}
+        onApply={(newSel) => {
+          if (openDrawerAxis) setFilters(prev => ({ ...prev, [openDrawerAxis]: newSel }));
+          setOpenDrawerAxis(null);
+        }}
+        onClose={() => setOpenDrawerAxis(null)}
+      />
     </div>
   );
 }
