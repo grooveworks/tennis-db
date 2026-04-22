@@ -14,6 +14,7 @@ input,select,textarea,button{font-family:inherit}
 ::-webkit-scrollbar{display:none}
 @keyframes modalEnter{from{opacity:0;transform:scale(0.95)}to{opacity:1;transform:scale(1)}}
 @keyframes drawerEnter{from{transform:translateY(100%)}to{transform:translateY(0)}}
+@keyframes dayPanelSlideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:0.01ms!important;animation-iteration-count:1!important;transition-duration:0.01ms!important;scroll-behavior:auto!important}
 }
@@ -26,7 +27,7 @@ input,select,textarea,button{font-family:inherit}
 const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
 // ── 定数定義（色・キー・バージョン）─────────────
-const APP_VERSION="4.0.0-S7";
+const APP_VERSION="4.0.0-S8";
 const font="-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif";
 
 // 色設計（DESIGN_SYSTEM_v4.md §1 準拠）
@@ -40,7 +41,7 @@ const C={
   primary:"#1a73e8",primaryHover:"#1765cc",primaryLight:"#e8f0fe",
   // Sessions カテゴリ (§1.2) — 左端色帯・アイコン色に使用
   tournamentAccent:"#f9ab00",tournamentLight:"#feefc3",
-  practiceAccent:"#0f9d58",practiceLight:"#e6f4ea",
+  practiceAccent:"#0f9d58",practiceMid:"#b7e1c9",practiceLight:"#e6f4ea",
   trialAccent:"#9334e0",trialLight:"#f3e8fd",
   // Semantic (§1.3)
   info:"#1a73e8",infoLight:"#e8f0fe",
@@ -1100,6 +1101,537 @@ function LoginScreen({ onLogin, onError }) {
   );
 }
 
+// === src/ui/sessions/CalendarDayCell.jsx ===
+// CalendarDayCell — カレンダー 1 マス (DESIGN_SYSTEM §8.5.7)
+// props:
+//   day:      日 (1-31)
+//   dow:      曜日 (0=日, 6=土)
+//   isOutside: 月外マス (前月末 / 翌月頭)
+//   isToday:   今日マス (2px primary border)
+//   isSelected: 選択中マス (外周リング)
+//   tournaments: 当日の大会 entry 配列 (entry={type:"tournament",item})
+//   practices:   当日の練習 entry 配列
+//   hasTrial:   当日のいずれかが試打にリンクされているか
+//   onClick:    タップ時 (day を渡す、isOutside の場合は無効)
+
+// 練習の合計分から濃度バケツを決める
+const _practiceDensity = (practices) => {
+  const total = practices.reduce((s, e) => s + (Number(e.item.duration) || 0), 0);
+  if (total <= 0) return null;
+  if (total < 30) return "light";
+  if (total <= 60) return "mid";
+  return "accent";
+};
+
+function CalendarDayCell({
+  day,
+  dow = 0,
+  isOutside = false,
+  isToday = false,
+  isSelected = false,
+  tournaments = [],
+  practices = [],
+  hasTrial = false,
+  onClick,
+}) {
+  // 共通スタイル
+  const baseStyle = {
+    aspectRatio: "1 / 1.05",
+    minHeight: 44,
+    borderRadius: 8,
+    padding: isToday ? 3 : 4,
+    border: isToday ? `2px solid ${C.primary}` : `1px solid ${C.divider}`,
+    boxShadow: isSelected ? `0 0 0 2px ${C.primary}, 0 4px 8px rgba(26,115,232,0.18)` : "none",
+    display: "flex",
+    flexDirection: "column",
+    position: "relative",
+    cursor: isOutside ? "default" : "pointer",
+    transition: "transform 150ms",
+    background: C.panel,
+    zIndex: isSelected ? 1 : "auto",
+  };
+
+  // 月外マス
+  if (isOutside) {
+    return (
+      <div
+        style={{ ...baseStyle, background: C.panel2, cursor: "default", border: `1px solid ${C.divider}` }}
+        aria-hidden="true"
+      >
+        <div style={{ fontSize: 12, color: C.textMuted, lineHeight: 1.1 }}>{day}</div>
+      </div>
+    );
+  }
+
+  // 大会日: 全面 tournamentLight + 右上 trophy
+  const hasTournament = tournaments.length > 0;
+  const density = _practiceDensity(practices);
+
+  let bg = C.panel;
+  let dayColor;
+  if (hasTournament) {
+    bg = C.tournamentLight;
+  } else if (density === "light")  bg = C.practiceLight;
+  else if (density === "mid")     bg = C.practiceMid;
+  else if (density === "accent")  { bg = C.practiceAccent; dayColor = "#ffffff"; }
+
+  // 日付文字色: 練習濃 (白) > 曜日色 > 通常
+  if (!dayColor) {
+    if (dow === 0)      dayColor = "#dc2626";
+    else if (dow === 6) dayColor = C.primary;
+    else                dayColor = C.text;
+  }
+
+  // 下部ドット (大会日に練習が重なる時 + 試打リンク時)
+  const dots = [];
+  if (hasTournament && practices.length > 0) {
+    dots.push({ key: "prac", color: C.practiceAccent });
+  }
+  if (hasTrial) {
+    dots.push({ key: "trial", color: C.trialAccent });
+  }
+
+  // 件数 (a11y 用)
+  const count = tournaments.length + practices.length;
+  const aria = count > 0 ? `${day}日 ${count}件` : `${day}日`;
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      aria-label={aria}
+      aria-pressed={isSelected}
+      onClick={() => onClick && onClick(day)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick && onClick(day);
+        }
+      }}
+      style={{ ...baseStyle, background: bg }}
+      onMouseDown={(e) => { e.currentTarget.style.transform = "scale(0.95)"; }}
+      onMouseUp={(e)   => { e.currentTarget.style.transform = "scale(1)"; }}
+      onMouseLeave={(e)=> { e.currentTarget.style.transform = "scale(1)"; }}
+    >
+      <div style={{ fontSize: 12, fontWeight: 500, lineHeight: 1.1, color: dayColor }}>{day}</div>
+      {hasTournament && (
+        <div style={{ position: "absolute", top: 2, right: 2, color: C.tournamentAccent, lineHeight: 0 }}>
+          <Icon name="trophy" size={14} color={C.tournamentAccent} />
+        </div>
+      )}
+      {dots.length > 0 && (
+        <div style={{ position: "absolute", bottom: 3, left: 0, right: 0, display: "flex", justifyContent: "center", gap: 3 }}>
+          {dots.map(d => (
+            <span key={d.key} style={{ width: 5, height: 5, borderRadius: "50%", background: d.color }} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// === src/ui/sessions/CalendarView.jsx ===
+// CalendarView — Sessions タブ カレンダー mode (DESIGN_SYSTEM §8.5.7 / WIREFRAMES §2.2.2)
+// props:
+//   items:       絞り込み済みエントリ配列 [{type:"tournament"|"practice", item}]
+//                試打 (trial) は item に直接含まれず、trialLinks 経由でドット表示。
+//   trialLinks:  {linkedTournamentIds:Set, linkedPracticeIds:Set}
+//   onCardClick: (type, item) => void  日詳細パネルのミニ行タップ時 (S10 で詳細画面に接続)
+//   onPanelStateChange: (open:boolean) => void  DayPanel 開閉を親に通知 (FAB 退避制御に使う)
+//
+// やること:
+//   - 月のマス目 (日曜始まり)、前月/次月/今月ナビ、今日強調、選択中外周リング
+//   - 当日タップで CalendarGrid 直下に DayPanel を表示 (B 版、§8.5.7.1)
+//   - 同じ日の再タップで閉じる、月切替時は選択解除
+// やらないこと:
+//   - 詳細画面遷移 (S10) — onCardClick で親に委譲
+//   - 試打のみの日のセル描画 (試打は付随活動として大会/練習にリンク表示)
+
+const _DOW_LABELS_FULL = ["日","月","火","水","木","金","土"];
+
+// "YYYY-MM-DD" フォーマット
+const _toISO = (y, m1, d) =>
+  `${y}-${String(m1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+
+// 月オブジェクト (y, m=0-11) からその月の日数 / 1日の曜日を求める
+const _monthMeta = (y, m) => ({
+  daysInMonth: new Date(y, m + 1, 0).getDate(),
+  firstDow: new Date(y, m, 1).getDay(),  // 0=日, 6=土
+});
+
+// 今日 ISO (ローカル日付)
+const _todayISO = () => {
+  const d = new Date();
+  return _toISO(d.getFullYear(), d.getMonth() + 1, d.getDate());
+};
+
+function CalendarView({ items = [], trialLinks = { linkedTournamentIds: new Set(), linkedPracticeIds: new Set() }, onCardClick, onPanelStateChange }) {
+  const [month, setMonth] = useState(() => {
+    const d = new Date();
+    return { y: d.getFullYear(), m: d.getMonth() };
+  });
+  const [selectedDay, setSelectedDay] = useState(null); // 1-31 (現在表示中の月内の日付)
+  // パネル開閉を親に通知 (FAB 表示制御)
+  useEffect(() => {
+    if (onPanelStateChange) onPanelStateChange(!!selectedDay);
+  }, [selectedDay, onPanelStateChange]);
+
+  // 当月の日付プレフィックス (YYYY-MM)
+  const monthPrefix = `${month.y}-${String(month.m + 1).padStart(2, "0")}`;
+  const monthLabel = `${month.y}年${month.m + 1}月`;
+  const todayISO = _todayISO();
+
+  // 月切替で選択解除
+  const goPrev = () => { setSelectedDay(null); setMonth(p => p.m === 0 ? { y: p.y - 1, m: 11 } : { y: p.y, m: p.m - 1 }); };
+  const goNext = () => { setSelectedDay(null); setMonth(p => p.m === 11 ? { y: p.y + 1, m: 0 } : { y: p.y, m: p.m + 1 }); };
+  const goToday = () => {
+    const d = new Date();
+    setSelectedDay(null);
+    setMonth({ y: d.getFullYear(), m: d.getMonth() });
+  };
+  const isCurrentMonth = (() => {
+    const d = new Date();
+    return d.getFullYear() === month.y && d.getMonth() === month.m;
+  })();
+
+  // 当月の日 → entry 配列 のマップを構築
+  const dayMap = useMemo(() => {
+    const map = {};  // { day(1-31): { tournaments:[], practices:[] } }
+    items.forEach(entry => {
+      const nd = normDate(entry.item.date);
+      if (!nd.startsWith(monthPrefix + "-")) return;
+      const dayMatch = nd.match(/-(\d{2})$/);
+      if (!dayMatch) return;
+      const day = Number(dayMatch[1]);
+      if (!map[day]) map[day] = { tournaments: [], practices: [] };
+      if (entry.type === "tournament") map[day].tournaments.push(entry);
+      else if (entry.type === "practice") map[day].practices.push(entry);
+    });
+    return map;
+  }, [items, monthPrefix]);
+
+  // 各日に試打リンクがあるか (大会/練習いずれかが trialLinks に含まれるか)
+  const hasTrialOnDay = (day) => {
+    const slot = dayMap[day];
+    if (!slot) return false;
+    if (slot.tournaments.some(e => trialLinks.linkedTournamentIds.has(e.item.id))) return true;
+    if (slot.practices.some(e => trialLinks.linkedPracticeIds.has(e.item.id))) return true;
+    return false;
+  };
+
+  const { daysInMonth, firstDow } = _monthMeta(month.y, month.m);
+
+  // 月外マス (前月末) を含めたセル配列を構築
+  const cells = [];
+  const prevLast = new Date(month.y, month.m, 0).getDate();
+  for (let i = firstDow; i > 0; i--) {
+    cells.push({ kind: "outside", day: prevLast - i + 1 });
+  }
+  for (let d = 1; d <= daysInMonth; d++) {
+    cells.push({ kind: "in", day: d });
+  }
+  while (cells.length % 7 !== 0) {
+    const after = cells.length - daysInMonth - firstDow + 1;
+    cells.push({ kind: "outside", day: after });
+  }
+
+  const handleCellClick = (day) => {
+    setSelectedDay(prev => prev === day ? null : day);
+  };
+
+  // 選択日の dateISO + 当日 entries (DayPanel に渡す)
+  const selectedISO = selectedDay ? _toISO(month.y, month.m + 1, selectedDay) : null;
+  const selectedSlot = selectedDay ? (dayMap[selectedDay] || { tournaments: [], practices: [] }) : null;
+
+  return (
+    <>
+      <div style={{ flex: 1, overflow: "auto", padding: "8px 12px 12px", background: C.bg, minHeight: 0 }}>
+        {/* 月ヘッダ + 前後ナビ + 今日へジャンプ */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 4px 10px" }}>
+          <button
+            onClick={goPrev}
+            aria-label="前月"
+            style={{ width: 40, height: 40, border: "none", background: "transparent", color: C.textSecondary, borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+          >
+            <Icon name="chevron-left" size={22} color={C.textSecondary} />
+          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>{monthLabel}</div>
+            {!isCurrentMonth && (
+              <button
+                onClick={goToday}
+                style={{
+                  fontSize: 11, padding: "3px 8px", borderRadius: 12,
+                  border: `1px solid ${C.primary}`,
+                  background: "transparent", color: C.primary,
+                  cursor: "pointer",
+                }}
+              >
+                今日
+              </button>
+            )}
+          </div>
+          <button
+            onClick={goNext}
+            aria-label="次月"
+            style={{ width: 40, height: 40, border: "none", background: "transparent", color: C.textSecondary, borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+          >
+            <Icon name="chevron-right" size={22} color={C.textSecondary} />
+          </button>
+        </div>
+
+        {/* 曜日ヘッダ */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4, padding: "0 0 4px" }}>
+          {_DOW_LABELS_FULL.map((d, i) => (
+            <div
+              key={d}
+              style={{
+                textAlign: "center",
+                fontSize: 10, fontWeight: 600,
+                padding: "2px 0",
+                color: i === 0 ? "#dc2626" : i === 6 ? C.primary : C.textMuted,
+              }}
+            >
+              {d}
+            </div>
+          ))}
+        </div>
+
+        {/* グリッド本体 */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4 }}>
+          {cells.map((cell, i) => {
+            const dow = i % 7;
+            if (cell.kind === "outside") {
+              return (
+                <CalendarDayCell
+                  key={`out-${i}`}
+                  day={cell.day}
+                  dow={dow}
+                  isOutside={true}
+                />
+              );
+            }
+            const slot = dayMap[cell.day] || { tournaments: [], practices: [] };
+            const dayISO = _toISO(month.y, month.m + 1, cell.day);
+            return (
+              <CalendarDayCell
+                key={`in-${cell.day}`}
+                day={cell.day}
+                dow={dow}
+                isToday={dayISO === todayISO}
+                isSelected={selectedDay === cell.day}
+                tournaments={slot.tournaments}
+                practices={slot.practices}
+                hasTrial={hasTrialOnDay(cell.day)}
+                onClick={handleCellClick}
+              />
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 選択中の日詳細パネル */}
+      {selectedDay && selectedISO && selectedSlot && (
+        <DayPanel
+          dateISO={selectedISO}
+          tournaments={selectedSlot.tournaments}
+          practices={selectedSlot.practices}
+          onClose={() => setSelectedDay(null)}
+          onCardClick={onCardClick}
+        />
+      )}
+    </>
+  );
+}
+
+// === src/ui/sessions/DayPanel.jsx ===
+// DayPanel — CalendarGrid 直下の選択日詳細パネル (DESIGN_SYSTEM §8.5.7.1)
+// props:
+//   dateISO:      "YYYY-MM-DD" (この日のセッションを表示)
+//   tournaments:  当日の大会 entry 配列 (entry={type,item})
+//   practices:    当日の練習 entry 配列
+//   trialLinks:   {linkedTournamentIds:Set, linkedPracticeIds:Set} (試打バッジ判定用、現状ミニ行では未使用だが将来用)
+//   onClose:      ✕ ボタン or ESC で呼ばれる
+//   onCardClick:  ミニ行タップ時 (type, item) を渡す (S10 で詳細画面に接続)
+
+const _DOW_LABELS = ["日","月","火","水","木","金","土"];
+
+const _formatDateLabel = (dateISO) => {
+  const m = String(dateISO || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return dateISO;
+  const [, y, mo, d] = m;
+  const dt = new Date(Number(y), Number(mo) - 1, Number(d));
+  return `${Number(mo)}月${Number(d)}日 (${_DOW_LABELS[dt.getDay()]})`;
+};
+
+// 大会の結果 → 結果バッジ用 (variant + label)。SessionsTab._mapTournamentResult と整合。
+const _resultBadgeProps = (result) => {
+  if (!result) return null;
+  const map = {
+    "優勝":     { variant: "tournament", label: "優勝" },
+    "準優勝":   { variant: "info",       label: "準優勝" },
+    "3位":      { variant: "bronze",     label: "3位" },
+    "ベスト8":  { variant: "warning",    label: "ベスト8" },
+    "ベスト16": { variant: "warning",    label: "ベスト16" },
+    "予選突破": { variant: "success",    label: "予選突破" },
+    "敗退":     { variant: "error",      label: "敗退" },
+    "予選敗退": { variant: "error",      label: "予選敗退" },
+  };
+  return map[result] || { variant: "default", label: result };
+};
+
+// 大会の meta 行: 開始時刻 / 形式 / 勝敗
+const _tournamentMeta = (item) => {
+  const parts = [];
+  if (item.startTime) parts.push(item.startTime);
+  const typeLabel = { singles: "シングルス", doubles: "ダブルス", mixed: "ミックス" }[item.type];
+  if (typeLabel) parts.push(typeLabel);
+  const matches = Array.isArray(item.matches) ? item.matches : [];
+  if (matches.length > 0) {
+    const wins = matches.filter(m => m.result === "勝利" || m.result === "win").length;
+    const losses = matches.filter(m => m.result === "敗北" || m.result === "loss").length;
+    parts.push(`${wins}勝${losses}敗`);
+  }
+  return parts.join(" / ");
+};
+
+// 練習の meta 行: 時間帯 / 分 / 心拍 / 会場
+const _practiceMeta = (item) => {
+  const parts = [];
+  if (item.startTime) parts.push(item.endTime ? `${item.startTime}-${item.endTime}` : item.startTime);
+  if (item.duration) parts.push(`${item.duration}分`);
+  if (item.heartRateAvg) parts.push(`心拍${item.heartRateAvg}`);
+  return parts.join(" / ");
+};
+
+const DayPanelMiniRow = ({ entry, onClick }) => {
+  const isTournament = entry.type === "tournament";
+  const it = entry.item;
+  const sideColor = isTournament ? C.tournamentAccent : C.practiceAccent;
+  const title = isTournament
+    ? (it.name || "(無題の大会)")
+    : (it.title || it.venue || "(無題の練習)");
+  const meta = isTournament ? _tournamentMeta(it) : _practiceMeta(it);
+  const resultBadge = isTournament ? _resultBadgeProps(it.overallResult) : null;
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={() => onClick && onClick(entry.type, it)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick && onClick(entry.type, it);
+        }
+      }}
+      onMouseEnter={(e) => { e.currentTarget.style.background = C.panel2; }}
+      onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        padding: 6,
+        borderRadius: 8,
+        cursor: "pointer",
+        background: "transparent",
+      }}
+    >
+      <div style={{ width: 4, height: 36, borderRadius: 2, background: sideColor, flexShrink: 0 }} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{
+          fontSize: 13, fontWeight: 600, color: C.text,
+          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+        }}>
+          {title}
+        </div>
+        {meta && (
+          <div style={{
+            fontSize: 11, color: C.textMuted, marginTop: 2,
+            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+          }}>
+            {meta}
+          </div>
+        )}
+      </div>
+      {resultBadge && (
+        <Badge variant={resultBadge.variant}>{resultBadge.label}</Badge>
+      )}
+      <Icon name="chevron-right" size={16} color={C.textMuted} />
+    </div>
+  );
+};
+
+function DayPanel({ dateISO, tournaments = [], practices = [], onClose, onCardClick }) {
+  // 並び順: 大会 → 練習 (大会内は startTime 昇順、練習も startTime 昇順)
+  const ordered = useMemo(() => {
+    const t = [...tournaments].sort((a, b) => String(a.item.startTime || "").localeCompare(String(b.item.startTime || "")));
+    const p = [...practices].sort((a, b) => String(a.item.startTime || "").localeCompare(String(b.item.startTime || "")));
+    return [...t, ...p];
+  }, [tournaments, practices]);
+
+  // ESC で閉じる
+  useEffect(() => {
+    const handler = (e) => { if (e.key === "Escape") onClose && onClose(); };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [onClose]);
+
+  const count = ordered.length;
+  const label = _formatDateLabel(dateISO);
+
+  return (
+    <div
+      style={{
+        background: C.panel,
+        borderTop: `1px solid ${C.divider}`,
+        maxHeight: 220,
+        display: "flex",
+        flexDirection: "column",
+        flexShrink: 0,
+        animation: "dayPanelSlideUp 200ms ease-out",
+      }}
+    >
+      {/* ヘッダ */}
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "8px 16px",
+        borderBottom: `1px solid ${C.divider}`,
+        flexShrink: 0,
+      }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>
+          {label}
+          <span style={{ color: C.textMuted, fontWeight: 500, marginLeft: 6, fontSize: 12 }}>{count}件</span>
+        </div>
+        <button
+          onClick={onClose}
+          aria-label="閉じる"
+          style={{
+            width: 28, height: 28,
+            border: "none", background: "transparent", color: C.textMuted,
+            cursor: "pointer", borderRadius: 6,
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}
+        >
+          <Icon name="x" size={18} color={C.textMuted} />
+        </button>
+      </div>
+      {/* 本体 (スクロール) */}
+      <div style={{ flex: 1, overflowY: "auto", padding: "6px 12px 8px", minHeight: 0 }}>
+        {count === 0 ? (
+          <div style={{ textAlign: "center", padding: 16, color: C.textMuted, fontSize: 12 }}>
+            この日のセッションはありません
+          </div>
+        ) : (
+          ordered.map((entry, i) => (
+            <DayPanelMiniRow key={`${entry.type}-${entry.item.id || i}`} entry={entry} onClick={onCardClick} />
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
 // === src/ui/sessions/FAB.jsx ===
 // FAB — Floating Action Button (DESIGN_SYSTEM §8.5.9)
 // props:
@@ -1589,19 +2121,20 @@ function SessionCard({ type, date, title, metaLine, highlight, resultBadge, side
 }
 
 // === src/ui/sessions/SessionsTab.jsx ===
-// SessionsTab — Sessions タブ本体 (S7 検索・絞り込み追加、DESIGN_SYSTEM §8.5 / WIREFRAMES §2.2.0/§2.2.1)
+// SessionsTab — Sessions タブ本体 (S8 カレンダー mode 追加、DESIGN_SYSTEM §8.5 / WIREFRAMES §2.2.0/§2.2.1/§2.2.2)
 // props:
 //   tournaments, practices, trials: 配列 (親から渡る、normDate は親で正規化済みでも未正規化でも OK)
 //   loading: ロード中
-//   onCardClick: カードタップ (S10 で画面遷移に接続、S7 は toast 表示のみ)
-//   onFabClick:  FAB タップ (S12 で QuickAdd に接続、S7 は toast 表示のみ)
+//   onCardClick: カードタップ (S10 で画面遷移に接続、S8 は toast 表示のみ)
+//   onFabClick:  FAB タップ (S12 で QuickAdd に接続、S8 は toast 表示のみ)
 // やること:
 //   - 検索窓 (タイトル/会場/対戦相手/メモを横断) + 軸別絞り込みチップ (種類/ラケット/対戦相手/結果)
-//   - サマリーヘッダ (絞り込み中は件数表示に切替) + 時間軸密度可変リスト (週/月/年)
-//   - 結果の階層表現を反映 (優勝=gold, 準優勝=silver, 3位=bronze, 他=通常)
-//   - FAB 右下
-//   - 検索・絞り込み state は localStorage に保存 (v4-sessions-search / v4-sessions-filters)
-// やらないこと (別 Stage): 表示切替 (S8), カレンダー (S8), 年間濃淡 (S9), 詳細画面 (S10)
+//   - サマリーヘッダ右端の表示モード切替 (リスト / カレンダー、localStorage 永続化)
+//   - リスト mode: 時間軸密度可変リスト (週/月/年) + 結果の階層表現 (優勝=gold, 準優勝=silver, 3位=bronze)
+//   - カレンダー mode: 月マス + 色濃度 + 大会トロフィー + 試打紫点、日タップで直下に DayPanel
+//   - FAB 右下、絞り込みは両 mode に効く
+//   - state は localStorage に保存 (v4-sessions-search / v4-sessions-filters / v4-sessions-viewmode)
+// やらないこと (別 Stage): 年間濃淡 (S9), 詳細画面 slide-in (S10)
 
 // ── 時間軸密度化ヘルパー (カレンダー通りの日曜始まり)
 const _getSundayOfWeek = (d) => {
@@ -1757,9 +2290,14 @@ const _buildTrialLinkedSets = (tournaments, practices, trials) => {
 
 const TRIAL_BADGE = { variant: "trial", icon: "badge-check", label: "試打" };
 
-// ── S7: 検索・絞り込み ─────────────────────────────────
-const LS_SEARCH  = "v4-sessions-search";
-const LS_FILTERS = "v4-sessions-filters";
+// ── S7: 検索・絞り込み / S8: 表示モード ─────────────────────────────────
+const LS_SEARCH   = "v4-sessions-search";
+const LS_FILTERS  = "v4-sessions-filters";
+const LS_VIEWMODE = "v4-sessions-viewmode";
+const _loadViewMode = () => {
+  try { const v = localStorage.getItem(LS_VIEWMODE); return v === "calendar" ? "calendar" : "list"; }
+  catch { return "list"; }
+};
 const FILTER_AXES = ["type", "racket", "opponent", "result"];
 const RESULT_OPTIONS = ["優勝","準優勝","3位","ベスト8","ベスト16","予選突破","敗退","予選敗退"];
 const TYPE_OPTIONS   = ["大会", "練習"];
@@ -1911,6 +2449,12 @@ function SessionsTab({ tournaments = [], practices = [], trials = [], loading = 
   useEffect(() => { try { localStorage.setItem(LS_SEARCH, search || ""); } catch {} }, [search]);
   useEffect(() => { try { localStorage.setItem(LS_FILTERS, JSON.stringify(filters)); } catch {} }, [filters]);
 
+  // S8: 表示モード切替 (list / calendar、localStorage 永続化)
+  const [viewMode, setViewMode] = useState(_loadViewMode);
+  useEffect(() => { try { localStorage.setItem(LS_VIEWMODE, viewMode); } catch {} }, [viewMode]);
+  // S8: カレンダー mode で DayPanel が開いているか (FAB を退避させる)
+  const [calendarPanelOpen, setCalendarPanelOpen] = useState(false);
+
   // 全アイテムを {type, item} にまとめて date desc ソート
   // 試打 (trial) は大会/練習への付随活動なので一覧からは除外 (バッジで示す)
   const allItems = useMemo(() => {
@@ -2023,9 +2567,26 @@ function SessionsTab({ tournaments = [], practices = [], trials = [], loading = 
         filtered={filterActive}
         filteredCount={filteredItems.length}
         totalCount={allItems.length}
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
       />
 
-      {/* スクロール領域 */}
+      {/* メイン領域: mode で list / calendar を切替 */}
+      {viewMode === "calendar" ? (
+        loading ? (
+          <div style={{ flex: 1, textAlign: "center", padding: 40, color: C.textMuted, fontSize: 13 }}>
+            読み込み中...
+          </div>
+        ) : (
+          <CalendarView
+            items={filteredItems}
+            trialLinks={trialLinks}
+            onCardClick={onCardClick}
+            onPanelStateChange={setCalendarPanelOpen}
+          />
+        )
+      ) : (
+      /* リスト mode (S7 までの内容) */
       <div style={{ flex: 1, overflow: "auto", padding: "12px 16px 12px" }}>
         {loading ? (
           <div style={{ textAlign: "center", padding: 40, color: C.textMuted, fontSize: 13 }}>
@@ -2095,6 +2656,7 @@ function SessionsTab({ tournaments = [], practices = [], trials = [], loading = 
           </>
         )}
       </div>
+      )}
 
       {/* S7: 操作帯 (画面下、TabBar 直上) — タップした直上に Drawer がせり上がる導線 */}
       <div style={{
@@ -2124,8 +2686,11 @@ function SessionsTab({ tournaments = [], practices = [], trials = [], loading = 
         </div>
       </div>
 
-      {/* FAB: 操作帯 (約 108px) + TabBar (56px) の上に浮かせる */}
-      <FAB onClick={onFabClick} ariaLabel="記録を追加" bottom={180} />
+      {/* FAB: 操作帯 (約 108px) + TabBar (56px) の上に浮かせる。
+          カレンダー mode で DayPanel が開いている時は重なり回避のため非表示 (パネルを閉じれば再表示) */}
+      {!(viewMode === "calendar" && calendarPanelOpen) && (
+        <FAB onClick={onFabClick} ariaLabel="記録を追加" bottom={180} />
+      )}
 
       {/* S7: 絞り込みドロワー (画面下シート) */}
       <FilterDrawer
@@ -2147,11 +2712,13 @@ function SessionsTab({ tournaments = [], practices = [], trials = [], loading = 
 // SummaryHeader — Sessions タブ上部のサマリー帯 (DESIGN_SYSTEM §8.5.4)
 // props:
 //   tournaments, practices, trials: 各配列
-//   filtered: 絞り込み中フラグ (S7 で真になる、S6 では常に false)
+//   filtered: 絞り込み中フラグ
 //   filteredCount, totalCount: 絞り込み中の件数 (filtered=true の時)
+//   viewMode, onViewModeChange: S8 で追加 ("list"|"calendar"、右端トグル)
 //
-// 通常: 「今月: 18件（練15 / 大2 / 試1）・直近10試合 7勝3敗」
+// 通常: 「今月: 18件（練15 / 大2）・直近10試合 7勝3敗」
 // 絞り込み中: 「絞り込み結果: 12件 / 950件」
+// 右端: ViewModeSwitcher (リスト/カレンダー)
 
 function _formatMonthCounts(tournaments, practices) {
   // 試打は大会/練習に付随する活動なのでセッション総数には数えない
@@ -2180,11 +2747,11 @@ function _formatRecentRecord(tournaments) {
   return { count: recentMatches.length, wins, losses };
 }
 
-function SummaryHeader({ tournaments = [], practices = [], filtered = false, filteredCount = 0, totalCount = 0 }) {
+function SummaryHeader({ tournaments = [], practices = [], filtered = false, filteredCount = 0, totalCount = 0, viewMode = "list", onViewModeChange }) {
   const monthStats = useMemo(() => _formatMonthCounts(tournaments, practices), [tournaments, practices]);
   const recent = useMemo(() => _formatRecentRecord(tournaments), [tournaments]);
 
-  const style = {
+  const wrapStyle = {
     padding: "8px 16px",
     background: C.primaryLight,
     color: C.primary,
@@ -2192,30 +2759,37 @@ function SummaryHeader({ tournaments = [], practices = [], filtered = false, fil
     fontWeight: 500,
     borderTop: `1px solid ${C.divider}`,
     borderBottom: `1px solid ${C.divider}`,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  };
+  const textStyle = {
+    flex: 1,
+    minWidth: 0,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
   };
 
+  let textNode;
   if (filtered) {
-    return (
-      <div style={style}>
-        絞り込み結果: {filteredCount}件 / {totalCount}件
-      </div>
-    );
-  }
-
-  const parts = [];
-  parts.push(`今月: ${monthStats.total}件`);
-  if (monthStats.total > 0) {
-    parts.push(`（練${monthStats.p} / 大${monthStats.t}）`);
-  }
-  let line1 = parts.join("");
-  let line2 = "";
-  if (recent.count > 0) {
-    line2 = `直近${recent.count}試合 ${recent.wins}勝${recent.losses}敗`;
+    textNode = <div style={textStyle}>絞り込み結果: {filteredCount}件 / {totalCount}件</div>;
+  } else {
+    const parts = [];
+    parts.push(`今月: ${monthStats.total}件`);
+    if (monthStats.total > 0) parts.push(`（練${monthStats.p} / 大${monthStats.t}）`);
+    const line1 = parts.join("");
+    const line2 = recent.count > 0 ? `直近${recent.count}試合 ${recent.wins}勝${recent.losses}敗` : "";
+    textNode = <div style={textStyle}>{line1}{line2 && ` ・ ${line2}`}</div>;
   }
 
   return (
-    <div style={style}>
-      <div>{line1}{line2 && ` ・ ${line2}`}</div>
+    <div style={wrapStyle}>
+      {textNode}
+      {onViewModeChange && (
+        <ViewModeSwitcher value={viewMode} onChange={onViewModeChange} />
+      )}
     </div>
   );
 }
@@ -2276,6 +2850,59 @@ function TimeGroupHeader({ level = "month", label, count, collapsible = false, c
           ariaLabel={collapsed ? "展開" : "折り畳み"}
         />
       )}
+    </div>
+  );
+}
+
+// === src/ui/sessions/ViewModeSwitcher.jsx ===
+// ViewModeSwitcher — Sessions タブの表示モード切替トグル (DESIGN_SYSTEM §8.5.4 拡張)
+// props:
+//   value: "list" | "calendar"
+//   onChange: (next) => void
+// SummaryHeader 右端に常駐。S8 で list / calendar の 2 択。S9 追加時はドロップダウン化予定。
+
+function ViewModeSwitcher({ value = "list", onChange }) {
+  const btn = (mode, iconName, label) => {
+    const active = value === mode;
+    return (
+      <button
+        type="button"
+        onClick={() => !active && onChange && onChange(mode)}
+        aria-label={label}
+        aria-pressed={active}
+        style={{
+          width: 28, height: 22,
+          border: "none",
+          background: active ? C.primary : "transparent",
+          color: active ? "#ffffff" : C.primary,
+          borderRadius: 4,
+          cursor: active ? "default" : "pointer",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: 0,
+        }}
+      >
+        <Icon name={iconName} size={16} color={active ? "#ffffff" : C.primary} />
+      </button>
+    );
+  };
+  return (
+    <div
+      role="group"
+      aria-label="表示モード切替"
+      style={{
+        display: "inline-flex",
+        gap: 2,
+        background: "#ffffff",
+        borderRadius: 6,
+        padding: 2,
+        border: `1px solid rgba(26,115,232,0.3)`,
+        flexShrink: 0,
+      }}
+    >
+      {btn("list", "list", "リスト表示")}
+      {btn("calendar", "calendar", "カレンダー表示")}
     </div>
   );
 }

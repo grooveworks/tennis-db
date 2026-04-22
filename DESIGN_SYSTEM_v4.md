@@ -29,11 +29,14 @@
 
 主色が青のため、v3 から色分けを再配置。各カテゴリはアイコン+文字ラベル併用必須。
 
-| カテゴリ | アクセント | Light | 意味 |
-|---|---|---|---|
-| 🏆 大会 | `#f9ab00` (Orange) | `#feefc3` | 競技・ハイライト |
-| 🏃 練習 | `#0f9d58` (Green) | `#e6f4ea` | 継続・成長 |
-| 🎾 試打 | `#9334e0` (Purple) | `#f3e8fd` | 実験・探求 |
+| カテゴリ | アクセント | Mid | Light | 意味 |
+|---|---|---|---|---|
+| 🏆 大会 | `#f9ab00` (Orange) | — | `#feefc3` | 競技・ハイライト |
+| 🏃 練習 | `#0f9d58` (Green) | `#b7e1c9` | `#e6f4ea` | 継続・成長 |
+| 🎾 試打 | `#9334e0` (Purple) | — | `#f3e8fd` | 実験・探求 |
+
+**`practiceMid`** は S8 で追加。CalendarGrid (§8.5.7) で練習の活動量 3 段階のうち中間段階に使う固定色。
+opacity 重ね方式だと panel/panel2 上で見え方が変わるため固定色で統一。`#b7e1c9` は Light (#e6f4ea) と Accent (#0f9d58) の知覚中間で、`text` (#202124) との対比 5.4:1 (AA 達成) を確保。
 
 ### 1.3 Semantic（状態表現）
 
@@ -594,19 +597,54 @@ minWidth は v3 の typeLabel2 minWidth=32 / result minWidth=60 / pracTypeColor 
 
 ### 8.5.7 CalendarGrid (カレンダーマス)
 
-月のマス目。7 列 × 最大 6 行。
+月のマス目。7 列 × 最大 6 行 (日曜始まり)。S8 で実装。
 
 | 属性 | 値 |
 |---|---|
-| 1 マスのサイズ | `1fr` (可変) × 44px 以上 (タップ領域) |
+| 1 マスのサイズ | `1fr` (可変) × `aspect-ratio: 1/1.05` (タップ領域 44px 以上を確保) |
 | 1 マスの padding | 4px |
-| 背景 | `panel` |
+| マス間 gap | 4px |
+| 背景 (活動なし) | `panel` |
 | 空マス (月外) | `panel2`、日付文字は `textMuted` |
-| 今日マス | 枠 2px `primary` |
-| 活動マーカー | マス下部に色ドット、練習=緑・大会=オレンジ・試打=紫 |
-| 活動量濃淡 (練習) | 時間 30分未満=Light、30-60分=中、60分超=Accent (3段階) |
-| 大会日 | マス全体が `tournamentLight` で塗られる |
-| タップ | マス全体を `scale(0.95)` 150ms + 日一覧モーダル |
+| 今日マス | 枠 2px `primary` (常時表示) |
+| 選択中マス | `box-shadow: 0 0 0 2px primary, 0 4px 8px rgba(26,115,232,0.18)` (外周リング+影、今日枠と両立) |
+| 活動量濃淡 (練習) | 1 日の合計練習分で 3 段階: 30 分未満=`practiceLight`、30-60 分=`practiceMid`、60 分超=`practiceAccent` |
+| 大会日 | マス全体が `tournamentLight` で塗られる + 右上に `trophy` アイコン (Lucide, 14px, `tournamentAccent` 色) |
+| 大会+練習が重なる日 | 大会塗り優先、下部に `practiceAccent` の 5px 緑点で練習存在を示唆 |
+| 試打 (紐付き) | 下部に `trialAccent` の 5px 紫点 (大会/練習と共存可) |
+| 練習 60 分超セル内の日付文字 | `#ffffff` (背景濃緑とのコントラスト確保) |
+| 日曜の日付文字 | `#dc2626` |
+| 土曜の日付文字 | `primary` |
+| タップ | マス全体を `scale(0.95)` 150ms + 同マス再タップで選択解除 |
+| 選択時のフィードバック | 直下の DayPanel (§8.5.7.1) が表示される |
+
+#### 8.5.7.1 DayPanel (CalendarGrid 直下、選択日の詳細パネル)
+
+CalendarGrid の日マスをタップした時に表示される。S8 で「モーダル方式 (A)」ではなく「下部パネル方式 (B)」を採用したため新設 (理由: カレンダー mode の主目的は時間分布の俯瞰+比較スキャン。モーダル開閉のたびに視線断絶せず、1 タップで別の日に移れることを優先)。
+
+| 属性 | 値 |
+|---|---|
+| 位置 | CalendarGrid の直下、操作帯の直上 (flex 順序で挟まれる) |
+| 高さ | `max-height: 220px`、内部スクロール (3 件超なら overflow-y) |
+| 背景 | `panel` |
+| 上端 | `border-top: 1px solid divider` |
+| enter アニメ | `transform: translateY(20px → 0)` + `opacity 0 → 1`, 200ms ease-out |
+| ヘッダ行 | 左: 「M月D日 (曜) <span 件数>」、右: ✕ 閉じるボタン (28×28px) |
+| ヘッダ高 | 約 36px、下端 `border-bottom: 1px solid divider` |
+| 閉じる動作 | ✕ ボタン / 同じ日マス再タップ / モード切替 のいずれかで閉じる |
+| FAB 退避 | DayPanel 表示中は FAB を `bottom: 200px` (通常 180px から +20px) に持ち上げる |
+
+**ミニ行 (mini-row)**: パネル本体に並ぶ行。SessionCard より情報を絞った 1 行表示。
+
+| 属性 | 値 |
+|---|---|
+| 行高 | 約 48-52px (内 padding 6px) |
+| 行間 | 2px |
+| ホバー bg | `panel2` |
+| 左端 | 種類帯 4px × 36px (大会=`tournamentAccent` / 練習=`practiceAccent`) |
+| 中央 | 上段: タイトル (13px, font-weight 600, 1 行省略)、下段: メタ (11px, `textMuted`, 例「8:30 / シングルス / 2勝1敗」「18:30-20:00 / 90分 / 心拍142」) |
+| 右側 (大会のみ) | 結果バッジ (Badge §4.1、変則的に最大幅指定なし、テキスト 1 行) |
+| 右端 | `chevron-right` 16px (`textMuted`)、タップで S10 詳細画面へ遷移 |
 
 ### 8.5.8 YearHeatmap (年間濃淡マス)
 

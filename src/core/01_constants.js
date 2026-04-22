@@ -2,7 +2,7 @@
 const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
 // ── 定数定義（色・キー・バージョン）─────────────
-const APP_VERSION="4.0.0-S7";
+const APP_VERSION="4.0.0-S8";
 const font="-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif";
 
 // 色設計（DESIGN_SYSTEM_v4.md §1 準拠）
@@ -16,7 +16,7 @@ const C={
   primary:"#1a73e8",primaryHover:"#1765cc",primaryLight:"#e8f0fe",
   // Sessions カテゴリ (§1.2) — 左端色帯・アイコン色に使用
   tournamentAccent:"#f9ab00",tournamentLight:"#feefc3",
-  practiceAccent:"#0f9d58",practiceLight:"#e6f4ea",
+  practiceAccent:"#0f9d58",practiceMid:"#b7e1c9",practiceLight:"#e6f4ea",
   trialAccent:"#9334e0",trialLight:"#f3e8fd",
   // Semantic (§1.3)
   info:"#1a73e8",infoLight:"#e8f0fe",

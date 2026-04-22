@@ -1,11 +1,13 @@
 // SummaryHeader — Sessions タブ上部のサマリー帯 (DESIGN_SYSTEM §8.5.4)
 // props:
 //   tournaments, practices, trials: 各配列
-//   filtered: 絞り込み中フラグ (S7 で真になる、S6 では常に false)
+//   filtered: 絞り込み中フラグ
 //   filteredCount, totalCount: 絞り込み中の件数 (filtered=true の時)
+//   viewMode, onViewModeChange: S8 で追加 ("list"|"calendar"、右端トグル)
 //
-// 通常: 「今月: 18件（練15 / 大2 / 試1）・直近10試合 7勝3敗」
+// 通常: 「今月: 18件（練15 / 大2）・直近10試合 7勝3敗」
 // 絞り込み中: 「絞り込み結果: 12件 / 950件」
+// 右端: ViewModeSwitcher (リスト/カレンダー)
 
 function _formatMonthCounts(tournaments, practices) {
   // 試打は大会/練習に付随する活動なのでセッション総数には数えない
@@ -34,11 +36,11 @@ function _formatRecentRecord(tournaments) {
   return { count: recentMatches.length, wins, losses };
 }
 
-function SummaryHeader({ tournaments = [], practices = [], filtered = false, filteredCount = 0, totalCount = 0 }) {
+function SummaryHeader({ tournaments = [], practices = [], filtered = false, filteredCount = 0, totalCount = 0, viewMode = "list", onViewModeChange }) {
   const monthStats = useMemo(() => _formatMonthCounts(tournaments, practices), [tournaments, practices]);
   const recent = useMemo(() => _formatRecentRecord(tournaments), [tournaments]);
 
-  const style = {
+  const wrapStyle = {
     padding: "8px 16px",
     background: C.primaryLight,
     color: C.primary,
@@ -46,30 +48,37 @@ function SummaryHeader({ tournaments = [], practices = [], filtered = false, fil
     fontWeight: 500,
     borderTop: `1px solid ${C.divider}`,
     borderBottom: `1px solid ${C.divider}`,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  };
+  const textStyle = {
+    flex: 1,
+    minWidth: 0,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
   };
 
+  let textNode;
   if (filtered) {
-    return (
-      <div style={style}>
-        絞り込み結果: {filteredCount}件 / {totalCount}件
-      </div>
-    );
-  }
-
-  const parts = [];
-  parts.push(`今月: ${monthStats.total}件`);
-  if (monthStats.total > 0) {
-    parts.push(`（練${monthStats.p} / 大${monthStats.t}）`);
-  }
-  let line1 = parts.join("");
-  let line2 = "";
-  if (recent.count > 0) {
-    line2 = `直近${recent.count}試合 ${recent.wins}勝${recent.losses}敗`;
+    textNode = <div style={textStyle}>絞り込み結果: {filteredCount}件 / {totalCount}件</div>;
+  } else {
+    const parts = [];
+    parts.push(`今月: ${monthStats.total}件`);
+    if (monthStats.total > 0) parts.push(`（練${monthStats.p} / 大${monthStats.t}）`);
+    const line1 = parts.join("");
+    const line2 = recent.count > 0 ? `直近${recent.count}試合 ${recent.wins}勝${recent.losses}敗` : "";
+    textNode = <div style={textStyle}>{line1}{line2 && ` ・ ${line2}`}</div>;
   }
 
   return (
-    <div style={style}>
-      <div>{line1}{line2 && ` ・ ${line2}`}</div>
+    <div style={wrapStyle}>
+      {textNode}
+      {onViewModeChange && (
+        <ViewModeSwitcher value={viewMode} onChange={onViewModeChange} />
+      )}
     </div>
   );
 }
