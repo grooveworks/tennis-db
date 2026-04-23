@@ -7,6 +7,7 @@
 ## 0. 設計思想
 
 - **青ベース・明るい基調**（Google Material Design 3 風）
+- **フラットデザイン** (S8.5 で明示化): シャドウは原則不使用 (§4 / §181 参照)。階層は border と tinted bg で表現。優勝カード等の強調も影に頼らず、tinted bg + accent border + font-weight で成立させる。元々「Google 系アプリ参考」としてきた方針を、暗黙だった「フラット」を明文として固定。
 - **シンプル・削ぎ落とし**（Google 系アプリ参考、装飾最小）
 - **情報階層 3 段**で全画面統一（主/副/補助）
 - **ユニバーサルデザイン必須**（色弱・文字拡大・キーボード・スクリーンリーダー対応）
@@ -544,12 +545,12 @@ Sessions タブ上部の状況ダイジェスト行。
 
 | 結果 | 表現 |
 |---|---|
-| 優勝 | カード背景 `tournamentLight`、枠 1.5px `tournamentAccent`、shadow `0 0 0 3px rgba(249,171,0,0.15)` + [優勝] バッジ (tournament=白bg) |
-| 準優勝 | カード背景 `primaryLight`、枠 1.5px `primary` + [準優勝] バッジ (info=白bg) |
-| 3位 | カード背景 `trialLight`、枠 1.5px `trialAccent` + [3位] バッジ (bronze=白bg、§4.1 新設) |
+| 優勝 | カード背景 `tournamentLight`、枠 1.5px `tournamentAccent`、font-weight 700 + [優勝] バッジ (tournament=白bg)。S8.5 でフラット統一のため shadow 撤去。 |
+| 準優勝 | カード背景 `primaryLight`、枠 1.5px `primary`、font-weight 700 + [準優勝] バッジ (info=白bg) |
+| 3位 | カード背景 `trialLight`、枠 1.5px `trialAccent`、font-weight 700 + [3位] バッジ (bronze=白bg、§4.1 新設) |
 | ベスト8/16、予選突破 | 通常カード + Badge (warning / success) |
 | 敗退・予選敗退 | 通常カード + Badge (error) |
-| 練習 (既定) | 通常カード + 種別バッジ (スクール/自主練/練習会/ゲーム練習/球出し/練習試合/フィジカル、practice variant) |
+| 練習 (既定) | 通常カード + 種別バッジ (スクール/自主練/練習会/ゲーム練習/球出し/練習試合/フィジカル、practice variant)。マップ未登録の type (v2 Apple Watch import 等の generic 値) は S8.5 でバッジ抑制 — 左 3px 緑帯のみで練習カテゴリを伝える。 |
 
 **カード 1 行目 (メタ行、S7 で順序確定)**:
 - 日付 (13px, `textSecondary`, font-weight 600, minWidth 42px で揃える): 「4/18」
@@ -561,6 +562,7 @@ minWidth は v3 の typeLabel2 minWidth=32 / result minWidth=60 / pracTypeColor 
 
 **カード 2 行目 (タイトル)**:
 - 15px, `text`, font-weight 600 (優勝/準優勝/3位は 700): 「所沢ベテラン大会」
+- S8.5: `line-clamp: 2` で 2 行超は省略 (…)。GCal 由来の装飾付き長文 title (◎♪★ 等を含むテニスベア系イベント名) でカード高さが崩れるのを防止。全文は S10 詳細画面で確認。記号除去はインポート時の正規化 (S19) で行い、ここでは触らない。
 
 **カード 3 行目 (メタ行)**:
 - 12px, `textSecondary`: 例「3勝0敗 / 8:30 / 所沢市総合運動場」(大会)、「19:00-20:30 / 90分 / 心拍145」(練習)

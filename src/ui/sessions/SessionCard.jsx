@@ -27,8 +27,10 @@ const SESSION_TYPE_ACCENT = {
   trial:      { accent: C.trialAccent,      light: C.trialLight },
 };
 
+// S8.5: フラットデザイン原則 (DESIGN_SYSTEM §0 / §181) に合わせ gold の shadow を撤去。
+// 優勝の視覚強調は tinted bg + 1.5px accent border + font-weight 700 (SessionCard のタイトル行) のみで表現。
 const HIGHLIGHT_STYLES = {
-  gold:   { bg: C.tournamentLight, border: C.tournamentAccent, shadow: "0 0 0 3px rgba(249,171,0,0.15)" },
+  gold:   { bg: C.tournamentLight, border: C.tournamentAccent, shadow: "none" },
   silver: { bg: C.primaryLight,    border: C.primary,          shadow: "none" },
   bronze: { bg: C.trialLight,      border: C.trialAccent,      shadow: "none" },
 };
@@ -94,13 +96,19 @@ function SessionCard({ type, date, title, metaLine, highlight, resultBadge, side
         )}
       </div>
 
-      {/* 2 行目: タイトル */}
+      {/* 2 行目: タイトル (S8.5: 長 title の壁化防止のため 2 行で省略) */}
       <div style={{
         fontSize: 15,
         fontWeight: highlight ? 700 : 600,
         color: C.text,
         lineHeight: 1.3,
         marginBottom: metaLine ? 2 : 0,
+        display: "-webkit-box",
+        WebkitLineClamp: 2,
+        WebkitBoxOrient: "vertical",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        wordBreak: "break-word",
       }}>
         {title || "(無題)"}
       </div>

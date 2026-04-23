@@ -84,18 +84,21 @@ const _mapTrialJudgment = (judgment) => {
 // ── 練習 type → カテゴリーバッジ (「③ 何の種類」の役割を担う)
 // 左の緑帯でカテゴリーは「練習」と分かるが、どの種別 (スクール/自主練/練習試合 等) かは
 // バッジで明示しないと 800 件のスクロール中に視線が情報を掴めない。
+// S8.5: マップ未登録の type (v2 Apple Watch import 等でカテゴリ未指定の generic "練習" 等) は
+//       null 返却してバッジ抑制。左の緑帯だけで「これは練習」は伝わるので情報重複を避ける。
+const _PRACTICE_TYPE_ICONS = {
+  "スクール":   "graduation-cap",
+  "自主練":     "person-standing",
+  "練習会":     "users",
+  "ゲーム練習": "swords",
+  "球出し":     "target",
+  "練習試合":   "trophy",
+  "フィジカル": "dumbbell",
+};
 const _mapPracticeType = (t) => {
   if (!t) return null;
-  const iconMap = {
-    "スクール":   "graduation-cap",
-    "自主練":     "person-standing",
-    "練習会":     "users",
-    "ゲーム練習": "swords",
-    "球出し":     "target",
-    "練習試合":   "trophy",
-    "フィジカル": "dumbbell",
-  };
-  return { variant: "practice", icon: iconMap[t], label: t };
+  if (!(t in _PRACTICE_TYPE_ICONS)) return null;
+  return { variant: "practice", icon: _PRACTICE_TYPE_ICONS[t], label: t };
 };
 
 const _joinMeta = (parts) => parts.filter(x => x).join(" / ");
