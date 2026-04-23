@@ -1,17 +1,18 @@
-// SessionsTab — Sessions タブ本体 (S8 カレンダー mode 追加、DESIGN_SYSTEM §8.5 / WIREFRAMES §2.2.0/§2.2.1/§2.2.2)
+// SessionsTab — Sessions タブ本体 (S9 年間濃淡 mode 追加、DESIGN_SYSTEM §8.5 / WIREFRAMES §2.2.0/§2.2.1/§2.2.2/§2.2.3)
 // props:
 //   tournaments, practices, trials: 配列 (親から渡る、normDate は親で正規化済みでも未正規化でも OK)
 //   loading: ロード中
-//   onCardClick: カードタップ (S10 で画面遷移に接続、S8 は toast 表示のみ)
-//   onFabClick:  FAB タップ (S12 で QuickAdd に接続、S8 は toast 表示のみ)
+//   onCardClick: カードタップ (S10 で画面遷移に接続、S8-S9 は toast 表示のみ)
+//   onFabClick:  FAB タップ (S12 で QuickAdd に接続、S8-S9 は toast 表示のみ)
 // やること:
 //   - 検索窓 (タイトル/会場/対戦相手/メモを横断) + 軸別絞り込みチップ (種類/ラケット/対戦相手/結果)
-//   - サマリーヘッダ右端の表示モード切替 (リスト / カレンダー、localStorage 永続化)
+//   - サマリーヘッダ右端の表示モード切替 (リスト / カレンダー / 年間濃淡、localStorage 永続化)
 //   - リスト mode: 時間軸密度可変リスト (週/月/年) + 結果の階層表現 (優勝=gold, 準優勝=silver, 3位=bronze)
 //   - カレンダー mode: 月マス + 色濃度 + 大会トロフィー + 試打紫点、日タップで直下に DayPanel
-//   - FAB 右下、絞り込みは両 mode に効く
+//   - 年間濃淡 mode: 縦 12 月 × 横 31 日 の 365 マス、年切替、日タップで直下に DayPanel (S8 と同一)
+//   - FAB 右下、絞り込みは全 mode に効く
 //   - state は localStorage に保存 (v4-sessions-search / v4-sessions-filters / v4-sessions-viewmode)
-// やらないこと (別 Stage): 年間濃淡 (S9), 詳細画面 slide-in (S10)
+// やらないこと (別 Stage): 詳細画面 slide-in (S10)
 
 // ── 時間軸密度化ヘルパー (カレンダー通りの日曜始まり)
 const _getSundayOfWeek = (d) => {
@@ -175,8 +176,12 @@ const LS_SEARCH   = "v4-sessions-search";
 const LS_FILTERS  = "v4-sessions-filters";
 const LS_VIEWMODE = "v4-sessions-viewmode";
 const _loadViewMode = () => {
-  try { const v = localStorage.getItem(LS_VIEWMODE); return v === "calendar" ? "calendar" : "list"; }
-  catch { return "list"; }
+  try {
+    const v = localStorage.getItem(LS_VIEWMODE);
+    if (v === "calendar") return "calendar";
+    if (v === "year") return "year";
+    return "list";
+  } catch { return "list"; }
 };
 const FILTER_AXES = ["type", "racket", "opponent", "result"];
 const RESULT_OPTIONS = ["優勝","準優勝","3位","ベスト8","ベスト16","予選突破","敗退","予選敗退"];
@@ -329,11 +334,13 @@ function SessionsTab({ tournaments = [], practices = [], trials = [], loading = 
   useEffect(() => { try { localStorage.setItem(LS_SEARCH, search || ""); } catch {} }, [search]);
   useEffect(() => { try { localStorage.setItem(LS_FILTERS, JSON.stringify(filters)); } catch {} }, [filters]);
 
-  // S8: 表示モード切替 (list / calendar、localStorage 永続化)
+  // S8-S9: 表示モード切替 (list / calendar / year、localStorage 永続化)
   const [viewMode, setViewMode] = useState(_loadViewMode);
   useEffect(() => { try { localStorage.setItem(LS_VIEWMODE, viewMode); } catch {} }, [viewMode]);
-  // S8: カレンダー mode で DayPanel が開いているか (FAB を退避させる)
-  const [calendarPanelOpen, setCalendarPanelOpen] = useState(false);
+  // S8-S9: カレンダー/年間 mode で DayPanel が開いているか (FAB を退避させる)
+  const [dayPanelOpen, setDayPanelOpen] = useState(false);
+  // mode 切替で DayPanel state をリセット (list mode には DayPanel が無いため取り残し防止)
+  useEffect(() => { setDayPanelOpen(false); }, [viewMode]);
 
   // 全アイテムを {type, item} にまとめて date desc ソート
   // 試打 (trial) は大会/練習への付随活動なので一覧からは除外 (バッジで示す)
@@ -451,7 +458,7 @@ function SessionsTab({ tournaments = [], practices = [], trials = [], loading = 
         onViewModeChange={setViewMode}
       />
 
-      {/* メイン領域: mode で list / calendar を切替 */}
+      {/* メイン領域: mode で list / calendar / year を切替 */}
       {viewMode === "calendar" ? (
         loading ? (
           <div style={{ flex: 1, textAlign: "center", padding: 40, color: C.textMuted, fontSize: 13 }}>
@@ -462,7 +469,20 @@ function SessionsTab({ tournaments = [], practices = [], trials = [], loading = 
             items={filteredItems}
             trialLinks={trialLinks}
             onCardClick={onCardClick}
-            onPanelStateChange={setCalendarPanelOpen}
+            onPanelStateChange={setDayPanelOpen}
+          />
+        )
+      ) : viewMode === "year" ? (
+        loading ? (
+          <div style={{ flex: 1, textAlign: "center", padding: 40, color: C.textMuted, fontSize: 13 }}>
+            読み込み中...
+          </div>
+        ) : (
+          <YearHeatmap
+            items={filteredItems}
+            trialLinks={trialLinks}
+            onCardClick={onCardClick}
+            onPanelStateChange={setDayPanelOpen}
           />
         )
       ) : (
@@ -567,8 +587,8 @@ function SessionsTab({ tournaments = [], practices = [], trials = [], loading = 
       </div>
 
       {/* FAB: 操作帯 (約 108px) + TabBar (56px) の上に浮かせる。
-          カレンダー mode で DayPanel が開いている時は重なり回避のため非表示 (パネルを閉じれば再表示) */}
-      {!(viewMode === "calendar" && calendarPanelOpen) && (
+          カレンダー/年間 mode で DayPanel が開いている時は重なり回避のため非表示 (パネルを閉じれば再表示) */}
+      {!((viewMode === "calendar" || viewMode === "year") && dayPanelOpen) && (
         <FAB onClick={onFabClick} ariaLabel="記録を追加" bottom={180} />
       )}
 

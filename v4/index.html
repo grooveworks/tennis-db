@@ -27,7 +27,7 @@ input,select,textarea,button{font-family:inherit}
 const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
 // ── 定数定義（色・キー・バージョン）─────────────
-const APP_VERSION="4.0.0-S8.5";
+const APP_VERSION="4.0.0-S9";
 const font="-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif";
 
 // 色設計（DESIGN_SYSTEM_v4.md §1 準拠）
@@ -2129,20 +2129,21 @@ function SessionCard({ type, date, title, metaLine, highlight, resultBadge, side
 }
 
 // === src/ui/sessions/SessionsTab.jsx ===
-// SessionsTab — Sessions タブ本体 (S8 カレンダー mode 追加、DESIGN_SYSTEM §8.5 / WIREFRAMES §2.2.0/§2.2.1/§2.2.2)
+// SessionsTab — Sessions タブ本体 (S9 年間濃淡 mode 追加、DESIGN_SYSTEM §8.5 / WIREFRAMES §2.2.0/§2.2.1/§2.2.2/§2.2.3)
 // props:
 //   tournaments, practices, trials: 配列 (親から渡る、normDate は親で正規化済みでも未正規化でも OK)
 //   loading: ロード中
-//   onCardClick: カードタップ (S10 で画面遷移に接続、S8 は toast 表示のみ)
-//   onFabClick:  FAB タップ (S12 で QuickAdd に接続、S8 は toast 表示のみ)
+//   onCardClick: カードタップ (S10 で画面遷移に接続、S8-S9 は toast 表示のみ)
+//   onFabClick:  FAB タップ (S12 で QuickAdd に接続、S8-S9 は toast 表示のみ)
 // やること:
 //   - 検索窓 (タイトル/会場/対戦相手/メモを横断) + 軸別絞り込みチップ (種類/ラケット/対戦相手/結果)
-//   - サマリーヘッダ右端の表示モード切替 (リスト / カレンダー、localStorage 永続化)
+//   - サマリーヘッダ右端の表示モード切替 (リスト / カレンダー / 年間濃淡、localStorage 永続化)
 //   - リスト mode: 時間軸密度可変リスト (週/月/年) + 結果の階層表現 (優勝=gold, 準優勝=silver, 3位=bronze)
 //   - カレンダー mode: 月マス + 色濃度 + 大会トロフィー + 試打紫点、日タップで直下に DayPanel
-//   - FAB 右下、絞り込みは両 mode に効く
+//   - 年間濃淡 mode: 縦 12 月 × 横 31 日 の 365 マス、年切替、日タップで直下に DayPanel (S8 と同一)
+//   - FAB 右下、絞り込みは全 mode に効く
 //   - state は localStorage に保存 (v4-sessions-search / v4-sessions-filters / v4-sessions-viewmode)
-// やらないこと (別 Stage): 年間濃淡 (S9), 詳細画面 slide-in (S10)
+// やらないこと (別 Stage): 詳細画面 slide-in (S10)
 
 // ── 時間軸密度化ヘルパー (カレンダー通りの日曜始まり)
 const _getSundayOfWeek = (d) => {
@@ -2306,8 +2307,12 @@ const LS_SEARCH   = "v4-sessions-search";
 const LS_FILTERS  = "v4-sessions-filters";
 const LS_VIEWMODE = "v4-sessions-viewmode";
 const _loadViewMode = () => {
-  try { const v = localStorage.getItem(LS_VIEWMODE); return v === "calendar" ? "calendar" : "list"; }
-  catch { return "list"; }
+  try {
+    const v = localStorage.getItem(LS_VIEWMODE);
+    if (v === "calendar") return "calendar";
+    if (v === "year") return "year";
+    return "list";
+  } catch { return "list"; }
 };
 const FILTER_AXES = ["type", "racket", "opponent", "result"];
 const RESULT_OPTIONS = ["優勝","準優勝","3位","ベスト8","ベスト16","予選突破","敗退","予選敗退"];
@@ -2460,11 +2465,13 @@ function SessionsTab({ tournaments = [], practices = [], trials = [], loading = 
   useEffect(() => { try { localStorage.setItem(LS_SEARCH, search || ""); } catch {} }, [search]);
   useEffect(() => { try { localStorage.setItem(LS_FILTERS, JSON.stringify(filters)); } catch {} }, [filters]);
 
-  // S8: 表示モード切替 (list / calendar、localStorage 永続化)
+  // S8-S9: 表示モード切替 (list / calendar / year、localStorage 永続化)
   const [viewMode, setViewMode] = useState(_loadViewMode);
   useEffect(() => { try { localStorage.setItem(LS_VIEWMODE, viewMode); } catch {} }, [viewMode]);
-  // S8: カレンダー mode で DayPanel が開いているか (FAB を退避させる)
-  const [calendarPanelOpen, setCalendarPanelOpen] = useState(false);
+  // S8-S9: カレンダー/年間 mode で DayPanel が開いているか (FAB を退避させる)
+  const [dayPanelOpen, setDayPanelOpen] = useState(false);
+  // mode 切替で DayPanel state をリセット (list mode には DayPanel が無いため取り残し防止)
+  useEffect(() => { setDayPanelOpen(false); }, [viewMode]);
 
   // 全アイテムを {type, item} にまとめて date desc ソート
   // 試打 (trial) は大会/練習への付随活動なので一覧からは除外 (バッジで示す)
@@ -2582,7 +2589,7 @@ function SessionsTab({ tournaments = [], practices = [], trials = [], loading = 
         onViewModeChange={setViewMode}
       />
 
-      {/* メイン領域: mode で list / calendar を切替 */}
+      {/* メイン領域: mode で list / calendar / year を切替 */}
       {viewMode === "calendar" ? (
         loading ? (
           <div style={{ flex: 1, textAlign: "center", padding: 40, color: C.textMuted, fontSize: 13 }}>
@@ -2593,7 +2600,20 @@ function SessionsTab({ tournaments = [], practices = [], trials = [], loading = 
             items={filteredItems}
             trialLinks={trialLinks}
             onCardClick={onCardClick}
-            onPanelStateChange={setCalendarPanelOpen}
+            onPanelStateChange={setDayPanelOpen}
+          />
+        )
+      ) : viewMode === "year" ? (
+        loading ? (
+          <div style={{ flex: 1, textAlign: "center", padding: 40, color: C.textMuted, fontSize: 13 }}>
+            読み込み中...
+          </div>
+        ) : (
+          <YearHeatmap
+            items={filteredItems}
+            trialLinks={trialLinks}
+            onCardClick={onCardClick}
+            onPanelStateChange={setDayPanelOpen}
           />
         )
       ) : (
@@ -2698,8 +2718,8 @@ function SessionsTab({ tournaments = [], practices = [], trials = [], loading = 
       </div>
 
       {/* FAB: 操作帯 (約 108px) + TabBar (56px) の上に浮かせる。
-          カレンダー mode で DayPanel が開いている時は重なり回避のため非表示 (パネルを閉じれば再表示) */}
-      {!(viewMode === "calendar" && calendarPanelOpen) && (
+          カレンダー/年間 mode で DayPanel が開いている時は重なり回避のため非表示 (パネルを閉じれば再表示) */}
+      {!((viewMode === "calendar" || viewMode === "year") && dayPanelOpen) && (
         <FAB onClick={onFabClick} ariaLabel="記録を追加" bottom={180} />
       )}
 
@@ -2868,9 +2888,9 @@ function TimeGroupHeader({ level = "month", label, count, collapsible = false, c
 // === src/ui/sessions/ViewModeSwitcher.jsx ===
 // ViewModeSwitcher — Sessions タブの表示モード切替トグル (DESIGN_SYSTEM §8.5.4 拡張)
 // props:
-//   value: "list" | "calendar"
+//   value: "list" | "calendar" | "year"
 //   onChange: (next) => void
-// SummaryHeader 右端に常駐。S8 で list / calendar の 2 択。S9 追加時はドロップダウン化予定。
+// SummaryHeader 右端に常駐。S9 で list / calendar / year の 3 択化 (S8 まで 2 択)。
 
 function ViewModeSwitcher({ value = "list", onChange }) {
   const btn = (mode, iconName, label) => {
@@ -2882,7 +2902,7 @@ function ViewModeSwitcher({ value = "list", onChange }) {
         aria-label={label}
         aria-pressed={active}
         style={{
-          width: 28, height: 22,
+          width: 26, height: 22,
           border: "none",
           background: active ? C.primary : "transparent",
           color: active ? "#ffffff" : C.primary,
@@ -2914,6 +2934,589 @@ function ViewModeSwitcher({ value = "list", onChange }) {
     >
       {btn("list", "list", "リスト表示")}
       {btn("calendar", "calendar", "カレンダー表示")}
+      {btn("year", "calendar-range", "年間濃淡表示")}
+    </div>
+  );
+}
+
+// === src/ui/sessions/WeekPanel.jsx ===
+// WeekPanel — 年間ヒートマップ 週タップ時の日別セッション一覧パネル (DESIGN_SYSTEM §8.5.7.2)
+// props:
+//   weekLabel:   "4/22 - 4/28 (第4週)" 等の表示用ラベル
+//   items:       その週のエントリ配列 [{type:"tournament"|"practice", item}] (日付昇順でソート済み)
+//   onClose:     ✕ ボタン or ESC で呼ばれる
+//   onCardClick: ミニ行タップ時 (type, item) を渡す (S10 詳細画面に接続)
+//
+// パネル高 198px 固定 (v6 プロトタイプ確定寸法)。
+// 3 件完全表示、4 件以上は内部 scroll。左右 (件数差) でパネル高が変動しない = heatmap 領域が一定。
+
+const _DOW_LABELS_SHORT = ["日","月","火","水","木","金","土"];
+
+const _formatWeekRowDate = (dateISO) => {
+  const m = String(dateISO || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return dateISO;
+  const [, y, mo, d] = m;
+  const dt = new Date(Number(y), Number(mo) - 1, Number(d));
+  return `${Number(mo)}/${Number(d)} (${_DOW_LABELS_SHORT[dt.getDay()]})`;
+};
+
+// 大会の結果 → 結果バッジ (DayPanel と同じマッピング)
+const _wpResultBadge = (result) => {
+  if (!result) return null;
+  const map = {
+    "優勝":     { variant: "tournament", label: "優勝" },
+    "準優勝":   { variant: "info",       label: "準優勝" },
+    "3位":      { variant: "bronze",     label: "3位" },
+    "ベスト8":  { variant: "warning",    label: "ベスト8" },
+    "ベスト16": { variant: "warning",    label: "ベスト16" },
+    "予選突破": { variant: "success",    label: "予選突破" },
+    "敗退":     { variant: "error",      label: "敗退" },
+    "予選敗退": { variant: "error",      label: "予選敗退" },
+  };
+  return map[result] || { variant: "default", label: result };
+};
+
+const _wpTournamentMeta = (item) => {
+  const parts = [];
+  if (item.startTime) parts.push(item.startTime);
+  const typeLabel = { singles: "シングルス", doubles: "ダブルス", mixed: "ミックス" }[item.type];
+  if (typeLabel) parts.push(typeLabel);
+  const matches = Array.isArray(item.matches) ? item.matches : [];
+  if (matches.length > 0) {
+    const wins = matches.filter(m => m.result === "勝利" || m.result === "win").length;
+    const losses = matches.filter(m => m.result === "敗北" || m.result === "loss").length;
+    parts.push(`${wins}勝${losses}敗`);
+  }
+  return parts.join(" / ");
+};
+
+const _wpPracticeMeta = (item) => {
+  const parts = [];
+  if (item.startTime) parts.push(item.endTime ? `${item.startTime}-${item.endTime}` : item.startTime);
+  if (item.duration) parts.push(`${item.duration}分`);
+  if (item.heartRateAvg) parts.push(`心拍${item.heartRateAvg}`);
+  return parts.join(" / ");
+};
+
+const WeekPanelMiniRow = ({ entry, onClick }) => {
+  const isTournament = entry.type === "tournament";
+  const it = entry.item;
+  const sideColor = isTournament ? C.tournamentAccent : C.practiceAccent;
+  const datePrefix = _formatWeekRowDate(normDate(it.date));
+  const rawTitle = isTournament
+    ? (it.name || "(無題の大会)")
+    : (it.title || it.venue || "(無題の練習)");
+  const title = `${datePrefix} ${rawTitle}`;
+  const meta = isTournament ? _wpTournamentMeta(it) : _wpPracticeMeta(it);
+  const resultBadge = isTournament ? _wpResultBadge(it.overallResult) : null;
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={() => onClick && onClick(entry.type, it)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick && onClick(entry.type, it);
+        }
+      }}
+      onMouseEnter={(e) => { e.currentTarget.style.background = C.panel2; }}
+      onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        padding: "5px 8px",
+        borderRadius: 8,
+        cursor: "pointer",
+        background: "transparent",
+        marginTop: 2,
+      }}
+    >
+      <div style={{ width: 4, height: 36, borderRadius: 2, background: sideColor, flexShrink: 0 }} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{
+          fontSize: 14, fontWeight: 600, color: C.text, lineHeight: 1.3,
+          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+        }}>
+          {title}
+        </div>
+        {meta && (
+          <div style={{
+            fontSize: 12, color: C.textMuted, lineHeight: 1.3,
+            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+          }}>
+            {meta}
+          </div>
+        )}
+      </div>
+      {resultBadge && (
+        <Badge variant={resultBadge.variant}>{resultBadge.label}</Badge>
+      )}
+      <Icon name="chevron-right" size={18} color={C.textMuted} />
+    </div>
+  );
+};
+
+function WeekPanel({ weekLabel, items = [], onClose, onCardClick }) {
+  useEffect(() => {
+    const handler = (e) => { if (e.key === "Escape") onClose && onClose(); };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [onClose]);
+
+  const count = items.length;
+
+  return (
+    <div
+      style={{
+        background: C.panel,
+        borderTop: `1px solid ${C.divider}`,
+        height: 198,
+        display: "flex",
+        flexDirection: "column",
+        flexShrink: 0,
+        animation: "dayPanelSlideUp 200ms ease-out",
+      }}
+    >
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "8px 18px",
+        borderBottom: `1px solid ${C.divider}`,
+        flexShrink: 0,
+      }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>
+          {weekLabel}
+          <span style={{ color: C.textMuted, fontWeight: 500, marginLeft: 8, fontSize: 13 }}>{count}件</span>
+        </div>
+        <button
+          onClick={onClose}
+          aria-label="閉じる"
+          style={{
+            width: 32, height: 32,
+            border: "none", background: "transparent", color: C.textMuted,
+            cursor: "pointer", borderRadius: 6,
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}
+        >
+          <Icon name="x" size={20} color={C.textMuted} />
+        </button>
+      </div>
+      <div style={{ flex: 1, overflowY: "auto", padding: "2px 14px 4px", minHeight: 0 }}>
+        {count === 0 ? (
+          <div style={{ textAlign: "center", padding: 14, color: C.textMuted, fontSize: 12 }}>
+            この週のセッションはありません
+          </div>
+        ) : (
+          items.map((entry, i) => (
+            <WeekPanelMiniRow key={`${entry.type}-${entry.item.id || i}`} entry={entry} onClick={onCardClick} />
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+// === src/ui/sessions/YearHeatmap.jsx ===
+// YearHeatmap — Sessions タブ 年間俯瞰 view (v6 仕様: 12 月 × 5 週の週単位ヒートマップ)
+// props:
+//   items:       絞り込み済みエントリ配列 [{type:"tournament"|"practice", item}]
+//   trialLinks:  {linkedTournamentIds:Set, linkedPracticeIds:Set} (週に試打リンクがあるか判定用)
+//   onCardClick: (type, item) => void  WeekPanel ミニ行タップ時 (S10 で詳細画面に接続)
+//   onPanelStateChange: (open:boolean) => void  WeekPanel 開閉を親に通知 (FAB 退避制御)
+//
+// やること:
+//   - 縦 12 月 × 横 5 週 のマトリクス (月内の日を W1=1-7 / W2=8-14 / W3=15-21 / W4=22-28 / W5=29-31 で区切る)
+//   - 各週セル: 練習合計分による色濃度 (activity-less/light/mid/accent) + 大会帯 (上部 4px オレンジ) + 試打ドット (右下紫)
+//   - 前年/次年ナビ、現年以外は「今年」バッジ
+//   - 初期表示で当年の今週を自動選択 (WeekPanel 展開)、同週再タップで閉じる、別週タップで切替
+//   - 年ナビ時は選択解除 (前年/次年 = 今週マーク消える)、今年に戻ると今週を再選択
+// やらないこと:
+//   - 詳細画面遷移 (S10) — onCardClick で親に委譲
+//   - 数値表示 (Insights タブの責務)
+
+const _YH_MONTH_LABELS = ["1月","2月","3月","4月","5月","6月","7月","8月","9月","10月","11月","12月"];
+
+// 月内日 d (1-31) → 週 index (0-4)
+const _yhWeekOfMonth = (d) => {
+  const idx = Math.floor((d - 1) / 7);
+  return idx > 4 ? 4 : idx;
+};
+
+// y/m (1-12) の月内日数
+const _yhDaysInMonth = (y, m) => new Date(y, m, 0).getDate();
+
+// 週 w (0-4) が月内に存在するか (dim < 週開始日 なら false)
+const _yhWeekExists = (y, m, w) => {
+  const start = w * 7 + 1;
+  return start <= _yhDaysInMonth(y, m);
+};
+
+// 週ラベル: "4/22 - 4/28 (第4週)"
+const _yhWeekLabel = (y, m, w) => {
+  const dim = _yhDaysInMonth(y, m);
+  const start = w * 7 + 1;
+  const end = Math.min(start + 6, dim);
+  return `${m}/${start} - ${m}/${end} (第${w + 1}週)`;
+};
+
+// 週合計分 (練習のみ集計) → 強度 0-3
+const _yhWeekIntensity = (practices) => {
+  const total = practices.reduce((s, e) => s + (Number(e.item.duration) || 0), 0);
+  if (total <= 0) return 0;
+  if (total < 60) return 1;
+  if (total <= 180) return 2;
+  return 3;
+};
+
+// 週に試打リンクがあるか
+const _yhWeekHasTrial = (slot, trialLinks) => {
+  if (!trialLinks) return false;
+  if (slot.tournaments.some(e => trialLinks.linkedTournamentIds && trialLinks.linkedTournamentIds.has(e.item.id))) return true;
+  if (slot.practices.some(e => trialLinks.linkedPracticeIds && trialLinks.linkedPracticeIds.has(e.item.id))) return true;
+  return false;
+};
+
+// 週内のエントリを日付+時刻昇順でソート (WeekPanel 表示用)
+const _yhBuildWeekItems = (slot) => {
+  const items = [...slot.tournaments, ...slot.practices];
+  items.sort((a, b) => {
+    const dA = normDate(a.item.date);
+    const dB = normDate(b.item.date);
+    if (dA !== dB) return dA.localeCompare(dB);
+    return String(a.item.startTime || "").localeCompare(String(b.item.startTime || ""));
+  });
+  return items;
+};
+
+function YearHeatmap({ items = [], trialLinks = { linkedTournamentIds: new Set(), linkedPracticeIds: new Set() }, onCardClick, onPanelStateChange }) {
+  const todayInfo = useMemo(() => {
+    const d = new Date();
+    return {
+      y: d.getFullYear(),
+      m: d.getMonth() + 1,
+      w: _yhWeekOfMonth(d.getDate()),
+    };
+  }, []);
+
+  const [year, setYear] = useState(todayInfo.y);
+  // 初期選択: 当年なら今週、前年/次年なら null
+  const [selected, setSelected] = useState(() =>
+    todayInfo.y === year ? { m: todayInfo.m, w: todayInfo.w } : null
+  );
+
+  // パネル開閉を親に通知 (FAB 表示制御)
+  useEffect(() => {
+    if (onPanelStateChange) onPanelStateChange(!!selected);
+  }, [selected, onPanelStateChange]);
+
+  const isCurrentYear = year === todayInfo.y;
+
+  // 年切替
+  const goPrev = () => { setSelected(null); setYear(y => y - 1); };
+  const goNext = () => { setSelected(null); setYear(y => y + 1); };
+  const goThisYear = () => {
+    setYear(todayInfo.y);
+    setSelected({ m: todayInfo.m, w: todayInfo.w });
+  };
+
+  // 当年の {month -> { week -> { tournaments:[], practices:[] } }} を構築
+  const yearMap = useMemo(() => {
+    const map = {};
+    for (let m = 1; m <= 12; m++) {
+      map[m] = {};
+      for (let w = 0; w < 5; w++) map[m][w] = { tournaments: [], practices: [] };
+    }
+    const yearPrefix = `${year}-`;
+    items.forEach(entry => {
+      const nd = normDate(entry.item.date);
+      if (!nd.startsWith(yearPrefix)) return;
+      const parts = nd.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (!parts) return;
+      const m = Number(parts[2]);
+      const d = Number(parts[3]);
+      if (m < 1 || m > 12) return;
+      const w = _yhWeekOfMonth(d);
+      if (entry.type === "tournament") map[m][w].tournaments.push(entry);
+      else if (entry.type === "practice") map[m][w].practices.push(entry);
+    });
+    return map;
+  }, [items, year]);
+
+  // 年間合計件数 (ヘッダ表示用)
+  const yearCount = useMemo(() => {
+    let n = 0;
+    for (let m = 1; m <= 12; m++) {
+      for (let w = 0; w < 5; w++) {
+        const slot = yearMap[m][w];
+        n += slot.tournaments.length + slot.practices.length;
+      }
+    }
+    return n;
+  }, [yearMap]);
+
+  const handleWeekClick = (m, w) => {
+    setSelected(prev => (prev && prev.m === m && prev.w === w) ? null : { m, w });
+  };
+
+  // 選択中の情報 (WeekPanel に渡す)
+  const selectedSlot = selected ? (yearMap[selected.m] && yearMap[selected.m][selected.w]) : null;
+  const selectedLabel = selected ? _yhWeekLabel(year, selected.m, selected.w) : "";
+  const selectedItems = selected && selectedSlot ? _yhBuildWeekItems(selectedSlot) : [];
+
+  return (
+    <>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", padding: "10px 14px", background: C.bg, minHeight: 0 }}>
+        {/* 年ヘッダ + 前後ナビ + 今年バッジ */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 0 8px", flexShrink: 0 }}>
+          <button
+            onClick={goPrev}
+            aria-label="前年"
+            style={{ width: 40, height: 40, border: "none", background: "transparent", color: C.textSecondary, borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+          >
+            <Icon name="chevron-left" size={22} color={C.textSecondary} />
+          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: C.text }}>{year}年</div>
+            <div style={{ fontSize: 12, color: C.textMuted, fontWeight: 500 }}>{yearCount}件</div>
+            {!isCurrentYear && (
+              <button
+                onClick={goThisYear}
+                style={{
+                  fontSize: 11, padding: "3px 10px", borderRadius: 12,
+                  border: `1px solid ${C.primary}`,
+                  background: "transparent", color: C.primary,
+                  cursor: "pointer",
+                }}
+              >
+                今年
+              </button>
+            )}
+          </div>
+          <button
+            onClick={goNext}
+            aria-label="次年"
+            style={{ width: 40, height: 40, border: "none", background: "transparent", color: C.textSecondary, borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+          >
+            <Icon name="chevron-right" size={22} color={C.textSecondary} />
+          </button>
+        </div>
+
+        {/* 横軸ヘッダ W1-W5 */}
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: `34px repeat(5, 1fr)`,
+          columnGap: 3,
+          padding: "0 0 5px",
+          flexShrink: 0,
+        }}>
+          <div />
+          {["W1","W2","W3","W4","W5"].map(l => (
+            <div key={`dh-${l}`} style={{ fontSize: 11, color: C.textMuted, textAlign: "center", fontWeight: 600 }}>
+              {l}
+            </div>
+          ))}
+        </div>
+
+        {/* 本体: 12 月 × 5 週 の grid (行高均等で画面残領域を使い切る) */}
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: `34px repeat(5, 1fr)`,
+          gridTemplateRows: `repeat(12, 1fr)`,
+          gap: 3,
+          flex: 1,
+          minHeight: 0,
+        }}>
+          {Array.from({ length: 12 }, (_, i) => i + 1).flatMap(m => {
+            const cells = [];
+            const isCurMonth = (year === todayInfo.y && m === todayInfo.m);
+            cells.push(
+              <div
+                key={`ml-${m}`}
+                style={{
+                  fontSize: 12,
+                  color: isCurMonth ? C.primary : C.textMuted,
+                  fontWeight: isCurMonth ? 700 : 400,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "flex-end",
+                  paddingRight: 4,
+                  whiteSpace: "nowrap",
+                  flexShrink: 0,
+                }}
+              >
+                {_YH_MONTH_LABELS[m - 1]}
+              </div>
+            );
+            for (let w = 0; w < 5; w++) {
+              if (!_yhWeekExists(year, m, w)) {
+                cells.push(<YearHeatmapCell key={`c-${m}-${w}`} kind="empty" month={m} week={w} />);
+                continue;
+              }
+              const slot = yearMap[m][w];
+              const intensity = _yhWeekIntensity(slot.practices);
+              const hasTournament = slot.tournaments.length > 0;
+              const hasTrial = _yhWeekHasTrial(slot, trialLinks);
+              const isThisWeek = (year === todayInfo.y && m === todayInfo.m && w === todayInfo.w);
+              const isSelected = !!(selected && selected.m === m && selected.w === w);
+              cells.push(
+                <YearHeatmapCell
+                  key={`c-${m}-${w}`}
+                  kind="in"
+                  month={m}
+                  week={w}
+                  intensity={intensity}
+                  hasTournament={hasTournament}
+                  hasTrial={hasTrial}
+                  isThisWeek={isThisWeek}
+                  isSelected={isSelected}
+                  onClick={handleWeekClick}
+                />
+              );
+            }
+            return cells;
+          })}
+        </div>
+
+        {/* 凡例 (色スケール + 大会帯 + 試打ドット) */}
+        <div style={{
+          display: "flex",
+          flexWrap: "wrap",
+          alignItems: "center",
+          gap: "6px 10px",
+          padding: "8px 2px 0",
+          fontSize: 11,
+          color: C.textMuted,
+          flexShrink: 0,
+          borderTop: `1px dashed ${C.divider}`,
+          marginTop: 6,
+        }}>
+          <span>練習</span>
+          <span style={{ width: 14, height: 14, borderRadius: 3, background: C.panel2 }} />
+          <span style={{ width: 14, height: 14, borderRadius: 3, background: C.practiceLight }} />
+          <span style={{ width: 14, height: 14, borderRadius: 3, background: C.practiceMid }} />
+          <span style={{ width: 14, height: 14, borderRadius: 3, background: C.practiceAccent }} />
+          <span>多</span>
+          <span style={{ marginLeft: 8, width: 14, height: 14, borderRadius: 3, background: C.practiceMid, position: "relative", overflow: "hidden" }}>
+            <span style={{ position: "absolute", top: 0, left: 0, right: 0, height: 4, background: C.tournamentAccent }} />
+          </span>
+          <span>大会</span>
+          <span style={{ marginLeft: 8, width: 8, height: 8, borderRadius: "50%", background: C.trialAccent, border: `1px solid #fff`, display: "inline-block", verticalAlign: "middle" }} />
+          <span>試打</span>
+        </div>
+      </div>
+
+      {selected && selectedSlot && (
+        <WeekPanel
+          weekLabel={selectedLabel}
+          items={selectedItems}
+          onClose={() => setSelected(null)}
+          onCardClick={onCardClick}
+        />
+      )}
+    </>
+  );
+}
+
+// === src/ui/sessions/YearHeatmapCell.jsx ===
+// YearHeatmapCell — 年間ヒートマップ 1 週セル (DESIGN_SYSTEM §8.5.8)
+// props:
+//   kind:          "empty" | "in" (empty = 月内に存在しない週、透明で領域のみ確保)
+//   month:         月 (1-12)、onClick 伝達用
+//   week:          週 index (0-4)、onClick 伝達用
+//   intensity:     0-3 (0=活動なし=panel2, 1=light, 2=mid, 3=accent)
+//   hasTournament: その週に大会ありなら true (上部 4px オレンジ帯を重ねる)
+//   hasTrial:      その週に試打リンクありなら true (右下に紫ドット)
+//   isThisWeek:    今週マス (inset 2px primary 枠)
+//   isSelected:    選択中 (外周 2px primary リング + 軽い影)
+//   onClick:       (month, week) を渡す (empty は無効)
+//
+// サイズは grid-template-rows: repeat(12, 1fr) + grid-template-columns: repeat(5, 1fr) で親が決める。
+// width:100% / height:100% で grid track 全体を埋める (aspect-ratio は使わない = 行高が親の flex:1 で決まる)。
+
+// 練習強度 → 背景色
+const _yhCellBg = (intensity) => {
+  if (intensity === 1) return C.practiceLight;
+  if (intensity === 2) return C.practiceMid;
+  if (intensity === 3) return C.practiceAccent;
+  return C.panel2;
+};
+
+function YearHeatmapCell({
+  kind = "in",
+  month,
+  week,
+  intensity = 0,
+  hasTournament = false,
+  hasTrial = false,
+  isThisWeek = false,
+  isSelected = false,
+  onClick,
+}) {
+  if (kind === "empty") {
+    // 月内に存在しない週 (例: 2月 W5 が 29-日なし、4月 W5 が 29-30 で存在、等)
+    return <div aria-hidden="true" style={{ width: "100%", height: "100%", background: "transparent" }} />;
+  }
+
+  // 枠線 優先度: selected > thisWeek > normal
+  let boxShadow = "none";
+  if (isSelected) {
+    boxShadow = `0 0 0 2px ${C.primary}, 0 2px 6px rgba(26,115,232,0.3)`;
+  } else if (isThisWeek) {
+    boxShadow = `inset 0 0 0 2px ${C.primary}`;
+  }
+
+  const label = hasTournament
+    ? `${month}月第${week + 1}週 (大会あり)`
+    : `${month}月第${week + 1}週`;
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      aria-label={label}
+      aria-pressed={isSelected}
+      title={label}
+      onClick={() => onClick && onClick(month, week)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick && onClick(month, week);
+        }
+      }}
+      style={{
+        position: "relative",
+        width: "100%",
+        height: "100%",
+        background: _yhCellBg(intensity),
+        borderRadius: 5,
+        cursor: "pointer",
+        boxShadow,
+        transition: "transform 120ms",
+        zIndex: isSelected ? 2 : "auto",
+      }}
+      onMouseDown={(e) => { e.currentTarget.style.transform = "scale(0.95)"; }}
+      onMouseUp={(e)   => { e.currentTarget.style.transform = "scale(1)"; }}
+      onMouseLeave={(e)=> { e.currentTarget.style.transform = "scale(1)"; }}
+    >
+      {hasTournament && (
+        <div style={{
+          position: "absolute", top: 0, left: 0, right: 0, height: 4,
+          background: C.tournamentAccent,
+          borderRadius: "5px 5px 0 0",
+          pointerEvents: "none",
+        }} />
+      )}
+      {hasTrial && (
+        <div style={{
+          position: "absolute", bottom: 3, right: 3,
+          width: 7, height: 7, borderRadius: "50%",
+          background: C.trialAccent,
+          border: `1px solid ${C.panel}`,
+          pointerEvents: "none",
+        }} />
+      )}
     </div>
   );
 }

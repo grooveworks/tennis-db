@@ -1,8 +1,8 @@
 // ViewModeSwitcher — Sessions タブの表示モード切替トグル (DESIGN_SYSTEM §8.5.4 拡張)
 // props:
-//   value: "list" | "calendar"
+//   value: "list" | "calendar" | "year"
 //   onChange: (next) => void
-// SummaryHeader 右端に常駐。S8 で list / calendar の 2 択。S9 追加時はドロップダウン化予定。
+// SummaryHeader 右端に常駐。S9 で list / calendar / year の 3 択化 (S8 まで 2 択)。
 
 function ViewModeSwitcher({ value = "list", onChange }) {
   const btn = (mode, iconName, label) => {
@@ -14,7 +14,7 @@ function ViewModeSwitcher({ value = "list", onChange }) {
         aria-label={label}
         aria-pressed={active}
         style={{
-          width: 28, height: 22,
+          width: 26, height: 22,
           border: "none",
           background: active ? C.primary : "transparent",
           color: active ? "#ffffff" : C.primary,
@@ -46,6 +46,7 @@ function ViewModeSwitcher({ value = "list", onChange }) {
     >
       {btn("list", "list", "リスト表示")}
       {btn("calendar", "calendar", "カレンダー表示")}
+      {btn("year", "calendar-range", "年間濃淡表示")}
     </div>
   );
 }
