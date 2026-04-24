@@ -63,6 +63,7 @@ function TennisDB() {
   const [practices, setPractices] = useState([]);
   const [trials, setTrials] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [detail, setDetail] = useState(null); // S10: { type, session } | null
   const toast = useToast();
   const cfm = useConfirm();
 
@@ -149,8 +150,57 @@ function TennisDB() {
     );
   };
 
+  // S10: カードタップで詳細 overlay を開く
+  //      SessionsTab はマウントしたまま position:fixed で上から覆う (§N1.2 scrollTop 保持)
   const handleCardClick = (type, item) => {
-    toast.show("詳細画面は S10 で実装予定", "info");
+    setDetail({ type, session: item });
+  };
+
+  const handleDetailClose = () => setDetail(null);
+
+  // S10: 連携カード (紐づく試打 / 連携練習) のタップで別セッション詳細へ遷移
+  //      key prop (session.id) が変わることで SessionDetailView が再マウント→slide-in 再発動
+  const handleOpenLinkedSession = (nextType, nextSession) => {
+    if (!nextSession || !nextSession.id) return;
+    setDetail({ type: nextType, session: nextSession });
+  };
+
+  const handleEdit = () => {
+    toast.show("編集画面は次 Stage で実装予定", "info");
+  };
+
+  // S10: 削除 (S17 で実装予定の cascade 本格対応までの簡易版)
+  //      linkedPracticeId/linkedMatchId の孤児化対応は別 Stage で domain/cascade.js に切り出す
+  const handleDelete = (type, item) => {
+    if (!item || !item.id) return;
+    const typeLabel = type === "tournament" ? "大会" : type === "practice" ? "練習" : "試打";
+    const key = type === "tournament" ? "tournaments" : type === "practice" ? "practices" : "trials";
+    cfm.ask(
+      `この${typeLabel}を削除しますか？この操作は取り消せません。`,
+      async () => {
+        const current = type === "tournament" ? tournaments : type === "practice" ? practices : trials;
+        const newItems = (current || []).filter(x => x.id !== item.id);
+        // 即時 state 更新 (onSnapshot 到来前に UI 反映)
+        if (type === "tournament") setTournaments(newItems);
+        else if (type === "practice") setPractices(newItems);
+        else setTrials(newItems);
+        lsSave(KEYS[key], newItems);
+        // Firestore 書き込み
+        if (user) {
+          try {
+            await fbDb.collection("users").doc(user.uid).collection("data").doc(key).set({ items: newItems }, { merge: false });
+          } catch (e) {
+            console.error("Firestore delete error:", e);
+            toast.show("クラウド同期失敗 (ローカルは削除済み)", "warning");
+            setDetail(null);
+            return;
+          }
+        }
+        setDetail(null);
+        toast.show(`${typeLabel}を削除しました`, "success");
+      },
+      { title: "削除の確認", yesLabel: "削除", yesVariant: "danger", icon: "trash-2" }
+    );
   };
 
   const handleFabClick = () => {
@@ -224,6 +274,20 @@ function TennisDB() {
       />
       {tabContent}
       <TabBar tab={tab} onTabChange={setTab} />
+      {detail && (
+        <SessionDetailView
+          key={detail.session.id}
+          type={detail.type}
+          session={detail.session}
+          trials={trials}
+          practices={practices}
+          onClose={handleDetailClose}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+          onOpenLinkedSession={handleOpenLinkedSession}
+          toast={toast}
+        />
+      )}
       {toast.el}
       {cfm.el}
     </div>
