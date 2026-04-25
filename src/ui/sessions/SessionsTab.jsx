@@ -143,7 +143,26 @@ const _buildCardProps = (type, item) => {
       sideBadge: typeBadge,
     };
   }
-  // 試打は Sessions 一覧には表示しない (大会/練習へのリンクバッジ経由)
+  // S11 暫定 (S16 まで): 試打を独立カードとして表示 (種類フィルタで明示選択時のみ呼ばれる)
+  // S16 (Gear タブ完成) で削除予定
+  if (type === "trial") {
+    const judgmentBadge = _mapTrialJudgment(item.judgment);
+    const ratings = ["spin", "power", "control", "info", "maneuver", "swingThrough"]
+      .map(k => Number(item[k]) || 0).filter(v => v > 0);
+    const avg = ratings.length > 0 ? (ratings.reduce((s, v) => s + v, 0) / ratings.length).toFixed(1) : null;
+    const parts = [];
+    if (item.spin)   parts.push(`スピン${item.spin}`);
+    if (item.power)  parts.push(`推進${item.power}`);
+    if (avg)         parts.push(`平均 ${avg}`);
+    if (item.venue)  parts.push(item.venue);
+    const stringInfo = [item.stringMain, item.stringCross].filter(Boolean).join(" / ");
+    return {
+      type, date: item.date,
+      title: item.racketName ? (stringInfo ? `${item.racketName} / ${stringInfo}` : item.racketName) : "(ラケット未選択)",
+      metaLine: _joinMeta(parts),
+      sideBadge: judgmentBadge,
+    };
+  }
   return { type, date: item.date, title: "" };
 };
 
@@ -185,7 +204,10 @@ const _loadViewMode = () => {
 };
 const FILTER_AXES = ["type", "racket", "opponent", "result"];
 const RESULT_OPTIONS = ["優勝","準優勝","3位","ベスト8","ベスト16","予選突破","敗退","予選敗退"];
-const TYPE_OPTIONS   = ["大会", "練習"];
+// S11 暫定 (S16 で削除): 「試打」を種類フィルタに追加。
+//   既定では試打を独立カードに出さない (WIREFRAMES §2.2.1) が、種類フィルタで「試打」を
+//   選択した時のみ表示する。Gear タブ (S16) 完成で試打集約画面ができたら削除。
+const TYPE_OPTIONS   = ["大会", "練習", "試打"];
 const FILTER_CHIP_LABEL    = { type: "種類",        racket: "ラケット",        opponent: "対戦相手",        result: "結果" };
 const FILTER_DRAWER_TITLE  = { type: "種類で絞り込む", racket: "ラケットで絞り込む", opponent: "対戦相手で絞り込む", result: "結果で絞り込む" };
 
@@ -204,14 +226,16 @@ const _loadFilters = () => {
   } catch { return _emptyFilters(); }
 };
 
-// ラケット候補: 大会/練習の racketName + 試合 match.racketName の union
-const _extractRackets = (tournaments, practices) => {
+// ラケット候補: 大会/練習/試打の racketName + 試合 match.racketName の union
+// S11 で trials も含めるよう拡張 (種類フィルタで「試打」選択時にもラケット絞り込みが効く)
+const _extractRackets = (tournaments, practices, trials) => {
   const s = new Set();
   tournaments.forEach(t => {
     if (t.racketName) s.add(t.racketName);
     (Array.isArray(t.matches) ? t.matches : []).forEach(m => { if (m && m.racketName) s.add(m.racketName); });
   });
   practices.forEach(p => { if (p.racketName) s.add(p.racketName); });
+  (trials || []).forEach(tr => { if (tr.racketName) s.add(tr.racketName); });
   return [...s].sort((a, b) => a.localeCompare(b, "ja"));
 };
 
@@ -268,14 +292,26 @@ const _matchesSearch = (entry, q) => {
   if (entry.type === "practice") {
     return hit(it.title) || hit(it.venue) || hit(it.coachNote) || hit(it.goodNote) || hit(it.improveNote) || hit(it.generalNote);
   }
+  if (entry.type === "trial") {
+    return hit(it.racketName) || hit(it.stringMain) || hit(it.stringCross) || hit(it.venue)
+        || hit(it.strokeNote) || hit(it.serveNote) || hit(it.volleyNote) || hit(it.generalNote);
+  }
   return false;
 };
 
 // 各絞り込み軸の判定 (全て AND、同一軸の複数値は OR)
 const _matchesFilters = (entry, filters) => {
   if (filters.type.length > 0) {
-    const label = entry.type === "tournament" ? "大会" : entry.type === "practice" ? "練習" : "";
+    const label = entry.type === "tournament" ? "大会"
+                : entry.type === "practice"   ? "練習"
+                : entry.type === "trial"      ? "試打"
+                : "";
     if (!filters.type.includes(label)) return false;
+  } else {
+    // S11 暫定 (S16 で削除): 既定 (type フィルタ未指定) では試打は独立カードとして出さない。
+    // 「試打」を選択した時のみ表示する。WIREFRAMES §2.2.1 の方針を保ちつつ、
+    // S16 (Gear タブ) 完成までの動線として暫定許可。
+    if (entry.type === "trial") return false;
   }
   if (filters.racket.length > 0) {
     const rs = _entryRackets(entry);
@@ -343,17 +379,20 @@ function SessionsTab({ tournaments = [], practices = [], trials = [], loading = 
   useEffect(() => { setDayPanelOpen(false); }, [viewMode]);
 
   // 全アイテムを {type, item} にまとめて date desc ソート
-  // 試打 (trial) は大会/練習への付随活動なので一覧からは除外 (バッジで示す)
+  // 試打 (trial) は基本は付随活動 (バッジ表示) だが、S11 暫定で type フィルタ「試打」選択時のみ
+  // 独立カードとして表示するため、allItems には含める。フィルタ判定 (_matchesFilters) で除外/許可。
+  // S16 (Gear タブ) 完成で暫定削除予定。
   const allItems = useMemo(() => {
     const list = [];
     tournaments.forEach(it => list.push({ type: "tournament", item: it }));
     practices.forEach(it => list.push({ type: "practice", item: it }));
+    trials.forEach(it => list.push({ type: "trial", item: it }));
     list.sort((a, b) => normDate(b.item.date).localeCompare(normDate(a.item.date)));
     return list;
-  }, [tournaments, practices]);
+  }, [tournaments, practices, trials]);
 
   // S7: 絞り込み軸の候補 (元データから動的抽出)
-  const racketOptions   = useMemo(() => _extractRackets(tournaments, practices), [tournaments, practices]);
+  const racketOptions   = useMemo(() => _extractRackets(tournaments, practices, trials), [tournaments, practices, trials]);
   const opponentOptions = useMemo(() => _extractOpponents(tournaments), [tournaments]);
 
   // S7: 検索 + 絞り込み適用後のアイテム

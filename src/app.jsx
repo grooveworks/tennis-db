@@ -11,10 +11,11 @@
 //    (Firestore への書き戻しは S11 編集時に行う = 遅延マイグレーション、ROADMAP 方針)
 const normalizeItems = (items) => (items || []).map(it => ({ ...it, date: normDate(it.date) }));
 
-// ── Firestore 読み取り: 指定 key 3 種を個別取得
+// ── Firestore 読み取り: セッション 3 種 + master データ 4 種 (S11 で master 追加)
+//    master (rackets/strings/venues/opponents) は v3 と Firestore collection 共有、編集画面の Select で利用
 const loadSessionsFromFirestore = async (user) => {
   if (!user) return null;
-  const keys = ["tournaments", "practices", "trials"];
+  const keys = ["tournaments", "practices", "trials", "rackets", "strings", "venues", "opponents"];
   const results = {};
   for (const k of keys) {
     try {
@@ -30,6 +31,11 @@ const loadSessionsFromFirestore = async (user) => {
   }
   return results;
 };
+
+// master データ → Select の options 用に name 配列を抽出
+// item は {name, ...} オブジェクト or 文字列の両方に対応
+const _extractName = (item) => (typeof item === "string" ? item : (item?.name || ""));
+const _extractNames = (list) => (list || []).map(_extractName).filter(Boolean);
 
 // ── プレースホルダタブ (S13-S18 で実装)
 function PlaceholderTab({ name, stage }) {
@@ -62,8 +68,13 @@ function TennisDB() {
   const [tournaments, setTournaments] = useState([]);
   const [practices, setPractices] = useState([]);
   const [trials, setTrials] = useState([]);
+  // S11: master データ (rackets/strings/venues/opponents) を Select の候補として読み込む
+  const [rackets, setRackets]     = useState([]);
+  const [strings, setStringsList] = useState([]);
+  const [venues, setVenues]       = useState([]);
+  const [opponents, setOpponents] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [detail, setDetail] = useState(null); // S10: { type, session } | null
+  const [detail, setDetail] = useState(null); // S10: { type, session, mode } | null
   const toast = useToast();
   const cfm = useConfirm();
 
@@ -72,6 +83,10 @@ function TennisDB() {
     setTournaments(normalizeItems(lsLoad(KEYS.tournaments) || []));
     setPractices(normalizeItems(lsLoad(KEYS.practices) || []));
     setTrials(normalizeItems(lsLoad(KEYS.trials) || []));
+    setRackets(lsLoad(KEYS.rackets)     || []);
+    setStringsList(lsLoad(KEYS.strings) || []);
+    setVenues(lsLoad(KEYS.venues)       || []);
+    setOpponents(lsLoad(KEYS.opponents) || []);
   }, []);
 
   // 認証状態監視 + リアルタイム同期
@@ -92,10 +107,19 @@ function TennisDB() {
             const p = normalizeItems(data.practices);
             const tr = normalizeItems(data.trials);
             setTournaments(t); setPractices(p); setTrials(tr);
+            // S11: master データもセット
+            setRackets(data.rackets || []);
+            setStringsList(data.strings || []);
+            setVenues(data.venues || []);
+            setOpponents(data.opponents || []);
             // localStorage には正規化前の原データを保存 (v3 互換のため)
             lsSave(KEYS.tournaments, data.tournaments);
             lsSave(KEYS.practices, data.practices);
             lsSave(KEYS.trials, data.trials);
+            lsSave(KEYS.rackets, data.rackets);
+            lsSave(KEYS.strings, data.strings);
+            lsSave(KEYS.venues, data.venues);
+            lsSave(KEYS.opponents, data.opponents);
             toast.show("クラウドから読み込みました", "success");
           }
           // 2) リアルタイム同期 (v3 と同じ collection レベル onSnapshot)
@@ -111,6 +135,10 @@ function TennisDB() {
               if (key === "tournaments") setTournaments(normalized);
               else if (key === "practices") setPractices(normalized);
               else if (key === "trials") setTrials(normalized);
+              else if (key === "rackets")  setRackets(val);
+              else if (key === "strings")  setStringsList(val);
+              else if (key === "venues")   setVenues(val);
+              else if (key === "opponents") setOpponents(val);
               else return;
               lsSave(key, val);
             });
@@ -153,7 +181,7 @@ function TennisDB() {
   // S10: カードタップで詳細 overlay を開く
   //      SessionsTab はマウントしたまま position:fixed で上から覆う (§N1.2 scrollTop 保持)
   const handleCardClick = (type, item) => {
-    setDetail({ type, session: item });
+    setDetail({ type, session: item, mode: "detail" });
   };
 
   const handleDetailClose = () => setDetail(null);
@@ -162,11 +190,39 @@ function TennisDB() {
   //      key prop (session.id) が変わることで SessionDetailView が再マウント→slide-in 再発動
   const handleOpenLinkedSession = (nextType, nextSession) => {
     if (!nextSession || !nextSession.id) return;
-    setDetail({ type: nextType, session: nextSession });
+    setDetail({ type: nextType, session: nextSession, mode: "detail" });
   };
 
-  const handleEdit = () => {
-    toast.show("編集画面は次 Stage で実装予定", "info");
+  // S11: 編集モードに切替 (再 mount せず、SessionDetailView 内で SessionEditView 表示)
+  const handleEdit = (type, item) => {
+    if (!item) return;
+    setDetail({ type, session: item, mode: "edit" });
+  };
+  // S11: 編集破棄 → Detail に戻る
+  const handleEditCancel = () => {
+    setDetail(prev => prev ? { ...prev, mode: "detail" } : null);
+  };
+
+  // S11: 編集保存 (新規/更新両対応、S12 でも再利用予定)
+  //      core/03_storage.js の save() を使用 (cleanForFirestore + 800ms debounce、v3 互換)
+  const handleSave = async (type, updated) => {
+    if (!updated || !updated.id) return;
+    const key = type === "tournament" ? "tournaments" : type === "practice" ? "practices" : "trials";
+    const current = type === "tournament" ? tournaments : type === "practice" ? practices : trials;
+    const exists = (current || []).find(x => x.id === updated.id);
+    const newItems = exists
+      ? current.map(x => x.id === updated.id ? updated : x)
+      : [updated, ...(current || [])];
+    // 即時 state 更新 (onSnapshot 到来前に UI 反映)
+    if (type === "tournament") setTournaments(newItems);
+    else if (type === "practice") setPractices(newItems);
+    else setTrials(newItems);
+    lsSave(KEYS[key], newItems);
+    // Firestore は core/03_storage.js の save() で 800ms デバウンス書き込み
+    save(KEYS[key], newItems);
+    // Detail に戻る、最新データで再描画
+    setDetail({ type, session: updated, mode: "detail" });
+    toast.show("保存しました", "success");
   };
 
   // S10: 削除 (S17 で実装予定の cascade 本格対応までの簡易版)
@@ -279,13 +335,22 @@ function TennisDB() {
           key={detail.session.id}
           type={detail.type}
           session={detail.session}
+          mode={detail.mode || "detail"}
+          tournaments={tournaments}
           trials={trials}
           practices={practices}
+          racketNames={_extractNames(rackets)}
+          stringNames={_extractNames(strings)}
+          venueNames={_extractNames(venues)}
+          opponentNames={_extractNames(opponents)}
           onClose={handleDetailClose}
           onEdit={handleEdit}
+          onEditCancel={handleEditCancel}
+          onSave={handleSave}
           onDelete={handleDelete}
           onOpenLinkedSession={handleOpenLinkedSession}
           toast={toast}
+          confirm={cfm}
         />
       )}
       {toast.el}

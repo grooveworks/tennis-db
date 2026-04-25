@@ -27,7 +27,7 @@ input,select,textarea,button{font-family:inherit}
 const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
 // ── 定数定義（色・キー・バージョン）─────────────
-const APP_VERSION="4.0.0-S10";
+const APP_VERSION="4.0.0-S11";
 const font="-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif";
 
 // 色設計（DESIGN_SYSTEM_v4.md §1 準拠）
@@ -493,6 +493,163 @@ const formatTrialForClaude = (t) => {
   return s;
 };
 
+// === src/domain/match_helpers.js ===
+// match_helpers — Match 編集 / GameTracker のための純関数群
+//
+// 役割:
+//   - blankMatch: 大会内 match の初期値 (v3 移植 + opponent2 / changeovers サポート)
+//   - addGameAndMaybeCO: ゲーム追加。奇数ゲーム後なら pendingCO を返す (TENNIS_RULES.md §2.1)
+//   - removeGameAt: index 指定でゲーム削除、以降のゲーム index と changeovers[].afterGame を再計算
+//   - replaceGameWinner: index 指定で winner を切替
+//   - upsertChangeover / removeChangeover: CO の追記・上書き・削除
+//   - ゲーム削除に伴う orphan CO の cleanup (削除されたゲームより後ろの CO の afterGame を 1 ずつ前へ)
+//
+// 仕様: TENNIS_RULES.md §2.1 / §13
+//   - CO 自動発動: games.length % 2 === 1 (奇数ゲーム終了後 = 1G, 3G, 5G, 7G, 9G, 11G 後)
+//   - v2 (v2_index.html:383) は % 2 === 0 で誤実装、v4 で修正
+//
+// 罠:
+//   - ゲーム削除時、その前後の CO afterGame を再計算しないと表示位置がずれる
+//   - changeovers[].afterGame は 1-based (1G 後 = afterGame:1)
+//   - games[] は 0-based の配列 (index 0 = ゲーム 1)
+
+const blankMatch = (matchCount, defaultsFromTournament) => {
+  const t = defaultsFromTournament || {};
+  return {
+    id: genId(),
+    round: `${matchCount + 1}回戦`,
+    opponent: "",
+    opponent2: "",
+    racketName:   t.racketName   || "",
+    stringMain:   t.stringMain   || "",
+    stringCross:  t.stringCross  || "",
+    tensionMain:  t.tensionMain  || "",
+    tensionCross: t.tensionCross || "",
+    result: "勝利",
+    setScores: [],
+    mental: 3,
+    physical: 3,
+    mentalNote: "",
+    techNote: "",
+    opponentNote: "",
+    note: "",
+    games: [],
+    changeovers: [],
+  };
+};
+
+// CO プロンプトを発動すべきか (奇数ゲーム後判定)
+// TENNIS_RULES.md §2.1 / §13
+const shouldPromptCO = (gamesLength) => gamesLength % 2 === 1;
+
+// ゲーム追加。新 match と「pendingCO 発動するか (= afterGame 番号 or null)」を返す
+const addGame = (match, winner) => {
+  const games = Array.isArray(match.games) ? match.games : [];
+  const newGames = [...games, { id: genId(), winner }];
+  const next = { ...match, games: newGames };
+  const promptAfterGame = shouldPromptCO(newGames.length) ? newGames.length : null;
+  return { match: next, promptAfterGame };
+};
+
+// 直近のゲームを削除。直後の CO (afterGame === games.length) も同時撤回。
+const removeLastGame = (match) => {
+  const games = Array.isArray(match.games) ? match.games : [];
+  if (games.length === 0) return match;
+  const removedAfterGame = games.length;
+  const newGames = games.slice(0, -1);
+  const cos = Array.isArray(match.changeovers) ? match.changeovers : [];
+  const newCOs = cos.filter(co => co.afterGame !== removedAfterGame);
+  return { ...match, games: newGames, changeovers: newCOs };
+};
+
+// 任意 index のゲームを削除。以降のゲームは順送りで詰まる。
+// changeovers[].afterGame は「削除された位置以降」を 1 ずつ前へ。
+// 削除されたゲーム位置 (index+1) と一致する CO は削除 (orphan 化を避ける)。
+const removeGameAt = (match, index) => {
+  const games = Array.isArray(match.games) ? match.games : [];
+  if (index < 0 || index >= games.length) return match;
+  const newGames = [...games.slice(0, index), ...games.slice(index + 1)];
+  const removedAfterGame = index + 1; // 1-based
+  const cos = Array.isArray(match.changeovers) ? match.changeovers : [];
+  const newCOs = cos
+    .filter(co => co.afterGame !== removedAfterGame) // 削除されたゲーム直後の CO は消す
+    .map(co => co.afterGame > removedAfterGame ? { ...co, afterGame: co.afterGame - 1 } : co);
+  return { ...match, games: newGames, changeovers: newCOs };
+};
+
+// 任意 index のゲームの winner を切替
+const replaceGameWinner = (match, index, winner) => {
+  const games = Array.isArray(match.games) ? match.games : [];
+  if (index < 0 || index >= games.length) return match;
+  const newGames = games.map((g, i) => i === index ? { ...g, winner } : g);
+  return { ...match, games: newGames };
+};
+
+// CO の追記・上書き (afterGame をキーに同じ番号の CO は置換)
+const upsertChangeover = (match, co) => {
+  const cos = Array.isArray(match.changeovers) ? match.changeovers : [];
+  const newCOs = [...cos.filter(c => c.afterGame !== co.afterGame), co];
+  newCOs.sort((a, b) => a.afterGame - b.afterGame);
+  return { ...match, changeovers: newCOs };
+};
+
+// CO の削除
+const removeChangeover = (match, afterGame) => {
+  const cos = Array.isArray(match.changeovers) ? match.changeovers : [];
+  return { ...match, changeovers: cos.filter(c => c.afterGame !== afterGame) };
+};
+
+// 全ゲーム/CO を消去 (試合丸ごとやり直し)
+const resetGameTracker = (match) => ({ ...match, games: [], changeovers: [] });
+
+// 直近までの累計スコア (UI 表示用)
+const computeRunningScore = (games) => {
+  const list = Array.isArray(games) ? games : [];
+  return list.reduce((acc, g) => {
+    if (g.winner === "me") acc.me++;
+    else if (g.winner === "opp") acc.opp++;
+    return acc;
+  }, { me: 0, opp: 0 });
+};
+
+// === src/domain/validation.js ===
+// validation — SCHEMA REQUIRED_FIELDS 駆動の必須バリデーション (純関数)
+//
+// 目的:
+//   - tournament/practice/trial の必須項目チェックを 1 箇所に集約
+//   - 編集画面で「未入力で保存ボタン disabled + フィールド赤枠」を実現
+//
+// 使い方:
+//   const errors = getRequiredErrors("tournament", form);
+//   const valid  = isValid("tournament", form);
+//   <Input error={errors.name} ... />
+//
+// 罠:
+//   - REQUIRED_FIELDS は SCHEMA から自動生成 (src/core/05_schema.js)
+//   - SCHEMA に required:true を追加するだけで自動的にチェック対象になる
+//   - 文字列の空白だけは「未入力」扱い (trim 後に空)
+
+// 値が「未入力」か判定 (空文字 / null / undefined / 空白のみ / 空配列)
+const _isEmpty = (v) => {
+  if (v === undefined || v === null) return true;
+  if (typeof v === "string") return v.trim() === "";
+  if (Array.isArray(v)) return v.length === 0;
+  return false;
+};
+
+// 必須項目のうち未入力のキーを {key: "必須項目です"} で返す。空ならバリデーション OK
+const getRequiredErrors = (type, form) => {
+  const required = REQUIRED_FIELDS[type] || [];
+  const errors = {};
+  required.forEach((key) => {
+    if (_isEmpty(form?.[key])) errors[key] = "必須項目です";
+  });
+  return errors;
+};
+
+// 必須項目すべて入力済みか
+const isValid = (type, form) => Object.keys(getRequiredErrors(type, form)).length === 0;
+
 // === src/ui/common/Badge.jsx ===
 // Badge — カテゴリ・状態表示
 // props:
@@ -860,6 +1017,27 @@ function Input({ label, value, onChange, type = "text", placeholder, required, e
       )}
     </div>
   );
+}
+
+// === src/ui/common/MasterField.jsx ===
+// MasterField — マスター候補があれば Select、無ければ Input にフォールバック
+// 既存値が master に無い場合は「(現在値)」サフィックスで先頭に追加して欠落を防ぐ
+// 用途: ラケット / ストリング / 会場 / 対戦相手 (master データは Gear タブ S16 で本格管理予定)
+//
+// props:
+//   label, value, onChange, placeholder, required, error
+//   masterValues: string[] — master データの name 配列 (空なら Input にフォールバック)
+
+function MasterField({ label, value, onChange, masterValues = [], placeholder, required, error, style: ext }) {
+  if (!masterValues || masterValues.length === 0) {
+    return <Input label={label} value={value} onChange={onChange} placeholder={placeholder} required={required} error={error} style={ext} />;
+  }
+  const opts = [{ value: "", label: placeholder || `-- ${label}を選択 --` }];
+  if (value && !masterValues.includes(value)) {
+    opts.push({ value, label: `${value} (現在値)` });
+  }
+  masterValues.forEach((v) => opts.push({ value: v, label: v }));
+  return <Select label={label} value={value} onChange={onChange} options={opts} required={required} error={error} style={ext} />;
 }
 
 // === src/ui/common/Modal.jsx ===
@@ -2102,6 +2280,1025 @@ function FilterDrawer({ open, title, options = [], selected = [], onApply, onClo
   );
 }
 
+// === src/ui/sessions/GameTracker.jsx ===
+// GameTracker — F1.4.1「ゲーム単位スコア + 状況メモ」(v2 移植 + v4 強化)
+//
+// 仕様:
+//   - 私 +1 / 相手 +1 / ↩ ボタンでゲーム単位記録
+//   - 奇数ゲーム終了後 (1, 3, 5, 7, 9, 11G) で自動 CO 入力プロンプト発動
+//     → ITF Rule 11 / TENNIS_RULES.md §2.1 / §13、v2 の % 2 === 0 は誤実装
+//   - CO 入力: メンタル 1-5 + フィジカル 1-5 + 一言メモ (任意) + スキップ可
+//   - ゲーム log と CO 行の交互表示 (振り返り用)
+//   - 修正経路:
+//     A 直近撤回 (↩ ボタン): 直近ゲーム + 直後 CO を同時撤回
+//     B ゲーム個別修正 (log 行タップ): 私/相手切替 or 削除
+//     C CO 再編集 (CO 行タップ): 既存値プリフィルでモーダル再表示、削除可
+//     D 全消去 (右上 🗑 ボタン): ConfirmDialog で確認後 games + changeovers 全削除
+//
+// props:
+//   match: 現在の match オブジェクト ({ games, changeovers, ... })
+//   onChange: 更新後の match を受ける callback
+//   confirm: 親から渡される useConfirm() 互換オブジェクト ({ ask })。全消去で使う
+//
+// 罠:
+//   - changeovers[].afterGame は 1-based、games は 0-based 配列
+//   - サブコンポーネントは _gtXxx 命名でトップレベル定義 (CLAUDE.md §6.3)
+//   - SessionDetailView の _dvXxx と命名衝突なし
+
+// ── Lucide アイコンのみで色は CSS 制御
+function _gtSafeIcon({ name, size, color }) {
+  return <Icon name={name} size={size} color={color} />;
+}
+
+// ── ゲーム log 1 行 (winner 表示 + クリックで編集ポップオーバー)
+function _gtGameLogRow({ index, game, runningScore, onEdit }) {
+  const isMe = game.winner === "me";
+  const bg = isMe ? "#e6f4ea" : "#fce8e6";
+  const borderColor = isMe ? "rgba(15,157,88,0.4)" : "rgba(217,48,37,0.4)";
+  const winColor = isMe ? "#0a5b35" : "#a31511";
+  return (
+    <div
+      onClick={onEdit}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onEdit(); } }}
+      style={{
+        display: "flex", alignItems: "center", gap: 8,
+        padding: "7px 10px", borderRadius: 8, marginBottom: 4,
+        fontSize: 12, background: bg, border: `1px solid ${borderColor}`,
+        cursor: "pointer", minHeight: 36,
+      }}
+      title="タップで編集"
+    >
+      <span style={{ fontSize: 11, color: C.textSecondary, minWidth: 62, fontVariantNumeric: "tabular-nums" }}>ゲーム {index + 1}</span>
+      <span style={{ flex: 1, fontWeight: 700, color: winColor }}>{isMe ? "✓ 私" : "✓ 相手"}</span>
+      <span style={{ fontSize: 11, color: C.textSecondary, fontVariantNumeric: "tabular-nums" }}>{runningScore.me}-{runningScore.opp}</span>
+      <Icon name="pencil" size={13} color={C.textMuted} />
+    </div>
+  );
+}
+
+// ── CO 表示行 (記録済) — タップで再編集
+function _gtChangeoverRow({ co, onEdit }) {
+  const mentalColor = co.mental >= 4 ? "#0a5b35" : co.mental >= 3 ? "#7e5d00" : "#a31511";
+  const physicalColor = co.physical >= 4 ? "#0a5b35" : co.physical >= 3 ? "#7e5d00" : "#a31511";
+  return (
+    <div
+      onClick={onEdit}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onEdit(); } }}
+      style={{
+        padding: "8px 10px", background: C.primaryLight, border: `1px solid ${C.primary}`,
+        borderRadius: 8, marginBottom: 4, cursor: "pointer", minHeight: 36,
+      }}
+      title="タップで再編集"
+    >
+      <div style={{ fontSize: 11, color: C.primary, fontWeight: 700, letterSpacing: 0.4, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        ⟳ チェンジオーバー（{co.afterGame} ゲーム後）
+        <Icon name="pencil" size={12} color={C.primary} />
+      </div>
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: 12, marginTop: 6, alignItems: "center" }}>
+        <span style={{ display: "flex", alignItems: "center", gap: 4, fontWeight: 600, color: mentalColor }}>
+          <Icon name="brain" size={13} color={mentalColor} />
+          {co.mental} {MENTAL_LABELS[co.mental] || ""}
+        </span>
+        <span style={{ display: "flex", alignItems: "center", gap: 4, fontWeight: 600, color: physicalColor }}>
+          <Icon name="dumbbell" size={13} color={physicalColor} />
+          {co.physical} {PHYSICAL_LABELS[co.physical] || ""}
+        </span>
+        {co.note && <span style={{ color: C.textSecondary, fontStyle: "italic", fontWeight: 500 }}>「{co.note}」</span>}
+      </div>
+    </div>
+  );
+}
+
+// ── メンタル/フィジカル 5 ボタン (ラベル付、44px タップ領域)
+function _gtMPButtons({ value, onSelect, labels }) {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 4 }}>
+      {[1, 2, 3, 4, 5].map((n) => {
+        const on = value === n;
+        return (
+          <button
+            key={n}
+            type="button"
+            onClick={() => onSelect(n)}
+            style={{
+              minHeight: 44, borderRadius: 6,
+              border: `1px solid ${on ? C.primary : C.border}`,
+              background: on ? C.primary : C.panel,
+              color: on ? "#fff" : C.textSecondary,
+              fontSize: 11, fontWeight: 600, cursor: "pointer",
+              display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 1,
+              fontFamily: font,
+            }}
+          >
+            <span style={{ fontSize: 14, fontWeight: 700 }}>{n}</span>
+            <span style={{ fontSize: 8, opacity: 0.85 }}>{labels[n] || ""}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── ゲーム log 行タップで開く編集ポップオーバー (私/相手切替 + 削除)
+function _gtGameEditPopover({ index, current, onSwitchMe, onSwitchOpp, onDelete, onClose }) {
+  return (
+    <div style={{
+      background: C.panel, border: `2px solid ${C.primary}`, borderRadius: 10,
+      padding: 10, margin: "6px 0",
+      boxShadow: "0 4px 12px rgba(26,115,232,.25)",
+    }}>
+      <div style={{ fontSize: 12, color: C.primary, fontWeight: 700, marginBottom: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        ゲーム {index + 1} を修正
+        <button onClick={onClose} style={{ background: "none", border: "none", color: C.textSecondary, cursor: "pointer", padding: 4 }} aria-label="閉じる">
+          <Icon name="x" size={16} color={C.textSecondary} />
+        </button>
+      </div>
+      <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
+        <button
+          onClick={onSwitchMe}
+          disabled={current === "me"}
+          style={{
+            flex: 1, minHeight: 44, borderRadius: 8,
+            border: `1.5px solid ${current === "me" ? "#dadce0" : "#0f9d58"}`,
+            background: current === "me" ? "#fff" : "#e6f4ea",
+            color: current === "me" ? C.textMuted : "#0a5b35",
+            fontSize: 13, fontWeight: 700, cursor: current === "me" ? "default" : "pointer",
+            fontFamily: font,
+          }}
+        >
+          {current === "me" ? "私 ✓（現在）" : "私 ✓ に変更"}
+        </button>
+        <button
+          onClick={onSwitchOpp}
+          disabled={current === "opp"}
+          style={{
+            flex: 1, minHeight: 44, borderRadius: 8,
+            border: `1.5px solid ${current === "opp" ? "#dadce0" : "#d93025"}`,
+            background: current === "opp" ? "#fff" : "#fce8e6",
+            color: current === "opp" ? C.textMuted : "#a31511",
+            fontSize: 13, fontWeight: 700, cursor: current === "opp" ? "default" : "pointer",
+            fontFamily: font,
+          }}
+        >
+          {current === "opp" ? "相手 ✓（現在）" : "相手 ✓ に変更"}
+        </button>
+      </div>
+      <button
+        onClick={onDelete}
+        style={{
+          width: "100%", minHeight: 40, borderRadius: 8,
+          border: `1px solid ${C.error}`, background: C.errorLight,
+          color: C.error, fontSize: 12, fontWeight: 600, cursor: "pointer",
+          display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
+          fontFamily: font,
+        }}
+      >
+        <Icon name="trash-2" size={14} color={C.error} />
+        このゲームを削除
+      </button>
+      <div style={{ fontSize: 10, color: "#7e5d00", background: C.warningLight, padding: "6px 8px", borderRadius: 4, marginTop: 6, lineHeight: 1.4 }}>
+        ※ 削除すると以降のゲーム番号と CO の afterGame が再計算されます
+      </div>
+    </div>
+  );
+}
+
+// ── pending/edit CO モーダル
+function _gtCOModal({ open, initial, onSave, onSkip, onDelete, onClose, isEditMode }) {
+  const [draft, setDraft] = useState(initial);
+  // initial が変わったら draft をリセット (afterGame 違いの CO を編集する時)
+  useEffect(() => { if (open) setDraft(initial); }, [open, initial?.afterGame]);
+  if (!open || !draft) return null;
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="チェンジオーバー記録"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose && onClose(); }}
+      style={{
+        position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 1200,
+        display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
+      }}
+    >
+      <div style={{
+        background: C.panel, border: `1.5px solid ${C.primary}`, borderRadius: 12,
+        padding: 14, maxWidth: 380, width: "100%", maxHeight: "90vh", overflowY: "auto",
+        boxShadow: "0 4px 16px rgba(26,115,232,.18)",
+      }}>
+        <div style={{ fontSize: 14, color: C.primary, fontWeight: 700, marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
+          <Icon name="rotate-ccw" size={16} color={C.primary} />
+          チェンジオーバー記録（{draft.afterGame} ゲーム後）
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 8 }}>
+          <div>
+            <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: C.text, fontWeight: 600, marginBottom: 6 }}>
+              <Icon name="brain" size={14} color={C.text} />メンタル
+            </label>
+            <_gtMPButtons value={draft.mental} onSelect={(n) => setDraft(d => ({ ...d, mental: n }))} labels={MENTAL_LABELS} />
+          </div>
+          <div>
+            <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: C.text, fontWeight: 600, marginBottom: 6 }}>
+              <Icon name="dumbbell" size={14} color={C.text} />フィジカル
+            </label>
+            <_gtMPButtons value={draft.physical} onSelect={(n) => setDraft(d => ({ ...d, physical: n }))} labels={PHYSICAL_LABELS} />
+          </div>
+        </div>
+        <input
+          type="text"
+          value={draft.note || ""}
+          onChange={(e) => setDraft(d => ({ ...d, note: e.target.value }))}
+          placeholder="一言メモ（任意）: 集中切れた / 立て直したい / ネット寄ろう..."
+          style={{
+            width: "100%", minHeight: 44, padding: "10px 14px",
+            border: `1px solid ${C.border}`, borderRadius: 8,
+            fontFamily: font, fontSize: 14, color: C.text, background: C.panel,
+            outline: "none", marginBottom: 10,
+          }}
+        />
+        <div style={{ display: "flex", gap: 8 }}>
+          {isEditMode ? (
+            <button
+              type="button"
+              onClick={onDelete}
+              style={{
+                flex: 1, minHeight: 44, borderRadius: 8,
+                border: `1px solid ${C.error}`, background: C.errorLight, color: C.error,
+                fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: font,
+              }}
+            >
+              この CO を削除
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onSkip}
+              style={{
+                flex: 1, minHeight: 44, borderRadius: 8,
+                border: `1px solid ${C.border}`, background: C.panel, color: C.textSecondary,
+                fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: font,
+              }}
+            >
+              スキップ
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => onSave(draft)}
+            style={{
+              flex: 2, minHeight: 44, borderRadius: 8,
+              border: "none", background: C.primary, color: "#fff",
+              fontSize: 13, fontWeight: 700, cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+              fontFamily: font,
+            }}
+          >
+            <Icon name="check" size={16} color="#fff" />
+            {isEditMode ? "更新" : "記録"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── メインコンポーネント
+function GameTracker({ match, onChange, confirm }) {
+  const games = Array.isArray(match.games) ? match.games : [];
+  const changeovers = Array.isArray(match.changeovers) ? match.changeovers : [];
+  const score = computeRunningScore(games);
+
+  // pending CO (新規発動): 奇数ゲーム後に自動で立ち上がる
+  const [pending, setPending] = useState(null);
+  // edit CO (既存タップ): 既存値プリフィルで開く
+  const [editing, setEditing] = useState(null);
+  // ゲーム log 行タップで開く編集ポップオーバー (index)
+  const [gameEditIndex, setGameEditIndex] = useState(null);
+
+  // ゲーム追加 (奇数ゲーム後で自動 CO 発動 — TENNIS_RULES.md §2.1)
+  const handleAddGame = (winner) => {
+    const { match: next, promptAfterGame } = addGame(match, winner);
+    onChange(next);
+    if (promptAfterGame !== null) {
+      setPending({ afterGame: promptAfterGame, mental: 3, physical: 3, note: "" });
+    }
+  };
+
+  // 直近撤回 (A 直近撤回): 直近ゲーム + 直後 CO を同時撤回
+  const handleUndo = () => {
+    if (games.length === 0) return;
+    onChange(removeLastGame(match));
+    // pending CO が立ち上がっていたらそれもキャンセル
+    if (pending && pending.afterGame === games.length) setPending(null);
+  };
+
+  // pending CO 保存
+  const handlePendingSave = (co) => {
+    onChange(upsertChangeover(match, co));
+    setPending(null);
+  };
+  const handlePendingSkip = () => setPending(null);
+
+  // 既存 CO 編集モーダルから保存
+  const handleEditSave = (co) => {
+    onChange(upsertChangeover(match, co));
+    setEditing(null);
+  };
+  const handleEditDelete = () => {
+    if (!editing) return;
+    onChange(removeChangeover(match, editing.afterGame));
+    setEditing(null);
+  };
+
+  // ゲーム log 行: 私/相手切替
+  const handleGameSwitch = (index, winner) => {
+    onChange(replaceGameWinner(match, index, winner));
+    setGameEditIndex(null);
+  };
+  // ゲーム log 行: 削除 (afterGame 再計算)
+  const handleGameDelete = (index) => {
+    onChange(removeGameAt(match, index));
+    setGameEditIndex(null);
+  };
+
+  // 全消去 (D)
+  const handleResetAll = () => {
+    if (games.length === 0 && changeovers.length === 0) return;
+    if (!confirm) {
+      onChange(resetGameTracker(match));
+      return;
+    }
+    confirm.ask(
+      `この試合のゲーム記録（${games.length} ゲーム / CO ${changeovers.length} 件）をすべて削除します。この操作は取り消せません。`,
+      () => onChange(resetGameTracker(match)),
+      { title: "ゲーム記録を全消去", yesLabel: "全消去", yesVariant: "danger", icon: "trash-2" }
+    );
+  };
+
+  // 表示行を組み立て: ゲーム N → (N が奇数なら) CO 行
+  const rows = [];
+  let running = { me: 0, opp: 0 };
+  games.forEach((g, i) => {
+    if (g.winner === "me") running = { ...running, me: running.me + 1 };
+    else if (g.winner === "opp") running = { ...running, opp: running.opp + 1 };
+    rows.push({ kind: "game", index: i, game: g, score: { ...running } });
+    // 奇数ゲーム後 = i+1 が奇数 = (i+1) % 2 === 1
+    if ((i + 1) % 2 === 1) {
+      const co = changeovers.find(c => c.afterGame === i + 1) || null;
+      rows.push({ kind: "co", afterGame: i + 1, co });
+    }
+  });
+
+  return (
+    <div style={{
+      background: C.bg, border: `1px solid ${C.border}`,
+      borderRadius: 10, padding: 12, marginTop: 6,
+    }}>
+      {/* ヘッダ: タイトル + 全消去ボタン */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+        <div style={{ fontSize: 12, color: C.primary, fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}>
+          <Icon name="play-circle" size={14} color={C.primary} />
+          ゲーム単位記録
+        </div>
+        {(games.length > 0 || changeovers.length > 0) && (
+          <button
+            type="button"
+            onClick={handleResetAll}
+            aria-label="ゲーム記録を全消去"
+            title="全消去"
+            style={{ background: "none", border: "none", color: C.error, cursor: "pointer", padding: 6, display: "flex", borderRadius: 6 }}
+          >
+            <Icon name="trash-2" size={16} color={C.error} />
+          </button>
+        )}
+      </div>
+
+      {/* スコア表示 */}
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        background: C.panel, border: `1px solid ${C.divider}`, borderRadius: 10,
+        padding: "10px 14px", marginBottom: 10,
+      }}>
+        <div style={{ textAlign: "center", flex: "0 0 auto" }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: "#0a5b35", marginBottom: 2 }}>私</div>
+          <div style={{ fontSize: 28, fontWeight: 800, color: C.practiceAccent, fontVariantNumeric: "tabular-nums", lineHeight: 1 }}>{score.me}</div>
+        </div>
+        <div style={{ fontSize: 14, color: C.textMuted, fontWeight: 600 }}>—</div>
+        <div style={{ textAlign: "center", flex: "0 0 auto" }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: "#a31511", marginBottom: 2 }}>相手</div>
+          <div style={{ fontSize: 28, fontWeight: 800, color: C.error, fontVariantNumeric: "tabular-nums", lineHeight: 1 }}>{score.opp}</div>
+        </div>
+        {games.length > 0 && (
+          <div style={{ flex: 1, maxWidth: 108, marginLeft: 14 }}>
+            <div style={{ fontSize: 11, color: C.textSecondary, marginBottom: 4 }}>推移</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 2 }}>
+              {games.map((g, i) => (
+                <div key={g.id || i} style={{
+                  width: 16, height: 16, borderRadius: 3, color: "#fff",
+                  fontSize: 9, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center",
+                  background: g.winner === "me" ? C.practiceAccent : C.error,
+                }}>{i + 1}</div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ゲーム log + CO 交互表示 */}
+      {rows.length > 0 && (
+        <div style={{ marginBottom: 10 }}>
+          {rows.map((row, idx) => {
+            if (row.kind === "game") {
+              const editing = gameEditIndex === row.index;
+              return (
+                <React.Fragment key={`g-${row.game.id || row.index}`}>
+                  <_gtGameLogRow
+                    index={row.index}
+                    game={row.game}
+                    runningScore={row.score}
+                    onEdit={() => setGameEditIndex(editing ? null : row.index)}
+                  />
+                  {editing && (
+                    <_gtGameEditPopover
+                      index={row.index}
+                      current={row.game.winner}
+                      onSwitchMe={() => handleGameSwitch(row.index, "me")}
+                      onSwitchOpp={() => handleGameSwitch(row.index, "opp")}
+                      onDelete={() => handleGameDelete(row.index)}
+                      onClose={() => setGameEditIndex(null)}
+                    />
+                  )}
+                </React.Fragment>
+              );
+            }
+            // CO 行
+            if (row.co) {
+              return (
+                <_gtChangeoverRow
+                  key={`co-${row.afterGame}`}
+                  co={row.co}
+                  onEdit={() => setEditing({ ...row.co })}
+                />
+              );
+            }
+            // CO 未記録 (空行) — pending と重複しない時だけ薄く表示
+            if (pending && pending.afterGame === row.afterGame) return null;
+            return (
+              <div
+                key={`co-empty-${row.afterGame}`}
+                onClick={() => setEditing({ afterGame: row.afterGame, mental: 3, physical: 3, note: "" })}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setEditing({ afterGame: row.afterGame, mental: 3, physical: 3, note: "" }); } }}
+                style={{
+                  padding: "6px 10px", background: C.panel, border: `1px dashed ${C.border}`,
+                  borderRadius: 8, marginBottom: 4, cursor: "pointer", minHeight: 30,
+                  fontSize: 11, color: C.textMuted, display: "flex", alignItems: "center", gap: 4,
+                }}
+                title="タップで CO を記録"
+              >
+                ⟳ チェンジオーバー（{row.afterGame} ゲーム後・未記録、タップで追加）
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* 次のゲーム入力 (ボタン 54px、間隙 10px、AAA) */}
+      {!pending && (
+        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          <span style={{ fontSize: 12, color: C.textSecondary, minWidth: 84 }}>次のゲーム:</span>
+          <button
+            type="button"
+            onClick={() => handleAddGame("me")}
+            style={{
+              flex: 1, minHeight: 54, borderRadius: 10,
+              border: `1.5px solid ${C.practiceAccent}`, background: C.practiceLight,
+              color: "#0a5b35", fontSize: 15, fontWeight: 800, cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+              fontFamily: font,
+            }}
+          >
+            <Icon name="check" size={18} color="#0a5b35" /> 私 ✓
+          </button>
+          <button
+            type="button"
+            onClick={() => handleAddGame("opp")}
+            style={{
+              flex: 1, minHeight: 54, borderRadius: 10,
+              border: `1.5px solid ${C.error}`, background: C.errorLight,
+              color: "#a31511", fontSize: 15, fontWeight: 800, cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+              fontFamily: font,
+            }}
+          >
+            <Icon name="check" size={18} color="#a31511" /> 相手 ✓
+          </button>
+          {games.length > 0 && (
+            <button
+              type="button"
+              onClick={handleUndo}
+              aria-label="直近のゲームを撤回"
+              title="直近撤回"
+              style={{
+                minWidth: 54, minHeight: 54, borderRadius: 10,
+                border: `1px solid ${C.border}`, background: C.panel,
+                color: C.textSecondary, fontSize: 15, cursor: "pointer", fontFamily: font,
+              }}
+            >↩</button>
+          )}
+        </div>
+      )}
+
+      {/* 注釈: 奇数ゲーム後に CO 自動発動 */}
+      <div style={{ fontSize: 10, color: C.textSecondary, lineHeight: 1.5, padding: "6px 8px", background: C.panel, borderRadius: 4, marginTop: 6 }}>
+        CO は<b style={{ color: C.text }}>奇数ゲーム後</b>に自動発動（1, 3, 5, 7, 9, 11G）。各行タップで修正可。
+      </div>
+
+      {/* pending CO モーダル (奇数ゲーム後の自動発動) */}
+      <_gtCOModal
+        open={!!pending}
+        initial={pending}
+        onSave={handlePendingSave}
+        onSkip={handlePendingSkip}
+        onClose={handlePendingSkip}
+        isEditMode={false}
+      />
+
+      {/* 既存 CO 編集モーダル (CO 行タップ) */}
+      <_gtCOModal
+        open={!!editing}
+        initial={editing}
+        onSave={handleEditSave}
+        onDelete={handleEditDelete}
+        onClose={() => setEditing(null)}
+        isEditMode={true}
+      />
+    </div>
+  );
+}
+
+// === src/ui/sessions/LinkedSessionPicker.jsx ===
+// LinkedSessionPicker — 試打 (trial) の linkedPracticeId / linkedMatchId 張替セレクタ
+//
+// 役割:
+//   - 試打編集画面で「連携先 (任意)」セクションに表示
+//   - 既存リンクがある場合は紫カードで表示、× で解除
+//   - 新規追加ボタンで全 practices / 全 tournament[].matches から候補を選択
+//   - 誤った自動リンク (QuickTrial 同日マッチ判定) を手動修正できる動線
+//
+// props:
+//   linkedPracticeId, linkedMatchId: 現在の値
+//   practices: 全 practice 配列
+//   tournaments: 全 tournament 配列 (matches[] 抽出に必要)
+//   onChange({ linkedPracticeId, linkedMatchId }): 変更通知
+//
+// 罠:
+//   - linkedMatchId は match.id 単位、tournament.id ではない (v3 互換)
+//   - 1 試打に対して practice / match 同時リンクは可 (両方 set される運用も v3 にあった)
+
+// 既存リンクを 1 件のオブジェクトに解決
+function _lpResolveLink({ linkedPracticeId, linkedMatchId, practices, tournaments }) {
+  const out = { practice: null, matchInfo: null };
+  if (linkedPracticeId) {
+    out.practice = (practices || []).find(p => p.id === linkedPracticeId) || null;
+  }
+  if (linkedMatchId) {
+    for (const t of (tournaments || [])) {
+      const matches = Array.isArray(t.matches) ? t.matches : [];
+      const m = matches.find(mm => mm.id === linkedMatchId);
+      if (m) {
+        out.matchInfo = { tournament: t, match: m };
+        break;
+      }
+    }
+  }
+  return out;
+}
+
+// 候補シートで 1 行を表示
+function _lpCandidateRow({ kind, label, sub, onPick }) {
+  const iconName = kind === "practice" ? "person-standing" : "trophy";
+  const accent = kind === "practice" ? C.practiceAccent : C.tournamentAccent;
+  return (
+    <div
+      onClick={onPick}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onPick(); } }}
+      style={{
+        display: "flex", alignItems: "center", gap: 10,
+        padding: "10px 14px", minHeight: 56,
+        borderBottom: `1px solid ${C.divider}`,
+        cursor: "pointer", background: C.panel,
+      }}
+    >
+      <Icon name={iconName} size={18} color={accent} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</div>
+        <div style={{ fontSize: 11, color: C.textSecondary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sub}</div>
+      </div>
+      <Icon name="chevron-right" size={16} color={C.textMuted} />
+    </div>
+  );
+}
+
+// 連携先選択シート (画面下からせり上がる)
+function _lpPickerSheet({ open, mode, practices, tournaments, onPick, onClose }) {
+  if (!open) return null;
+  // mode === "practice" or "match" でフィルタ
+  let candidates = [];
+  if (mode === "practice") {
+    candidates = (practices || []).slice().sort((a, b) => normDate(b.date).localeCompare(normDate(a.date)));
+    candidates = candidates.map(p => ({
+      key: `p-${p.id}`,
+      kind: "practice",
+      label: p.title || p.venue || "(無題の練習)",
+      sub: `${(p.type || "練習")} ・ ${fmtDate(p.date)} ・ ${p.venue || ""}`,
+      pick: () => onPick({ practice: p }),
+    }));
+  } else if (mode === "match") {
+    const list = [];
+    (tournaments || []).forEach(t => {
+      const matches = Array.isArray(t.matches) ? t.matches : [];
+      matches.forEach(m => {
+        list.push({
+          key: `m-${m.id}`,
+          kind: "match",
+          label: `${t.name || "(無題の大会)"} - ${m.round || "試合"}`,
+          sub: `${m.opponent ? "vs " + m.opponent : "対戦相手未入力"} ・ ${fmtDate(t.date)} ・ ${m.result || ""}`,
+          pick: () => onPick({ matchInfo: { tournament: t, match: m } }),
+        });
+      });
+    });
+    list.sort((a, b) => 0); // 既にトーナメント単位、UI 単純化のため特に並び替えしない
+    candidates = list;
+  }
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="連携先を選択"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose && onClose(); }}
+      style={{
+        position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 1300,
+        display: "flex", alignItems: "flex-end", justifyContent: "center",
+      }}
+    >
+      <div style={{
+        background: C.panel, borderRadius: "16px 16px 0 0",
+        width: "100%", maxWidth: 500, maxHeight: "70vh",
+        display: "flex", flexDirection: "column",
+        animation: "drawerEnter 250ms ease-out",
+      }}>
+        <div style={{ width: 40, height: 4, background: C.border, borderRadius: 2, margin: "8px auto 4px" }} />
+        <div style={{ display: "flex", alignItems: "center", padding: "8px 8px 8px 16px", borderBottom: `1px solid ${C.divider}` }}>
+          <div style={{ flex: 1, fontSize: 15, fontWeight: 600, color: C.text }}>
+            {mode === "practice" ? "連携練習を選択" : "連携試合を選択"}
+          </div>
+          <button onClick={onClose} aria-label="閉じる" style={{
+            width: 40, height: 40, display: "inline-flex", alignItems: "center", justifyContent: "center",
+            border: "none", background: "transparent", cursor: "pointer", color: C.textSecondary, padding: 0, borderRadius: 8,
+          }}>
+            <Icon name="x" size={22} color={C.textSecondary} />
+          </button>
+        </div>
+        <div style={{ flex: 1, overflow: "auto" }}>
+          {candidates.length === 0 ? (
+            <div style={{ padding: "24px 16px", textAlign: "center", fontSize: 13, color: C.textMuted }}>
+              候補がありません
+            </div>
+          ) : candidates.map(c => (
+            <_lpCandidateRow key={c.key} kind={c.kind} label={c.label} sub={c.sub} onPick={c.pick} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// メイン: 既存リンク表示 + 解除 + 追加ボタン
+function LinkedSessionPicker({ linkedPracticeId, linkedMatchId, practices, tournaments, onChange }) {
+  const [pickerMode, setPickerMode] = useState(null); // "practice" | "match" | null
+  const { practice, matchInfo } = _lpResolveLink({ linkedPracticeId, linkedMatchId, practices, tournaments });
+
+  const handlePick = (picked) => {
+    if (picked.practice) {
+      onChange({ linkedPracticeId: picked.practice.id, linkedMatchId: linkedMatchId || "" });
+    } else if (picked.matchInfo) {
+      onChange({ linkedPracticeId: linkedPracticeId || "", linkedMatchId: picked.matchInfo.match.id });
+    }
+    setPickerMode(null);
+  };
+
+  const handleClearPractice = () => onChange({ linkedPracticeId: "", linkedMatchId: linkedMatchId || "" });
+  const handleClearMatch = () => onChange({ linkedPracticeId: linkedPracticeId || "", linkedMatchId: "" });
+
+  return (
+    <div>
+      <div style={{ fontSize: 11, color: C.textSecondary, marginBottom: 6 }}>
+        紐づける練習または試合を選択。誤リンクの張替も可能。
+      </div>
+
+      {/* 既存リンク (practice) */}
+      {practice && (
+        <div style={{
+          background: C.practiceLight, border: `1px solid rgba(15,157,88,0.35)`, borderRadius: 10,
+          padding: "10px 12px", display: "flex", alignItems: "center", gap: 10, marginBottom: 6,
+        }}>
+          <Icon name="person-standing" size={18} color={C.practiceAccent} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {practice.title || practice.venue || "(無題の練習)"}
+            </div>
+            <div style={{ fontSize: 11, color: C.textSecondary }}>
+              {(practice.type || "練習")} ・ {fmtDate(practice.date)} ・ {practice.venue || ""}
+            </div>
+          </div>
+          <button onClick={handleClearPractice} aria-label="連携練習を解除" title="解除" style={{
+            background: "none", border: "none", cursor: "pointer", padding: 6, display: "flex", borderRadius: 4,
+          }}>
+            <Icon name="x" size={16} color={C.error} />
+          </button>
+        </div>
+      )}
+
+      {/* 既存リンク (match) */}
+      {matchInfo && (
+        <div style={{
+          background: C.tournamentLight, border: `1px solid rgba(249,171,0,0.35)`, borderRadius: 10,
+          padding: "10px 12px", display: "flex", alignItems: "center", gap: 10, marginBottom: 6,
+        }}>
+          <Icon name="trophy" size={18} color={C.tournamentAccent} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {matchInfo.tournament.name || "(無題の大会)"} - {matchInfo.match.round || "試合"}
+            </div>
+            <div style={{ fontSize: 11, color: C.textSecondary }}>
+              {matchInfo.match.opponent ? "vs " + matchInfo.match.opponent : "対戦相手未入力"} ・ {fmtDate(matchInfo.tournament.date)}
+            </div>
+          </div>
+          <button onClick={handleClearMatch} aria-label="連携試合を解除" title="解除" style={{
+            background: "none", border: "none", cursor: "pointer", padding: 6, display: "flex", borderRadius: 4,
+          }}>
+            <Icon name="x" size={16} color={C.error} />
+          </button>
+        </div>
+      )}
+
+      {/* 追加ボタン (practice / match それぞれ) */}
+      <div style={{ display: "flex", gap: 8 }}>
+        {!practice && (
+          <button
+            type="button"
+            onClick={() => setPickerMode("practice")}
+            style={{
+              flex: 1, minHeight: 44, padding: 10, borderRadius: 8,
+              border: `1px dashed ${C.practiceAccent}`, background: C.panel, color: C.practiceAccent,
+              fontSize: 13, fontWeight: 600, cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontFamily: font,
+            }}
+          >
+            <Icon name="link-2" size={14} color={C.practiceAccent} />連携練習を追加
+          </button>
+        )}
+        {!matchInfo && (
+          <button
+            type="button"
+            onClick={() => setPickerMode("match")}
+            style={{
+              flex: 1, minHeight: 44, padding: 10, borderRadius: 8,
+              border: `1px dashed ${C.tournamentAccent}`, background: C.panel, color: C.tournamentAccent,
+              fontSize: 13, fontWeight: 600, cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontFamily: font,
+            }}
+          >
+            <Icon name="link-2" size={14} color={C.tournamentAccent} />連携試合を追加
+          </button>
+        )}
+      </div>
+
+      <_lpPickerSheet
+        open={!!pickerMode}
+        mode={pickerMode}
+        practices={practices}
+        tournaments={tournaments}
+        onPick={handlePick}
+        onClose={() => setPickerMode(null)}
+      />
+    </div>
+  );
+}
+
+// === src/ui/sessions/MatchEditModal.jsx ===
+// MatchEditModal — 大会内 Match の追加/編集 Modal
+// props:
+//   open: boolean
+//   match: 編集対象 (新規時は blankMatch() を渡す)
+//   trnType: 親大会の type ("singles" | "doubles" | "mixed") — opponent2 表示判定
+//   tournamentDefaults: 大会の機材 (新規 match の初期値に使う)
+//   confirm: useConfirm() 互換 ({ ask })
+//   onSave(form): 保存ボタン
+//   onClose(): キャンセル / × / Esc / 背景タップ
+// 統一フォーマット (S11 preview 仕様):
+//   ① 基本: ラウンド / 結果 / 対戦相手 / (opponent2) / セットスコア
+//   ② 評価: メンタル / フィジカル
+//   ③ 機材: ラケット / テンション / 縦糸 / 横糸
+//   ④ ゲーム単位記録: GameTracker
+//   ⑤ メモ: メンタル / 技術 / 相手 / 総括
+
+const ROUND_OPTS = [
+  { value: "1回戦",   label: "1回戦" },
+  { value: "2回戦",   label: "2回戦" },
+  { value: "3回戦",   label: "3回戦" },
+  { value: "準々決勝", label: "準々決勝" },
+  { value: "準決勝",   label: "準決勝" },
+  { value: "決勝",     label: "決勝" },
+  { value: "予選",     label: "予選" },
+  { value: "エキシビション", label: "エキシビション" },
+];
+const RESULT_OPTS = [
+  { value: "勝利", label: "勝利" },
+  { value: "敗北", label: "敗北" },
+  { value: "棄権", label: "棄権" },
+];
+
+// rating row (5 ボタン) — 編集フォーム共通スタイル
+function _meRatingRow({ label, value, onChange }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
+      <span style={{ fontSize: 12, color: C.textSecondary, fontWeight: 500, minWidth: 88 }}>{label}</span>
+      <div style={{ display: "flex", gap: 6, flex: 1, minWidth: 0 }}>
+        {[1, 2, 3, 4, 5].map((n) => {
+          const on = value === n;
+          return (
+            <button
+              key={n}
+              type="button"
+              onClick={() => onChange(n)}
+              style={{
+                flex: 1, minWidth: 40, minHeight: 36, padding: "6px 0",
+                borderRadius: 6, border: `1px solid ${on ? C.primary : C.border}`,
+                background: on ? C.primary : C.panel,
+                color: on ? "#fff" : C.textSecondary,
+                fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: font,
+              }}
+            >{n}</button>
+          );
+        })}
+      </div>
+      <span style={{ fontSize: 11, color: C.textMuted, fontVariantNumeric: "tabular-nums", minWidth: 28, textAlign: "right" }}>{value || "—"}</span>
+    </div>
+  );
+}
+
+function MatchEditModal({ open, match, trnType, racketNames = [], stringNames = [], opponentNames = [], confirm, onSave, onClose }) {
+  const [form, setForm] = useState(match || null);
+  const [dirty, setDirty] = useState(false);
+  // open のたびに最新の match を反映 (別 match を編集する時の対応)
+  useEffect(() => { if (open) { setForm(match); setDirty(false); } }, [open, match?.id]);
+
+  // 未保存変更がある時は閉じる前に確認
+  const handleClose = useCallback(() => {
+    if (!dirty) { onClose && onClose(); return; }
+    if (!confirm) { onClose && onClose(); return; }
+    confirm.ask(
+      "編集内容が保存されていません。破棄してよろしいですか？",
+      () => onClose && onClose(),
+      { title: "未保存の変更があります", yesLabel: "破棄する", noLabel: "編集に戻る", yesVariant: "danger", icon: "triangle-alert" }
+    );
+  }, [dirty, confirm, onClose]);
+
+  // Esc で閉じる (未保存確認経由)
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e) => { if (e.key === "Escape") handleClose(); };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [open, handleClose]);
+
+  if (!open || !form) return null;
+
+  // setter で dirty フラグを立てる
+  const set = (k, v) => { setForm(p => ({ ...p, [k]: v })); setDirty(true); };
+  const setScoresInput = Array.isArray(form.setScores) ? form.setScores.join(", ") : (form.setScores || "");
+  const isDouble = trnType === "doubles" || trnType === "mixed";
+  const showOpponent2 = isDouble;
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="試合を編集"
+      onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}
+      style={{
+        position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 1100,
+        display: "flex", alignItems: "flex-start", justifyContent: "center",
+        padding: "20px 12px", overflowY: "auto",
+      }}
+    >
+      <div style={{
+        background: C.panel, borderRadius: 16, padding: 18,
+        maxWidth: 480, width: "100%",
+      }}>
+        {/* ヘッダ */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+          <span style={{ fontSize: 14, fontWeight: 700, color: C.text }}>試合の詳細を記録</span>
+          <button onClick={handleClose} aria-label="閉じる" style={{ background: "none", border: "none", color: C.textSecondary, cursor: "pointer", padding: 4, display: "flex" }}>
+            <Icon name="x" size={18} color={C.textSecondary} />
+          </button>
+        </div>
+
+        {/* ① 基本 */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>
+          <Select label="ラウンド" value={form.round || "1回戦"} onChange={(v) => set("round", v)} options={ROUND_OPTS} />
+          <Select label="結果" value={form.result || "勝利"} onChange={(v) => set("result", v)} options={RESULT_OPTS} />
+        </div>
+        <MasterField label="対戦相手" value={form.opponent || ""} onChange={(v) => set("opponent", v)} masterValues={opponentNames} placeholder="-- 対戦相手を選択 --" />
+        {showOpponent2 && (
+          <MasterField label="対戦相手 2 (ダブルス)" value={form.opponent2 || ""} onChange={(v) => set("opponent2", v)} masterValues={opponentNames} placeholder="-- 対戦相手 2 を選択 --" />
+        )}
+        <Input
+          label="セットスコア"
+          value={setScoresInput}
+          onChange={(v) => set("setScores", v.split(",").map(s => s.trim()).filter(Boolean))}
+          placeholder="例: 6-3, 6-4"
+        />
+
+        {/* matchStats が CSV 取込済みの場合の注記 (S11 範囲外、表示のみ) */}
+        {form.matchStats && form.matchStats.stats && (
+          <div style={{
+            fontSize: 11, color: "#7e5d00", background: C.warningLight,
+            border: `1px solid ${C.warning}`, borderRadius: 6,
+            padding: "6px 10px", marginBottom: 10,
+            display: "flex", alignItems: "center", gap: 6,
+          }}>
+            <Icon name="bar-chart-3" size={13} color="#7e5d00" />
+            <span><b>データテニス CSV 取込済み</b> ({form.matchStats?.points?.length || 0} ポイント)。スタッツ編集はスコープ外（CSV 再取込で更新）</span>
+          </div>
+        )}
+
+        {/* ② 評価 */}
+        <div style={{ marginTop: 4 }}>
+          <_meRatingRow label="メンタル" value={form.mental || 3} onChange={(n) => set("mental", n)} />
+          <_meRatingRow label="フィジカル" value={form.physical || 3} onChange={(n) => set("physical", n)} />
+        </div>
+
+        {/* ③ 機材 — ラケット 1 行 / 縦糸+横糸 / テンション縦+横 */}
+        <div style={{ fontSize: 11, color: C.textMuted, fontWeight: 600, letterSpacing: 0.5, textTransform: "uppercase", marginTop: 10, marginBottom: 4 }}>機材</div>
+        <MasterField label="ラケット" value={form.racketName || ""} onChange={(v) => set("racketName", v)} masterValues={racketNames} placeholder="-- ラケットを選択 --" />
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>
+          <MasterField label="縦糸" value={form.stringMain || ""} onChange={(v) => set("stringMain", v)} masterValues={stringNames} placeholder="-- 縦糸を選択 --" />
+          <MasterField label="横糸" value={form.stringCross || ""} onChange={(v) => set("stringCross", v)} masterValues={stringNames} placeholder="-- 同じなら空欄 --" />
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>
+          <Input label="テンション縦" value={form.tensionMain || ""} onChange={(v) => set("tensionMain", v)} placeholder="46" />
+          <Input label="テンション横" value={form.tensionCross || ""} onChange={(v) => set("tensionCross", v)} placeholder="43" />
+        </div>
+
+        {/* ④ ゲーム単位記録 (F1.4.1) */}
+        <GameTracker match={form} onChange={setForm} confirm={confirm} />
+
+        {/* ⑤ メモ */}
+        <div style={{ fontSize: 11, color: C.textMuted, fontWeight: 600, letterSpacing: 0.5, textTransform: "uppercase", marginTop: 14, marginBottom: 4 }}>メモ</div>
+        <Textarea label="メンタルメモ" value={form.mentalNote || ""} onChange={(v) => set("mentalNote", v)} placeholder="この試合でのメンタルの状態..." />
+        <Textarea label="技術メモ" value={form.techNote || ""} onChange={(v) => set("techNote", v)} placeholder="フォーム、戦術、改善点..." />
+        <Textarea label="相手メモ" value={form.opponentNote || ""} onChange={(v) => set("opponentNote", v)} placeholder="相手のスタイル、強かった点..." />
+        <Textarea label="総括" value={form.note || ""} onChange={(v) => set("note", v)} placeholder="この試合で学んだこと..." />
+
+        {/* アクション */}
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 14 }}>
+          <button
+            type="button"
+            onClick={handleClose}
+            style={{
+              minHeight: 44, padding: "10px 20px", borderRadius: 8,
+              border: `1px solid ${C.border}`, background: C.panel, color: C.textSecondary,
+              fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: font,
+            }}
+          >キャンセル</button>
+          <button
+            type="button"
+            onClick={() => onSave && onSave(form)}
+            style={{
+              minHeight: 44, padding: "10px 20px", borderRadius: 8,
+              border: "none", background: C.primary, color: "#fff",
+              fontSize: 13, fontWeight: 700, cursor: "pointer",
+              display: "inline-flex", alignItems: "center", gap: 6, fontFamily: font,
+            }}
+          >
+            <Icon name="save" size={16} color="#fff" />保存
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // === src/ui/sessions/PracticeDetail.jsx ===
 // PracticeDetail — 練習セッション詳細 (v5, 2026-04-24 更新)
 // Apple Watch: warning 色体系 + 4 セル (時間/Active/平均/合計) + 積層バー + BPM range + % + 分秒 + 回復心拍
@@ -2307,6 +3504,215 @@ function PracticeDetail({ session, linkedTrials, onLinkedTrialClick }) {
           {p.generalNote && <_dvMemoItem label="メモ"        text={p.generalNote} />}
         </_dvSection>
       )}
+    </>
+  );
+}
+
+// === src/ui/sessions/PracticeEditForm.jsx ===
+// PracticeEditForm — 練習編集フォーム
+// 統一フォーマット (preview_s11):
+//   ① 基本: 日付* / 種別 / イベント名 / 開始-終了-duration
+//   ② 会場 / 気象 (3 列)
+//   ③ 機材 (2x2)
+//   ④ 体調・集中 (rating) + Apple Watch (表示のみ)
+//   ⑤ メモ: フォーカス / コーチ / 良かった / 改善 / メモ
+//   ⑥ 公開設定
+
+const _PRAC_TYPE_OPTS = [
+  { value: "",         label: "—" },
+  { value: "スクール",   label: "スクール" },
+  { value: "自主練",     label: "自主練" },
+  { value: "練習会",     label: "練習会" },
+  { value: "ゲーム練習", label: "ゲーム練習" },
+  { value: "球出し",     label: "球出し" },
+  { value: "練習試合",   label: "練習試合" },
+  { value: "フィジカル", label: "フィジカル" },
+];
+const _PRAC_WEATHER = [{ value: "", label: "—" }, { value: "晴", label: "晴" }, { value: "曇", label: "曇" }, { value: "雨", label: "雨" }, { value: "屋内", label: "屋内" }];
+
+// section head (TournamentEditForm の _sectionHead と同じ機能、命名衝突避ける)
+function _peSectionHead({ num, label }) {
+  return (
+    <div style={{ fontSize: 11, color: C.textMuted, fontWeight: 600, letterSpacing: 0.5, marginBottom: 10, textTransform: "uppercase", display: "flex", alignItems: "center", gap: 5 }}>
+      <span style={{
+        display: "inline-flex", alignItems: "center", justifyContent: "center",
+        width: 18, height: 18, borderRadius: "50%", background: C.primary, color: "#fff",
+        fontSize: 10, fontWeight: 700,
+      }}>{num}</span>
+      {label}
+    </div>
+  );
+}
+
+// 5 ボタン rating (体調・集中用)
+function _peRatingRow({ label, value, onChange }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
+      <span style={{ fontSize: 12, color: C.textSecondary, fontWeight: 500, minWidth: 60 }}>{label}</span>
+      <div style={{ display: "flex", gap: 6, flex: 1, minWidth: 0 }}>
+        {[1, 2, 3, 4, 5].map((n) => {
+          const on = value === n;
+          return (
+            <button
+              key={n}
+              type="button"
+              onClick={() => onChange(n)}
+              style={{
+                flex: 1, minWidth: 40, minHeight: 36, padding: "6px 0",
+                borderRadius: 6, border: `1px solid ${on ? C.primary : C.border}`,
+                background: on ? C.primary : C.panel,
+                color: on ? "#fff" : C.textSecondary,
+                fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: font,
+              }}
+            >{n}</button>
+          );
+        })}
+      </div>
+      <span style={{ fontSize: 11, color: C.textMuted, fontVariantNumeric: "tabular-nums", minWidth: 28, textAlign: "right" }}>{value || "—"}</span>
+    </div>
+  );
+}
+
+// Apple Watch 表示専用 (input なし)
+function _peAppleWatchPanel({ form }) {
+  const has = !!(form.heartRateAvg || form.calories || form.totalCalories || form.duration || form.hrZone1);
+  if (!has) return null;
+  return (
+    <div style={{ background: C.warningLight, border: `1.5px solid ${C.warning}`, borderRadius: 12, padding: 12, marginBottom: 10 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+        <Icon name="watch" size={15} color="#7e5d00" ariaLabel="Apple Watch" />
+        <span style={{ fontSize: 13, color: "#7e5d00", fontWeight: 700 }}>Apple Watch</span>
+        <span style={{ fontSize: 11, color: C.textSecondary, fontWeight: 400 }}>(表示のみ・編集不可)</span>
+      </div>
+      <div style={{ fontSize: 11, color: C.text, lineHeight: 1.6 }}>
+        {form.duration && <span>時間 {form.duration}分 ・ </span>}
+        {form.calories && <span>Active {form.calories}kcal ・ </span>}
+        {form.heartRateAvg && <span>平均 {form.heartRateAvg}bpm ・ </span>}
+        {form.totalCalories && <span>合計 {form.totalCalories}kcal</span>}
+        {form.timeRange && <div>計測時間 {form.timeRange}</div>}
+        {form.workoutLocation && <div>位置 {form.workoutLocation}</div>}
+        {form.recoveryHR && <div>回復心拍 {form.recoveryHR}</div>}
+      </div>
+      <div style={{ fontSize: 11, color: "#7e5d00", marginTop: 6, paddingTop: 6, borderTop: `1px dashed rgba(126,93,0,0.3)` }}>
+        ※ 編集不可。スクショ → Claude → JSON → インポートで更新（S19 で実装予定）
+      </div>
+    </div>
+  );
+}
+
+// 公開トグル (Tournament と同等、命名衝突避け _peVisibility)
+function _peVisibility({ value, onChange }) {
+  const cur = value || "public";
+  const opts = [
+    { v: "public",  label: "🌐 公開",   note: "プライマリ Cal" },
+    { v: "private", label: "🔒 非公開", note: "仕事関係 Cal" },
+  ];
+  return (
+    <div style={{ display: "flex", gap: 8 }}>
+      {opts.map(o => {
+        const on = cur === o.v;
+        return (
+          <button
+            key={o.v}
+            type="button"
+            onClick={() => onChange(o.v)}
+            style={{
+              flex: 1, minHeight: 44, padding: "8px 12px",
+              borderRadius: 8, border: `1px solid ${on ? C.primary : C.border}`,
+              background: on ? C.primaryLight : C.panel,
+              color: on ? C.primary : C.textSecondary,
+              fontSize: 13, fontWeight: 600, cursor: "pointer",
+              display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2,
+              fontFamily: font,
+            }}
+          >
+            <div>{o.label}</div>
+            <div style={{ fontSize: 10, opacity: 0.75 }}>{o.note}</div>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function PracticeEditForm({ form, errors = {}, onChange, racketNames = [], stringNames = [], venueNames = [] }) {
+  // 開始/終了時刻入力時に duration を自動計算 (v3:2471-2481 移植)
+  const set = (k, v) => {
+    const n = { ...form, [k]: v };
+    if ((k === "startTime" || k === "endTime") && n.startTime && n.endTime) {
+      const sParts = n.startTime.split(":").map(Number);
+      const eParts = n.endTime.split(":").map(Number);
+      if (!isNaN(sParts[0]) && !isNaN(eParts[0])) {
+        const mins = (eParts[0] * 60 + (eParts[1] || 0)) - (sParts[0] * 60 + (sParts[1] || 0));
+        if (mins > 0) n.duration = String(mins);
+      }
+    }
+    onChange(n);
+  };
+
+  return (
+    <>
+      {/* ① 基本情報 */}
+      <div style={{ background: C.panel, border: `1px solid ${C.divider}`, borderRadius: 12, padding: 12, marginBottom: 10 }}>
+        <_peSectionHead num="1" label="基本情報" />
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>
+          <Input type="date" label="日付" required value={form.date || ""} onChange={(v) => set("date", v)} error={errors.date} />
+          <Select label="種別" value={form.type || ""} onChange={(v) => set("type", v)} options={_PRAC_TYPE_OPTS} />
+        </div>
+        <Input label="イベント名" value={form.title || ""} onChange={(v) => set("title", v)} placeholder="例: ナイターレッスン中上級" />
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0 8px" }}>
+          <Input type="time" label="開始" value={form.startTime || ""} onChange={(v) => set("startTime", v)} />
+          <Input type="time" label="終了" value={form.endTime || ""} onChange={(v) => set("endTime", v)} />
+          <Input type="number" label="時間(分)" value={form.duration || ""} onChange={(v) => set("duration", v)} placeholder="90" />
+        </div>
+      </div>
+
+      {/* ② 会場 / 気象 */}
+      <div style={{ background: C.panel, border: `1px solid ${C.divider}`, borderRadius: 12, padding: 12, marginBottom: 10 }}>
+        <_peSectionHead num="2" label="会場 / 気象" />
+        <MasterField label="会場" value={form.venue || ""} onChange={(v) => set("venue", v)} masterValues={venueNames} placeholder="-- 会場を選択 --" />
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>
+          <Input type="number" label="気温(℃)" value={form.temp || ""} onChange={(v) => set("temp", v)} placeholder="18" />
+          <Select label="天気" value={form.weather || ""} onChange={(v) => set("weather", v)} options={_PRAC_WEATHER} />
+        </div>
+      </div>
+
+      {/* ③ 機材 — ラケット 1 行 / 縦糸+横糸 / テンション縦+横 */}
+      <div style={{ background: C.panel, border: `1px solid ${C.divider}`, borderRadius: 12, padding: 12, marginBottom: 10 }}>
+        <_peSectionHead num="3" label="機材" />
+        <MasterField label="ラケット" value={form.racketName || ""} onChange={(v) => set("racketName", v)} masterValues={racketNames} placeholder="-- ラケットを選択 --" />
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>
+          <MasterField label="縦糸" value={form.stringMain || ""} onChange={(v) => set("stringMain", v)} masterValues={stringNames} placeholder="-- 縦糸を選択 --" />
+          <MasterField label="横糸" value={form.stringCross || ""} onChange={(v) => set("stringCross", v)} masterValues={stringNames} placeholder="-- 同じなら空欄 --" />
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>
+          <Input label="テンション縦" value={form.tensionMain || ""} onChange={(v) => set("tensionMain", v)} placeholder="46" />
+          <Input label="テンション横" value={form.tensionCross || ""} onChange={(v) => set("tensionCross", v)} placeholder="43" />
+        </div>
+      </div>
+
+      {/* ④ 体調・集中 + Apple Watch */}
+      <div style={{ background: C.panel, border: `1px solid ${C.divider}`, borderRadius: 12, padding: 12, marginBottom: 10 }}>
+        <_peSectionHead num="4" label="体調・集中" />
+        <_peRatingRow label="体調" value={Number(form.physical) || 0} onChange={(n) => onChange({ ...form, physical: n })} />
+        <_peRatingRow label="集中" value={Number(form.focus) || 0} onChange={(n) => onChange({ ...form, focus: n })} />
+      </div>
+      <_peAppleWatchPanel form={form} />
+
+      {/* ⑤ メモ — focus は rating (集中度、上のセクション)、textarea は SCHEMA に無いので作らない */}
+      <div style={{ background: C.panel, border: `1px solid ${C.divider}`, borderRadius: 12, padding: 12, marginBottom: 10 }}>
+        <_peSectionHead num="5" label="メモ" />
+        <Textarea label="コーチメモ" value={form.coachNote || ""} onChange={(v) => onChange({ ...form, coachNote: v })} placeholder="コーチから言われたこと..." />
+        <Textarea label="良かった点" value={form.goodNote || ""} onChange={(v) => onChange({ ...form, goodNote: v })} placeholder="できるようになったこと..." />
+        <Textarea label="改善点" value={form.improveNote || ""} onChange={(v) => onChange({ ...form, improveNote: v })} placeholder="次回意識したいこと..." />
+        <Textarea label="メモ" value={form.generalNote || ""} onChange={(v) => onChange({ ...form, generalNote: v })} placeholder="その他気づき..." />
+      </div>
+
+      {/* ⑥ 公開設定 */}
+      <div style={{ background: C.panel, border: `1px solid ${C.divider}`, borderRadius: 12, padding: 12, marginBottom: 10 }}>
+        <_peSectionHead num="6" label="公開設定" />
+        <_peVisibility value={form.visibility} onChange={(v) => onChange({ ...form, visibility: v })} />
+      </div>
     </>
   );
 }
@@ -2696,7 +4102,9 @@ function _dvMemoItem({ label, text }) {
 }
 
 // ── メインコンポーネント ────────────────────────
-function SessionDetailView({ type, session, trials, practices, onClose, onEdit, onDelete, onOpenLinkedSession, toast }) {
+// S11: mode prop で Detail (既定) と Edit (編集モード) を切替。
+//      Edit モード時は SessionEditView で置換し、slide-in overlay は維持 (再 mount せず scrollTop 保持)
+function SessionDetailView({ type, session, mode = "detail", tournaments, trials, practices, racketNames, stringNames, venueNames, opponentNames, onClose, onEdit, onEditCancel, onSave, onDelete, onOpenLinkedSession, toast, confirm }) {
   const [visible, setVisible] = useState(false);
   const [closing, setClosing] = useState(false);
   const reduced = typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -2737,7 +4145,7 @@ function SessionDetailView({ type, session, trials, practices, onClose, onEdit, 
 
   const handleEditClick = () => {
     if (onEdit) onEdit(type, session);
-    else toast.show("編集画面は次 Stage で実装予定", "info");
+    else toast.show("編集ハンドラ未接続", "warning");
   };
 
   // linked セッション算出
@@ -2759,6 +4167,36 @@ function SessionDetailView({ type, session, trials, practices, onClose, onEdit, 
 
   const slideTransform = (closing || !visible) ? "translateX(100%)" : "translateX(0)";
   const transitionStyle = reduced ? "none" : `transform ${closing ? 200 : 250}ms cubic-bezier(0.4,0,0.2,1)`;
+
+  // S11: Edit モード時は overlay 内を SessionEditView で置換 (slide-in 共有、再 mount しない)
+  if (mode === "edit") {
+    return (
+      <div
+        role="dialog"
+        aria-label={screenTitle + " (編集)"}
+        style={{
+          position: "fixed", inset: 0, background: C.bg, zIndex: 100,
+          display: "flex", flexDirection: "column",
+          transform: slideTransform, transition: transitionStyle,
+        }}
+      >
+        <SessionEditView
+          type={type}
+          session={session}
+          practices={practices}
+          tournaments={tournaments}
+          racketNames={racketNames}
+          stringNames={stringNames}
+          venueNames={venueNames}
+          opponentNames={opponentNames}
+          onCancel={onEditCancel}
+          onSave={(updated) => onSave && onSave(type, updated)}
+          confirm={confirm}
+          toast={toast}
+        />
+      </div>
+    );
+  }
 
   return (
     <div
@@ -2835,6 +4273,131 @@ function SessionDetailView({ type, session, trials, practices, onClose, onEdit, 
         >
           <Icon name="trash-2" size={18} ariaLabel="削除" />
         </button>
+      </div>
+    </div>
+  );
+}
+
+// === src/ui/sessions/SessionEditView.jsx ===
+// SessionEditView — 全画面編集モード (大会/練習/試打)
+//
+// 役割:
+//   - SessionDetailView と同じ overlay 内で表示 (再 mount せず、Detail ↔ Edit toggle)
+//   - Header: 戻る (未保存時は ConfirmDialog) / タイトル / 保存ボタン (必須未入力で disabled)
+//   - Body: type に応じて TournamentEditForm / PracticeEditForm / TrialEditForm
+//   - 必須バリデーション: SCHEMA REQUIRED_FIELDS 駆動 (validation.js)
+//
+// props:
+//   type: "tournament" | "practice" | "trial"
+//   session: 編集対象 (=initial form)
+//   practices, tournaments: 試打の linkedXxx 候補生成用
+//   onCancel(): 編集破棄して Detail に戻る (= 親が detail mode に戻す)
+//   onSave(updated): 保存ボタン (親が Firestore + state 更新)
+//   confirm: useConfirm() ({ ask })
+//   toast: useToast() ({ show })
+
+function SessionEditView({ type, session, practices, tournaments, racketNames, stringNames, venueNames, opponentNames, onCancel, onSave, confirm, toast }) {
+  const [form, setForm] = useState(() => ({ ...session }));
+  const [dirty, setDirty] = useState(false);
+
+  // session id 変化時 (別セッションの編集に切替) は state リセット
+  useEffect(() => {
+    setForm({ ...session });
+    setDirty(false);
+  }, [session?.id]);
+
+  const handleChange = (newForm) => {
+    setForm(newForm);
+    setDirty(true);
+  };
+
+  const errors = getRequiredErrors(type, form);
+  const valid = Object.keys(errors).length === 0;
+
+  // 戻るタップ: 未保存変更があれば確認
+  const handleBack = () => {
+    if (!dirty) { onCancel && onCancel(); return; }
+    confirm.ask(
+      "編集内容が保存されていません。破棄してよろしいですか？",
+      () => onCancel && onCancel(),
+      { title: "未保存の変更があります", yesLabel: "破棄する", noLabel: "編集に戻る", yesVariant: "danger", icon: "triangle-alert" }
+    );
+  };
+
+  // Esc で戻る (CLAUDE.md §N1a.4)
+  useEffect(() => {
+    const handler = (e) => { if (e.key === "Escape") handleBack(); };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [dirty, form]);
+
+  const handleSaveClick = () => {
+    if (!valid) {
+      toast.show("必須項目が未入力です", "warning");
+      return;
+    }
+    onSave && onSave(form);
+  };
+
+  const screenTitle = type === "tournament" ? "大会を編集" : type === "practice" ? "練習を編集" : "試打を編集";
+  const stripColor = type === "tournament" ? C.tournamentAccent : type === "practice" ? C.practiceAccent : C.trialAccent;
+
+  return (
+    <div style={{ position: "absolute", inset: 0, background: C.bg, display: "flex", flexDirection: "column", zIndex: 1 }}>
+      {/* 左端 3px 色帯 (Detail と同じ) */}
+      <div style={{ position: "absolute", left: 0, top: 56, bottom: 0, width: 3, background: stripColor, zIndex: 2, pointerEvents: "none" }} />
+
+      {/* Header */}
+      <div style={{ height: 56, flex: "0 0 56px", display: "flex", alignItems: "center", gap: 8, padding: "0 8px", background: C.panel, borderBottom: `1px solid ${C.divider}` }}>
+        <button
+          onClick={handleBack}
+          aria-label="戻る (編集を破棄)"
+          style={{ width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center", background: "transparent", border: "none", cursor: "pointer", borderRadius: 8, color: C.text }}
+        >
+          <Icon name="arrow-left" size={24} ariaLabel="戻る" />
+        </button>
+        <div style={{ flex: 1, fontSize: 16, fontWeight: 600, color: C.text }}>
+          {screenTitle}
+          {form.date && <span style={{ fontSize: 11, color: C.textSecondary, fontWeight: 400, marginLeft: 8 }}>{fmtDate(form.date)}</span>}
+        </div>
+        <button
+          onClick={handleSaveClick}
+          aria-label="保存"
+          disabled={!valid}
+          title={valid ? "保存" : "必須項目が未入力です"}
+          style={{
+            width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center",
+            background: "transparent", border: "none", borderRadius: 8,
+            color: valid ? C.primary : C.textMuted,
+            cursor: valid ? "pointer" : "not-allowed",
+          }}
+        >
+          <Icon name="save" size={24} color={valid ? C.primary : C.textMuted} />
+        </button>
+      </div>
+
+      {/* Body (scrollable) */}
+      <div style={{ flex: 1, overflowY: "auto", padding: 14 }}>
+        {type === "tournament" && (
+          <TournamentEditForm
+            form={form} errors={errors} onChange={handleChange}
+            racketNames={racketNames} stringNames={stringNames} venueNames={venueNames} opponentNames={opponentNames}
+            confirm={confirm} toast={toast}
+          />
+        )}
+        {type === "practice" && (
+          <PracticeEditForm
+            form={form} errors={errors} onChange={handleChange}
+            racketNames={racketNames} stringNames={stringNames} venueNames={venueNames}
+          />
+        )}
+        {type === "trial" && (
+          <TrialEditForm
+            form={form} errors={errors} onChange={handleChange}
+            practices={practices} tournaments={tournaments}
+            racketNames={racketNames} stringNames={stringNames} venueNames={venueNames}
+          />
+        )}
       </div>
     </div>
   );
@@ -2986,7 +4549,26 @@ const _buildCardProps = (type, item) => {
       sideBadge: typeBadge,
     };
   }
-  // 試打は Sessions 一覧には表示しない (大会/練習へのリンクバッジ経由)
+  // S11 暫定 (S16 まで): 試打を独立カードとして表示 (種類フィルタで明示選択時のみ呼ばれる)
+  // S16 (Gear タブ完成) で削除予定
+  if (type === "trial") {
+    const judgmentBadge = _mapTrialJudgment(item.judgment);
+    const ratings = ["spin", "power", "control", "info", "maneuver", "swingThrough"]
+      .map(k => Number(item[k]) || 0).filter(v => v > 0);
+    const avg = ratings.length > 0 ? (ratings.reduce((s, v) => s + v, 0) / ratings.length).toFixed(1) : null;
+    const parts = [];
+    if (item.spin)   parts.push(`スピン${item.spin}`);
+    if (item.power)  parts.push(`推進${item.power}`);
+    if (avg)         parts.push(`平均 ${avg}`);
+    if (item.venue)  parts.push(item.venue);
+    const stringInfo = [item.stringMain, item.stringCross].filter(Boolean).join(" / ");
+    return {
+      type, date: item.date,
+      title: item.racketName ? (stringInfo ? `${item.racketName} / ${stringInfo}` : item.racketName) : "(ラケット未選択)",
+      metaLine: _joinMeta(parts),
+      sideBadge: judgmentBadge,
+    };
+  }
   return { type, date: item.date, title: "" };
 };
 
@@ -3028,7 +4610,10 @@ const _loadViewMode = () => {
 };
 const FILTER_AXES = ["type", "racket", "opponent", "result"];
 const RESULT_OPTIONS = ["優勝","準優勝","3位","ベスト8","ベスト16","予選突破","敗退","予選敗退"];
-const TYPE_OPTIONS   = ["大会", "練習"];
+// S11 暫定 (S16 で削除): 「試打」を種類フィルタに追加。
+//   既定では試打を独立カードに出さない (WIREFRAMES §2.2.1) が、種類フィルタで「試打」を
+//   選択した時のみ表示する。Gear タブ (S16) 完成で試打集約画面ができたら削除。
+const TYPE_OPTIONS   = ["大会", "練習", "試打"];
 const FILTER_CHIP_LABEL    = { type: "種類",        racket: "ラケット",        opponent: "対戦相手",        result: "結果" };
 const FILTER_DRAWER_TITLE  = { type: "種類で絞り込む", racket: "ラケットで絞り込む", opponent: "対戦相手で絞り込む", result: "結果で絞り込む" };
 
@@ -3047,14 +4632,16 @@ const _loadFilters = () => {
   } catch { return _emptyFilters(); }
 };
 
-// ラケット候補: 大会/練習の racketName + 試合 match.racketName の union
-const _extractRackets = (tournaments, practices) => {
+// ラケット候補: 大会/練習/試打の racketName + 試合 match.racketName の union
+// S11 で trials も含めるよう拡張 (種類フィルタで「試打」選択時にもラケット絞り込みが効く)
+const _extractRackets = (tournaments, practices, trials) => {
   const s = new Set();
   tournaments.forEach(t => {
     if (t.racketName) s.add(t.racketName);
     (Array.isArray(t.matches) ? t.matches : []).forEach(m => { if (m && m.racketName) s.add(m.racketName); });
   });
   practices.forEach(p => { if (p.racketName) s.add(p.racketName); });
+  (trials || []).forEach(tr => { if (tr.racketName) s.add(tr.racketName); });
   return [...s].sort((a, b) => a.localeCompare(b, "ja"));
 };
 
@@ -3111,14 +4698,26 @@ const _matchesSearch = (entry, q) => {
   if (entry.type === "practice") {
     return hit(it.title) || hit(it.venue) || hit(it.coachNote) || hit(it.goodNote) || hit(it.improveNote) || hit(it.generalNote);
   }
+  if (entry.type === "trial") {
+    return hit(it.racketName) || hit(it.stringMain) || hit(it.stringCross) || hit(it.venue)
+        || hit(it.strokeNote) || hit(it.serveNote) || hit(it.volleyNote) || hit(it.generalNote);
+  }
   return false;
 };
 
 // 各絞り込み軸の判定 (全て AND、同一軸の複数値は OR)
 const _matchesFilters = (entry, filters) => {
   if (filters.type.length > 0) {
-    const label = entry.type === "tournament" ? "大会" : entry.type === "practice" ? "練習" : "";
+    const label = entry.type === "tournament" ? "大会"
+                : entry.type === "practice"   ? "練習"
+                : entry.type === "trial"      ? "試打"
+                : "";
     if (!filters.type.includes(label)) return false;
+  } else {
+    // S11 暫定 (S16 で削除): 既定 (type フィルタ未指定) では試打は独立カードとして出さない。
+    // 「試打」を選択した時のみ表示する。WIREFRAMES §2.2.1 の方針を保ちつつ、
+    // S16 (Gear タブ) 完成までの動線として暫定許可。
+    if (entry.type === "trial") return false;
   }
   if (filters.racket.length > 0) {
     const rs = _entryRackets(entry);
@@ -3186,17 +4785,20 @@ function SessionsTab({ tournaments = [], practices = [], trials = [], loading = 
   useEffect(() => { setDayPanelOpen(false); }, [viewMode]);
 
   // 全アイテムを {type, item} にまとめて date desc ソート
-  // 試打 (trial) は大会/練習への付随活動なので一覧からは除外 (バッジで示す)
+  // 試打 (trial) は基本は付随活動 (バッジ表示) だが、S11 暫定で type フィルタ「試打」選択時のみ
+  // 独立カードとして表示するため、allItems には含める。フィルタ判定 (_matchesFilters) で除外/許可。
+  // S16 (Gear タブ) 完成で暫定削除予定。
   const allItems = useMemo(() => {
     const list = [];
     tournaments.forEach(it => list.push({ type: "tournament", item: it }));
     practices.forEach(it => list.push({ type: "practice", item: it }));
+    trials.forEach(it => list.push({ type: "trial", item: it }));
     list.sort((a, b) => normDate(b.item.date).localeCompare(normDate(a.item.date)));
     return list;
-  }, [tournaments, practices]);
+  }, [tournaments, practices, trials]);
 
   // S7: 絞り込み軸の候補 (元データから動的抽出)
-  const racketOptions   = useMemo(() => _extractRackets(tournaments, practices), [tournaments, practices]);
+  const racketOptions   = useMemo(() => _extractRackets(tournaments, practices, trials), [tournaments, practices, trials]);
   const opponentOptions = useMemo(() => _extractOpponents(tournaments), [tournaments]);
 
   // S7: 検索 + 絞り込み適用後のアイテム
@@ -3706,6 +5308,244 @@ function TournamentDetail({ session, onMatchClick }) {
   );
 }
 
+// === src/ui/sessions/TournamentEditForm.jsx ===
+// TournamentEditForm — 大会編集フォーム
+// 統一フォーマット (preview_s11 §1):
+//   ① 基本情報: 日付* / 大会名* / 形式 / クラス / 結果 / 開始-終了時刻
+//   ② 会場 / 気象: 会場 / 気温 / 天気 (3 列)
+//   ③ 機材: ラケット / テンション / 縦糸 / 横糸 (2x2)
+//   ④ 試合記録: matches[] リスト + 追加ボタン → MatchEditModal
+//   ⑤ メモ: 大会総括
+//   ⑥ 公開設定: visibility (public/private)
+//
+// props:
+//   form: 編集中の tournament (state は親 SessionEditView が持つ)
+//   errors: バリデーションエラー (validation.js の getRequiredErrors 結果)
+//   onChange(form): form 全体を返す
+//   confirm: useConfirm() ({ ask })
+//   toast: useToast() ({ show })
+
+const _TYPE_OPTS    = [{ value: "singles", label: "シングルス" }, { value: "doubles", label: "ダブルス" }, { value: "mixed", label: "ミックス" }];
+const _RESULT_OPTS  = [
+  { value: "",         label: "— 未定 —" },
+  { value: "優勝",     label: "優勝" },
+  { value: "準優勝",   label: "準優勝" },
+  { value: "3位",      label: "3位" },
+  { value: "ベスト8",  label: "ベスト8" },
+  { value: "ベスト16", label: "ベスト16" },
+  { value: "予選突破", label: "予選突破" },
+  { value: "敗退",     label: "敗退" },
+  { value: "予選敗退", label: "予選敗退" },
+];
+const _WEATHER_OPTS = [{ value: "", label: "—" }, { value: "晴", label: "晴" }, { value: "曇", label: "曇" }, { value: "雨", label: "雨" }, { value: "屋内", label: "屋内" }];
+
+// ── 番号付きセクション見出し
+function _sectionHead({ num, label }) {
+  return (
+    <div style={{ fontSize: 11, color: C.textMuted, fontWeight: 600, letterSpacing: 0.5, marginBottom: 10, textTransform: "uppercase", display: "flex", alignItems: "center", gap: 5 }}>
+      <span style={{
+        display: "inline-flex", alignItems: "center", justifyContent: "center",
+        width: 18, height: 18, borderRadius: "50%", background: C.primary, color: "#fff",
+        fontSize: 10, fontWeight: 700,
+      }}>{num}</span>
+      {label}
+    </div>
+  );
+}
+
+// ── 公開トグル (v3 VisibilityToggle 移植 + v4 デザイン)
+function _visibilityToggle({ value, onChange }) {
+  const cur = value || "public";
+  const opts = [
+    { v: "public",  label: "🌐 公開",   note: "プライマリ Cal" },
+    { v: "private", label: "🔒 非公開", note: "仕事関係 Cal" },
+  ];
+  return (
+    <div style={{ display: "flex", gap: 8 }}>
+      {opts.map(o => {
+        const on = cur === o.v;
+        return (
+          <button
+            key={o.v}
+            type="button"
+            onClick={() => onChange(o.v)}
+            style={{
+              flex: 1, minHeight: 44, padding: "8px 12px",
+              borderRadius: 8, border: `1px solid ${on ? C.primary : C.border}`,
+              background: on ? C.primaryLight : C.panel,
+              color: on ? C.primary : C.textSecondary,
+              fontSize: 13, fontWeight: 600, cursor: "pointer",
+              display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2,
+              fontFamily: font,
+            }}
+          >
+            <div>{o.label}</div>
+            <div style={{ fontSize: 10, opacity: 0.75 }}>{o.note}</div>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function TournamentEditForm({ form, errors = {}, onChange, confirm, toast, racketNames = [], stringNames = [], venueNames = [], opponentNames = [] }) {
+  const set = (k, v) => onChange({ ...form, [k]: v });
+  const matches = Array.isArray(form.matches) ? form.matches : [];
+  const wins = matches.filter(m => m.result === "勝利").length;
+  const losses = matches.filter(m => m.result === "敗北" || m.result === "棄権").length;
+
+  // Match Modal state (新規 / 編集)
+  const [matchModalState, setMatchModalState] = useState(null); // { match, isNew }
+
+  const handleAddMatch = () => {
+    setMatchModalState({ match: blankMatch(matches.length, form), isNew: true });
+  };
+  const handleEditMatch = (m) => {
+    setMatchModalState({ match: m, isNew: false });
+  };
+  const handleSaveMatch = (newMatch) => {
+    const exists = matches.find(m => m.id === newMatch.id);
+    const newMatches = exists
+      ? matches.map(m => m.id === newMatch.id ? newMatch : m)
+      : [...matches, newMatch];
+    onChange({ ...form, matches: newMatches });
+    setMatchModalState(null);
+  };
+  const handleDeleteMatch = (id) => {
+    confirm.ask(
+      "この試合記録を削除しますか？",
+      () => onChange({ ...form, matches: matches.filter(m => m.id !== id) }),
+      { title: "試合記録を削除", yesLabel: "削除する", yesVariant: "danger", icon: "trash-2" }
+    );
+  };
+
+  return (
+    <>
+      {/* ① 基本情報 */}
+      <div style={{ background: C.panel, border: `1px solid ${C.divider}`, borderRadius: 12, padding: 12, marginBottom: 10 }}>
+        <_sectionHead num="1" label="基本情報" />
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>
+          <Input type="date" label="日付" required value={form.date || ""} onChange={(v) => set("date", v)} error={errors.date} />
+          <Input label="大会名" required value={form.name || ""} onChange={(v) => set("name", v)} placeholder="例: 所沢ベテラン大会" error={errors.name} />
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>
+          <Select label="形式" value={form.type || "singles"} onChange={(v) => set("type", v)} options={_TYPE_OPTS} />
+          <Input label="クラス" value={form.level || ""} onChange={(v) => set("level", v)} placeholder="中上級" />
+        </div>
+        <Select label="結果" value={form.overallResult || ""} onChange={(v) => set("overallResult", v)} options={_RESULT_OPTS} />
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>
+          <Input type="time" label="開始時刻" value={form.startTime || ""} onChange={(v) => set("startTime", v)} />
+          <Input type="time" label="終了時刻" value={form.endTime || ""} onChange={(v) => set("endTime", v)} />
+        </div>
+      </div>
+
+      {/* ② 会場 / 気象 */}
+      <div style={{ background: C.panel, border: `1px solid ${C.divider}`, borderRadius: 12, padding: 12, marginBottom: 10 }}>
+        <_sectionHead num="2" label="会場 / 気象" />
+        <MasterField label="会場" value={form.venue || ""} onChange={(v) => set("venue", v)} masterValues={venueNames} placeholder="-- 会場を選択 --" />
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>
+          <Input type="number" label="気温(℃)" value={form.temp || ""} onChange={(v) => set("temp", v)} placeholder="22" />
+          <Select label="天気" value={form.weather || ""} onChange={(v) => set("weather", v)} options={_WEATHER_OPTS} />
+        </div>
+      </div>
+
+      {/* ③ 機材 — ラケット 1 行 / 縦糸+横糸 / テンション縦+横 */}
+      <div style={{ background: C.panel, border: `1px solid ${C.divider}`, borderRadius: 12, padding: 12, marginBottom: 10 }}>
+        <_sectionHead num="3" label="機材" />
+        <MasterField label="ラケット" value={form.racketName || ""} onChange={(v) => set("racketName", v)} masterValues={racketNames} placeholder="-- ラケットを選択 --" />
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>
+          <MasterField label="縦糸" value={form.stringMain || ""} onChange={(v) => set("stringMain", v)} masterValues={stringNames} placeholder="-- 縦糸を選択 --" />
+          <MasterField label="横糸" value={form.stringCross || ""} onChange={(v) => set("stringCross", v)} masterValues={stringNames} placeholder="-- 同じなら空欄 --" />
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>
+          <Input label="テンション縦" value={form.tensionMain || ""} onChange={(v) => set("tensionMain", v)} placeholder="46" />
+          <Input label="テンション横" value={form.tensionCross || ""} onChange={(v) => set("tensionCross", v)} placeholder="43" />
+        </div>
+      </div>
+
+      {/* ④ 試合記録 */}
+      <div style={{ background: C.panel, border: `1px solid ${C.divider}`, borderRadius: 12, padding: 12, marginBottom: 10 }}>
+        <_sectionHead num="4" label={`試合記録${matches.length > 0 ? ` (${wins}勝${losses}敗 ・ ${matches.length}試合)` : ""}`} />
+        {matches.length === 0 ? (
+          <div style={{ padding: "12px 14px", background: C.bg, borderRadius: 8, border: `1px dashed ${C.border}`, fontSize: 12, color: C.textMuted, textAlign: "center", marginBottom: 8 }}>
+            「+ 試合を追加」から各試合を記録できます
+          </div>
+        ) : matches.map((m, i) => (
+          <div key={m.id || i} style={{
+            background: C.bg, borderRadius: 8, padding: "10px 12px", marginBottom: 6,
+            display: "flex", alignItems: "center", gap: 8, minHeight: 44,
+          }}>
+            <span style={{ fontSize: 11, color: C.textSecondary, minWidth: 42, fontWeight: 600 }}>{m.round || "—"}</span>
+            <span style={{ flex: 1, fontSize: 13, fontWeight: 500, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {m.opponent || "(対戦相手未入力)"}
+              {m.opponent2 && <span style={{ color: C.textSecondary, fontWeight: 400 }}> / {m.opponent2}</span>}
+            </span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: m.result === "勝利" ? "#0a5b35" : m.result === "敗北" ? "#a31511" : C.textMuted }}>
+              {m.result === "勝利" ? "○" : m.result === "敗北" ? "×" : m.result === "棄権" ? "棄" : "—"}
+            </span>
+            <span style={{ fontSize: 11, color: C.textSecondary, fontVariantNumeric: "tabular-nums" }}>
+              {Array.isArray(m.setScores) ? m.setScores.join(", ") : ""}
+            </span>
+            <button
+              type="button"
+              onClick={() => handleEditMatch(m)}
+              aria-label="試合を編集"
+              style={{ background: "none", border: "none", color: C.primary, cursor: "pointer", padding: 4, display: "flex", borderRadius: 4 }}
+            >
+              <Icon name="pencil" size={16} color={C.primary} />
+            </button>
+            <button
+              type="button"
+              onClick={() => handleDeleteMatch(m.id)}
+              aria-label="試合を削除"
+              style={{ background: "none", border: "none", color: C.error, cursor: "pointer", padding: 4, display: "flex", borderRadius: 4 }}
+            >
+              <Icon name="trash-2" size={16} color={C.error} />
+            </button>
+          </div>
+        ))}
+        <button
+          type="button"
+          onClick={handleAddMatch}
+          style={{
+            width: "100%", minHeight: 44, padding: 10,
+            borderRadius: 8, border: `1px dashed ${C.primary}`, background: C.primaryLight, color: C.primary,
+            fontSize: 13, fontWeight: 600, cursor: "pointer",
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontFamily: font,
+          }}
+        >
+          <Icon name="plus" size={16} color={C.primary} />試合を追加
+        </button>
+      </div>
+
+      {/* ⑤ メモ */}
+      <div style={{ background: C.panel, border: `1px solid ${C.divider}`, borderRadius: 12, padding: 12, marginBottom: 10 }}>
+        <_sectionHead num="5" label="メモ" />
+        <Textarea label="大会総括" value={form.generalNote || ""} onChange={(v) => set("generalNote", v)} placeholder="その日の大会を通じての気づき..." />
+      </div>
+
+      {/* ⑥ 公開設定 */}
+      <div style={{ background: C.panel, border: `1px solid ${C.divider}`, borderRadius: 12, padding: 12, marginBottom: 10 }}>
+        <_sectionHead num="6" label="公開設定" />
+        <_visibilityToggle value={form.visibility} onChange={(v) => set("visibility", v)} />
+      </div>
+
+      {/* Match Modal */}
+      <MatchEditModal
+        open={!!matchModalState}
+        match={matchModalState?.match}
+        trnType={form.type}
+        racketNames={racketNames}
+        stringNames={stringNames}
+        opponentNames={opponentNames}
+        confirm={confirm}
+        onSave={handleSaveMatch}
+        onClose={() => setMatchModalState(null)}
+      />
+    </>
+  );
+}
+
 // === src/ui/sessions/TrialDetail.jsx ===
 // TrialDetail — 試打セッション詳細 (v5, 2026-04-24 更新)
 // 統一レイアウト: 会場/気象 3 列 + 機材 2x2 (大会・練習と同じ)
@@ -3849,6 +5689,218 @@ function TrialDetail({ session, linkedPractice, onLinkedPracticeClick }) {
           />
         </_dvSection>
       )}
+    </>
+  );
+}
+
+// === src/ui/sessions/TrialEditForm.jsx ===
+// TrialEditForm — 試打編集フォーム
+// 統一フォーマット (preview_s11):
+//   ① 基本情報: 日付* / 判定 (大ボタン3連) / 開始-終了時刻
+//   ② 会場 / 気象 (3 列、weather は空多めだが統一のため枠は確保)
+//   ③ 機材 (2x2、ラケット必須*)
+//   ④a 打感評価 (6 項目)
+//   ④b 特性 (2 項目、1↔5)
+//   ④c ショット別 (8 項目)
+//   ④d 安心感 (1 項目)
+//   ④e 連携先 (linkedPracticeId / linkedMatchId 張替)
+//   ⑤ メモ: ストローク / サーブ / ボレー / 総括
+
+const _TRIAL_WEATHER = [{ value: "", label: "—" }, { value: "晴", label: "晴" }, { value: "曇", label: "曇" }, { value: "雨", label: "雨" }, { value: "屋内", label: "屋内" }];
+
+function _teSectionHead({ num, label, right }) {
+  return (
+    <div style={{ fontSize: 11, color: C.textMuted, fontWeight: 600, letterSpacing: 0.5, marginBottom: 10, textTransform: "uppercase", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+      <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
+        <span style={{
+          display: "inline-flex", alignItems: "center", justifyContent: "center",
+          width: 18, height: 18, borderRadius: "50%", background: C.primary, color: "#fff",
+          fontSize: 10, fontWeight: 700,
+        }}>{num}</span>
+        {label}
+      </span>
+      {right}
+    </div>
+  );
+}
+
+// 試打評価用 5 ボタン
+function _teRatingRow({ label, value, onChange, sub }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
+      <span style={{ fontSize: 12, color: C.textSecondary, fontWeight: 500, minWidth: 92 }}>
+        {label}{sub && <span style={{ fontSize: 10, color: C.textMuted, marginLeft: 3, fontWeight: 400 }}>{sub}</span>}
+      </span>
+      <div style={{ display: "flex", gap: 5, flex: 1, minWidth: 0 }}>
+        {[1, 2, 3, 4, 5].map((n) => {
+          const on = value === n;
+          return (
+            <button
+              key={n}
+              type="button"
+              onClick={() => onChange(n)}
+              style={{
+                flex: 1, minWidth: 36, minHeight: 36, padding: "5px 0",
+                borderRadius: 6, border: `1px solid ${on ? C.primary : C.border}`,
+                background: on ? C.primary : C.panel,
+                color: on ? "#fff" : C.textSecondary,
+                fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: font,
+              }}
+            >{n}</button>
+          );
+        })}
+      </div>
+      <span style={{ fontSize: 11, color: C.textMuted, fontVariantNumeric: "tabular-nums", minWidth: 22, textAlign: "right" }}>{value || "—"}</span>
+    </div>
+  );
+}
+
+// 判定 3 連大ボタン (採用候補=緑 / 保留=黄 / 却下=赤)
+function _teJudgmentRow({ value, onChange }) {
+  const opts = [
+    { v: "採用候補", on: { bg: "#e6f4ea", border: "#0f9d58", color: "#0a5b35" } },
+    { v: "保留",     on: { bg: "#fef7e0", border: "#fbbc04", color: "#7e5d00" } },
+    { v: "却下",     on: { bg: "#fce8e6", border: "#d93025", color: "#a31511" } },
+  ];
+  return (
+    <div style={{ display: "flex", gap: 8, marginBottom: 0 }}>
+      {opts.map(o => {
+        const on = value === o.v;
+        return (
+          <button
+            key={o.v}
+            type="button"
+            onClick={() => onChange(o.v)}
+            style={{
+              flex: 1, minHeight: 48, padding: "0 4px",
+              borderRadius: 8, border: `1px solid ${on ? o.on.border : C.border}`,
+              background: on ? o.on.bg : C.panel,
+              color: on ? o.on.color : C.textSecondary,
+              fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: font,
+            }}
+          >{o.v}</button>
+        );
+      })}
+    </div>
+  );
+}
+
+function TrialEditForm({ form, errors = {}, onChange, practices, tournaments, racketNames = [], stringNames = [], venueNames = [] }) {
+  const set = (k, v) => onChange({ ...form, [k]: v });
+
+  // 打感評価 6 項目
+  const ratings = [
+    { key: "spin",         label: "スピン" },
+    { key: "power",        label: "推進力" },
+    { key: "control",      label: "コントロール" },
+    { key: "info",         label: "打感情報" },
+    { key: "maneuver",     label: "操作性" },
+    { key: "swingThrough", label: "振り抜き" },
+  ];
+  const ratingVals = ratings.map(r => Number(form[r.key]) || 0).filter(v => v > 0);
+  const avg = ratingVals.length > 0 ? (ratingVals.reduce((s, v) => s + v, 0) / ratingVals.length).toFixed(1) : null;
+
+  // ショット別 8 項目
+  const shots = [
+    { key: "shotForeAtk", label: "フォア攻撃" },
+    { key: "shotForeDef", label: "フォア守備" },
+    { key: "shotBackAtk", label: "バック攻撃" },
+    { key: "shotBackDef", label: "バック守備" },
+    { key: "shotServe",   label: "サーブ" },
+    { key: "shotReturn",  label: "リターン" },
+    { key: "shotVolley",  label: "ボレー" },
+    { key: "shotSlice",   label: "スライス" },
+  ];
+
+  return (
+    <>
+      {/* ① 基本情報 */}
+      <div style={{ background: C.panel, border: `1px solid ${C.divider}`, borderRadius: 12, padding: 12, marginBottom: 10 }}>
+        <_teSectionHead num="1" label="基本情報" />
+        <Input type="date" label="日付" required value={form.date || ""} onChange={(v) => set("date", v)} error={errors.date} />
+        <div style={{ marginBottom: 10 }}>
+          <label style={{ display: "block", fontSize: 12, color: C.textSecondary, fontWeight: 500, marginBottom: 4 }}>判定</label>
+          <_teJudgmentRow value={form.judgment || ""} onChange={(v) => set("judgment", v)} />
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>
+          <Input type="time" label="開始時刻" value={form.startTime || ""} onChange={(v) => set("startTime", v)} />
+          <Input type="time" label="終了時刻" value={form.endTime || ""} onChange={(v) => set("endTime", v)} />
+        </div>
+      </div>
+
+      {/* ② 会場 / 気象 */}
+      <div style={{ background: C.panel, border: `1px solid ${C.divider}`, borderRadius: 12, padding: 12, marginBottom: 10 }}>
+        <_teSectionHead num="2" label="会場 / 気象" />
+        <MasterField label="会場" value={form.venue || ""} onChange={(v) => set("venue", v)} masterValues={venueNames} placeholder="-- 会場を選択 --" />
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>
+          <Input type="number" label="気温(℃)" value={form.temp || ""} onChange={(v) => set("temp", v)} placeholder="18" />
+          <Select label="天気" value={form.weather || ""} onChange={(v) => set("weather", v)} options={_TRIAL_WEATHER} />
+        </div>
+      </div>
+
+      {/* ③ 機材 (ラケット必須*) — ラケット 1 行 / 縦糸+横糸 / テンション縦+横 */}
+      <div style={{ background: C.panel, border: `1px solid ${C.divider}`, borderRadius: 12, padding: 12, marginBottom: 10 }}>
+        <_teSectionHead num="3" label="機材" />
+        <MasterField label="ラケット" required value={form.racketName || ""} onChange={(v) => set("racketName", v)} masterValues={racketNames} error={errors.racketName} placeholder="-- ラケットを選択 --" />
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>
+          <MasterField label="縦糸" value={form.stringMain || ""} onChange={(v) => set("stringMain", v)} masterValues={stringNames} placeholder="-- 縦糸を選択 --" />
+          <MasterField label="横糸" value={form.stringCross || ""} onChange={(v) => set("stringCross", v)} masterValues={stringNames} placeholder="-- 同じなら空欄 --" />
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>
+          <Input label="テンション縦" value={form.tensionMain || ""} onChange={(v) => set("tensionMain", v)} placeholder="46" />
+          <Input label="テンション横" value={form.tensionCross || ""} onChange={(v) => set("tensionCross", v)} placeholder="43" />
+        </div>
+      </div>
+
+      {/* ④a 打感評価 */}
+      <div style={{ background: C.panel, border: `1px solid ${C.divider}`, borderRadius: 12, padding: 12, marginBottom: 10 }}>
+        <_teSectionHead num="4a" label={`打感評価 (6 項目${avg ? ` ・ 平均 ${avg}` : ""})`} />
+        {ratings.map(r => (
+          <_teRatingRow key={r.key} label={r.label} value={Number(form[r.key]) || 0} onChange={(n) => set(r.key, n)} />
+        ))}
+      </div>
+
+      {/* ④b 特性 (1↔5) */}
+      <div style={{ background: C.panel, border: `1px solid ${C.divider}`, borderRadius: 12, padding: 12, marginBottom: 10 }}>
+        <_teSectionHead num="4b" label="特性 (1 ↔ 5)" />
+        <_teRatingRow label="弾道" sub="低↔高" value={Number(form.trajectory) || 0} onChange={(n) => set("trajectory", n)} />
+        <_teRatingRow label="打感" sub="柔↔硬" value={Number(form.stiffness) || 0}  onChange={(n) => set("stiffness", n)} />
+      </div>
+
+      {/* ④c ショット別 */}
+      <div style={{ background: C.panel, border: `1px solid ${C.divider}`, borderRadius: 12, padding: 12, marginBottom: 10 }}>
+        <_teSectionHead num="4c" label="ショット別 (8 項目)" />
+        {shots.map(s => (
+          <_teRatingRow key={s.key} label={s.label} value={Number(form[s.key]) || 0} onChange={(n) => set(s.key, n)} />
+        ))}
+      </div>
+
+      {/* ④d 安心感 */}
+      <div style={{ background: C.panel, border: `1px solid ${C.divider}`, borderRadius: 12, padding: 12, marginBottom: 10 }}>
+        <_teSectionHead num="4d" label="安心感" />
+        <_teRatingRow label="振り切れるか" value={Number(form.confidence) || 0} onChange={(n) => set("confidence", n)} />
+      </div>
+
+      {/* ④e 連携先 */}
+      <div style={{ background: C.panel, border: `1px solid ${C.divider}`, borderRadius: 12, padding: 12, marginBottom: 10 }}>
+        <_teSectionHead num="4e" label="連携先（任意）" />
+        <LinkedSessionPicker
+          linkedPracticeId={form.linkedPracticeId || ""}
+          linkedMatchId={form.linkedMatchId || ""}
+          practices={practices}
+          tournaments={tournaments}
+          onChange={(next) => onChange({ ...form, linkedPracticeId: next.linkedPracticeId, linkedMatchId: next.linkedMatchId })}
+        />
+      </div>
+
+      {/* ⑤ メモ */}
+      <div style={{ background: C.panel, border: `1px solid ${C.divider}`, borderRadius: 12, padding: 12, marginBottom: 10 }}>
+        <_teSectionHead num="5" label="メモ" />
+        <Textarea label="ストロークメモ" value={form.strokeNote || ""} onChange={(v) => set("strokeNote", v)} placeholder="フォア / バック、飛び、弾道..." />
+        <Textarea label="サーブメモ" value={form.serveNote || ""} onChange={(v) => set("serveNote", v)} placeholder="スピン量、コントロール..." />
+        <Textarea label="ボレーメモ" value={form.volleyNote || ""} onChange={(v) => set("volleyNote", v)} placeholder="安定感、操作性..." />
+        <Textarea label="総括" value={form.generalNote || ""} onChange={(v) => set("generalNote", v)} placeholder="全体の印象..." />
+      </div>
     </>
   );
 }
@@ -4503,10 +6555,11 @@ function YearHeatmapCell({
 //    (Firestore への書き戻しは S11 編集時に行う = 遅延マイグレーション、ROADMAP 方針)
 const normalizeItems = (items) => (items || []).map(it => ({ ...it, date: normDate(it.date) }));
 
-// ── Firestore 読み取り: 指定 key 3 種を個別取得
+// ── Firestore 読み取り: セッション 3 種 + master データ 4 種 (S11 で master 追加)
+//    master (rackets/strings/venues/opponents) は v3 と Firestore collection 共有、編集画面の Select で利用
 const loadSessionsFromFirestore = async (user) => {
   if (!user) return null;
-  const keys = ["tournaments", "practices", "trials"];
+  const keys = ["tournaments", "practices", "trials", "rackets", "strings", "venues", "opponents"];
   const results = {};
   for (const k of keys) {
     try {
@@ -4522,6 +6575,11 @@ const loadSessionsFromFirestore = async (user) => {
   }
   return results;
 };
+
+// master データ → Select の options 用に name 配列を抽出
+// item は {name, ...} オブジェクト or 文字列の両方に対応
+const _extractName = (item) => (typeof item === "string" ? item : (item?.name || ""));
+const _extractNames = (list) => (list || []).map(_extractName).filter(Boolean);
 
 // ── プレースホルダタブ (S13-S18 で実装)
 function PlaceholderTab({ name, stage }) {
@@ -4554,8 +6612,13 @@ function TennisDB() {
   const [tournaments, setTournaments] = useState([]);
   const [practices, setPractices] = useState([]);
   const [trials, setTrials] = useState([]);
+  // S11: master データ (rackets/strings/venues/opponents) を Select の候補として読み込む
+  const [rackets, setRackets]     = useState([]);
+  const [strings, setStringsList] = useState([]);
+  const [venues, setVenues]       = useState([]);
+  const [opponents, setOpponents] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [detail, setDetail] = useState(null); // S10: { type, session } | null
+  const [detail, setDetail] = useState(null); // S10: { type, session, mode } | null
   const toast = useToast();
   const cfm = useConfirm();
 
@@ -4564,6 +6627,10 @@ function TennisDB() {
     setTournaments(normalizeItems(lsLoad(KEYS.tournaments) || []));
     setPractices(normalizeItems(lsLoad(KEYS.practices) || []));
     setTrials(normalizeItems(lsLoad(KEYS.trials) || []));
+    setRackets(lsLoad(KEYS.rackets)     || []);
+    setStringsList(lsLoad(KEYS.strings) || []);
+    setVenues(lsLoad(KEYS.venues)       || []);
+    setOpponents(lsLoad(KEYS.opponents) || []);
   }, []);
 
   // 認証状態監視 + リアルタイム同期
@@ -4584,10 +6651,19 @@ function TennisDB() {
             const p = normalizeItems(data.practices);
             const tr = normalizeItems(data.trials);
             setTournaments(t); setPractices(p); setTrials(tr);
+            // S11: master データもセット
+            setRackets(data.rackets || []);
+            setStringsList(data.strings || []);
+            setVenues(data.venues || []);
+            setOpponents(data.opponents || []);
             // localStorage には正規化前の原データを保存 (v3 互換のため)
             lsSave(KEYS.tournaments, data.tournaments);
             lsSave(KEYS.practices, data.practices);
             lsSave(KEYS.trials, data.trials);
+            lsSave(KEYS.rackets, data.rackets);
+            lsSave(KEYS.strings, data.strings);
+            lsSave(KEYS.venues, data.venues);
+            lsSave(KEYS.opponents, data.opponents);
             toast.show("クラウドから読み込みました", "success");
           }
           // 2) リアルタイム同期 (v3 と同じ collection レベル onSnapshot)
@@ -4603,6 +6679,10 @@ function TennisDB() {
               if (key === "tournaments") setTournaments(normalized);
               else if (key === "practices") setPractices(normalized);
               else if (key === "trials") setTrials(normalized);
+              else if (key === "rackets")  setRackets(val);
+              else if (key === "strings")  setStringsList(val);
+              else if (key === "venues")   setVenues(val);
+              else if (key === "opponents") setOpponents(val);
               else return;
               lsSave(key, val);
             });
@@ -4645,7 +6725,7 @@ function TennisDB() {
   // S10: カードタップで詳細 overlay を開く
   //      SessionsTab はマウントしたまま position:fixed で上から覆う (§N1.2 scrollTop 保持)
   const handleCardClick = (type, item) => {
-    setDetail({ type, session: item });
+    setDetail({ type, session: item, mode: "detail" });
   };
 
   const handleDetailClose = () => setDetail(null);
@@ -4654,11 +6734,39 @@ function TennisDB() {
   //      key prop (session.id) が変わることで SessionDetailView が再マウント→slide-in 再発動
   const handleOpenLinkedSession = (nextType, nextSession) => {
     if (!nextSession || !nextSession.id) return;
-    setDetail({ type: nextType, session: nextSession });
+    setDetail({ type: nextType, session: nextSession, mode: "detail" });
   };
 
-  const handleEdit = () => {
-    toast.show("編集画面は次 Stage で実装予定", "info");
+  // S11: 編集モードに切替 (再 mount せず、SessionDetailView 内で SessionEditView 表示)
+  const handleEdit = (type, item) => {
+    if (!item) return;
+    setDetail({ type, session: item, mode: "edit" });
+  };
+  // S11: 編集破棄 → Detail に戻る
+  const handleEditCancel = () => {
+    setDetail(prev => prev ? { ...prev, mode: "detail" } : null);
+  };
+
+  // S11: 編集保存 (新規/更新両対応、S12 でも再利用予定)
+  //      core/03_storage.js の save() を使用 (cleanForFirestore + 800ms debounce、v3 互換)
+  const handleSave = async (type, updated) => {
+    if (!updated || !updated.id) return;
+    const key = type === "tournament" ? "tournaments" : type === "practice" ? "practices" : "trials";
+    const current = type === "tournament" ? tournaments : type === "practice" ? practices : trials;
+    const exists = (current || []).find(x => x.id === updated.id);
+    const newItems = exists
+      ? current.map(x => x.id === updated.id ? updated : x)
+      : [updated, ...(current || [])];
+    // 即時 state 更新 (onSnapshot 到来前に UI 反映)
+    if (type === "tournament") setTournaments(newItems);
+    else if (type === "practice") setPractices(newItems);
+    else setTrials(newItems);
+    lsSave(KEYS[key], newItems);
+    // Firestore は core/03_storage.js の save() で 800ms デバウンス書き込み
+    save(KEYS[key], newItems);
+    // Detail に戻る、最新データで再描画
+    setDetail({ type, session: updated, mode: "detail" });
+    toast.show("保存しました", "success");
   };
 
   // S10: 削除 (S17 で実装予定の cascade 本格対応までの簡易版)
@@ -4771,13 +6879,22 @@ function TennisDB() {
           key={detail.session.id}
           type={detail.type}
           session={detail.session}
+          mode={detail.mode || "detail"}
+          tournaments={tournaments}
           trials={trials}
           practices={practices}
+          racketNames={_extractNames(rackets)}
+          stringNames={_extractNames(strings)}
+          venueNames={_extractNames(venues)}
+          opponentNames={_extractNames(opponents)}
           onClose={handleDetailClose}
           onEdit={handleEdit}
+          onEditCancel={handleEditCancel}
+          onSave={handleSave}
           onDelete={handleDelete}
           onOpenLinkedSession={handleOpenLinkedSession}
           toast={toast}
+          confirm={cfm}
         />
       )}
       {toast.el}

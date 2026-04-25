@@ -189,7 +189,9 @@ function _dvMemoItem({ label, text }) {
 }
 
 // ── メインコンポーネント ────────────────────────
-function SessionDetailView({ type, session, trials, practices, onClose, onEdit, onDelete, onOpenLinkedSession, toast }) {
+// S11: mode prop で Detail (既定) と Edit (編集モード) を切替。
+//      Edit モード時は SessionEditView で置換し、slide-in overlay は維持 (再 mount せず scrollTop 保持)
+function SessionDetailView({ type, session, mode = "detail", tournaments, trials, practices, racketNames, stringNames, venueNames, opponentNames, onClose, onEdit, onEditCancel, onSave, onDelete, onOpenLinkedSession, toast, confirm }) {
   const [visible, setVisible] = useState(false);
   const [closing, setClosing] = useState(false);
   const reduced = typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -230,7 +232,7 @@ function SessionDetailView({ type, session, trials, practices, onClose, onEdit, 
 
   const handleEditClick = () => {
     if (onEdit) onEdit(type, session);
-    else toast.show("編集画面は次 Stage で実装予定", "info");
+    else toast.show("編集ハンドラ未接続", "warning");
   };
 
   // linked セッション算出
@@ -252,6 +254,36 @@ function SessionDetailView({ type, session, trials, practices, onClose, onEdit, 
 
   const slideTransform = (closing || !visible) ? "translateX(100%)" : "translateX(0)";
   const transitionStyle = reduced ? "none" : `transform ${closing ? 200 : 250}ms cubic-bezier(0.4,0,0.2,1)`;
+
+  // S11: Edit モード時は overlay 内を SessionEditView で置換 (slide-in 共有、再 mount しない)
+  if (mode === "edit") {
+    return (
+      <div
+        role="dialog"
+        aria-label={screenTitle + " (編集)"}
+        style={{
+          position: "fixed", inset: 0, background: C.bg, zIndex: 100,
+          display: "flex", flexDirection: "column",
+          transform: slideTransform, transition: transitionStyle,
+        }}
+      >
+        <SessionEditView
+          type={type}
+          session={session}
+          practices={practices}
+          tournaments={tournaments}
+          racketNames={racketNames}
+          stringNames={stringNames}
+          venueNames={venueNames}
+          opponentNames={opponentNames}
+          onCancel={onEditCancel}
+          onSave={(updated) => onSave && onSave(type, updated)}
+          confirm={confirm}
+          toast={toast}
+        />
+      </div>
+    );
+  }
 
   return (
     <div
