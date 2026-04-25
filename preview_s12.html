@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>preview_s12 — Session 追加 (FAB + QuickAdd 2 択)</title>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;background:#e8eaed;padding:28px 16px 48px;color:#202124}
+  h1{font-size:18px;margin-bottom:6px}
+  h2{font-size:15px;margin:32px 0 8px;padding:10px 14px;border-radius:8px;background:#202124;color:#fff;display:inline-block}
+  .note{font-size:12px;color:#5f6368;margin-bottom:14px;line-height:1.7;max-width:920px}
+  .note b{color:#202124}
+  .note code{background:#f1f3f4;padding:2px 6px;border-radius:4px;font-size:11px}
+  .note ul{margin:6px 0 0 18px}
+
+  .row{display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap;margin-bottom:24px}
+  .phone-wrap{display:flex;flex-direction:column;align-items:center;gap:8px}
+  .phone-label{font-size:11px;font-weight:700;padding:4px 10px;border-radius:4px;background:#fff;color:#202124;border:1px solid #dadce0}
+  .phone-label.s12{background:#e8f0fe;color:#0d47a1;border-color:#1a73e8}
+
+  .phone{width:420px;background:#f8f9fa;border:7px solid #202124;border-radius:42px;overflow:hidden;position:relative;box-shadow:0 8px 24px rgba(0,0,0,.12)}
+  .screen{background:#f8f9fa;display:flex;flex-direction:column;min-height:740px;position:relative}
+
+  /* Header */
+  .header{height:56px;flex:0 0 56px;display:flex;align-items:center;gap:8px;padding:0 8px;background:#fff;border-bottom:1px solid #e8eaed;position:relative;z-index:3}
+  .btn-icon{width:44px;height:44px;display:flex;align-items:center;justify-content:center;background:none;border:none;cursor:pointer;color:#202124;border-radius:8px}
+  .btn-icon svg{width:24px;height:24px}
+  .header-title{flex:1;font-size:16px;font-weight:600}
+  .header-sub{font-size:11px;color:#5f6368;font-weight:500;margin-left:8px}
+
+  .body{padding:14px;overflow-y:auto;flex:1}
+
+  /* Sessions list (背景用) */
+  .summary-bar{padding:8px 14px;background:#e8f0fe;color:#1a73e8;font-size:13px;font-weight:500}
+  .session-list{padding:10px 14px;flex:1}
+  .group-head{font-size:12px;color:#5f6368;font-weight:700;padding:8px 0 4px}
+  .session-card{background:#fff;border:1px solid #dadce0;border-radius:12px;padding:14px 16px 14px 20px;margin-bottom:6px;position:relative}
+  .session-card.tour{border-left:3px solid #f9ab00;padding-left:18px}
+  .session-card.prac{border-left:3px solid #0f9d58;padding-left:18px}
+  .card-meta-row{display:flex;align-items:center;gap:6px;font-size:11px;margin-bottom:4px}
+  .card-date{font-size:13px;color:#5f6368;font-weight:600;min-width:42px}
+  .card-title-row{font-size:14px;font-weight:600;color:#202124;line-height:1.4}
+  .card-meta{font-size:12px;color:#5f6368}
+  .badge{display:inline-flex;align-items:center;gap:3px;height:22px;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;line-height:1;white-space:nowrap}
+  .badge svg{width:13px;height:13px}
+  .bdg-tour{background:#fff;color:#a04f00;border:1px solid rgba(160,79,0,.7)}
+  .bdg-prac{background:#e6f4ea;color:#0a5b35;border:1px solid rgba(10,91,53,.35)}
+
+  /* TabBar (背景) */
+  .tabbar{height:56px;flex:0 0 56px;background:#fff;border-top:1px solid #dadce0;display:flex;align-items:center;justify-content:space-around}
+  .tab{display:flex;flex-direction:column;align-items:center;gap:2px;color:#80868b;font-size:11px;cursor:pointer}
+  .tab.on{color:#1a73e8}
+  .tab svg{width:22px;height:22px}
+
+  /* FAB (DESIGN_SYSTEM §8.5.9) */
+  .fab{position:absolute;bottom:130px;right:16px;width:56px;height:56px;border-radius:28px;background:#1a73e8;color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;border:none;z-index:80;box-shadow:0 2px 6px rgba(0,0,0,.15), 0 4px 12px rgba(26,115,232,.3)}
+  .fab svg{width:28px;height:28px}
+
+  /* Mini menu (FAB タップ後ポップオーバー) */
+  .mini-menu{position:absolute;bottom:200px;right:16px;background:#fff;border:1px solid #dadce0;border-radius:12px;width:200px;overflow:hidden;z-index:90;box-shadow:0 4px 16px rgba(0,0,0,.15)}
+  .mini-menu-item{display:flex;align-items:center;gap:10px;padding:14px 16px;min-height:56px;cursor:pointer;border-bottom:1px solid #e8eaed;font-size:14px;font-weight:600;color:#202124}
+  .mini-menu-item:last-child{border-bottom:none}
+  .mini-menu-item:hover{background:#f1f3f4}
+  .mini-menu-item svg{width:20px;height:20px}
+  .mini-menu-tour{color:#a04f00}
+  .mini-menu-prac{color:#0a5b35}
+  .mini-menu-tour svg{color:#f9ab00}
+  .mini-menu-prac svg{color:#0f9d58}
+  .mini-menu-arrow{margin-left:auto;color:#80868b}
+  .mini-menu-arrow svg{width:16px;height:16px}
+
+  /* QuickAdd Modal */
+  .modal-overlay{position:absolute;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;padding:20px;z-index:100}
+  .modal-box{background:#fff;border-radius:16px;padding:18px;max-width:380px;width:100%;max-height:90%;overflow-y:auto}
+  .modal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+  .modal-title{font-size:14px;font-weight:700;color:#202124;display:flex;align-items:center;gap:6px}
+  .modal-title svg{width:16px;height:16px}
+  .modal-tour-title{color:#a04f00}
+  .modal-prac-title{color:#0a5b35}
+  .modal-close{background:none;border:none;font-size:18px;cursor:pointer;color:#80868b;padding:4px}
+
+  /* Form input */
+  .field{margin-bottom:10px}
+  .field-label{display:block;font-size:12px;color:#5f6368;font-weight:500;margin-bottom:4px}
+  .field-required{color:#d93025;margin-left:4px}
+  .input{width:100%;min-height:44px;padding:10px 14px;border:1px solid #dadce0;border-radius:8px;font-size:14px;color:#202124;background:#fff;font-family:inherit}
+  .input:focus{outline:none;border-color:#1a73e8;box-shadow:0 0 0 2px #e8f0fe}
+  .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}
+
+  /* Visibility toggle */
+  .vis-row{display:flex;gap:8px;margin-top:4px}
+  .vis-btn{flex:1;min-height:44px;padding:8px 12px;border-radius:8px;border:1px solid #dadce0;background:#fff;color:#5f6368;font-size:13px;font-weight:600;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
+  .vis-btn.on{background:#e8f0fe;border-color:#1a73e8;color:#1a73e8}
+  .vis-btn-sub{font-size:10px;opacity:.75}
+
+  /* Hint card */
+  .hint{font-size:11px;color:#5f6368;background:#f1f3f4;border-left:2px solid #1a73e8;padding:8px 10px;border-radius:4px;margin:8px 0 14px;line-height:1.6}
+
+  /* Modal action */
+  .modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
+  .btn-cancel{min-height:44px;padding:10px 16px;border-radius:8px;border:1px solid #dadce0;background:#fff;color:#5f6368;font-size:13px;font-weight:600;cursor:pointer}
+  .btn-create{min-height:44px;padding:10px 20px;border-radius:8px;border:none;background:#1a73e8;color:#fff;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px}
+  .btn-create svg{width:16px;height:16px}
+  .btn-create.disabled{background:#dadce0;color:#80868b;cursor:not-allowed}
+
+  /* Detail (after create) */
+  .strip{position:absolute;left:0;top:56px;bottom:64px;width:3px;z-index:2}
+  .strip-tour{background:#f9ab00}
+  .strip-prac{background:#0f9d58}
+  .section{background:#fff;border:1px solid #e8eaed;border-radius:12px;padding:12px;margin-bottom:10px}
+  .section-title{font-size:11px;color:#80868b;font-weight:600;letter-spacing:.5px;margin-bottom:10px;text-transform:uppercase}
+  .title-block{font-size:16px;font-weight:600;color:#202124;margin-bottom:4px}
+  .subtitle{font-size:12px;color:#5f6368}
+  .grid-3{display:grid;grid-template-columns:2fr 1fr 1fr;gap:6px}
+  .cell{background:#f8f9fa;border-radius:8px;padding:8px 10px;min-height:48px;display:flex;flex-direction:column;justify-content:center}
+  .cell-label{font-size:10px;color:#5f6368;margin-bottom:3px}
+  .cell-value{font-size:12px;color:#202124;font-weight:500;line-height:1.3}
+  .cell-empty{color:#80868b;font-weight:400}
+  .empty-hint{padding:14px;text-align:center;font-size:12px;color:#80868b;background:#f8f9fa;border-radius:8px;border:1px dashed #dadce0;margin-top:8px}
+  .action-bar{flex:0 0 64px;background:#fff;border-top:1px solid #e8eaed;display:flex;align-items:center;gap:8px;padding:10px 16px}
+  .ab-edit{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:44px;padding:10px 16px;border-radius:8px;border:1px solid #dadce0;background:#fff;color:#202124;font-size:13px;font-weight:600;cursor:pointer}
+  .ab-edit svg{width:18px;height:18px}
+  .ab-iconbtn{display:inline-flex;align-items:center;justify-content:center;min-height:44px;min-width:44px;padding:10px 14px;border-radius:8px;border:1px solid #dadce0;background:#fff;cursor:pointer}
+  .ab-iconbtn svg{width:18px;height:18px}
+  .ab-claude{background:#f3e8fd;border-color:rgba(147,52,224,.5);color:#9334e0}
+  .ab-delete{background:#fce8e6;border-color:rgba(217,48,37,.5);color:#d93025}
+
+  .key-decisions{background:#fff;border:1px solid #dadce0;border-radius:12px;padding:16px;margin-bottom:24px;max-width:920px}
+  .key-decisions h3{margin-top:0;font-size:13px;color:#5f6368}
+  .key-decisions ul{margin-left:18px;font-size:13px;line-height:1.8;color:#202124}
+  .key-decisions code{background:#f1f3f4;padding:2px 6px;border-radius:4px;font-size:12px}
+
+  .arrow{font-size:24px;color:#1a73e8;align-self:center;font-weight:700;padding:0 8px}
+</style>
+</head>
+<body>
+
+<h1>preview_s12 — Session 追加 (FAB + QuickAdd 2 択)</h1>
+<p class="note">
+  <b>S12 のスコープ</b>: FAB タップ → ミニメニュー (大会 / 練習 の 2 択) → QuickAdd モーダル (最小フォーム) → 作成 → SessionDetailView (Detail 閲覧モード)。<br>
+  試打は v2/v3 で最も作り込まれた機能のため、Home タブ (S14) の 3 ボタン経由で専用設計する方針。FAB ミニメニューには含めない。
+</p>
+
+<div class="key-decisions">
+  <h3>S12 の主要決定事項</h3>
+  <ul>
+    <li><b>FAB ミニメニュー</b>: 大会 / 練習 の 2 択（試打は除外、S14 Home 3 ボタンに集約）</li>
+    <li><b>QuickAdd モーダル方式</b>: 最小フォーム (v3 踏襲)。SessionEditView を空起動するフルフォームではなく、出先 30 秒入力を優先</li>
+    <li><b>大会 QuickAdd フィールド</b>: 日付* / 大会名* / 形式 / クラス / 会場 / 公開設定</li>
+    <li><b>練習 QuickAdd フィールド</b>: 日付* / 種別 / イベント名 / 会場 / 開始-終了時刻 / 公開設定</li>
+    <li><b>作成後の遷移</b>: SessionDetailView (<b>閲覧モード</b>)。直後に画面を閉じやすい配置 (アクション完了後の自然な離脱)</li>
+    <li><b>必須未入力で「作成」ボタン disabled</b>: SCHEMA REQUIRED_FIELDS 駆動 (S11 と同じ)</li>
+    <li><b>blank helper</b>: <code>src/domain/blank.js</code> 新規 (3 種別とも作成、blankTrial は S14 で再利用)</li>
+  </ul>
+</div>
+
+<!-- ① FAB タップ → ミニメニュー -->
+<h2>① FAB タップ → ミニメニュー (大会 / 練習)</h2>
+<p class="note">
+  Sessions リスト右下の FAB (青丸 + アイコン、bottom 180px、操作帯と TabBar を避ける) をタップすると、ミニメニューが上に飛び出す。試打は含まれない。
+</p>
+<div class="row">
+
+<div class="phone-wrap">
+  <span class="phone-label">FAB 表示中 (タップ前)</span>
+  <div class="phone">
+    <div class="screen">
+      <div class="header">
+        <div style="width:44px"></div>
+        <div class="header-title">Sessions</div>
+        <button class="btn-icon"><i data-lucide="more-vertical"></i></button>
+      </div>
+      <div class="summary-bar">今月: 18件（練15 / 大2 / 試1）</div>
+      <div class="session-list">
+        <div class="group-head">今週 (4/14-4/20)</div>
+        <div class="session-card tour" style="background:#feefc3;border:1.5px solid #f9ab00">
+          <div class="card-meta-row">
+            <span class="card-date">4/18</span>
+            <span class="badge bdg-tour"><i data-lucide="trophy"></i>優勝</span>
+          </div>
+          <div class="card-title-row">所沢ベテラン大会</div>
+          <div class="card-meta">3勝0敗 ・ 8:30 ・ 所沢市総合運動場</div>
+        </div>
+        <div class="session-card prac">
+          <div class="card-meta-row">
+            <span class="card-date">4/16</span>
+            <span class="badge bdg-prac"><i data-lucide="graduation-cap"></i>スクール</span>
+          </div>
+          <div class="card-title-row">ナイターレッスン中上級</div>
+          <div class="card-meta">19:00-20:30 ・ 90分 ・ 心拍142</div>
+        </div>
+      </div>
+      <button class="fab" aria-label="記録を追加"><i data-lucide="plus"></i></button>
+      <div class="tabbar">
+        <div class="tab"><i data-lucide="house"></i>ホーム</div>
+        <div class="tab on"><i data-lucide="list"></i>記録</div>
+        <div class="tab"><i data-lucide="backpack"></i>機材</div>
+        <div class="tab"><i data-lucide="notebook-pen"></i>計画</div>
+        <div class="tab"><i data-lucide="bar-chart-3"></i>分析</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="phone-wrap">
+  <span class="phone-label s12">FAB タップ → ミニメニュー</span>
+  <div class="phone">
+    <div class="screen">
+      <div class="header">
+        <div style="width:44px"></div>
+        <div class="header-title">Sessions</div>
+        <button class="btn-icon"><i data-lucide="more-vertical"></i></button>
+      </div>
+      <div class="summary-bar">今月: 18件（練15 / 大2 / 試1）</div>
+      <div class="session-list" style="opacity:.6">
+        <div class="group-head">今週 (4/14-4/20)</div>
+        <div class="session-card tour" style="background:#feefc3;border:1.5px solid #f9ab00">
+          <div class="card-meta-row">
+            <span class="card-date">4/18</span>
+            <span class="badge bdg-tour"><i data-lucide="trophy"></i>優勝</span>
+          </div>
+          <div class="card-title-row">所沢ベテラン大会</div>
+        </div>
+      </div>
+      <div class="mini-menu">
+        <div class="mini-menu-item mini-menu-tour">
+          <i data-lucide="trophy"></i>
+          大会
+          <span class="mini-menu-arrow"><i data-lucide="chevron-right"></i></span>
+        </div>
+        <div class="mini-menu-item mini-menu-prac">
+          <i data-lucide="person-standing"></i>
+          練習
+          <span class="mini-menu-arrow"><i data-lucide="chevron-right"></i></span>
+        </div>
+      </div>
+      <button class="fab" aria-label="閉じる" style="background:#5f6368"><i data-lucide="x"></i></button>
+      <div class="tabbar">
+        <div class="tab"><i data-lucide="house"></i>ホーム</div>
+        <div class="tab on"><i data-lucide="list"></i>記録</div>
+        <div class="tab"><i data-lucide="backpack"></i>機材</div>
+        <div class="tab"><i data-lucide="notebook-pen"></i>計画</div>
+        <div class="tab"><i data-lucide="bar-chart-3"></i>分析</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<!-- ② 大会 QuickAdd モーダル -->
+<h2>② 大会 QuickAdd モーダル (最小フォーム)</h2>
+<p class="note">
+  ミニメニュー「大会」タップで表示。最小限の 6 フィールド。詳細は作成後の Detail 画面 → 編集ボタンで追記。<br>
+  必須は <b>日付</b> と <b>大会名</b>。未入力時は「作成」ボタン disabled、フィールド赤枠 (S11 と同じバリデーション)。
+</p>
+<div class="row">
+
+<div class="phone-wrap">
+  <span class="phone-label s12">大会 QuickAdd (入力中)</span>
+  <div class="phone">
+    <div class="screen">
+      <div class="modal-overlay">
+        <div class="modal-box">
+          <div class="modal-head">
+            <span class="modal-title modal-tour-title"><i data-lucide="trophy"></i>大会を追加</span>
+            <button class="modal-close">✕</button>
+          </div>
+
+          <div class="grid-2">
+            <div class="field">
+              <label class="field-label">日付<span class="field-required">*</span></label>
+              <input class="input" type="date" value="2026-04-25">
+            </div>
+            <div class="field">
+              <label class="field-label">大会名<span class="field-required">*</span></label>
+              <input class="input" placeholder="例: 所沢ベテラン" value="所沢ベテラン">
+            </div>
+          </div>
+          <div class="grid-2">
+            <div class="field">
+              <label class="field-label">形式</label>
+              <select class="input">
+                <option>シングルス</option><option>ダブルス</option><option>ミックス</option>
+              </select>
+            </div>
+            <div class="field">
+              <label class="field-label">クラス</label>
+              <input class="input" value="中上級">
+            </div>
+          </div>
+          <div class="field">
+            <label class="field-label">会場</label>
+            <select class="input">
+              <option>-- 会場を選択 --</option><option>所沢市総合運動場</option><option>大宮けんぽ</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="field-label">公開設定</label>
+            <div class="vis-row">
+              <button class="vis-btn on"><div>🌐 公開</div><div class="vis-btn-sub">プライマリ Cal</div></button>
+              <button class="vis-btn"><div>🔒 非公開</div><div class="vis-btn-sub">仕事関係 Cal</div></button>
+            </div>
+          </div>
+
+          <div class="hint">まず作成 → 結果 / 機材 / 試合記録は後から編集ボタンで追記。30 秒で記録できます。</div>
+
+          <div class="modal-actions">
+            <button class="btn-cancel">キャンセル</button>
+            <button class="btn-create"><i data-lucide="plus"></i>作成</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="phone-wrap">
+  <span class="phone-label s12">大会 QuickAdd (必須未入力で disabled)</span>
+  <div class="phone">
+    <div class="screen">
+      <div class="modal-overlay">
+        <div class="modal-box">
+          <div class="modal-head">
+            <span class="modal-title modal-tour-title"><i data-lucide="trophy"></i>大会を追加</span>
+            <button class="modal-close">✕</button>
+          </div>
+
+          <div class="grid-2">
+            <div class="field">
+              <label class="field-label">日付<span class="field-required">*</span></label>
+              <input class="input" type="date" value="2026-04-25">
+            </div>
+            <div class="field">
+              <label class="field-label">大会名<span class="field-required">*</span></label>
+              <input class="input" style="border-color:#d93025" placeholder="例: 所沢ベテラン">
+              <div style="font-size:11px;color:#d93025;margin-top:4px;display:flex;align-items:center;gap:4px">
+                <i data-lucide="circle-alert" style="width:13px;height:13px"></i>必須項目です
+              </div>
+            </div>
+          </div>
+          <div class="grid-2">
+            <div class="field"><label class="field-label">形式</label>
+              <select class="input"><option>シングルス</option></select>
+            </div>
+            <div class="field"><label class="field-label">クラス</label>
+              <input class="input" placeholder="中上級">
+            </div>
+          </div>
+          <div class="field"><label class="field-label">会場</label>
+            <select class="input"><option>-- 会場を選択 --</option></select>
+          </div>
+          <div class="field"><label class="field-label">公開設定</label>
+            <div class="vis-row">
+              <button class="vis-btn on"><div>🌐 公開</div></button>
+              <button class="vis-btn"><div>🔒 非公開</div></button>
+            </div>
+          </div>
+
+          <div class="modal-actions">
+            <button class="btn-cancel">キャンセル</button>
+            <button class="btn-create disabled"><i data-lucide="plus"></i>作成</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<!-- ③ 練習 QuickAdd モーダル -->
+<h2>③ 練習 QuickAdd モーダル (最小フォーム)</h2>
+<p class="note">
+  ミニメニュー「練習」タップで表示。最小限の 7 フィールド (大会より時刻が 1 行多い)。<br>
+  必須は <b>日付</b> のみ。種別 / イベント名 / 会場 / 開始-終了時刻 / 公開設定。<br>
+  v3 と同じく開始-終了入力で時間 (duration) は自動計算。
+</p>
+<div class="row">
+
+<div class="phone-wrap">
+  <span class="phone-label s12">練習 QuickAdd</span>
+  <div class="phone">
+    <div class="screen">
+      <div class="modal-overlay">
+        <div class="modal-box">
+          <div class="modal-head">
+            <span class="modal-title modal-prac-title"><i data-lucide="person-standing"></i>練習を追加</span>
+            <button class="modal-close">✕</button>
+          </div>
+
+          <div class="grid-2">
+            <div class="field">
+              <label class="field-label">日付<span class="field-required">*</span></label>
+              <input class="input" type="date" value="2026-04-25">
+            </div>
+            <div class="field">
+              <label class="field-label">種別</label>
+              <select class="input">
+                <option>スクール</option><option>自主練</option><option>練習会</option><option>ゲーム練習</option>
+                <option>球出し</option><option>練習試合</option><option>フィジカル</option>
+              </select>
+            </div>
+          </div>
+          <div class="field">
+            <label class="field-label">イベント名</label>
+            <input class="input" placeholder="例: ナイターレッスン中上級" value="ナイターレッスン中上級">
+          </div>
+          <div class="field">
+            <label class="field-label">会場</label>
+            <select class="input">
+              <option>-- 会場を選択 --</option><option>イトマンテニス</option><option>航空記念公園</option>
+            </select>
+          </div>
+          <div class="grid-2">
+            <div class="field">
+              <label class="field-label">開始時刻</label>
+              <input class="input" type="time" value="19:00">
+            </div>
+            <div class="field">
+              <label class="field-label">終了時刻</label>
+              <input class="input" type="time" value="20:30">
+            </div>
+          </div>
+          <div class="field">
+            <label class="field-label">公開設定</label>
+            <div class="vis-row">
+              <button class="vis-btn on"><div>🌐 公開</div><div class="vis-btn-sub">プライマリ Cal</div></button>
+              <button class="vis-btn"><div>🔒 非公開</div><div class="vis-btn-sub">仕事関係 Cal</div></button>
+            </div>
+          </div>
+
+          <div class="hint">機材 / 体調 / メモは後から編集で追記。練習時間は時刻から自動計算 (90 分)。</div>
+
+          <div class="modal-actions">
+            <button class="btn-cancel">キャンセル</button>
+            <button class="btn-create"><i data-lucide="plus"></i>作成</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ④ 作成後の遷移 -->
+<h2>④ 作成 → SessionDetailView (Detail 閲覧モード)</h2>
+<p class="note">
+  「作成」ボタンタップで:<br>
+  <ul>
+    <li>localStorage + Firestore に保存 (S11 同様の <code>save()</code> 経由)</li>
+    <li>Sessions リスト state に即時反映 (新規行が追加される)</li>
+    <li>QuickAdd モーダルが閉じる</li>
+    <li>SessionDetailView が <b>閲覧モード</b>で slide-in</li>
+  </ul>
+  作成直後は最小フィールドしか入っていないので、Detail はスカスカ。「もっと書きたい時は編集ボタン」「画面を閉じてリストに戻る」のどちらでも OK。
+</p>
+<div class="row">
+
+<div class="phone-wrap">
+  <span class="phone-label s12">作成直後の Detail (大会、最小情報)</span>
+  <div class="phone">
+    <div class="screen">
+      <div class="strip strip-tour"></div>
+      <div class="header">
+        <button class="btn-icon"><i data-lucide="arrow-left"></i></button>
+        <div class="header-title">大会詳細<span class="header-sub">2026/4/25 (金)</span></div>
+      </div>
+      <div class="body">
+        <div class="section">
+          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">
+            <span class="badge bdg-tour"><i data-lucide="user"></i>シングルス</span>
+          </div>
+          <div class="title-block">所沢ベテラン</div>
+          <div class="subtitle">中上級</div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">会場 / 気象</div>
+          <div class="grid-3">
+            <div class="cell">
+              <div class="cell-label">会場</div>
+              <div class="cell-value">所沢市総合運動場</div>
+            </div>
+            <div class="cell">
+              <div class="cell-label">気温</div>
+              <div class="cell-value cell-empty">—</div>
+            </div>
+            <div class="cell">
+              <div class="cell-label">天気</div>
+              <div class="cell-value cell-empty">—</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="empty-hint">
+          機材 / 結果 / 試合記録 / メモは未入力。<br>
+          編集ボタンから追記できます。
+        </div>
+      </div>
+
+      <div class="action-bar">
+        <button class="ab-edit"><i data-lucide="pencil"></i>編集</button>
+        <button class="ab-iconbtn ab-claude"><i data-lucide="clipboard-copy"></i></button>
+        <button class="ab-iconbtn ab-delete"><i data-lucide="trash-2"></i></button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="phone-wrap">
+  <span class="phone-label s12">作成直後の Detail (練習、最小情報)</span>
+  <div class="phone">
+    <div class="screen">
+      <div class="strip strip-prac"></div>
+      <div class="header">
+        <button class="btn-icon"><i data-lucide="arrow-left"></i></button>
+        <div class="header-title">練習詳細<span class="header-sub">2026/4/25 (金)</span></div>
+      </div>
+      <div class="body">
+        <div class="section">
+          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">
+            <span class="badge bdg-prac"><i data-lucide="graduation-cap"></i>スクール</span>
+          </div>
+          <div class="title-block">ナイターレッスン中上級</div>
+          <div class="subtitle">19:00–20:30 ・ 90分</div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">会場 / 気象</div>
+          <div class="grid-3">
+            <div class="cell">
+              <div class="cell-label">会場</div>
+              <div class="cell-value">イトマンテニス</div>
+            </div>
+            <div class="cell">
+              <div class="cell-label">気温</div>
+              <div class="cell-value cell-empty">—</div>
+            </div>
+            <div class="cell">
+              <div class="cell-label">天気</div>
+              <div class="cell-value cell-empty">—</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="empty-hint">
+          機材 / 体調・集中 / メモは未入力。<br>
+          編集ボタンから追記できます。
+        </div>
+      </div>
+
+      <div class="action-bar">
+        <button class="ab-edit"><i data-lucide="pencil"></i>編集</button>
+        <button class="ab-iconbtn ab-claude"><i data-lucide="clipboard-copy"></i></button>
+        <button class="ab-iconbtn ab-delete"><i data-lucide="trash-2"></i></button>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<h2 style="background:#0a5b35">確認頂きたい点</h2>
+<div class="key-decisions" style="border-color:#0f9d58">
+  <ul>
+    <li><b>① FAB ミニメニュー</b>: 大会 / 練習 の 2 択 (試打除外、S14 Home 3 ボタンに集約)</li>
+    <li><b>② 大会 QuickAdd</b>: 6 フィールド (日付*/大会名*/形式/クラス/会場/公開設定)。それ以外は編集で追記</li>
+    <li><b>③ 練習 QuickAdd</b>: 7 フィールド (日付*/種別/イベント名/会場/開始-終了時刻/公開設定)。時刻入力で duration 自動計算</li>
+    <li><b>④ 作成後の遷移</b>: SessionDetailView (閲覧モード) で slide-in。空フィールドは「—」または empty hint で表示</li>
+    <li><b>必須バリデーション</b>: 日付/大会名 (大会)、日付 (練習)。未入力で「作成」disabled + 赤枠</li>
+    <li><b>会場・公開設定</b>: master データから Select (S11 MasterField を再利用)</li>
+  </ul>
+  <p style="margin-top:12px;font-size:13px;color:#202124">
+    OK または修正指示を頂ければ、§1 着手前チェックリストを埋めて実装承認依頼に進みます。
+  </p>
+</div>
+
+<script>lucide.createIcons();</script>
+</body>
+</html>

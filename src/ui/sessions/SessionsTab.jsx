@@ -625,10 +625,11 @@ function SessionsTab({ tournaments = [], practices = [], trials = [], loading = 
         </div>
       </div>
 
-      {/* FAB: 操作帯 (約 108px) + TabBar (56px) の上に浮かせる。
-          カレンダー/年間 mode で DayPanel が開いている時は重なり回避のため非表示 (パネルを閉じれば再表示) */}
+      {/* FAB + ミニメニュー (S12): タップで大会/練習の 2 択ポップオーバー。
+          試打は S14 Home 3 ボタンに集約 (DECISIONS_v4.md S12)。
+          カレンダー/年間 mode で DayPanel が開いている時は非表示 (パネルを閉じれば再表示) */}
       {!((viewMode === "calendar" || viewMode === "year") && dayPanelOpen) && (
-        <FAB onClick={onFabClick} ariaLabel="記録を追加" bottom={180} />
+        <QuickAddFab onSelect={onFabClick} ariaLabel="記録を追加" bottom={180} />
       )}
 
       {/* S7: 絞り込みドロワー (画面下シート) */}

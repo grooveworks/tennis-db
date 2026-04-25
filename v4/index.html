@@ -27,7 +27,7 @@ input,select,textarea,button{font-family:inherit}
 const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
 // ── 定数定義（色・キー・バージョン）─────────────
-const APP_VERSION="4.0.0-S11";
+const APP_VERSION="4.0.0-S12";
 const font="-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif";
 
 // 色設計（DESIGN_SYSTEM_v4.md §1 準拠）
@@ -155,6 +155,12 @@ const save=(k,d)=>{
 
 // 一意ID生成: タイムスタンプ36進 + ランダム
 const genId=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+
+// 当日の YYYY-MM-DD (v3:84 移植、blank.js / 編集フォーム / 新規追加で使用)
+const today=()=>{
+  const d=new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+};
 
 // 日付正規化: "2026/4/5" / "2026-04-05" 等を "2026-04-05" に統一
 // v3 はハイフン形式（input type="date" が要求）
@@ -366,6 +372,89 @@ const copyToClipboard = async (text) => {
     return false;
   }
 };
+
+// === src/domain/blank.js ===
+// blank — 新規セッションの初期値 (純関数、SCHEMA 駆動 + 種別固有のデフォルト)
+//
+// 役割:
+//   - QuickAddModal (S12) でフォーム初期化
+//   - SessionEditView を空起動する場合にも再利用可
+//   - blankTrial は S14 (Home 3 ボタン) で再利用予定
+//
+// id は genId() で生成、date は today() で当日。それ以外は SCHEMA の type に応じた初期値。
+// rating 系は v2 と同じく 3 (中央)、ただし practice の physical/focus は v3 と同じく 0 (未入力扱い)。
+
+const blankTournament = () => ({
+  id: genId(),
+  date: today(),
+  startTime: "",
+  endTime: "",
+  name: "",
+  level: "中上級",
+  type: "singles",
+  venue: "",
+  racketName: "",
+  stringMain: "",
+  stringCross: "",
+  tensionMain: "",
+  tensionCross: "",
+  temp: "",
+  weather: "",
+  overallResult: "",
+  generalNote: "",
+  matches: [],
+  visibility: "public",
+});
+
+const blankPractice = () => ({
+  id: genId(),
+  date: today(),
+  startTime: "",
+  endTime: "",
+  duration: "",
+  title: "",
+  venue: "",
+  type: "スクール",
+  racketName: "",
+  stringMain: "",
+  stringCross: "",
+  tensionMain: "",
+  tensionCross: "",
+  temp: "",
+  weather: "",
+  physical: 0, // v3 互換: 未入力扱い
+  focus: 0,
+  coachNote: "",
+  goodNote: "",
+  improveNote: "",
+  generalNote: "",
+  visibility: "public",
+});
+
+// 試打: S14 (Home 3 ボタン) で再利用予定。S12 では使わないが定義しておく
+const blankTrial = () => ({
+  id: genId(),
+  date: today(),
+  startTime: "",
+  endTime: "",
+  racketName: "",
+  stringMain: "",
+  stringCross: "",
+  tensionMain: "",
+  tensionCross: "",
+  venue: "",
+  judgment: "保留",
+  temp: "",
+  // 評価系: v2/v3 と同じく 3 (中央) 初期値
+  spin: 3, power: 3, control: 3, info: 3, maneuver: 3, swingThrough: 3,
+  trajectory: 3, stiffness: 3,
+  shotForeAtk: 3, shotForeDef: 3, shotBackAtk: 3, shotBackDef: 3,
+  shotServe: 3, shotReturn: 3, shotVolley: 3, shotSlice: 3,
+  confidence: 3,
+  strokeNote: "", serveNote: "", volleyNote: "", generalNote: "",
+  linkedPracticeId: "",
+  linkedMatchId: "",
+});
 
 // === src/domain/claudeFormatter.js ===
 // Claude Formatter — Session を Claude に渡せる Markdown 形式へ整形 (§F8.1)
@@ -3717,6 +3806,388 @@ function PracticeEditForm({ form, errors = {}, onChange, racketNames = [], strin
   );
 }
 
+// === src/ui/sessions/QuickAddFab.jsx ===
+// QuickAddFab — FAB + ミニメニュー (S12)
+//
+// 役割:
+//   - SessionsTab で従来の <FAB> の代わりに使う
+//   - タップ → ミニメニュー (大会 / 練習) を直上に表示
+//   - メニュー開いている時は FAB アイコンが × に変わる (再タップで閉じる)
+//   - 試打は除外 (S14 Home 3 ボタンに集約、DECISIONS_v4.md S12)
+//
+// props:
+//   onSelect(type): "tournament" | "practice" を返す
+//   bottom: FAB の bottom 値 (省略時 180px、SessionsTab 既定値と同じ)
+//   ariaLabel: FAB の aria-label
+//
+// 罠:
+//   - z-index: FAB(100) と menu(100) を別レイヤー扱い、menu を上にする
+//   - 背景タップで menu を閉じる (透明オーバーレイで実装)
+
+const _QAF_ITEMS = [
+  { type: "tournament", icon: "trophy",          label: "大会", color: "#f9ab00", textColor: "#a04f00" },
+  { type: "practice",   icon: "person-standing", label: "練習", color: "#0f9d58", textColor: "#0a5b35" },
+];
+
+function QuickAddFab({ onSelect, bottom = 180, ariaLabel = "記録を追加" }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  const handleFabTap = () => setMenuOpen((v) => !v);
+  const handleSelect = (type) => {
+    setMenuOpen(false);
+    onSelect && onSelect(type);
+  };
+  const handleBackdropClick = () => setMenuOpen(false);
+
+  // Esc で閉じる
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handler = (e) => { if (e.key === "Escape") setMenuOpen(false); };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [menuOpen]);
+
+  return (
+    <>
+      {/* 背景透明オーバーレイ (menu 開いている時のみ、外側タップで閉じる) */}
+      {menuOpen && (
+        <div
+          onClick={handleBackdropClick}
+          style={{
+            position: "fixed", inset: 0, background: "transparent", zIndex: 99,
+          }}
+        />
+      )}
+
+      {/* ミニメニュー (FAB の上に表示) */}
+      {menuOpen && (
+        <div
+          role="menu"
+          style={{
+            position: "fixed",
+            right: 16,
+            bottom: bottom + 64, // FAB(56) + gap(8)
+            background: C.panel,
+            border: `1px solid ${C.border}`,
+            borderRadius: 12,
+            width: 200,
+            overflow: "hidden",
+            zIndex: 101,
+            boxShadow: "0 4px 16px rgba(0,0,0,0.15)",
+            animation: "drawerEnter 200ms ease-out",
+          }}
+        >
+          {_QAF_ITEMS.map((item) => (
+            <button
+              key={item.type}
+              role="menuitem"
+              type="button"
+              onClick={() => handleSelect(item.type)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                padding: "14px 16px",
+                minHeight: 56,
+                width: "100%",
+                background: C.panel,
+                border: "none",
+                borderBottom: item.type === "tournament" ? `1px solid ${C.divider}` : "none",
+                cursor: "pointer",
+                fontSize: 14,
+                fontWeight: 600,
+                color: item.textColor,
+                fontFamily: font,
+                textAlign: "left",
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = C.panel2)}
+              onMouseLeave={(e) => (e.currentTarget.style.background = C.panel)}
+            >
+              <Icon name={item.icon} size={20} color={item.color} />
+              <span style={{ flex: 1 }}>{item.label}</span>
+              <Icon name="chevron-right" size={16} color={C.textMuted} />
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* FAB 本体 */}
+      <button
+        onClick={handleFabTap}
+        aria-label={menuOpen ? "閉じる" : ariaLabel}
+        aria-expanded={menuOpen}
+        style={{
+          position: "fixed",
+          bottom,
+          right: 16,
+          width: 56,
+          height: 56,
+          borderRadius: 28,
+          background: menuOpen ? C.textSecondary : C.primary,
+          color: "#fff",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          border: "none",
+          cursor: "pointer",
+          zIndex: 100,
+          boxShadow: "0 2px 6px rgba(0,0,0,0.15), 0 4px 12px rgba(26,115,232,0.3)",
+          transition: "background 150ms",
+        }}
+      >
+        <Icon name={menuOpen ? "x" : "plus"} size={28} color="#fff" />
+      </button>
+    </>
+  );
+}
+
+// === src/ui/sessions/QuickAddModal.jsx ===
+// QuickAddModal — FAB から起動する最小フォーム (S12)
+//
+// 役割:
+//   - FAB ミニメニューで「大会」「練習」が選ばれた時に表示
+//   - 最小フィールド (大会 6 / 練習 7) のみ。詳細は作成後 Detail 画面 → 編集ボタンで追記
+//   - SessionEditView を空起動するフルフォームより、出先 30 秒入力を優先
+//   - 必須バリデーション: SCHEMA REQUIRED_FIELDS 駆動 (S11 と同じ)
+//
+// props:
+//   open: boolean
+//   type: "tournament" | "practice"
+//   racketNames, stringNames, venueNames: master データ (会場 Select 用)
+//   onSave(item): 「作成」ボタン → app.jsx の handleSave 経由
+//   onClose: キャンセル / × / Esc / 背景タップ
+//
+// 罠:
+//   - type 切替時は form を blankXxx() で再初期化 (前種別の値が残らないように)
+//   - 練習の startTime/endTime 入力で duration 自動計算 (v3 互換)
+//   - 必須未入力の form を保存しない (作成ボタンが disabled になっていれば不要だが防御)
+
+// 番号付きセクション見出し (S11 各 form と同じパターン)
+function _qaSectionHead({ num, label }) {
+  return (
+    <div style={{ fontSize: 11, color: C.textMuted, fontWeight: 600, letterSpacing: 0.5, marginBottom: 10, textTransform: "uppercase", display: "flex", alignItems: "center", gap: 5 }}>
+      <span style={{
+        display: "inline-flex", alignItems: "center", justifyContent: "center",
+        width: 18, height: 18, borderRadius: "50%", background: C.primary, color: "#fff",
+        fontSize: 10, fontWeight: 700,
+      }}>{num}</span>
+      {label}
+    </div>
+  );
+}
+
+// 公開トグル (S11 各 form と同じ)
+function _qaVisibility({ value, onChange }) {
+  const cur = value || "public";
+  const opts = [
+    { v: "public",  label: "🌐 公開",   note: "プライマリ Cal" },
+    { v: "private", label: "🔒 非公開", note: "仕事関係 Cal" },
+  ];
+  return (
+    <div style={{ display: "flex", gap: 8 }}>
+      {opts.map((o) => {
+        const on = cur === o.v;
+        return (
+          <button
+            key={o.v}
+            type="button"
+            onClick={() => onChange(o.v)}
+            style={{
+              flex: 1, minHeight: 44, padding: "8px 12px",
+              borderRadius: 8, border: `1px solid ${on ? C.primary : C.border}`,
+              background: on ? C.primaryLight : C.panel,
+              color: on ? C.primary : C.textSecondary,
+              fontSize: 13, fontWeight: 600, cursor: "pointer",
+              display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2,
+              fontFamily: font,
+            }}
+          >
+            <div>{o.label}</div>
+            <div style={{ fontSize: 10, opacity: 0.75 }}>{o.note}</div>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+const _QA_TOUR_TYPE_OPTS = [
+  { value: "singles", label: "シングルス" },
+  { value: "doubles", label: "ダブルス" },
+  { value: "mixed",   label: "ミックス" },
+];
+const _QA_PRAC_TYPE_OPTS = [
+  { value: "スクール",   label: "スクール" },
+  { value: "自主練",     label: "自主練" },
+  { value: "練習会",     label: "練習会" },
+  { value: "ゲーム練習", label: "ゲーム練習" },
+  { value: "球出し",     label: "球出し" },
+  { value: "練習試合",   label: "練習試合" },
+  { value: "フィジカル", label: "フィジカル" },
+];
+
+function QuickAddModal({ open, type, racketNames = [], stringNames = [], venueNames = [], levelNames = [], onSave, onClose }) {
+  const [form, setForm] = useState(null);
+
+  // open / type 切替時に blank で再初期化 (前種別の値が残らないように)
+  useEffect(() => {
+    if (!open || !type) return;
+    if (type === "tournament") setForm(blankTournament());
+    else if (type === "practice") setForm(blankPractice());
+    else setForm(null);
+  }, [open, type]);
+
+  // Esc で閉じる
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e) => { if (e.key === "Escape") onClose && onClose(); };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [open, onClose]);
+
+  if (!open || !form || !type) return null;
+
+  // setter (練習の時刻入力で duration 自動計算 - v3:2471-2481 移植)
+  const set = (k, v) => {
+    setForm((p) => {
+      const n = { ...p, [k]: v };
+      if (type === "practice" && (k === "startTime" || k === "endTime") && n.startTime && n.endTime) {
+        const sParts = n.startTime.split(":").map(Number);
+        const eParts = n.endTime.split(":").map(Number);
+        if (!isNaN(sParts[0]) && !isNaN(eParts[0])) {
+          const mins = (eParts[0] * 60 + (eParts[1] || 0)) - (sParts[0] * 60 + (sParts[1] || 0));
+          if (mins > 0) n.duration = String(mins);
+        }
+      }
+      return n;
+    });
+  };
+
+  // バリデーション (SCHEMA 駆動)
+  const errors = getRequiredErrors(type, form);
+  const valid = Object.keys(errors).length === 0;
+
+  const handleSaveClick = () => {
+    if (!valid) return;
+    onSave && onSave(form);
+  };
+
+  const titleText  = type === "tournament" ? "大会を追加" : "練習を追加";
+  const titleColor = type === "tournament" ? "#a04f00" : "#0a5b35";
+  const titleIcon  = type === "tournament" ? "trophy"   : "person-standing";
+  const hint = type === "tournament"
+    ? "まず作成 → 結果 / 機材 / 試合記録は後から編集ボタンで追記。30 秒で記録できます。"
+    : "機材 / 体調 / メモは後から編集で追記。練習時間は時刻から自動計算。";
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={titleText}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose && onClose(); }}
+      style={{
+        position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 1000,
+        display: "flex", alignItems: "flex-start", justifyContent: "center",
+        padding: "20px 12px", overflowY: "auto",
+      }}
+    >
+      <div style={{
+        background: C.panel, borderRadius: 16, padding: 18,
+        maxWidth: 420, width: "100%",
+      }}>
+        {/* ヘッダ */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+          <span style={{ fontSize: 14, fontWeight: 700, color: titleColor, display: "flex", alignItems: "center", gap: 6 }}>
+            <Icon name={titleIcon} size={16} color={titleColor} />
+            {titleText}
+          </span>
+          <button onClick={onClose} aria-label="閉じる" style={{ background: "none", border: "none", color: C.textSecondary, cursor: "pointer", padding: 4, display: "flex" }}>
+            <Icon name="x" size={18} color={C.textSecondary} />
+          </button>
+        </div>
+
+        {/* 大会フォーム */}
+        {type === "tournament" && (
+          <>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>
+              <Input type="date" label="日付" required value={form.date || ""} onChange={(v) => set("date", v)} error={errors.date} />
+              <Input label="大会名" required value={form.name || ""} onChange={(v) => set("name", v)} placeholder="例: 所沢ベテラン" error={errors.name} />
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>
+              <Select label="形式" value={form.type || "singles"} onChange={(v) => set("type", v)} options={_QA_TOUR_TYPE_OPTS} />
+              <MasterField label="クラス" value={form.level || ""} onChange={(v) => set("level", v)} masterValues={levelNames} placeholder="-- クラスを選択 --" />
+            </div>
+            <MasterField label="会場" value={form.venue || ""} onChange={(v) => set("venue", v)} masterValues={venueNames} placeholder="-- 会場を選択 --" />
+            <div style={{ marginTop: 4 }}>
+              <label style={{ display: "block", fontSize: 12, color: C.textSecondary, fontWeight: 500, marginBottom: 4 }}>公開設定</label>
+              <_qaVisibility value={form.visibility} onChange={(v) => set("visibility", v)} />
+            </div>
+          </>
+        )}
+
+        {/* 練習フォーム */}
+        {type === "practice" && (
+          <>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>
+              <Input type="date" label="日付" required value={form.date || ""} onChange={(v) => set("date", v)} error={errors.date} />
+              <Select label="種別" value={form.type || ""} onChange={(v) => set("type", v)} options={_QA_PRAC_TYPE_OPTS} />
+            </div>
+            <Input label="イベント名" value={form.title || ""} onChange={(v) => set("title", v)} placeholder="例: ナイターレッスン中上級" />
+            <MasterField label="会場" value={form.venue || ""} onChange={(v) => set("venue", v)} masterValues={venueNames} placeholder="-- 会場を選択 --" />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>
+              <Input type="time" label="開始時刻" value={form.startTime || ""} onChange={(v) => set("startTime", v)} />
+              <Input type="time" label="終了時刻" value={form.endTime || ""} onChange={(v) => set("endTime", v)} />
+            </div>
+            <div style={{ marginTop: 4 }}>
+              <label style={{ display: "block", fontSize: 12, color: C.textSecondary, fontWeight: 500, marginBottom: 4 }}>公開設定</label>
+              <_qaVisibility value={form.visibility} onChange={(v) => set("visibility", v)} />
+            </div>
+          </>
+        )}
+
+        {/* ヒント */}
+        <div style={{
+          fontSize: 11, color: C.textSecondary, background: C.panel2,
+          borderLeft: `2px solid ${C.primary}`, padding: "8px 10px",
+          borderRadius: 4, marginTop: 10, marginBottom: 10, lineHeight: 1.6,
+        }}>
+          {hint}
+        </div>
+
+        {/* アクション */}
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 4 }}>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              minHeight: 44, padding: "10px 20px", borderRadius: 8,
+              border: `1px solid ${C.border}`, background: C.panel, color: C.textSecondary,
+              fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: font,
+            }}
+          >キャンセル</button>
+          <button
+            type="button"
+            onClick={handleSaveClick}
+            disabled={!valid}
+            title={valid ? "作成" : "必須項目が未入力です"}
+            style={{
+              minHeight: 44, padding: "10px 20px", borderRadius: 8,
+              border: "none",
+              background: valid ? C.primary : C.border,
+              color: valid ? "#fff" : C.textMuted,
+              fontSize: 13, fontWeight: 700,
+              cursor: valid ? "pointer" : "not-allowed",
+              display: "inline-flex", alignItems: "center", gap: 6, fontFamily: font,
+            }}
+          >
+            <Icon name="plus" size={16} color={valid ? "#fff" : C.textMuted} />作成
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // === src/ui/sessions/SearchBar.jsx ===
 // SearchBar — Sessions 横断テキスト検索入力 (DESIGN_SYSTEM §8.5.1)
 // props:
@@ -4104,7 +4575,7 @@ function _dvMemoItem({ label, text }) {
 // ── メインコンポーネント ────────────────────────
 // S11: mode prop で Detail (既定) と Edit (編集モード) を切替。
 //      Edit モード時は SessionEditView で置換し、slide-in overlay は維持 (再 mount せず scrollTop 保持)
-function SessionDetailView({ type, session, mode = "detail", tournaments, trials, practices, racketNames, stringNames, venueNames, opponentNames, onClose, onEdit, onEditCancel, onSave, onDelete, onOpenLinkedSession, toast, confirm }) {
+function SessionDetailView({ type, session, mode = "detail", tournaments, trials, practices, racketNames, stringNames, venueNames, opponentNames, levelNames, onClose, onEdit, onEditCancel, onSave, onDelete, onOpenLinkedSession, toast, confirm }) {
   const [visible, setVisible] = useState(false);
   const [closing, setClosing] = useState(false);
   const reduced = typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -4189,6 +4660,7 @@ function SessionDetailView({ type, session, mode = "detail", tournaments, trials
           stringNames={stringNames}
           venueNames={venueNames}
           opponentNames={opponentNames}
+          levelNames={levelNames}
           onCancel={onEditCancel}
           onSave={(updated) => onSave && onSave(type, updated)}
           confirm={confirm}
@@ -4296,7 +4768,7 @@ function SessionDetailView({ type, session, mode = "detail", tournaments, trials
 //   confirm: useConfirm() ({ ask })
 //   toast: useToast() ({ show })
 
-function SessionEditView({ type, session, practices, tournaments, racketNames, stringNames, venueNames, opponentNames, onCancel, onSave, confirm, toast }) {
+function SessionEditView({ type, session, practices, tournaments, racketNames, stringNames, venueNames, opponentNames, levelNames, onCancel, onSave, confirm, toast }) {
   const [form, setForm] = useState(() => ({ ...session }));
   const [dirty, setDirty] = useState(false);
 
@@ -4381,7 +4853,7 @@ function SessionEditView({ type, session, practices, tournaments, racketNames, s
         {type === "tournament" && (
           <TournamentEditForm
             form={form} errors={errors} onChange={handleChange}
-            racketNames={racketNames} stringNames={stringNames} venueNames={venueNames} opponentNames={opponentNames}
+            racketNames={racketNames} stringNames={stringNames} venueNames={venueNames} opponentNames={opponentNames} levelNames={levelNames}
             confirm={confirm} toast={toast}
           />
         )}
@@ -5031,10 +5503,11 @@ function SessionsTab({ tournaments = [], practices = [], trials = [], loading = 
         </div>
       </div>
 
-      {/* FAB: 操作帯 (約 108px) + TabBar (56px) の上に浮かせる。
-          カレンダー/年間 mode で DayPanel が開いている時は重なり回避のため非表示 (パネルを閉じれば再表示) */}
+      {/* FAB + ミニメニュー (S12): タップで大会/練習の 2 択ポップオーバー。
+          試打は S14 Home 3 ボタンに集約 (DECISIONS_v4.md S12)。
+          カレンダー/年間 mode で DayPanel が開いている時は非表示 (パネルを閉じれば再表示) */}
       {!((viewMode === "calendar" || viewMode === "year") && dayPanelOpen) && (
-        <FAB onClick={onFabClick} ariaLabel="記録を追加" bottom={180} />
+        <QuickAddFab onSelect={onFabClick} ariaLabel="記録を追加" bottom={180} />
       )}
 
       {/* S7: 絞り込みドロワー (画面下シート) */}
@@ -5388,7 +5861,7 @@ function _visibilityToggle({ value, onChange }) {
   );
 }
 
-function TournamentEditForm({ form, errors = {}, onChange, confirm, toast, racketNames = [], stringNames = [], venueNames = [], opponentNames = [] }) {
+function TournamentEditForm({ form, errors = {}, onChange, confirm, toast, racketNames = [], stringNames = [], venueNames = [], opponentNames = [], levelNames = [] }) {
   const set = (k, v) => onChange({ ...form, [k]: v });
   const matches = Array.isArray(form.matches) ? form.matches : [];
   const wins = matches.filter(m => m.result === "勝利").length;
@@ -5430,7 +5903,7 @@ function TournamentEditForm({ form, errors = {}, onChange, confirm, toast, racke
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>
           <Select label="形式" value={form.type || "singles"} onChange={(v) => set("type", v)} options={_TYPE_OPTS} />
-          <Input label="クラス" value={form.level || ""} onChange={(v) => set("level", v)} placeholder="中上級" />
+          <MasterField label="クラス" value={form.level || ""} onChange={(v) => set("level", v)} masterValues={levelNames} placeholder="-- クラスを選択 --" />
         </div>
         <Select label="結果" value={form.overallResult || ""} onChange={(v) => set("overallResult", v)} options={_RESULT_OPTS} />
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>
@@ -6581,6 +7054,15 @@ const loadSessionsFromFirestore = async (user) => {
 const _extractName = (item) => (typeof item === "string" ? item : (item?.name || ""));
 const _extractNames = (list) => (list || []).map(_extractName).filter(Boolean);
 
+// 大会クラス: v3 標準 7 オプション + 既存 tournament[].level から動的抽出 (重複除去)
+//   ユーザー独自のクラス名 (S 級 / 県大会 等) にも MasterField 経由で対応
+const _TOURNAMENT_LEVEL_DEFAULTS = ["中上級", "オープン", "中級", "市民大会", "一般", "交流戦", "草トー"];
+const _extractLevels = (tournaments) => {
+  const set = new Set(_TOURNAMENT_LEVEL_DEFAULTS);
+  (tournaments || []).forEach(t => { if (t.level) set.add(t.level); });
+  return [..._TOURNAMENT_LEVEL_DEFAULTS, ...[...set].filter(v => !_TOURNAMENT_LEVEL_DEFAULTS.includes(v))];
+};
+
 // ── プレースホルダタブ (S13-S18 で実装)
 function PlaceholderTab({ name, stage }) {
   return (
@@ -6803,8 +7285,21 @@ function TennisDB() {
     );
   };
 
-  const handleFabClick = () => {
-    toast.show("新規追加は S12 で実装予定", "info");
+  // S12: FAB ミニメニューで種別が選ばれたら QuickAddModal を開く
+  //      "tournament" | "practice" のみ (試打は S14 Home 3 ボタン経由、DECISIONS_v4.md S12)
+  const [quickAddType, setQuickAddType] = useState(null);
+  const handleFabClick = (type) => {
+    if (type === "tournament" || type === "practice") {
+      setQuickAddType(type);
+    }
+  };
+  const handleQuickAddClose = () => setQuickAddType(null);
+  // QuickAdd 保存: handleSave (新規/更新両対応) を再利用 + Detail 画面で開く (閲覧モード)
+  const handleQuickAddSave = (item) => {
+    const type = quickAddType;
+    if (!type || !item) return;
+    handleSave(type, item);    // localStorage + Firestore 保存 + Detail 画面遷移 (mode: "detail")
+    setQuickAddType(null);     // QuickAddModal を閉じる
   };
 
   // 認証状態判定完了前はスピナー
@@ -6874,6 +7369,17 @@ function TennisDB() {
       />
       {tabContent}
       <TabBar tab={tab} onTabChange={setTab} />
+      {/* S12: QuickAddModal (FAB ミニメニュー → 大会/練習 選択時) */}
+      <QuickAddModal
+        open={!!quickAddType}
+        type={quickAddType}
+        racketNames={_extractNames(rackets)}
+        stringNames={_extractNames(strings)}
+        venueNames={_extractNames(venues)}
+        levelNames={_extractLevels(tournaments)}
+        onSave={handleQuickAddSave}
+        onClose={handleQuickAddClose}
+      />
       {detail && (
         <SessionDetailView
           key={detail.session.id}
@@ -6887,6 +7393,7 @@ function TennisDB() {
           stringNames={_extractNames(strings)}
           venueNames={_extractNames(venues)}
           opponentNames={_extractNames(opponents)}
+          levelNames={_extractLevels(tournaments)}
           onClose={handleDetailClose}
           onEdit={handleEdit}
           onEditCancel={handleEditCancel}

@@ -77,7 +77,7 @@ function _visibilityToggle({ value, onChange }) {
   );
 }
 
-function TournamentEditForm({ form, errors = {}, onChange, confirm, toast, racketNames = [], stringNames = [], venueNames = [], opponentNames = [] }) {
+function TournamentEditForm({ form, errors = {}, onChange, confirm, toast, racketNames = [], stringNames = [], venueNames = [], opponentNames = [], levelNames = [] }) {
   const set = (k, v) => onChange({ ...form, [k]: v });
   const matches = Array.isArray(form.matches) ? form.matches : [];
   const wins = matches.filter(m => m.result === "勝利").length;
@@ -119,7 +119,7 @@ function TournamentEditForm({ form, errors = {}, onChange, confirm, toast, racke
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>
           <Select label="形式" value={form.type || "singles"} onChange={(v) => set("type", v)} options={_TYPE_OPTS} />
-          <Input label="クラス" value={form.level || ""} onChange={(v) => set("level", v)} placeholder="中上級" />
+          <MasterField label="クラス" value={form.level || ""} onChange={(v) => set("level", v)} masterValues={levelNames} placeholder="-- クラスを選択 --" />
         </div>
         <Select label="結果" value={form.overallResult || ""} onChange={(v) => set("overallResult", v)} options={_RESULT_OPTS} />
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>

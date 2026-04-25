@@ -39,6 +39,20 @@ HANDOFF はこのファイルを参照する形で軽量化される。
 - **Apple Watch / matchStats は表示のみ**: 編集 UI に出さない (v2/v3 互換、インポート由来)
 - **削除ボタン**: SessionDetailView の Action bar に固定。編集画面ヘッダには置かない (責務分離)
 
+### S12 (Session 追加 FAB + QuickAdd) ✅
+- **FAB ミニメニューは大会 / 練習 の 2 択**: 試打は除外、S14 Home 3 ボタン経由の専用設計に集約
+  - 違反: 試打を FAB ミニメニューに含めると、v2/v3 で最も作り込まれた QuickTrial 専用 UI を活かせない
+- **QuickAdd モーダルは最小フォーム方式** (v3 踏襲、SessionEditView を空起動するフルフォームではない)
+  - 大会: 日付* / 大会名* / 形式 / クラス / 会場 / 公開設定
+  - 練習: 日付* / 種別 / イベント名 / 会場 / 開始-終了時刻 / 公開設定 (時刻入力で duration 自動計算)
+  - 違反: 詳細は作成後 Detail 画面 → 編集ボタンで追記。出先 30 秒入力を優先
+- **作成後の遷移**: SessionDetailView (**閲覧モード**) で slide-in、空項目は `—` or empty hint で表示
+  - 違反: いきなり編集モードに入れると「アクション完了感」が出ず、画面を閉じる動作が混乱する
+- **必須バリデーション**: SCHEMA `required:true` 駆動 (validation.js を再利用、S11 と同じ)
+- **handleSave 再利用**: 新規/更新両対応で既存 (S11 確定)、QuickAdd でも同じ関数経由で保存
+- **blank helper**: `src/domain/blank.js` 新規 (3 種別とも作成、blankTrial は S14 で再利用予定)
+- **会場 / ラケット / ストリング**: MasterField (S11 確定) を再利用、master データから Select
+
 ### S11 (Session 編集画面) ✅
 - **編集画面の統一フォーマット** (3 種別共通の並び):
   1. 基本情報 (種別ごとのメイン項目 + 日付*)

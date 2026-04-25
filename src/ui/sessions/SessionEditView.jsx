@@ -15,7 +15,7 @@
 //   confirm: useConfirm() ({ ask })
 //   toast: useToast() ({ show })
 
-function SessionEditView({ type, session, practices, tournaments, racketNames, stringNames, venueNames, opponentNames, onCancel, onSave, confirm, toast }) {
+function SessionEditView({ type, session, practices, tournaments, racketNames, stringNames, venueNames, opponentNames, levelNames, onCancel, onSave, confirm, toast }) {
   const [form, setForm] = useState(() => ({ ...session }));
   const [dirty, setDirty] = useState(false);
 
@@ -100,7 +100,7 @@ function SessionEditView({ type, session, practices, tournaments, racketNames, s
         {type === "tournament" && (
           <TournamentEditForm
             form={form} errors={errors} onChange={handleChange}
-            racketNames={racketNames} stringNames={stringNames} venueNames={venueNames} opponentNames={opponentNames}
+            racketNames={racketNames} stringNames={stringNames} venueNames={venueNames} opponentNames={opponentNames} levelNames={levelNames}
             confirm={confirm} toast={toast}
           />
         )}

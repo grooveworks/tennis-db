@@ -17,9 +17,12 @@
 ### R3. 事前調査して実装
 - 関連設計書 / v2/v3 / v4 既存コードを **中身まで読む** (ファイル一覧で済まさない)
 - agent 報告は **必ず自分で grep / Read で裏取り** (鵜呑み禁止)
-- 新規追加する識別子・ファイル名は **必ず既存リポを grep**
+- 新規追加する識別子・ファイル名は **必ず既存リポを grep** (重複防止、F12)
   - 例: `grep -rn "const cleanForFirestore" src/`
-  - 重複は build 時に SyntaxError「Identifier 'X' has already been declared」になる
+  - 重複は build 時に SyntaxError「Identifier 'X' has already been declared」
+- **呼び出す既存関数** (today, genId, normDate 等) も **書く前に grep で存在確認** (F15、未定義参照防止)
+  - 例: `grep -rn "const today\|function today" src/` → 見つからなければその関数を追加してから書く
+  - v3 にあるからといって v4 にもあるとは限らない (S6 移植で取捨選択された)
 - テニス用語が出たら `TENNIS_RULES.md` 該当節を確認
 
 ### R4. UI/UX 先行

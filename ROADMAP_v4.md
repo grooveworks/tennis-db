@@ -46,7 +46,7 @@
 | **S9** ✅ | Sessions 年間濃淡 view | 365 マスで年の活動密度を一望、前年/次年ナビ、日タップで下部 DayPanel を S8 から再利用 |
 | **S10** ✅ | Session 詳細画面（slide-in） | カードタップで画面遷移、リスト崩れない、戻りでスクロール位置復元、3 種別統一レイアウト、Apple Watch 情報量強化、Claude 連携 (§F8.1)、連携カードで相互遷移 |
 | **S11** ✅ | Session 編集画面 + Match 編集 + GameTracker (F1.4.1 復活) + 試打フィルタ暫定 | 既存記録の更新が v4 で可能、ゲーム単位スコア+状況メモ (奇数ゲーム後 CO 自動発動) を v2 から復活、試打への暫定動線確保 |
-| **S12** | Session 追加（FAB + QuickAdd） | 右下 FAB から新規記録、**ここで v3 から移行可能な実運用状態** |
+| **S12** ✅ | Session 追加（FAB + QuickAdd 大会/練習 2 択） | 右下 FAB から新規記録、**v4 実運用可能ライン**。試打は S14 Home 3 ボタン経由に集約 |
 | **S13** | Session 削除 + cascade | 関連する linkedXxx を自動クリアする安全削除 |
 | **S14** | Home タブ | 3ボタン登録導線、MiniCalendar、Next Actions |
 | **S15** | Sessions マージ機能 | 同タイプ2件の統合、A/B 切替・競合選択 |

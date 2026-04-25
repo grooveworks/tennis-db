@@ -4,6 +4,12 @@
 // 一意ID生成: タイムスタンプ36進 + ランダム
 const genId=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,8);
 
+// 当日の YYYY-MM-DD (v3:84 移植、blank.js / 編集フォーム / 新規追加で使用)
+const today=()=>{
+  const d=new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+};
+
 // 日付正規化: "2026/4/5" / "2026-04-05" 等を "2026-04-05" に統一
 // v3 はハイフン形式（input type="date" が要求）
 const normDate=d=>{

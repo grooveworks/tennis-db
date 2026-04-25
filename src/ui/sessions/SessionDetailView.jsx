@@ -191,7 +191,7 @@ function _dvMemoItem({ label, text }) {
 // ── メインコンポーネント ────────────────────────
 // S11: mode prop で Detail (既定) と Edit (編集モード) を切替。
 //      Edit モード時は SessionEditView で置換し、slide-in overlay は維持 (再 mount せず scrollTop 保持)
-function SessionDetailView({ type, session, mode = "detail", tournaments, trials, practices, racketNames, stringNames, venueNames, opponentNames, onClose, onEdit, onEditCancel, onSave, onDelete, onOpenLinkedSession, toast, confirm }) {
+function SessionDetailView({ type, session, mode = "detail", tournaments, trials, practices, racketNames, stringNames, venueNames, opponentNames, levelNames, onClose, onEdit, onEditCancel, onSave, onDelete, onOpenLinkedSession, toast, confirm }) {
   const [visible, setVisible] = useState(false);
   const [closing, setClosing] = useState(false);
   const reduced = typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -276,6 +276,7 @@ function SessionDetailView({ type, session, mode = "detail", tournaments, trials
           stringNames={stringNames}
           venueNames={venueNames}
           opponentNames={opponentNames}
+          levelNames={levelNames}
           onCancel={onEditCancel}
           onSave={(updated) => onSave && onSave(type, updated)}
           confirm={confirm}

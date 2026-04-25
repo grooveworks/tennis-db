@@ -37,6 +37,15 @@ const loadSessionsFromFirestore = async (user) => {
 const _extractName = (item) => (typeof item === "string" ? item : (item?.name || ""));
 const _extractNames = (list) => (list || []).map(_extractName).filter(Boolean);
 
+// 大会クラス: v3 標準 7 オプション + 既存 tournament[].level から動的抽出 (重複除去)
+//   ユーザー独自のクラス名 (S 級 / 県大会 等) にも MasterField 経由で対応
+const _TOURNAMENT_LEVEL_DEFAULTS = ["中上級", "オープン", "中級", "市民大会", "一般", "交流戦", "草トー"];
+const _extractLevels = (tournaments) => {
+  const set = new Set(_TOURNAMENT_LEVEL_DEFAULTS);
+  (tournaments || []).forEach(t => { if (t.level) set.add(t.level); });
+  return [..._TOURNAMENT_LEVEL_DEFAULTS, ...[...set].filter(v => !_TOURNAMENT_LEVEL_DEFAULTS.includes(v))];
+};
+
 // ── プレースホルダタブ (S13-S18 で実装)
 function PlaceholderTab({ name, stage }) {
   return (
@@ -259,8 +268,21 @@ function TennisDB() {
     );
   };
 
-  const handleFabClick = () => {
-    toast.show("新規追加は S12 で実装予定", "info");
+  // S12: FAB ミニメニューで種別が選ばれたら QuickAddModal を開く
+  //      "tournament" | "practice" のみ (試打は S14 Home 3 ボタン経由、DECISIONS_v4.md S12)
+  const [quickAddType, setQuickAddType] = useState(null);
+  const handleFabClick = (type) => {
+    if (type === "tournament" || type === "practice") {
+      setQuickAddType(type);
+    }
+  };
+  const handleQuickAddClose = () => setQuickAddType(null);
+  // QuickAdd 保存: handleSave (新規/更新両対応) を再利用 + Detail 画面で開く (閲覧モード)
+  const handleQuickAddSave = (item) => {
+    const type = quickAddType;
+    if (!type || !item) return;
+    handleSave(type, item);    // localStorage + Firestore 保存 + Detail 画面遷移 (mode: "detail")
+    setQuickAddType(null);     // QuickAddModal を閉じる
   };
 
   // 認証状態判定完了前はスピナー
@@ -330,6 +352,17 @@ function TennisDB() {
       />
       {tabContent}
       <TabBar tab={tab} onTabChange={setTab} />
+      {/* S12: QuickAddModal (FAB ミニメニュー → 大会/練習 選択時) */}
+      <QuickAddModal
+        open={!!quickAddType}
+        type={quickAddType}
+        racketNames={_extractNames(rackets)}
+        stringNames={_extractNames(strings)}
+        venueNames={_extractNames(venues)}
+        levelNames={_extractLevels(tournaments)}
+        onSave={handleQuickAddSave}
+        onClose={handleQuickAddClose}
+      />
       {detail && (
         <SessionDetailView
           key={detail.session.id}
@@ -343,6 +376,7 @@ function TennisDB() {
           stringNames={_extractNames(strings)}
           venueNames={_extractNames(venues)}
           opponentNames={_extractNames(opponents)}
+          levelNames={_extractLevels(tournaments)}
           onClose={handleDetailClose}
           onEdit={handleEdit}
           onEditCancel={handleEditCancel}
