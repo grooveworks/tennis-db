@@ -180,17 +180,22 @@ function PracticeEditForm({ form, errors = {}, onChange, racketNames = [], strin
         </div>
       </div>
 
-      {/* ④ 体調・集中 + Apple Watch */}
+      {/* ④ 体調 + Apple Watch */}
       <div style={{ background: C.panel, border: `1px solid ${C.divider}`, borderRadius: 12, padding: 12, marginBottom: 10 }}>
-        <_peSectionHead num="4" label="体調・集中" />
+        <_peSectionHead num="4" label="体調" />
         <_peRatingRow label="体調" value={Number(form.physical) || 0} onChange={(n) => onChange({ ...form, physical: n })} />
-        <_peRatingRow label="集中" value={Number(form.focus) || 0} onChange={(n) => onChange({ ...form, focus: n })} />
       </div>
       <_peAppleWatchPanel form={form} />
 
-      {/* ⑤ メモ — focus は rating (集中度、上のセクション)、textarea は SCHEMA に無いので作らない */}
+      {/* ⑤ メモ (focus はテキスト、v2/v3 と同じ「今日のテーマ」フィールド) */}
       <div style={{ background: C.panel, border: `1px solid ${C.divider}`, borderRadius: 12, padding: 12, marginBottom: 10 }}>
         <_peSectionHead num="5" label="メモ" />
+        <Textarea
+          label="フォーカス"
+          value={typeof form.focus === "string" ? form.focus : ""}
+          onChange={(v) => onChange({ ...form, focus: v })}
+          placeholder="今日のテーマ / ラケットダウン / フォロースルー拡大..."
+        />
         <Textarea label="コーチメモ" value={form.coachNote || ""} onChange={(v) => onChange({ ...form, coachNote: v })} placeholder="コーチから言われたこと..." />
         <Textarea label="良かった点" value={form.goodNote || ""} onChange={(v) => onChange({ ...form, goodNote: v })} placeholder="できるようになったこと..." />
         <Textarea label="改善点" value={form.improveNote || ""} onChange={(v) => onChange({ ...form, improveNote: v })} placeholder="次回意識したいこと..." />

@@ -214,6 +214,8 @@ function TennisDB() {
 
   // S11: 編集保存 (新規/更新両対応、S12 でも再利用予定)
   //      core/03_storage.js の save() を使用 (cleanForFirestore + 800ms debounce、v3 互換)
+  // S13: tournament 編集中に matches[] が削除されていたら、紐付く trial.linkedMatchId を cascade クリア
+  //      (cascade は保存時に確定 = 編集破棄なら trials も変更されない)
   const handleSave = async (type, updated) => {
     if (!updated || !updated.id) return;
     const key = type === "tournament" ? "tournaments" : type === "practice" ? "practices" : "trials";
@@ -222,38 +224,97 @@ function TennisDB() {
     const newItems = exists
       ? current.map(x => x.id === updated.id ? updated : x)
       : [updated, ...(current || [])];
+
+    // S13: match 削除に伴う trial cascade (tournament 更新時のみ、新規追加には適用しない)
+    let newTrials = trials;
+    let cascadeCount = 0;
+    if (type === "tournament" && exists && Array.isArray(exists.matches) && Array.isArray(updated.matches)) {
+      const newIds = new Set(updated.matches.map(m => m && m.id).filter(Boolean));
+      const removedMatches = exists.matches.filter(m => m && m.id && !newIds.has(m.id));
+      for (const removed of removedMatches) {
+        const c = computeCascade({ type: "match", item: removed, trials: newTrials });
+        if (c.count > 0) {
+          newTrials = applyCascadeToTrials(newTrials, c.affectedTrials);
+          cascadeCount += c.count;
+        }
+      }
+    }
+
     // 即時 state 更新 (onSnapshot 到来前に UI 反映)
     if (type === "tournament") setTournaments(newItems);
     else if (type === "practice") setPractices(newItems);
     else setTrials(newItems);
+    if (cascadeCount > 0) setTrials(newTrials);
+
     lsSave(KEYS[key], newItems);
+    if (cascadeCount > 0) lsSave(KEYS.trials, newTrials);
+
     // Firestore は core/03_storage.js の save() で 800ms デバウンス書き込み
     save(KEYS[key], newItems);
+    if (cascadeCount > 0) save(KEYS.trials, newTrials);
+
     // Detail に戻る、最新データで再描画
     setDetail({ type, session: updated, mode: "detail" });
-    toast.show("保存しました", "success");
+    const msg = cascadeCount > 0
+      ? `保存しました (試合削除に伴い試打 ${cascadeCount} 件の連携を外しました)`
+      : "保存しました";
+    toast.show(msg, "success");
   };
 
-  // S10: 削除 (S17 で実装予定の cascade 本格対応までの簡易版)
-  //      linkedPracticeId/linkedMatchId の孤児化対応は別 Stage で domain/cascade.js に切り出す
+  // S13: 削除 + cascade (REQUIREMENTS N2.2)
+  //      tournament 削除 → 紐付く trial.linkedMatchId を空に
+  //      practice 削除 → 紐付く trial.linkedPracticeId を空に
+  //      試打自体は残す。ConfirmDialog に件数を事前提示し、toast で結果報告。
+  //      cascade 計算は src/domain/cascade.js (純関数)
   const handleDelete = (type, item) => {
     if (!item || !item.id) return;
     const typeLabel = type === "tournament" ? "大会" : type === "practice" ? "練習" : "試打";
     const key = type === "tournament" ? "tournaments" : type === "practice" ? "practices" : "trials";
+
+    // S13: 削除前に cascade 影響を計算 (削除対象が trial の場合は count=0)
+    const cascade = computeCascade({ type, item, trials });
+    const desc = describeCascadeMessage(type, cascade.count);
+    const messageNode = (
+      <span style={{ display: "inline-block" }}>
+        {desc.body}
+        {desc.note && (<><br/><span style={{ fontSize: 12, color: C.textMuted }}>{desc.note}</span></>)}
+        <br/><span style={{ fontSize: 12, color: C.textMuted }}>{desc.warn}</span>
+      </span>
+    );
+
     cfm.ask(
-      `この${typeLabel}を削除しますか？この操作は取り消せません。`,
+      messageNode,
       async () => {
         const current = type === "tournament" ? tournaments : type === "practice" ? practices : trials;
         const newItems = (current || []).filter(x => x.id !== item.id);
+        // cascade 適用後の trials (削除対象が trial 自身、または影響 0 件のときは現状維持)
+        const cascadeApplied = (type !== "trial" && cascade.count > 0);
+        const newTrials = cascadeApplied ? applyCascadeToTrials(trials, cascade.affectedTrials) : trials;
+
         // 即時 state 更新 (onSnapshot 到来前に UI 反映)
         if (type === "tournament") setTournaments(newItems);
         else if (type === "practice") setPractices(newItems);
         else setTrials(newItems);
+        if (cascadeApplied) setTrials(newTrials);
+
+        // localStorage
         lsSave(KEYS[key], newItems);
-        // Firestore 書き込み
+        if (cascadeApplied) lsSave(KEYS.trials, newTrials);
+
+        // Firestore 書き込み (削除対象 + cascade 後 trials を並行)
         if (user) {
           try {
-            await fbDb.collection("users").doc(user.uid).collection("data").doc(key).set({ items: newItems }, { merge: false });
+            const writes = [
+              fbDb.collection("users").doc(user.uid).collection("data").doc(key)
+                .set({ items: cleanForFirestore(newItems) }, { merge: false }),
+            ];
+            if (cascadeApplied) {
+              writes.push(
+                fbDb.collection("users").doc(user.uid).collection("data").doc("trials")
+                  .set({ items: cleanForFirestore(newTrials) }, { merge: false })
+              );
+            }
+            await Promise.all(writes);
           } catch (e) {
             console.error("Firestore delete error:", e);
             toast.show("クラウド同期失敗 (ローカルは削除済み)", "warning");
@@ -262,9 +323,13 @@ function TennisDB() {
           }
         }
         setDetail(null);
-        toast.show(`${typeLabel}を削除しました`, "success");
+        // toast: cascade 件数が 0 なら従来文言、>0 なら追記
+        const msg = cascadeApplied
+          ? `${typeLabel}を削除しました (試打 ${cascade.count} 件の連携を外しました)`
+          : `${typeLabel}を削除しました`;
+        toast.show(msg, "success");
       },
-      { title: "削除の確認", yesLabel: "削除", yesVariant: "danger", icon: "trash-2" }
+      { title: desc.title, yesLabel: "削除", yesVariant: "danger", icon: "trash-2" }
     );
   };
 

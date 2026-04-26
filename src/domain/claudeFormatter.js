@@ -76,7 +76,8 @@ const formatPracticeForClaude = (p) => {
   if (gear) s += `機材: ${gear}\n`;
   if (p.temp || p.weather) s += `気象: ${[p.temp ? p.temp + "℃" : "", p.weather].filter(Boolean).join(" / ")}\n`;
   if (p.physical) s += `体調: ${p.physical}/5\n`;
-  if (p.focus)    s += `集中: ${p.focus}/5\n`;
+  // focus はテキスト (v2/v3 互換)。数値が混入していたら表示しない
+  if (typeof p.focus === "string" && p.focus) s += `フォーカス: ${p.focus}\n`;
   if (p.heartRateAvg)  s += `平均心拍: ${p.heartRateAvg}bpm\n`;
   if (p.calories)      s += `Active: ${p.calories}kcal\n`;
   if (p.totalCalories) s += `合計: ${p.totalCalories}kcal\n`;

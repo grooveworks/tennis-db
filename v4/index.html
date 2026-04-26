@@ -27,7 +27,7 @@ input,select,textarea,button{font-family:inherit}
 const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
 // ── 定数定義（色・キー・バージョン）─────────────
-const APP_VERSION="4.0.0-S12";
+const APP_VERSION="4.0.0-S13";
 const font="-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif";
 
 // 色設計（DESIGN_SYSTEM_v4.md §1 準拠）
@@ -241,7 +241,7 @@ const SCHEMA={
     {key:"temp",label:"気温",type:"number"},
     {key:"weather",label:"天気",type:"text"},
     {key:"physical",label:"体調",type:"rating"},
-    {key:"focus",label:"集中",type:"rating"},
+    {key:"focus",label:"フォーカス",type:"textarea",combinable:true},
     {key:"coachNote",label:"コーチメモ",type:"textarea",combinable:true},
     {key:"goodNote",label:"良かった点",type:"textarea",combinable:true},
     {key:"improveNote",label:"改善点",type:"textarea",combinable:true},
@@ -382,7 +382,8 @@ const copyToClipboard = async (text) => {
 //   - blankTrial は S14 (Home 3 ボタン) で再利用予定
 //
 // id は genId() で生成、date は today() で当日。それ以外は SCHEMA の type に応じた初期値。
-// rating 系は v2 と同じく 3 (中央)、ただし practice の physical/focus は v3 と同じく 0 (未入力扱い)。
+// rating 系は v2 と同じく 3 (中央)、ただし practice の physical は v3 と同じく 0 (未入力扱い)。
+// practice.focus はテキスト (v2/v3 互換、「今日のテーマ」フィールド)。
 
 const blankTournament = () => ({
   id: genId(),
@@ -422,8 +423,8 @@ const blankPractice = () => ({
   tensionCross: "",
   temp: "",
   weather: "",
-  physical: 0, // v3 互換: 未入力扱い
-  focus: 0,
+  physical: 0, // v3 互換: 未入力扱い (rating 0 = 未入力)
+  focus: "",   // v2/v3 互換: 今日のテーマ (テキスト)
   coachNote: "",
   goodNote: "",
   improveNote: "",
@@ -455,6 +456,120 @@ const blankTrial = () => ({
   linkedPracticeId: "",
   linkedMatchId: "",
 });
+
+// === src/domain/cascade.js ===
+// cascade — Session 削除時に試打 (trial) の連携 ID を自動クリアする純関数
+//
+// 役割:
+//   - REQUIREMENTS_v4 N2.2: Session 削除時、参照する trial.linkedXxx を自動クリア (孤児化禁止)
+//   - REQUIREMENTS_v4 N2.3: match 削除時、参照する trial.linkedMatchId を自動クリア
+//   - 試打自体は削除しない (連携 ID のみ空文字に置き換える)
+//
+// 設計方針:
+//   - 副作用なし、React に依存しない (REQUIREMENTS N3.4)
+//   - type 分岐は本ファイル内の 1 箇所のみ (N3.3)
+//   - tests/run.html で unit test 必須 (N3.5)
+//
+// 使い方:
+//   const result = computeCascade({ type: "tournament", item, tournaments, practices, trials });
+//   if (result.count > 0) { /* ConfirmDialog に件数を表示 */ }
+//   const newTrials = applyCascadeToTrials(trials, result.affectedTrials);
+//   /* save("trials", newTrials) */
+
+// ── 影響を受ける試打を抽出 (純関数)
+//
+// 戻り値:
+//   { affectedTrials: [{trial, clearField}], count: number }
+//   clearField は "linkedMatchId" | "linkedPracticeId" のいずれか
+//
+// 引数:
+//   type:  "tournament" | "practice" | "match" | "trial"
+//   item:  削除対象 (tournament なら tournament obj、match なら match obj、…)
+//   tournaments / practices / trials: 全件配列 (使わないものは省略可、{} で OK)
+function computeCascade({ type, item, trials }) {
+  const _trials = Array.isArray(trials) ? trials : [];
+  if (!item || !item.id || !type) return { affectedTrials: [], count: 0 };
+
+  // tournament 削除 → matches[] の全 id を集めて、linkedMatchId が含まれる trial を抽出
+  if (type === "tournament") {
+    const matchIds = new Set((Array.isArray(item.matches) ? item.matches : []).map(m => m && m.id).filter(Boolean));
+    if (matchIds.size === 0) return { affectedTrials: [], count: 0 };
+    const affected = _trials
+      .filter(tr => tr && tr.linkedMatchId && matchIds.has(tr.linkedMatchId))
+      .map(tr => ({ trial: tr, clearField: "linkedMatchId" }));
+    return { affectedTrials: affected, count: affected.length };
+  }
+
+  // practice 削除 → linkedPracticeId === practice.id の trial を抽出
+  if (type === "practice") {
+    const affected = _trials
+      .filter(tr => tr && tr.linkedPracticeId === item.id)
+      .map(tr => ({ trial: tr, clearField: "linkedPracticeId" }));
+    return { affectedTrials: affected, count: affected.length };
+  }
+
+  // match 削除 (大会編集画面内) → linkedMatchId === match.id の trial を抽出
+  if (type === "match") {
+    const affected = _trials
+      .filter(tr => tr && tr.linkedMatchId === item.id)
+      .map(tr => ({ trial: tr, clearField: "linkedMatchId" }));
+    return { affectedTrials: affected, count: affected.length };
+  }
+
+  // trial は連携元、cascade 対象外
+  return { affectedTrials: [], count: 0 };
+}
+
+// ── 影響を受ける試打配列に対して、対象フィールドを空文字にした新配列を返す
+//
+// 元配列は変更しない。affectedTrials が空ならそのまま元配列を返す。
+function applyCascadeToTrials(trials, affectedTrials) {
+  const _trials = Array.isArray(trials) ? trials : [];
+  const _affected = Array.isArray(affectedTrials) ? affectedTrials : [];
+  if (_affected.length === 0) return _trials;
+
+  // trial.id → clearField のマップを作る (1 削除につき 1 trial 1 field、重複しない前提)
+  const clearMap = new Map();
+  for (const a of _affected) {
+    if (a && a.trial && a.trial.id && a.clearField) {
+      clearMap.set(a.trial.id, a.clearField);
+    }
+  }
+  if (clearMap.size === 0) return _trials;
+
+  return _trials.map(tr => {
+    if (!tr || !tr.id || !clearMap.has(tr.id)) return tr;
+    const field = clearMap.get(tr.id);
+    return { ...tr, [field]: "" };
+  });
+}
+
+// ── ConfirmDialog 本文用の文言を生成 (UI 文言を 1 箇所に集約、preview_s13 と一致)
+//
+// type に応じた種別ラベルを埋め込み、count が 0 なら追加文言を出さない。
+function describeCascadeMessage(type, count) {
+  const label = type === "tournament" ? "大会"
+              : type === "practice"   ? "練習"
+              : type === "match"      ? "試合"
+              : type === "trial"      ? "試打"
+              : "";
+  if (!label) return { title: "削除の確認", body: "削除しますか？", warn: "この操作は取り消せません。" };
+
+  const title = type === "match" ? "試合記録を削除" : `${label}を削除`;
+  if (!count || count <= 0) {
+    return {
+      title,
+      body: `この${label}を削除しますか？`,
+      warn: "この操作は取り消せません。",
+    };
+  }
+  return {
+    title,
+    body: `この${label}を削除すると、紐付いた試打 ${count} 件の連携情報が外れます。`,
+    note: "(試打自体は残ります)",
+    warn: "この操作は取り消せません。",
+  };
+}
 
 // === src/domain/claudeFormatter.js ===
 // Claude Formatter — Session を Claude に渡せる Markdown 形式へ整形 (§F8.1)
@@ -535,7 +650,8 @@ const formatPracticeForClaude = (p) => {
   if (gear) s += `機材: ${gear}\n`;
   if (p.temp || p.weather) s += `気象: ${[p.temp ? p.temp + "℃" : "", p.weather].filter(Boolean).join(" / ")}\n`;
   if (p.physical) s += `体調: ${p.physical}/5\n`;
-  if (p.focus)    s += `集中: ${p.focus}/5\n`;
+  // focus はテキスト (v2/v3 互換)。数値が混入していたら表示しない
+  if (typeof p.focus === "string" && p.focus) s += `フォーカス: ${p.focus}\n`;
   if (p.heartRateAvg)  s += `平均心拍: ${p.heartRateAvg}bpm\n`;
   if (p.calories)      s += `Active: ${p.calories}kcal\n`;
   if (p.totalCalories) s += `合計: ${p.totalCalories}kcal\n`;
@@ -3409,6 +3525,34 @@ function _pdParseMin(s) {
   return (parseInt(pp[0], 10) || 0) + (parseInt(pp[1], 10) || 0) / 60;
 }
 
+// Read-only rating display (5 ボタン横並び、編集画面 _peRatingRow と同じ見た目)
+function _pdRatingDisplay({ label, value }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+      <span style={{ fontSize: 12, color: C.textSecondary, fontWeight: 500, minWidth: 60 }}>{label}</span>
+      <div style={{ display: "flex", gap: 6, flex: 1, minWidth: 0 }}>
+        {[1, 2, 3, 4, 5].map((n) => {
+          const on = value === n;
+          return (
+            <div
+              key={n}
+              style={{
+                flex: 1, minWidth: 40, minHeight: 36, padding: "6px 0",
+                borderRadius: 6, border: `1px solid ${on ? C.primary : C.border}`,
+                background: on ? C.primary : C.panel,
+                color: on ? "#fff" : C.textSecondary,
+                fontSize: 13, fontWeight: 600, fontFamily: font,
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}
+            >{n}</div>
+          );
+        })}
+      </div>
+      <span style={{ fontSize: 11, color: C.textMuted, fontVariantNumeric: "tabular-nums", minWidth: 28, textAlign: "right" }}>{value || "—"}</span>
+    </div>
+  );
+}
+
 // Apple Watch 4 セル内の 1 セル
 function _pdWatchSumCell({ icon, label, value, unit, valueColor }) {
   if (value == null || value === "") return <span />;
@@ -3545,15 +3689,12 @@ function PracticeDetail({ session, linkedTrials, onLinkedTrialClick }) {
         </_dvSection>
       )}
 
-      {/* 体調 (練習のみ) */}
-      {(p.physical || p.focus) && (
+      {/* 体調 (練習のみ、編集画面と同じ 5 ボタン表示) */}
+      {p.physical ? (
         <_dvSection title="体調">
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-            <_dvInfoCell label="体調" value={p.physical ? `${p.physical} / 5` : ""} />
-            <_dvInfoCell label="集中" value={p.focus    ? `${p.focus} / 5`    : ""} />
-          </div>
+          <_pdRatingDisplay label="体調" value={Number(p.physical) || 0} />
         </_dvSection>
-      )}
+      ) : null}
 
       {/* 統一: 機材 2x2 */}
       {(p.racketName || p.stringMain || p.stringCross || p.tensionMain || p.tensionCross) && (
@@ -3584,9 +3725,10 @@ function PracticeDetail({ session, linkedTrials, onLinkedTrialClick }) {
         </_dvSection>
       )}
 
-      {/* メモ */}
-      {(p.coachNote || p.goodNote || p.improveNote || p.generalNote) && (
+      {/* メモ (focus はテキスト = v2/v3 と同形式、文字列以外は表示しない = legacy 数値の防御) */}
+      {((typeof p.focus === "string" && p.focus) || p.coachNote || p.goodNote || p.improveNote || p.generalNote) && (
         <_dvSection title="メモ">
+          {typeof p.focus === "string" && p.focus && <_dvMemoItem label="フォーカス"  text={p.focus} />}
           {p.coachNote   && <_dvMemoItem label="コーチメモ"  text={p.coachNote} />}
           {p.goodNote    && <_dvMemoItem label="良かった点"  text={p.goodNote} />}
           {p.improveNote && <_dvMemoItem label="改善点"      text={p.improveNote} />}
@@ -3780,17 +3922,22 @@ function PracticeEditForm({ form, errors = {}, onChange, racketNames = [], strin
         </div>
       </div>
 
-      {/* ④ 体調・集中 + Apple Watch */}
+      {/* ④ 体調 + Apple Watch */}
       <div style={{ background: C.panel, border: `1px solid ${C.divider}`, borderRadius: 12, padding: 12, marginBottom: 10 }}>
-        <_peSectionHead num="4" label="体調・集中" />
+        <_peSectionHead num="4" label="体調" />
         <_peRatingRow label="体調" value={Number(form.physical) || 0} onChange={(n) => onChange({ ...form, physical: n })} />
-        <_peRatingRow label="集中" value={Number(form.focus) || 0} onChange={(n) => onChange({ ...form, focus: n })} />
       </div>
       <_peAppleWatchPanel form={form} />
 
-      {/* ⑤ メモ — focus は rating (集中度、上のセクション)、textarea は SCHEMA に無いので作らない */}
+      {/* ⑤ メモ (focus はテキスト、v2/v3 と同じ「今日のテーマ」フィールド) */}
       <div style={{ background: C.panel, border: `1px solid ${C.divider}`, borderRadius: 12, padding: 12, marginBottom: 10 }}>
         <_peSectionHead num="5" label="メモ" />
+        <Textarea
+          label="フォーカス"
+          value={typeof form.focus === "string" ? form.focus : ""}
+          onChange={(v) => onChange({ ...form, focus: v })}
+          placeholder="今日のテーマ / ラケットダウン / フォロースルー拡大..."
+        />
         <Textarea label="コーチメモ" value={form.coachNote || ""} onChange={(v) => onChange({ ...form, coachNote: v })} placeholder="コーチから言われたこと..." />
         <Textarea label="良かった点" value={form.goodNote || ""} onChange={(v) => onChange({ ...form, goodNote: v })} placeholder="できるようになったこと..." />
         <Textarea label="改善点" value={form.improveNote || ""} onChange={(v) => onChange({ ...form, improveNote: v })} placeholder="次回意識したいこと..." />
@@ -4578,6 +4725,10 @@ function _dvMemoItem({ label, text }) {
 function SessionDetailView({ type, session, mode = "detail", tournaments, trials, practices, racketNames, stringNames, venueNames, opponentNames, levelNames, onClose, onEdit, onEditCancel, onSave, onDelete, onOpenLinkedSession, toast, confirm }) {
   const [visible, setVisible] = useState(false);
   const [closing, setClosing] = useState(false);
+  // iOS 風 左端スワイプ で戻る (WIREFRAMES §3.4 戻り経路 4 つの 1 つ、S10 で実装漏れ)
+  const [dragX, setDragX] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const dragRef = useRef({ x0: 0, y0: 0, intent: null }); // intent: null | "h" | "v" | "ignore"
   const reduced = typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   // enter アニメ: mount 後 1 frame で translateX(100%) → translateX(0)
@@ -4599,6 +4750,40 @@ function SessionDetailView({ type, session, mode = "detail", tournaments, trials
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [handleClose]);
+
+  // 左端スワイプ で戻る (タッチ開始位置が左端 30px 以内、右に 100px 以上スワイプで close)
+  const handleTouchStart = useCallback((e) => {
+    const t = e.touches[0];
+    if (!t) return;
+    if (t.clientX > 30) { dragRef.current.intent = "ignore"; return; }
+    dragRef.current = { x0: t.clientX, y0: t.clientY, intent: null };
+    setDragging(true);
+  }, []);
+  const handleTouchMove = useCallback((e) => {
+    if (!dragging || dragRef.current.intent === "ignore") return;
+    const t = e.touches[0];
+    if (!t) return;
+    const dx = t.clientX - dragRef.current.x0;
+    const dy = t.clientY - dragRef.current.y0;
+    if (dragRef.current.intent === null) {
+      if (Math.abs(dx) > 6 || Math.abs(dy) > 6) {
+        dragRef.current.intent = Math.abs(dx) > Math.abs(dy) ? "h" : "v";
+      } else {
+        return;
+      }
+    }
+    if (dragRef.current.intent !== "h") return;
+    if (e.cancelable) e.preventDefault();
+    setDragX(Math.max(0, dx));
+  }, [dragging]);
+  const handleTouchEnd = useCallback(() => {
+    if (!dragging) return;
+    setDragging(false);
+    const finalDx = dragX;
+    setDragX(0);
+    dragRef.current.intent = null;
+    if (finalDx > 100) handleClose();
+  }, [dragging, dragX, handleClose]);
 
   const handleClaudeCopy = async () => {
     let text = "";
@@ -4636,8 +4821,12 @@ function SessionDetailView({ type, session, mode = "detail", tournaments, trials
                     : type === "trial"      ? "試打詳細"
                     : "詳細";
 
-  const slideTransform = (closing || !visible) ? "translateX(100%)" : "translateX(0)";
-  const transitionStyle = reduced ? "none" : `transform ${closing ? 200 : 250}ms cubic-bezier(0.4,0,0.2,1)`;
+  const slideTransform = (closing || !visible)
+    ? "translateX(100%)"
+    : (dragging && dragX > 0 ? `translateX(${dragX}px)` : "translateX(0)");
+  const transitionStyle = dragging
+    ? "none"
+    : (reduced ? "none" : `transform ${closing ? 200 : 250}ms cubic-bezier(0.4,0,0.2,1)`);
 
   // S11: Edit モード時は overlay 内を SessionEditView で置換 (slide-in 共有、再 mount しない)
   if (mode === "edit") {
@@ -4645,6 +4834,10 @@ function SessionDetailView({ type, session, mode = "detail", tournaments, trials
       <div
         role="dialog"
         aria-label={screenTitle + " (編集)"}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchEnd}
         style={{
           position: "fixed", inset: 0, background: C.bg, zIndex: 100,
           display: "flex", flexDirection: "column",
@@ -4656,6 +4849,7 @@ function SessionDetailView({ type, session, mode = "detail", tournaments, trials
           session={session}
           practices={practices}
           tournaments={tournaments}
+          trials={trials}
           racketNames={racketNames}
           stringNames={stringNames}
           venueNames={venueNames}
@@ -4674,6 +4868,10 @@ function SessionDetailView({ type, session, mode = "detail", tournaments, trials
     <div
       role="dialog"
       aria-label={screenTitle}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      onTouchCancel={handleTouchEnd}
       style={{
         position: "fixed", inset: 0, background: C.bg, zIndex: 100,
         display: "flex", flexDirection: "column",
@@ -4763,12 +4961,13 @@ function SessionDetailView({ type, session, mode = "detail", tournaments, trials
 //   type: "tournament" | "practice" | "trial"
 //   session: 編集対象 (=initial form)
 //   practices, tournaments: 試打の linkedXxx 候補生成用
+//   trials: 大会編集 match 削除時の cascade 件数プレビュー用 (S13)
 //   onCancel(): 編集破棄して Detail に戻る (= 親が detail mode に戻す)
 //   onSave(updated): 保存ボタン (親が Firestore + state 更新)
 //   confirm: useConfirm() ({ ask })
 //   toast: useToast() ({ show })
 
-function SessionEditView({ type, session, practices, tournaments, racketNames, stringNames, venueNames, opponentNames, levelNames, onCancel, onSave, confirm, toast }) {
+function SessionEditView({ type, session, practices, tournaments, trials, racketNames, stringNames, venueNames, opponentNames, levelNames, onCancel, onSave, confirm, toast }) {
   const [form, setForm] = useState(() => ({ ...session }));
   const [dirty, setDirty] = useState(false);
 
@@ -4849,11 +5048,12 @@ function SessionEditView({ type, session, practices, tournaments, racketNames, s
       </div>
 
       {/* Body (scrollable) */}
-      <div style={{ flex: 1, overflowY: "auto", padding: 14 }}>
+      <div style={{ flex: 1, overflowY: "auto", padding: "14px 14px 80px" }}>
         {type === "tournament" && (
           <TournamentEditForm
             form={form} errors={errors} onChange={handleChange}
             racketNames={racketNames} stringNames={stringNames} venueNames={venueNames} opponentNames={opponentNames} levelNames={levelNames}
+            trials={trials}
             confirm={confirm} toast={toast}
           />
         )}
@@ -4870,6 +5070,46 @@ function SessionEditView({ type, session, practices, tournaments, racketNames, s
             racketNames={racketNames} stringNames={stringNames} venueNames={venueNames}
           />
         )}
+      </div>
+
+      {/* 下部アクションバー (スマホで親指届く位置に保存・戻るを配置) */}
+      <div style={{
+        flex: "0 0 64px", height: 64,
+        display: "flex", alignItems: "center", gap: 10, padding: "0 14px",
+        background: C.panel, borderTop: `1px solid ${C.divider}`,
+        boxShadow: "0 -2px 8px rgba(0,0,0,0.04)",
+      }}>
+        <button
+          onClick={handleBack}
+          aria-label="戻る (編集を破棄)"
+          style={{
+            flex: "0 0 96px", minHeight: 44, padding: "0 14px",
+            background: C.panel, border: `1px solid ${C.border}`, borderRadius: 8,
+            color: C.text, fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: font,
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
+          }}
+        >
+          <Icon name="arrow-left" size={16} />
+          戻る
+        </button>
+        <button
+          onClick={handleSaveClick}
+          aria-label="保存"
+          disabled={!valid}
+          title={valid ? "保存" : "必須項目が未入力です"}
+          style={{
+            flex: 1, minHeight: 44, padding: "0 14px",
+            background: valid ? C.primary : C.panel2,
+            border: `1px solid ${valid ? C.primary : C.border}`, borderRadius: 8,
+            color: valid ? "#fff" : C.textMuted,
+            fontSize: 15, fontWeight: 700,
+            cursor: valid ? "pointer" : "not-allowed", fontFamily: font,
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+          }}
+        >
+          <Icon name="save" size={18} color={valid ? "#fff" : C.textMuted} />
+          保存
+        </button>
       </div>
     </div>
   );
@@ -5861,7 +6101,7 @@ function _visibilityToggle({ value, onChange }) {
   );
 }
 
-function TournamentEditForm({ form, errors = {}, onChange, confirm, toast, racketNames = [], stringNames = [], venueNames = [], opponentNames = [], levelNames = [] }) {
+function TournamentEditForm({ form, errors = {}, onChange, confirm, toast, racketNames = [], stringNames = [], venueNames = [], opponentNames = [], levelNames = [], trials = [] }) {
   const set = (k, v) => onChange({ ...form, [k]: v });
   const matches = Array.isArray(form.matches) ? form.matches : [];
   const wins = matches.filter(m => m.result === "勝利").length;
@@ -5885,10 +6125,20 @@ function TournamentEditForm({ form, errors = {}, onChange, confirm, toast, racke
     setMatchModalState(null);
   };
   const handleDeleteMatch = (id) => {
+    // S13: 削除対象の match に linkedMatchId で紐付く試打件数をプレビュー (実 cascade は保存時、app.jsx handleSave)
+    const cascade = computeCascade({ type: "match", item: { id }, trials });
+    const desc = describeCascadeMessage("match", cascade.count);
+    const messageNode = (
+      <span style={{ display: "inline-block" }}>
+        {desc.body}
+        {desc.note && (<><br/><span style={{ fontSize: 12, color: C.textMuted }}>{desc.note}</span></>)}
+        <br/><span style={{ fontSize: 12, color: C.textMuted }}>{desc.warn}</span>
+      </span>
+    );
     confirm.ask(
-      "この試合記録を削除しますか？",
+      messageNode,
       () => onChange({ ...form, matches: matches.filter(m => m.id !== id) }),
-      { title: "試合記録を削除", yesLabel: "削除する", yesVariant: "danger", icon: "trash-2" }
+      { title: desc.title, yesLabel: "削除する", yesVariant: "danger", icon: "trash-2" }
     );
   };
 
@@ -7231,6 +7481,8 @@ function TennisDB() {
 
   // S11: 編集保存 (新規/更新両対応、S12 でも再利用予定)
   //      core/03_storage.js の save() を使用 (cleanForFirestore + 800ms debounce、v3 互換)
+  // S13: tournament 編集中に matches[] が削除されていたら、紐付く trial.linkedMatchId を cascade クリア
+  //      (cascade は保存時に確定 = 編集破棄なら trials も変更されない)
   const handleSave = async (type, updated) => {
     if (!updated || !updated.id) return;
     const key = type === "tournament" ? "tournaments" : type === "practice" ? "practices" : "trials";
@@ -7239,38 +7491,97 @@ function TennisDB() {
     const newItems = exists
       ? current.map(x => x.id === updated.id ? updated : x)
       : [updated, ...(current || [])];
+
+    // S13: match 削除に伴う trial cascade (tournament 更新時のみ、新規追加には適用しない)
+    let newTrials = trials;
+    let cascadeCount = 0;
+    if (type === "tournament" && exists && Array.isArray(exists.matches) && Array.isArray(updated.matches)) {
+      const newIds = new Set(updated.matches.map(m => m && m.id).filter(Boolean));
+      const removedMatches = exists.matches.filter(m => m && m.id && !newIds.has(m.id));
+      for (const removed of removedMatches) {
+        const c = computeCascade({ type: "match", item: removed, trials: newTrials });
+        if (c.count > 0) {
+          newTrials = applyCascadeToTrials(newTrials, c.affectedTrials);
+          cascadeCount += c.count;
+        }
+      }
+    }
+
     // 即時 state 更新 (onSnapshot 到来前に UI 反映)
     if (type === "tournament") setTournaments(newItems);
     else if (type === "practice") setPractices(newItems);
     else setTrials(newItems);
+    if (cascadeCount > 0) setTrials(newTrials);
+
     lsSave(KEYS[key], newItems);
+    if (cascadeCount > 0) lsSave(KEYS.trials, newTrials);
+
     // Firestore は core/03_storage.js の save() で 800ms デバウンス書き込み
     save(KEYS[key], newItems);
+    if (cascadeCount > 0) save(KEYS.trials, newTrials);
+
     // Detail に戻る、最新データで再描画
     setDetail({ type, session: updated, mode: "detail" });
-    toast.show("保存しました", "success");
+    const msg = cascadeCount > 0
+      ? `保存しました (試合削除に伴い試打 ${cascadeCount} 件の連携を外しました)`
+      : "保存しました";
+    toast.show(msg, "success");
   };
 
-  // S10: 削除 (S17 で実装予定の cascade 本格対応までの簡易版)
-  //      linkedPracticeId/linkedMatchId の孤児化対応は別 Stage で domain/cascade.js に切り出す
+  // S13: 削除 + cascade (REQUIREMENTS N2.2)
+  //      tournament 削除 → 紐付く trial.linkedMatchId を空に
+  //      practice 削除 → 紐付く trial.linkedPracticeId を空に
+  //      試打自体は残す。ConfirmDialog に件数を事前提示し、toast で結果報告。
+  //      cascade 計算は src/domain/cascade.js (純関数)
   const handleDelete = (type, item) => {
     if (!item || !item.id) return;
     const typeLabel = type === "tournament" ? "大会" : type === "practice" ? "練習" : "試打";
     const key = type === "tournament" ? "tournaments" : type === "practice" ? "practices" : "trials";
+
+    // S13: 削除前に cascade 影響を計算 (削除対象が trial の場合は count=0)
+    const cascade = computeCascade({ type, item, trials });
+    const desc = describeCascadeMessage(type, cascade.count);
+    const messageNode = (
+      <span style={{ display: "inline-block" }}>
+        {desc.body}
+        {desc.note && (<><br/><span style={{ fontSize: 12, color: C.textMuted }}>{desc.note}</span></>)}
+        <br/><span style={{ fontSize: 12, color: C.textMuted }}>{desc.warn}</span>
+      </span>
+    );
+
     cfm.ask(
-      `この${typeLabel}を削除しますか？この操作は取り消せません。`,
+      messageNode,
       async () => {
         const current = type === "tournament" ? tournaments : type === "practice" ? practices : trials;
         const newItems = (current || []).filter(x => x.id !== item.id);
+        // cascade 適用後の trials (削除対象が trial 自身、または影響 0 件のときは現状維持)
+        const cascadeApplied = (type !== "trial" && cascade.count > 0);
+        const newTrials = cascadeApplied ? applyCascadeToTrials(trials, cascade.affectedTrials) : trials;
+
         // 即時 state 更新 (onSnapshot 到来前に UI 反映)
         if (type === "tournament") setTournaments(newItems);
         else if (type === "practice") setPractices(newItems);
         else setTrials(newItems);
+        if (cascadeApplied) setTrials(newTrials);
+
+        // localStorage
         lsSave(KEYS[key], newItems);
-        // Firestore 書き込み
+        if (cascadeApplied) lsSave(KEYS.trials, newTrials);
+
+        // Firestore 書き込み (削除対象 + cascade 後 trials を並行)
         if (user) {
           try {
-            await fbDb.collection("users").doc(user.uid).collection("data").doc(key).set({ items: newItems }, { merge: false });
+            const writes = [
+              fbDb.collection("users").doc(user.uid).collection("data").doc(key)
+                .set({ items: cleanForFirestore(newItems) }, { merge: false }),
+            ];
+            if (cascadeApplied) {
+              writes.push(
+                fbDb.collection("users").doc(user.uid).collection("data").doc("trials")
+                  .set({ items: cleanForFirestore(newTrials) }, { merge: false })
+              );
+            }
+            await Promise.all(writes);
           } catch (e) {
             console.error("Firestore delete error:", e);
             toast.show("クラウド同期失敗 (ローカルは削除済み)", "warning");
@@ -7279,9 +7590,13 @@ function TennisDB() {
           }
         }
         setDetail(null);
-        toast.show(`${typeLabel}を削除しました`, "success");
+        // toast: cascade 件数が 0 なら従来文言、>0 なら追記
+        const msg = cascadeApplied
+          ? `${typeLabel}を削除しました (試打 ${cascade.count} 件の連携を外しました)`
+          : `${typeLabel}を削除しました`;
+        toast.show(msg, "success");
       },
-      { title: "削除の確認", yesLabel: "削除", yesVariant: "danger", icon: "trash-2" }
+      { title: desc.title, yesLabel: "削除", yesVariant: "danger", icon: "trash-2" }
     );
   };
 

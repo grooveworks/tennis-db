@@ -194,6 +194,10 @@ function _dvMemoItem({ label, text }) {
 function SessionDetailView({ type, session, mode = "detail", tournaments, trials, practices, racketNames, stringNames, venueNames, opponentNames, levelNames, onClose, onEdit, onEditCancel, onSave, onDelete, onOpenLinkedSession, toast, confirm }) {
   const [visible, setVisible] = useState(false);
   const [closing, setClosing] = useState(false);
+  // iOS 風 左端スワイプ で戻る (WIREFRAMES §3.4 戻り経路 4 つの 1 つ、S10 で実装漏れ)
+  const [dragX, setDragX] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const dragRef = useRef({ x0: 0, y0: 0, intent: null }); // intent: null | "h" | "v" | "ignore"
   const reduced = typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   // enter アニメ: mount 後 1 frame で translateX(100%) → translateX(0)
@@ -215,6 +219,40 @@ function SessionDetailView({ type, session, mode = "detail", tournaments, trials
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [handleClose]);
+
+  // 左端スワイプ で戻る (タッチ開始位置が左端 30px 以内、右に 100px 以上スワイプで close)
+  const handleTouchStart = useCallback((e) => {
+    const t = e.touches[0];
+    if (!t) return;
+    if (t.clientX > 30) { dragRef.current.intent = "ignore"; return; }
+    dragRef.current = { x0: t.clientX, y0: t.clientY, intent: null };
+    setDragging(true);
+  }, []);
+  const handleTouchMove = useCallback((e) => {
+    if (!dragging || dragRef.current.intent === "ignore") return;
+    const t = e.touches[0];
+    if (!t) return;
+    const dx = t.clientX - dragRef.current.x0;
+    const dy = t.clientY - dragRef.current.y0;
+    if (dragRef.current.intent === null) {
+      if (Math.abs(dx) > 6 || Math.abs(dy) > 6) {
+        dragRef.current.intent = Math.abs(dx) > Math.abs(dy) ? "h" : "v";
+      } else {
+        return;
+      }
+    }
+    if (dragRef.current.intent !== "h") return;
+    if (e.cancelable) e.preventDefault();
+    setDragX(Math.max(0, dx));
+  }, [dragging]);
+  const handleTouchEnd = useCallback(() => {
+    if (!dragging) return;
+    setDragging(false);
+    const finalDx = dragX;
+    setDragX(0);
+    dragRef.current.intent = null;
+    if (finalDx > 100) handleClose();
+  }, [dragging, dragX, handleClose]);
 
   const handleClaudeCopy = async () => {
     let text = "";
@@ -252,8 +290,12 @@ function SessionDetailView({ type, session, mode = "detail", tournaments, trials
                     : type === "trial"      ? "試打詳細"
                     : "詳細";
 
-  const slideTransform = (closing || !visible) ? "translateX(100%)" : "translateX(0)";
-  const transitionStyle = reduced ? "none" : `transform ${closing ? 200 : 250}ms cubic-bezier(0.4,0,0.2,1)`;
+  const slideTransform = (closing || !visible)
+    ? "translateX(100%)"
+    : (dragging && dragX > 0 ? `translateX(${dragX}px)` : "translateX(0)");
+  const transitionStyle = dragging
+    ? "none"
+    : (reduced ? "none" : `transform ${closing ? 200 : 250}ms cubic-bezier(0.4,0,0.2,1)`);
 
   // S11: Edit モード時は overlay 内を SessionEditView で置換 (slide-in 共有、再 mount しない)
   if (mode === "edit") {
@@ -261,6 +303,10 @@ function SessionDetailView({ type, session, mode = "detail", tournaments, trials
       <div
         role="dialog"
         aria-label={screenTitle + " (編集)"}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchEnd}
         style={{
           position: "fixed", inset: 0, background: C.bg, zIndex: 100,
           display: "flex", flexDirection: "column",
@@ -272,6 +318,7 @@ function SessionDetailView({ type, session, mode = "detail", tournaments, trials
           session={session}
           practices={practices}
           tournaments={tournaments}
+          trials={trials}
           racketNames={racketNames}
           stringNames={stringNames}
           venueNames={venueNames}
@@ -290,6 +337,10 @@ function SessionDetailView({ type, session, mode = "detail", tournaments, trials
     <div
       role="dialog"
       aria-label={screenTitle}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      onTouchCancel={handleTouchEnd}
       style={{
         position: "fixed", inset: 0, background: C.bg, zIndex: 100,
         display: "flex", flexDirection: "column",

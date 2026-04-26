@@ -10,12 +10,13 @@
 //   type: "tournament" | "practice" | "trial"
 //   session: 編集対象 (=initial form)
 //   practices, tournaments: 試打の linkedXxx 候補生成用
+//   trials: 大会編集 match 削除時の cascade 件数プレビュー用 (S13)
 //   onCancel(): 編集破棄して Detail に戻る (= 親が detail mode に戻す)
 //   onSave(updated): 保存ボタン (親が Firestore + state 更新)
 //   confirm: useConfirm() ({ ask })
 //   toast: useToast() ({ show })
 
-function SessionEditView({ type, session, practices, tournaments, racketNames, stringNames, venueNames, opponentNames, levelNames, onCancel, onSave, confirm, toast }) {
+function SessionEditView({ type, session, practices, tournaments, trials, racketNames, stringNames, venueNames, opponentNames, levelNames, onCancel, onSave, confirm, toast }) {
   const [form, setForm] = useState(() => ({ ...session }));
   const [dirty, setDirty] = useState(false);
 
@@ -96,11 +97,12 @@ function SessionEditView({ type, session, practices, tournaments, racketNames, s
       </div>
 
       {/* Body (scrollable) */}
-      <div style={{ flex: 1, overflowY: "auto", padding: 14 }}>
+      <div style={{ flex: 1, overflowY: "auto", padding: "14px 14px 80px" }}>
         {type === "tournament" && (
           <TournamentEditForm
             form={form} errors={errors} onChange={handleChange}
             racketNames={racketNames} stringNames={stringNames} venueNames={venueNames} opponentNames={opponentNames} levelNames={levelNames}
+            trials={trials}
             confirm={confirm} toast={toast}
           />
         )}
@@ -117,6 +119,46 @@ function SessionEditView({ type, session, practices, tournaments, racketNames, s
             racketNames={racketNames} stringNames={stringNames} venueNames={venueNames}
           />
         )}
+      </div>
+
+      {/* 下部アクションバー (スマホで親指届く位置に保存・戻るを配置) */}
+      <div style={{
+        flex: "0 0 64px", height: 64,
+        display: "flex", alignItems: "center", gap: 10, padding: "0 14px",
+        background: C.panel, borderTop: `1px solid ${C.divider}`,
+        boxShadow: "0 -2px 8px rgba(0,0,0,0.04)",
+      }}>
+        <button
+          onClick={handleBack}
+          aria-label="戻る (編集を破棄)"
+          style={{
+            flex: "0 0 96px", minHeight: 44, padding: "0 14px",
+            background: C.panel, border: `1px solid ${C.border}`, borderRadius: 8,
+            color: C.text, fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: font,
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
+          }}
+        >
+          <Icon name="arrow-left" size={16} />
+          戻る
+        </button>
+        <button
+          onClick={handleSaveClick}
+          aria-label="保存"
+          disabled={!valid}
+          title={valid ? "保存" : "必須項目が未入力です"}
+          style={{
+            flex: 1, minHeight: 44, padding: "0 14px",
+            background: valid ? C.primary : C.panel2,
+            border: `1px solid ${valid ? C.primary : C.border}`, borderRadius: 8,
+            color: valid ? "#fff" : C.textMuted,
+            fontSize: 15, fontWeight: 700,
+            cursor: valid ? "pointer" : "not-allowed", fontFamily: font,
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+          }}
+        >
+          <Icon name="save" size={18} color={valid ? "#fff" : C.textMuted} />
+          保存
+        </button>
       </div>
     </div>
   );

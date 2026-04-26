@@ -18,6 +18,34 @@ function _pdParseMin(s) {
   return (parseInt(pp[0], 10) || 0) + (parseInt(pp[1], 10) || 0) / 60;
 }
 
+// Read-only rating display (5 ボタン横並び、編集画面 _peRatingRow と同じ見た目)
+function _pdRatingDisplay({ label, value }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+      <span style={{ fontSize: 12, color: C.textSecondary, fontWeight: 500, minWidth: 60 }}>{label}</span>
+      <div style={{ display: "flex", gap: 6, flex: 1, minWidth: 0 }}>
+        {[1, 2, 3, 4, 5].map((n) => {
+          const on = value === n;
+          return (
+            <div
+              key={n}
+              style={{
+                flex: 1, minWidth: 40, minHeight: 36, padding: "6px 0",
+                borderRadius: 6, border: `1px solid ${on ? C.primary : C.border}`,
+                background: on ? C.primary : C.panel,
+                color: on ? "#fff" : C.textSecondary,
+                fontSize: 13, fontWeight: 600, fontFamily: font,
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}
+            >{n}</div>
+          );
+        })}
+      </div>
+      <span style={{ fontSize: 11, color: C.textMuted, fontVariantNumeric: "tabular-nums", minWidth: 28, textAlign: "right" }}>{value || "—"}</span>
+    </div>
+  );
+}
+
 // Apple Watch 4 セル内の 1 セル
 function _pdWatchSumCell({ icon, label, value, unit, valueColor }) {
   if (value == null || value === "") return <span />;
@@ -154,15 +182,12 @@ function PracticeDetail({ session, linkedTrials, onLinkedTrialClick }) {
         </_dvSection>
       )}
 
-      {/* 体調 (練習のみ) */}
-      {(p.physical || p.focus) && (
+      {/* 体調 (練習のみ、編集画面と同じ 5 ボタン表示) */}
+      {p.physical ? (
         <_dvSection title="体調">
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-            <_dvInfoCell label="体調" value={p.physical ? `${p.physical} / 5` : ""} />
-            <_dvInfoCell label="集中" value={p.focus    ? `${p.focus} / 5`    : ""} />
-          </div>
+          <_pdRatingDisplay label="体調" value={Number(p.physical) || 0} />
         </_dvSection>
-      )}
+      ) : null}
 
       {/* 統一: 機材 2x2 */}
       {(p.racketName || p.stringMain || p.stringCross || p.tensionMain || p.tensionCross) && (
@@ -193,9 +218,10 @@ function PracticeDetail({ session, linkedTrials, onLinkedTrialClick }) {
         </_dvSection>
       )}
 
-      {/* メモ */}
-      {(p.coachNote || p.goodNote || p.improveNote || p.generalNote) && (
+      {/* メモ (focus はテキスト = v2/v3 と同形式、文字列以外は表示しない = legacy 数値の防御) */}
+      {((typeof p.focus === "string" && p.focus) || p.coachNote || p.goodNote || p.improveNote || p.generalNote) && (
         <_dvSection title="メモ">
+          {typeof p.focus === "string" && p.focus && <_dvMemoItem label="フォーカス"  text={p.focus} />}
           {p.coachNote   && <_dvMemoItem label="コーチメモ"  text={p.coachNote} />}
           {p.goodNote    && <_dvMemoItem label="良かった点"  text={p.goodNote} />}
           {p.improveNote && <_dvMemoItem label="改善点"      text={p.improveNote} />}

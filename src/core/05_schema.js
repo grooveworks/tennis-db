@@ -47,7 +47,7 @@ const SCHEMA={
     {key:"temp",label:"気温",type:"number"},
     {key:"weather",label:"天気",type:"text"},
     {key:"physical",label:"体調",type:"rating"},
-    {key:"focus",label:"集中",type:"rating"},
+    {key:"focus",label:"フォーカス",type:"textarea",combinable:true},
     {key:"coachNote",label:"コーチメモ",type:"textarea",combinable:true},
     {key:"goodNote",label:"良かった点",type:"textarea",combinable:true},
     {key:"improveNote",label:"改善点",type:"textarea",combinable:true},

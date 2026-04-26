@@ -77,7 +77,7 @@ function _visibilityToggle({ value, onChange }) {
   );
 }
 
-function TournamentEditForm({ form, errors = {}, onChange, confirm, toast, racketNames = [], stringNames = [], venueNames = [], opponentNames = [], levelNames = [] }) {
+function TournamentEditForm({ form, errors = {}, onChange, confirm, toast, racketNames = [], stringNames = [], venueNames = [], opponentNames = [], levelNames = [], trials = [] }) {
   const set = (k, v) => onChange({ ...form, [k]: v });
   const matches = Array.isArray(form.matches) ? form.matches : [];
   const wins = matches.filter(m => m.result === "勝利").length;
@@ -101,10 +101,20 @@ function TournamentEditForm({ form, errors = {}, onChange, confirm, toast, racke
     setMatchModalState(null);
   };
   const handleDeleteMatch = (id) => {
+    // S13: 削除対象の match に linkedMatchId で紐付く試打件数をプレビュー (実 cascade は保存時、app.jsx handleSave)
+    const cascade = computeCascade({ type: "match", item: { id }, trials });
+    const desc = describeCascadeMessage("match", cascade.count);
+    const messageNode = (
+      <span style={{ display: "inline-block" }}>
+        {desc.body}
+        {desc.note && (<><br/><span style={{ fontSize: 12, color: C.textMuted }}>{desc.note}</span></>)}
+        <br/><span style={{ fontSize: 12, color: C.textMuted }}>{desc.warn}</span>
+      </span>
+    );
     confirm.ask(
-      "この試合記録を削除しますか？",
+      messageNode,
       () => onChange({ ...form, matches: matches.filter(m => m.id !== id) }),
-      { title: "試合記録を削除", yesLabel: "削除する", yesVariant: "danger", icon: "trash-2" }
+      { title: desc.title, yesLabel: "削除する", yesVariant: "danger", icon: "trash-2" }
     );
   };
 

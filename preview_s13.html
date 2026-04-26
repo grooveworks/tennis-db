@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>preview_s13 — Session 削除 + cascade ConfirmDialog</title>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;background:#e8eaed;padding:28px 16px 48px;color:#202124}
+  h1{font-size:18px;margin-bottom:6px}
+  h2{font-size:15px;margin:32px 0 8px;padding:10px 14px;border-radius:8px;background:#202124;color:#fff;display:inline-block}
+  .note{font-size:12px;color:#5f6368;margin-bottom:14px;line-height:1.7;max-width:920px}
+  .note b{color:#202124}
+  .note code{background:#f1f3f4;padding:2px 6px;border-radius:4px;font-size:11px}
+  .note ul{margin:6px 0 0 18px}
+
+  .row{display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap;margin-bottom:24px}
+  .phone-wrap{display:flex;flex-direction:column;align-items:center;gap:8px}
+  .phone-label{font-size:11px;font-weight:700;padding:4px 10px;border-radius:4px;background:#fff;color:#202124;border:1px solid #dadce0}
+  .phone-label.case-a{background:#e6f4ea;color:#137333;border-color:#0f9d58}
+  .phone-label.case-b{background:#fef7e0;color:#a04f00;border-color:#f9ab00}
+  .phone-label.case-c{background:#e8f0fe;color:#0d47a1;border-color:#1a73e8}
+  .phone-label.case-d{background:#fce8e6;color:#c5221f;border-color:#d93025}
+  .phone-label.case-e{background:#f3e8fd;color:#5b2d8e;border-color:#8430ce}
+
+  .phone{width:380px;background:#f8f9fa;border:7px solid #202124;border-radius:42px;overflow:hidden;position:relative;box-shadow:0 8px 24px rgba(0,0,0,.12)}
+  .screen{background:#f8f9fa;display:flex;flex-direction:column;min-height:680px;position:relative}
+
+  .header{height:56px;flex:0 0 56px;display:flex;align-items:center;gap:8px;padding:0 8px;background:#fff;border-bottom:1px solid #e8eaed;position:relative;z-index:1}
+  .btn-icon{width:44px;height:44px;display:flex;align-items:center;justify-content:center;background:none;border:none;cursor:pointer;color:#202124;border-radius:8px}
+  .btn-icon svg{width:24px;height:24px}
+  .header-title{flex:1;font-size:16px;font-weight:600}
+
+  .body{padding:14px;overflow-y:auto;flex:1}
+
+  /* Detail view 風背景 */
+  .det-strip{height:6px;border-radius:3px;margin-bottom:10px}
+  .det-strip.tour{background:#f9ab00}
+  .det-strip.prac{background:#0f9d58}
+  .det-meta{font-size:11px;color:#5f6368;margin-bottom:4px}
+  .det-title{font-size:18px;font-weight:700;margin-bottom:6px}
+  .det-card{background:#fff;border:1px solid #dadce0;border-radius:10px;padding:12px;margin-bottom:8px;font-size:12px;color:#5f6368;line-height:1.6}
+  .det-card .lbl{color:#80868b;font-size:11px;display:block;margin-bottom:2px}
+  .det-card .val{color:#202124;font-size:13px;font-weight:500}
+  .det-card .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+  .det-actions{display:flex;gap:8px;padding:10px 14px;background:#fff;border-top:1px solid #e8eaed}
+  .det-actions button{flex:1;height:42px;border-radius:10px;border:none;font-size:13px;font-weight:600;cursor:pointer}
+  .btn-edit{background:#fff;color:#1a73e8;border:1px solid #dadce0 !important}
+  .btn-copy{background:#fff;color:#5f6368;border:1px solid #dadce0 !important}
+  .btn-del{background:#fff;color:#d93025;border:1px solid #fad2cf !important}
+  .btn-del-active{background:#fce8e6 !important}
+
+  /* TournamentEditForm 内のミニカード (case D 用) */
+  .match-row{background:#fff;border:1px solid #dadce0;border-radius:8px;padding:10px;margin-bottom:6px;display:flex;align-items:center;gap:8px}
+  .match-row .ico{width:24px;height:24px;color:#5f6368}
+  .match-row .info{flex:1;font-size:12px}
+  .match-row .info .opp{font-weight:600;color:#202124;font-size:13px}
+  .match-row .info .res{color:#5f6368;font-size:11px;margin-top:2px}
+  .match-row .del-mini{width:32px;height:32px;display:flex;align-items:center;justify-content:center;border:none;background:none;color:#d93025;cursor:pointer;border-radius:6px}
+  .match-row .del-mini.active{background:#fce8e6}
+
+  /* ConfirmDialog (DESIGN_SYSTEM §8.5.10 / WIREFRAMES §2.5) */
+  .modal-overlay{position:absolute;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:20px;z-index:100}
+  .confirm-box{background:#fff;border-radius:14px;padding:20px;max-width:340px;width:100%;box-shadow:0 12px 28px rgba(0,0,0,.25)}
+  .confirm-icon{width:44px;height:44px;border-radius:22px;background:#fce8e6;color:#d93025;display:flex;align-items:center;justify-content:center;margin-bottom:12px}
+  .confirm-icon svg{width:22px;height:22px}
+  .confirm-title{font-size:16px;font-weight:700;color:#202124;margin-bottom:8px}
+  .confirm-body{font-size:13px;color:#3c4043;line-height:1.6;margin-bottom:16px}
+  .confirm-body .em-line{display:block;margin-top:6px;color:#5f6368;font-size:12px}
+  .confirm-body .warn-line{display:block;margin-top:8px;color:#a04f00;font-size:12px;font-weight:600}
+  .confirm-body b{color:#d93025;font-weight:700}
+  .confirm-actions{display:flex;gap:8px;justify-content:flex-end}
+  .confirm-actions button{height:40px;padding:0 16px;border-radius:8px;border:none;font-size:13px;font-weight:600;cursor:pointer}
+  .btn-cancel{background:#fff;color:#1a73e8;border:1px solid #dadce0 !important}
+  .btn-confirm{background:#d93025;color:#fff}
+
+  /* Toast (case E) */
+  .toast-wrap{position:absolute;left:0;right:0;bottom:80px;display:flex;justify-content:center;z-index:120}
+  .toast{background:#202124;color:#fff;padding:12px 18px;border-radius:10px;font-size:13px;box-shadow:0 4px 12px rgba(0,0,0,.25);max-width:320px;line-height:1.5}
+  .toast .toast-line2{display:block;margin-top:2px;font-size:11px;color:#bdc1c6}
+
+  /* TabBar (背景) */
+  .tabbar{height:56px;flex:0 0 56px;background:#fff;border-top:1px solid #dadce0;display:flex;align-items:center;justify-content:space-around}
+  .tab{display:flex;flex-direction:column;align-items:center;gap:2px;color:#80868b;font-size:11px}
+  .tab.on{color:#1a73e8}
+  .tab svg{width:22px;height:22px}
+
+  /* legend */
+  .legend{background:#fff;border:1px solid #dadce0;border-radius:10px;padding:14px 18px;margin-bottom:18px;max-width:920px;font-size:12px;line-height:1.7}
+  .legend h3{font-size:13px;margin-bottom:6px}
+  .legend table{width:100%;border-collapse:collapse;margin-top:6px}
+  .legend th,.legend td{text-align:left;padding:6px 10px;border-bottom:1px solid #e8eaed;vertical-align:top}
+  .legend th{background:#f8f9fa;font-size:11px;color:#5f6368;font-weight:700}
+  .legend td code{background:#f1f3f4;padding:1px 5px;border-radius:3px;font-size:11px}
+  .legend .ok{color:#137333;font-weight:700}
+</style>
+</head>
+<body>
+
+<h1>preview_s13 — Session 削除 + cascade ConfirmDialog</h1>
+<p class="note">
+  Stage S13 = Session 削除時に <code>linkedPracticeId</code> / <code>linkedMatchId</code> を持つ試打 (trial) の連携を自動クリアする<b>安全削除</b>。<br>
+  確認ダイアログには影響件数を事前提示し、<b>試打自体は残す</b>(連携 ID のみ空文字に書き換え)。<br>
+  本プロトは ConfirmDialog 文言とトーストの 5 ケースを視覚確認するためのもの。実装前のレビュー用。
+</p>
+
+<div class="legend">
+  <h3>cascade 仕様まとめ</h3>
+  <table>
+    <tr><th>削除対象</th><th>cascade 対象</th><th>クリアする field</th><th>影響件数の算出</th></tr>
+    <tr><td>大会 (tournament)</td><td>その大会の matches[].id を linkedMatchId に持つ trial</td><td><code>linkedMatchId = ""</code></td><td>matches[] を走査して trial を逆引き</td></tr>
+    <tr><td>練習 (practice)</td><td><code>linkedPracticeId === practice.id</code> の trial</td><td><code>linkedPracticeId = ""</code></td><td>trial 1 走で抽出</td></tr>
+    <tr><td>試合 (match) ※大会編集画面</td><td><code>linkedMatchId === match.id</code> の trial</td><td><code>linkedMatchId = ""</code></td><td>trial 1 走で抽出</td></tr>
+    <tr><td>試打 (trial)</td><td>(無し — 試打は連携元、cascade 対象外)</td><td>—</td><td>件数表示しない</td></tr>
+  </table>
+</div>
+
+<!-- ───────── Case A : 連携 0 件 (現状文言維持) ───────── -->
+<h2>Case A — 連携 0 件 (現状文言を維持)</h2>
+<p class="note">
+  削除対象に紐付く試打が 0 件のとき。S10 までの文言と同一、追加情報は出さない (情報過多回避)。
+</p>
+<div class="row">
+  <div class="phone-wrap">
+    <div class="phone-label case-a">A. 大会詳細 → 削除タップ → 0 件</div>
+    <div class="phone"><div class="screen">
+      <div class="header">
+        <button class="btn-icon"><i data-lucide="arrow-left"></i></button>
+        <div class="header-title">大会詳細</div>
+        <button class="btn-icon"><i data-lucide="more-vertical"></i></button>
+      </div>
+      <div class="body">
+        <div class="det-strip tour"></div>
+        <div class="det-meta">2026/04/12 (日)</div>
+        <div class="det-title">所沢ベテラン大会</div>
+        <div class="det-card">
+          <span class="lbl">クラス / 形式</span>
+          <span class="val">中上級 / シングルス</span>
+        </div>
+        <div class="det-card grid3">
+          <div><span class="lbl">会場</span><span class="val">所沢市営</span></div>
+          <div><span class="lbl">気温</span><span class="val">18℃</span></div>
+          <div><span class="lbl">天気</span><span class="val">晴</span></div>
+        </div>
+      </div>
+      <!-- ConfirmDialog -->
+      <div class="modal-overlay">
+        <div class="confirm-box">
+          <div class="confirm-icon"><i data-lucide="trash-2"></i></div>
+          <div class="confirm-title">大会を削除</div>
+          <div class="confirm-body">
+            この大会を削除しますか？<br>
+            <span class="em-line">この操作は取り消せません。</span>
+          </div>
+          <div class="confirm-actions">
+            <button class="btn-cancel">キャンセル</button>
+            <button class="btn-confirm">削除</button>
+          </div>
+        </div>
+      </div>
+      <div class="tabbar">
+        <div class="tab"><i data-lucide="home"></i><span>ホーム</span></div>
+        <div class="tab on"><i data-lucide="list"></i><span>セッション</span></div>
+        <div class="tab"><i data-lucide="circle"></i><span>機材</span></div>
+        <div class="tab"><i data-lucide="clipboard"></i><span>計画</span></div>
+        <div class="tab"><i data-lucide="bar-chart-2"></i><span>分析</span></div>
+      </div>
+    </div></div>
+  </div>
+</div>
+
+<!-- ───────── Case B : 大会 (tournament) 削除 → 試打 3 件影響 ───────── -->
+<h2>Case B — 大会削除で試打 3 件の連携が外れる</h2>
+<p class="note">
+  3 試合分の matches[] のうち、それぞれ別の試打が linkedMatchId で紐付いているケース。<br>
+  ダイアログ本文に件数を埋め込み、<b>試打自体は残ること</b>を明示。
+</p>
+<div class="row">
+  <div class="phone-wrap">
+    <div class="phone-label case-b">B. 大会詳細 → 削除タップ → 3 件影響</div>
+    <div class="phone"><div class="screen">
+      <div class="header">
+        <button class="btn-icon"><i data-lucide="arrow-left"></i></button>
+        <div class="header-title">大会詳細</div>
+        <button class="btn-icon"><i data-lucide="more-vertical"></i></button>
+      </div>
+      <div class="body">
+        <div class="det-strip tour"></div>
+        <div class="det-meta">2026/03/22 (日)</div>
+        <div class="det-title">埼玉県オープン</div>
+        <div class="det-card">
+          <span class="lbl">試合数</span>
+          <span class="val">3 試合 (それぞれに試打が紐付き中)</span>
+        </div>
+      </div>
+      <div class="modal-overlay">
+        <div class="confirm-box">
+          <div class="confirm-icon"><i data-lucide="trash-2"></i></div>
+          <div class="confirm-title">大会を削除</div>
+          <div class="confirm-body">
+            この大会を削除すると、紐付いた試打 <b>3 件</b> の連携情報が外れます。<br>
+            <span class="em-line">(試打自体は残ります)</span>
+            <span class="warn-line">この操作は取り消せません。</span>
+          </div>
+          <div class="confirm-actions">
+            <button class="btn-cancel">キャンセル</button>
+            <button class="btn-confirm">削除</button>
+          </div>
+        </div>
+      </div>
+      <div class="tabbar">
+        <div class="tab"><i data-lucide="home"></i><span>ホーム</span></div>
+        <div class="tab on"><i data-lucide="list"></i><span>セッション</span></div>
+        <div class="tab"><i data-lucide="circle"></i><span>機材</span></div>
+        <div class="tab"><i data-lucide="clipboard"></i><span>計画</span></div>
+        <div class="tab"><i data-lucide="bar-chart-2"></i><span>分析</span></div>
+      </div>
+    </div></div>
+  </div>
+</div>
+
+<!-- ───────── Case C : 練習 (practice) 削除 → 試打 1 件影響 ───────── -->
+<h2>Case C — 練習削除で試打 1 件の連携が外れる</h2>
+<p class="note">
+  練習 1 件に試打 1 件が <code>linkedPracticeId</code> で紐付くケース。文言は同じ構造、種別ラベルだけ差し替え。
+</p>
+<div class="row">
+  <div class="phone-wrap">
+    <div class="phone-label case-c">C. 練習詳細 → 削除タップ → 1 件影響</div>
+    <div class="phone"><div class="screen">
+      <div class="header">
+        <button class="btn-icon"><i data-lucide="arrow-left"></i></button>
+        <div class="header-title">練習詳細</div>
+        <button class="btn-icon"><i data-lucide="more-vertical"></i></button>
+      </div>
+      <div class="body">
+        <div class="det-strip prac"></div>
+        <div class="det-meta">2026/04/20 (月)</div>
+        <div class="det-title">所沢グリーンTC ナイター</div>
+        <div class="det-card">
+          <span class="lbl">連携</span>
+          <span class="val">この練習で試打した記録あり (1 件)</span>
+        </div>
+      </div>
+      <div class="modal-overlay">
+        <div class="confirm-box">
+          <div class="confirm-icon"><i data-lucide="trash-2"></i></div>
+          <div class="confirm-title">練習を削除</div>
+          <div class="confirm-body">
+            この練習を削除すると、紐付いた試打 <b>1 件</b> の連携情報が外れます。<br>
+            <span class="em-line">(試打自体は残ります)</span>
+            <span class="warn-line">この操作は取り消せません。</span>
+          </div>
+          <div class="confirm-actions">
+            <button class="btn-cancel">キャンセル</button>
+            <button class="btn-confirm">削除</button>
+          </div>
+        </div>
+      </div>
+      <div class="tabbar">
+        <div class="tab"><i data-lucide="home"></i><span>ホーム</span></div>
+        <div class="tab on"><i data-lucide="list"></i><span>セッション</span></div>
+        <div class="tab"><i data-lucide="circle"></i><span>機材</span></div>
+        <div class="tab"><i data-lucide="clipboard"></i><span>計画</span></div>
+        <div class="tab"><i data-lucide="bar-chart-2"></i><span>分析</span></div>
+      </div>
+    </div></div>
+  </div>
+</div>
+
+<!-- ───────── Case D : 大会編集内 試合 (match) 個別削除 → 試打 1 件影響 ───────── -->
+<h2>Case D — 大会編集画面で試合 1 件を削除 (match 単位 cascade)</h2>
+<p class="note">
+  大会自体は残し、その中の 1 試合だけ削除するケース。N2.3 該当。<br>
+  matches[] からその match を取り除き、<code>linkedMatchId === match.id</code> の試打の連携を空に。文言は match 表記。
+</p>
+<div class="row">
+  <div class="phone-wrap">
+    <div class="phone-label case-d">D. 大会編集 → 試合行のゴミ箱 → 1 件影響</div>
+    <div class="phone"><div class="screen">
+      <div class="header">
+        <button class="btn-icon"><i data-lucide="arrow-left"></i></button>
+        <div class="header-title">大会を編集</div>
+        <button class="btn-icon" style="background:#1a73e8;color:#fff;width:auto;padding:0 14px;font-size:13px;font-weight:600;border-radius:8px;height:36px">保存</button>
+      </div>
+      <div class="body">
+        <div class="det-card">
+          <span class="lbl">大会名</span>
+          <span class="val">埼玉県オープン</span>
+        </div>
+        <div style="font-size:12px;font-weight:600;color:#202124;margin:14px 0 8px">試合記録 (3)</div>
+        <div class="match-row">
+          <i data-lucide="swords" class="ico"></i>
+          <div class="info"><div class="opp">vs 田中</div><div class="res">○ 6-4 / S</div></div>
+          <button class="del-mini"><i data-lucide="trash-2"></i></button>
+        </div>
+        <div class="match-row">
+          <i data-lucide="swords" class="ico"></i>
+          <div class="info"><div class="opp">vs 山田 (試打 1 件 連携中)</div><div class="res">● 4-6 / S</div></div>
+          <button class="del-mini active"><i data-lucide="trash-2"></i></button>
+        </div>
+        <div class="match-row">
+          <i data-lucide="swords" class="ico"></i>
+          <div class="info"><div class="opp">vs 佐藤</div><div class="res">○ 6-3 / S</div></div>
+          <button class="del-mini"><i data-lucide="trash-2"></i></button>
+        </div>
+      </div>
+      <div class="modal-overlay">
+        <div class="confirm-box">
+          <div class="confirm-icon"><i data-lucide="trash-2"></i></div>
+          <div class="confirm-title">試合記録を削除</div>
+          <div class="confirm-body">
+            この試合を削除すると、紐付いた試打 <b>1 件</b> の連携情報が外れます。<br>
+            <span class="em-line">(試打自体は残ります)</span>
+            <span class="warn-line">この操作は取り消せません。</span>
+          </div>
+          <div class="confirm-actions">
+            <button class="btn-cancel">キャンセル</button>
+            <button class="btn-confirm">削除</button>
+          </div>
+        </div>
+      </div>
+      <div class="tabbar">
+        <div class="tab"><i data-lucide="home"></i><span>ホーム</span></div>
+        <div class="tab on"><i data-lucide="list"></i><span>セッション</span></div>
+        <div class="tab"><i data-lucide="circle"></i><span>機材</span></div>
+        <div class="tab"><i data-lucide="clipboard"></i><span>計画</span></div>
+        <div class="tab"><i data-lucide="bar-chart-2"></i><span>分析</span></div>
+      </div>
+    </div></div>
+  </div>
+</div>
+
+<!-- ───────── Case E : 削除完了 toast ───────── -->
+<h2>Case E — 削除完了トースト (cascade あり)</h2>
+<p class="note">
+  確定後、リストへ戻り、トースト 2 行で結果を伝える。1 行目=削除種別、2 行目=cascade 件数。<br>
+  cascade 0 件のときは 2 行目を出さない (現状 toast と同じ「大会を削除しました」のみ)。
+</p>
+<div class="row">
+  <div class="phone-wrap">
+    <div class="phone-label case-e">E. cascade 後の toast (3 件外し)</div>
+    <div class="phone"><div class="screen">
+      <div class="header">
+        <button class="btn-icon"><i data-lucide="arrow-left"></i></button>
+        <div class="header-title">セッション</div>
+        <button class="btn-icon"><i data-lucide="search"></i></button>
+      </div>
+      <div class="body">
+        <div style="font-size:12px;color:#5f6368;font-weight:700;padding:8px 0 4px">2026/04</div>
+        <div class="det-card" style="border-left:3px solid #f9ab00;padding-left:18px">
+          <span class="lbl">04/12 (日)</span>
+          <span class="val">所沢ベテラン大会</span>
+        </div>
+        <div class="det-card" style="border-left:3px solid #0f9d58;padding-left:18px">
+          <span class="lbl">04/20 (月)</span>
+          <span class="val">所沢グリーンTC ナイター</span>
+        </div>
+        <div class="det-card" style="border-left:3px solid #f9ab00;padding-left:18px;opacity:.5;text-decoration:line-through">
+          <span class="lbl">03/22 (日)</span>
+          <span class="val">埼玉県オープン</span>
+        </div>
+      </div>
+      <div class="toast-wrap">
+        <div class="toast">
+          ✅ 大会を削除しました
+          <span class="toast-line2">試打 3 件の連携を外しました</span>
+        </div>
+      </div>
+      <div class="tabbar">
+        <div class="tab"><i data-lucide="home"></i><span>ホーム</span></div>
+        <div class="tab on"><i data-lucide="list"></i><span>セッション</span></div>
+        <div class="tab"><i data-lucide="circle"></i><span>機材</span></div>
+        <div class="tab"><i data-lucide="clipboard"></i><span>計画</span></div>
+        <div class="tab"><i data-lucide="bar-chart-2"></i><span>分析</span></div>
+      </div>
+    </div></div>
+  </div>
+</div>
+
+<div class="legend" style="margin-top:24px">
+  <h3>レビューしてほしい点</h3>
+  <ul>
+    <li>Case B/C/D の本文 (「<b>3 件</b> の連携情報が外れます (試打自体は残ります)」) で意味が伝わるか</li>
+    <li>「連携情報」という言葉が不自然なら別の言い回しに変える (例: 「連携が外れます」「紐付けが外れます」「リンクが外れます」)</li>
+    <li>Case E の toast 2 行構成 (1 行目=削除完了, 2 行目=cascade 件数 の薄字) で十分か、別 UI が要るか</li>
+    <li>Case D の試合行に「(試打 1 件 連携中)」のヒント表示を <b>常時</b>付けるかどうか (削除前にユーザーが気付ける)</li>
+  </ul>
+</div>
+
+<script>
+  if (window.lucide && lucide.createIcons) lucide.createIcons();
+</script>
+
+</body>
+</html>

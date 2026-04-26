@@ -6,7 +6,8 @@
 //   - blankTrial は S14 (Home 3 ボタン) で再利用予定
 //
 // id は genId() で生成、date は today() で当日。それ以外は SCHEMA の type に応じた初期値。
-// rating 系は v2 と同じく 3 (中央)、ただし practice の physical/focus は v3 と同じく 0 (未入力扱い)。
+// rating 系は v2 と同じく 3 (中央)、ただし practice の physical は v3 と同じく 0 (未入力扱い)。
+// practice.focus はテキスト (v2/v3 互換、「今日のテーマ」フィールド)。
 
 const blankTournament = () => ({
   id: genId(),
@@ -46,8 +47,8 @@ const blankPractice = () => ({
   tensionCross: "",
   temp: "",
   weather: "",
-  physical: 0, // v3 互換: 未入力扱い
-  focus: 0,
+  physical: 0, // v3 互換: 未入力扱い (rating 0 = 未入力)
+  focus: "",   // v2/v3 互換: 今日のテーマ (テキスト)
   coachNote: "",
   goodNote: "",
   improveNote: "",

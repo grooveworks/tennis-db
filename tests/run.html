@@ -31,6 +31,166 @@ window.runAllTests = function() {
   document.body.innerHTML = html;
 };
 </script>
-<!-- テストスクリプトは Stage S2 以降で順次追加（現状は0件） -->
+
+<!-- ── domain 層の純関数を直接 include (build と同じ評価環境)─ -->
+<script src="../src/domain/cascade.js"></script>
+
+<!-- ── S13 cascade の unit test (REQUIREMENTS N3.5)─ -->
+<script>
+// テスト用フィクスチャ
+function _fxTrials() {
+  return [
+    { id: "tr1", linkedMatchId: "m1",  linkedPracticeId: ""    },
+    { id: "tr2", linkedMatchId: "m2",  linkedPracticeId: ""    },
+    { id: "tr3", linkedMatchId: "",    linkedPracticeId: "p1"  },
+    { id: "tr4", linkedMatchId: "m3",  linkedPracticeId: "p2"  },
+    { id: "tr5", linkedMatchId: "",    linkedPracticeId: ""    }, // 連携なし
+  ];
+}
+
+// ── computeCascade: tournament 削除 (matches[] 内の m1, m2, m3 を全 cascade)
+test("computeCascade: tournament 削除 → matches[] 内 3 試合に紐付く試打 3 件", function() {
+  var item = { id: "t1", matches: [{ id: "m1" }, { id: "m2" }, { id: "m3" }] };
+  var r = computeCascade({ type: "tournament", item: item, trials: _fxTrials() });
+  assertEqual(r.count, 3);
+  var ids = r.affectedTrials.map(function(a){return a.trial.id;}).sort();
+  assertEqual(ids, ["tr1", "tr2", "tr4"]);
+  // 全て linkedMatchId クリア
+  r.affectedTrials.forEach(function(a){ assertEqual(a.clearField, "linkedMatchId"); });
+});
+
+// ── computeCascade: tournament 削除 (matches[] 0 件 → 影響 0)
+test("computeCascade: tournament 削除 で matches[] 空 → 0 件", function() {
+  var item = { id: "t1", matches: [] };
+  var r = computeCascade({ type: "tournament", item: item, trials: _fxTrials() });
+  assertEqual(r.count, 0);
+  assertEqual(r.affectedTrials, []);
+});
+
+// ── computeCascade: practice 削除 (linkedPracticeId 一致)
+test("computeCascade: practice 削除 → linkedPracticeId 一致の試打 1 件", function() {
+  var item = { id: "p1" };
+  var r = computeCascade({ type: "practice", item: item, trials: _fxTrials() });
+  assertEqual(r.count, 1);
+  assertEqual(r.affectedTrials[0].trial.id, "tr3");
+  assertEqual(r.affectedTrials[0].clearField, "linkedPracticeId");
+});
+
+// ── computeCascade: practice 削除 で 該当試打 0 件
+test("computeCascade: practice 削除 で linkedPracticeId 一致なし → 0 件", function() {
+  var item = { id: "p999" };
+  var r = computeCascade({ type: "practice", item: item, trials: _fxTrials() });
+  assertEqual(r.count, 0);
+});
+
+// ── computeCascade: match 単位削除 (linkedMatchId 一致)
+test("computeCascade: match 単位削除 → linkedMatchId 一致の試打 1 件", function() {
+  var item = { id: "m2" };
+  var r = computeCascade({ type: "match", item: item, trials: _fxTrials() });
+  assertEqual(r.count, 1);
+  assertEqual(r.affectedTrials[0].trial.id, "tr2");
+  assertEqual(r.affectedTrials[0].clearField, "linkedMatchId");
+});
+
+// ── computeCascade: trial 削除 → cascade 対象外
+test("computeCascade: trial 削除 → 0 件 (cascade 対象外)", function() {
+  var item = { id: "tr1" };
+  var r = computeCascade({ type: "trial", item: item, trials: _fxTrials() });
+  assertEqual(r.count, 0);
+});
+
+// ── computeCascade: 異常系 (item null / trials null / 不正 type)
+test("computeCascade: item が null → 空結果", function() {
+  var r = computeCascade({ type: "tournament", item: null, trials: _fxTrials() });
+  assertEqual(r.count, 0);
+});
+test("computeCascade: trials が undefined → 空結果", function() {
+  var r = computeCascade({ type: "practice", item: { id: "p1" } });
+  assertEqual(r.count, 0);
+});
+test("computeCascade: 未知 type → 空結果", function() {
+  var r = computeCascade({ type: "unknown", item: { id: "x1" }, trials: _fxTrials() });
+  assertEqual(r.count, 0);
+});
+
+// ── applyCascadeToTrials: linkedMatchId クリア
+test("applyCascadeToTrials: 該当 trial の linkedMatchId が空文字に", function() {
+  var fx = _fxTrials();
+  var affected = [{ trial: fx[0], clearField: "linkedMatchId" }, { trial: fx[1], clearField: "linkedMatchId" }];
+  var out = applyCascadeToTrials(fx, affected);
+  assertEqual(out[0].linkedMatchId, "");
+  assertEqual(out[1].linkedMatchId, "");
+  // 他は不変
+  assertEqual(out[2].linkedPracticeId, "p1");
+  assertEqual(out[3].linkedMatchId, "m3");
+  assertEqual(out[3].linkedPracticeId, "p2");
+});
+
+// ── applyCascadeToTrials: linkedPracticeId クリア
+test("applyCascadeToTrials: 該当 trial の linkedPracticeId が空文字に", function() {
+  var fx = _fxTrials();
+  var affected = [{ trial: fx[2], clearField: "linkedPracticeId" }];
+  var out = applyCascadeToTrials(fx, affected);
+  assertEqual(out[2].linkedPracticeId, "");
+  // linkedMatchId は不変
+  assertEqual(out[2].linkedMatchId, "");
+});
+
+// ── applyCascadeToTrials: 元配列を変更しない (immutability)
+test("applyCascadeToTrials: 元配列・元オブジェクトは変更しない", function() {
+  var fx = _fxTrials();
+  var origLinked = fx[0].linkedMatchId;
+  var affected = [{ trial: fx[0], clearField: "linkedMatchId" }];
+  applyCascadeToTrials(fx, affected);
+  assertEqual(fx[0].linkedMatchId, origLinked); // 元が m1 のまま
+});
+
+// ── applyCascadeToTrials: 影響 0 件 → 元配列を返す
+test("applyCascadeToTrials: affected 空 → 元配列をそのまま返す", function() {
+  var fx = _fxTrials();
+  var out = applyCascadeToTrials(fx, []);
+  assertEqual(out.length, fx.length);
+  assertEqual(out[0].id, "tr1");
+});
+
+// ── 統合シナリオ: tournament 削除 → cascade 計算 → trials 適用
+test("統合: tournament 削除で 3 件 cascade、適用後の trials 検証", function() {
+  var trials = _fxTrials();
+  var tour = { id: "t1", matches: [{ id: "m1" }, { id: "m2" }, { id: "m3" }] };
+  var c = computeCascade({ type: "tournament", item: tour, trials: trials });
+  var newTrials = applyCascadeToTrials(trials, c.affectedTrials);
+  assertEqual(c.count, 3);
+  // tr1, tr2, tr4 の linkedMatchId が空に
+  var byId = {};
+  newTrials.forEach(function(t){ byId[t.id] = t; });
+  assertEqual(byId.tr1.linkedMatchId, "");
+  assertEqual(byId.tr2.linkedMatchId, "");
+  assertEqual(byId.tr4.linkedMatchId, "");
+  // tr3 (practice 連携のみ) と tr5 は不変
+  assertEqual(byId.tr3.linkedPracticeId, "p1");
+  assertEqual(byId.tr5.linkedMatchId, "");
+  // tr4 の linkedPracticeId は別連携なので残る
+  assertEqual(byId.tr4.linkedPracticeId, "p2");
+});
+
+// ── describeCascadeMessage: 文言生成
+test("describeCascadeMessage: tournament 0 件 → 単純文言", function() {
+  var d = describeCascadeMessage("tournament", 0);
+  assertEqual(d.title, "大会を削除");
+  assertEqual(d.body, "この大会を削除しますか？");
+  assert(!d.note, "note は出ない");
+});
+test("describeCascadeMessage: tournament 3 件 → cascade 文言 + note", function() {
+  var d = describeCascadeMessage("tournament", 3);
+  assert(d.body.indexOf("3 件") >= 0, "3 件が body に含まれる");
+  assertEqual(d.note, "(試打自体は残ります)");
+});
+test("describeCascadeMessage: match 1 件 → タイトル '試合記録を削除'", function() {
+  var d = describeCascadeMessage("match", 1);
+  assertEqual(d.title, "試合記録を削除");
+  assert(d.body.indexOf("1 件") >= 0);
+});
+</script>
+
 <script>window.runAllTests();</script>
 </body></html>
