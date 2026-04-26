@@ -191,18 +191,32 @@ function TennisDB() {
 
   // S10: カードタップで詳細 overlay を開く
   //      SessionsTab はマウントしたまま position:fixed で上から覆う (§N1.2 scrollTop 保持)
+  // S13: ブラウザ戻る (左端スワイプ含む) で閉じられるよう history.pushState で履歴 entry 追加
   const handleCardClick = (type, item) => {
     setDetail({ type, session: item, mode: "detail" });
+    try { window.history.pushState({ tdb: "detail" }, ""); } catch(_) {}
   };
 
-  const handleDetailClose = () => setDetail(null);
+  // ブラウザ戻る経由 (popstate) で setDetail(null) するため、ヘッダ戻るボタンも history.back() を呼ぶ
+  // (history.back() → popstate → setDetail(null) の経路に統一して 1 entry きれいに消す)
+  const handleDetailClose = () => {
+    try { window.history.back(); } catch(_) { setDetail(null); }
+  };
 
   // S10: 連携カード (紐づく試打 / 連携練習) のタップで別セッション詳細へ遷移
   //      key prop (session.id) が変わることで SessionDetailView が再マウント→slide-in 再発動
   const handleOpenLinkedSession = (nextType, nextSession) => {
     if (!nextSession || !nextSession.id) return;
     setDetail({ type: nextType, session: nextSession, mode: "detail" });
+    try { window.history.pushState({ tdb: "detail" }, ""); } catch(_) {}
   };
+
+  // S13: ブラウザ戻る / 左端スワイプ で詳細を閉じる (popstate listener)
+  useEffect(() => {
+    const onPop = () => setDetail(null);
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
 
   // S11: 編集モードに切替 (再 mount せず、SessionDetailView 内で SessionEditView 表示)
   const handleEdit = (type, item) => {
