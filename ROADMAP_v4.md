@@ -49,7 +49,7 @@
 | **S12** ✅ | Session 追加（FAB + QuickAdd 大会/練習 2 択） | 右下 FAB から新規記録、**v4 実運用可能ライン**。試打は S14 Home 3 ボタン経由に集約 |
 | **S13** ✅ | Session 削除 + cascade | 関連する linkedXxx を自動クリアする安全削除。focus 型誤定義の根本修正・編集 UX 改善・Firestore batch load・left-edge swipe を history pushState 方式に も同梱 |
 | **S13.5** 🎨 | **DESIGN_SYSTEM 全面改訂 (Apple-flavored Material 路線)** | Primary `#1a73e8`→`#007AFF` / Lucide→Phosphor + Tabler `tennis` 拝借 / 角丸ヒエラルキー (大 20 / 中 14 / ボタン 10-12) / Display tier (28-40px) / Glass = floating panel 限定 / Card hover lift (PC のみ) / 100vh→100dvh / スクロールバー細身 / Next Actions check circle (Apple Reminders 風) — 2026-04-27 ピボット、AUDIT_v4_design_research_2026-04-27.md と DECISIONS_v4.md S13.5 参照 |
-| **S14** | Home タブ | Quick Add 3 ボタン / Current Context / 今週サマリー / 次のアクション / 2 週間カレンダー (= 5 カード上限) / 共通 Header (Tennis**DB** + version + 同期 + 天気 + logout) / default tab home 変更同梱 |
+| **S14** ✅ | Home タブ | Quick Add 3 ボタン / Current Context / 今週サマリー / 次のアクション / 2 週間カレンダー (= 5 カード上限) / 共通 Header (Tennis**DB** + version + 同期 + 天気 + logout) / default tab home 変更同梱 / 天気タップ詳細 Modal (Open-Meteo hourly + テニス指標 3 列) / QuickAddModal trial 拡張 / Input/Textarea box-sizing+appearance 修正 (Safari iOS 重なり解消) / TabBar PWA safe-area 対応 |
 | **S15** | Sessions マージ機能 | 同タイプ2件の統合、A/B 切替・競合選択 |
 | **S16** | **Gear タブ（v3 未実装を v4 で初実装）** | ラケット/ガット/セッティング/実測値 |
 | **S17** | **Plan タブ（v3 未実装を v4 で初実装）** | Next Actions 詳細、対戦相手管理 |

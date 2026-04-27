@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>preview_s14_p3 — QuickAddModal レイアウト実測 (v4 現状 vs v2 互換 vs box-sizing 修正版)</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", sans-serif; background: #e8eaed; padding: 20px; margin: 0; }
+  h1 { font-size: 18px; margin-bottom: 8px; }
+  h2 { margin: 24px 0 8px; font-size: 14px; padding: 6px 12px; background: #202124; color: #fff; display: inline-block; border-radius: 4px; }
+  .note { font-size: 12px; color: #5f6368; margin-bottom: 16px; line-height: 1.6; max-width: 1100px; }
+  .note b { color: #202124; }
+  .note code { background: #f1f3f4; padding: 2px 6px; border-radius: 4px; font-size: 11px; }
+
+  /* 計測ラベル (preview_inspect で読みやすく) */
+  .row { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
+
+  /* iPhone 模擬コンテナ width: 375 (iPhone SE/8 width) */
+  .phone-frame {
+    width: 375px;
+    background: rgba(0,0,0,0.04);
+    border: 2px dashed #888;
+    margin: 0;
+    padding: 20px 12px; /* v4 outer overlay padding */
+    box-sizing: content-box;
+  }
+
+  /* === Variant A: v4 現状 (S14.3 = v2 互換適用済み) === */
+  .v4-modal {
+    background: #fff;
+    border: 1px solid #dadce0;
+    border-radius: 16px;
+    padding: 18px;             /* v4 Modal box padding */
+    max-width: 420px;          /* v4 Modal box maxWidth */
+    width: 100%;
+  }
+  .v4-modal .modal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .v4-modal .modal-head .title { font-size: 14px; font-weight: 700; color: #0a5b35; }
+  .v4-modal .modal-head .close { font-size: 18px; color: #5f6368; cursor: pointer; }
+
+  .v4-modal .field { margin-bottom: 10px; }   /* S14.3 互換 */
+  .v4-modal .field label { display: block; font-size: 12px; color: #5f6368; font-weight: 500; margin-bottom: 4px; }
+  .v4-modal .field input, .v4-modal .field select {
+    width: 100%;
+    min-height: 44px;
+    padding: 10px 12px;        /* S14.3 互換 */
+    border: 1px solid #dadce0;
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 13px;           /* S14.3 互換 */
+    color: #202124;
+    background: #fff;
+    outline: none;
+    /* box-sizing 未指定 = content-box (デフォルト) */
+  }
+  .v4-modal .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; } /* v4 gap */
+
+  /* === Variant B: v2 完全互換 === */
+  .v2-modal {
+    background: #fff;
+    border: 1px solid #dadce0;
+    border-radius: 12px;        /* v2 borderRadius */
+    padding: 20px;              /* v2 padding */
+    max-width: 520px;           /* v2 maxWidth */
+    width: 100%;
+  }
+  .v2-modal .modal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  .v2-modal .modal-head .title { font-size: 14px; font-weight: 700; color: #0a5b35; }
+  .v2-modal .modal-head .close { font-size: 18px; color: #5f6368; cursor: pointer; }
+
+  .v2-modal .field { margin-bottom: 10px; }
+  .v2-modal .field label { display: block; font-size: 12px; color: #5f6368; font-weight: 500; margin-bottom: 4px; letter-spacing: 0.08em; }
+  .v2-modal .field input, .v2-modal .field select {
+    width: 100%;
+    min-height: 44px;
+    padding: 10px 12px;
+    background: #f1f3f4;        /* v2 panel2 */
+    border: 1px solid #dadce0;
+    border-radius: 6px;         /* v2 borderRadius */
+    font-family: inherit;
+    font-size: 13px;
+    color: #202124;
+    outline: none;
+  }
+  .v2-modal .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; } /* v2 gap */
+
+  /* === Variant C: v4 + box-sizing: border-box === */
+  .v4bbx-modal {
+    background: #fff;
+    border: 1px solid #dadce0;
+    border-radius: 16px;
+    padding: 18px;
+    max-width: 420px;
+    width: 100%;
+  }
+  .v4bbx-modal .modal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .v4bbx-modal .modal-head .title { font-size: 14px; font-weight: 700; color: #0a5b35; }
+  .v4bbx-modal .modal-head .close { font-size: 18px; color: #5f6368; cursor: pointer; }
+
+  .v4bbx-modal .field { margin-bottom: 10px; }
+  .v4bbx-modal .field label { display: block; font-size: 12px; color: #5f6368; font-weight: 500; margin-bottom: 4px; }
+  .v4bbx-modal .field input, .v4bbx-modal .field select {
+    width: 100%;
+    box-sizing: border-box;     /* これだけが差 */
+    min-height: 44px;
+    padding: 10px 12px;
+    border: 1px solid #dadce0;
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 13px;
+    color: #202124;
+    background: #fff;
+    outline: none;
+  }
+  .v4bbx-modal .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; }
+
+  /* === Variant D: v4 + box-sizing + -webkit-appearance: none (iPhone Safari 対策候補) === */
+  .v4app-modal {
+    background: #fff;
+    border: 1px solid #dadce0;
+    border-radius: 16px;
+    padding: 18px;
+    max-width: 420px;
+    width: 100%;
+  }
+  .v4app-modal .modal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .v4app-modal .modal-head .title { font-size: 14px; font-weight: 700; color: #0a5b35; }
+  .v4app-modal .modal-head .close { font-size: 18px; color: #5f6368; cursor: pointer; }
+
+  .v4app-modal .field { margin-bottom: 10px; }
+  .v4app-modal .field label { display: block; font-size: 12px; color: #5f6368; font-weight: 500; margin-bottom: 4px; }
+  .v4app-modal .field input, .v4app-modal .field select {
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 44px;
+    padding: 10px 12px;
+    border: 1px solid #dadce0;
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 13px;
+    color: #202124;
+    background: #fff;
+    outline: none;
+    -webkit-appearance: none;  /* C との差 (Safari iOS の date/time native UI 無効化) */
+    appearance: none;
+  }
+  .v4app-modal .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; }
+
+  .label-tag { display: inline-block; padding: 4px 10px; background: #1a73e8; color: #fff; font-size: 11px; font-weight: 700; border-radius: 4px; margin-bottom: 8px; }
+  .label-tag.v2 { background: #0f9d58; }
+  .label-tag.bbx { background: #9334e0; }
+  .label-tag.app { background: #FF9500; }
+</style>
+</head>
+<body>
+
+<div id="qr-block" style="background:#fff;border:1px solid #dadce0;border-radius:12px;padding:14px 16px;margin-bottom:16px;display:flex;gap:14px;align-items:center;max-width:520px">
+  <div id="qr-canvas" style="flex-shrink:0"></div>
+  <div style="font-size:11px;color:#5f6368;line-height:1.6">
+    <b style="color:#202124;font-size:12px">📱 iPhone でこの QR を撮影</b><br/>
+    Safari が自動起動して同じページが開きます。URL 手入力不要。<br/>
+    <span id="qr-url" style="font-size:10px;color:#80868b;font-family:monospace"></span>
+  </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+<script>
+  (() => {
+    const url = window.location.href;
+    document.getElementById('qr-url').textContent = url;
+    try {
+      const qr = qrcode(0, 'M');
+      qr.addData(url);
+      qr.make();
+      document.getElementById('qr-canvas').innerHTML = qr.createImgTag(4, 0);
+    } catch (e) { document.getElementById('qr-canvas').textContent = 'QR 生成失敗: ' + e.message; }
+  })();
+</script>
+
+<h1>preview_s14_p3 — QuickAddModal レイアウト実測 (4 variant 比較)</h1>
+<p class="note">
+  <b>目的</b>: <code>preview_inspect</code> で各 input の実 width / height / box-sizing を測定し、v4 が崩れる**真の原因**を特定する。
+  <br/><b>3 variant</b>:
+  <br/>① <b>v4 現状 (S14.3)</b>: v2 互換値 (fontSize 13, padding 12, gap 10) ですが maxWidth 420, padding 18, borderRadius 8, background #fff のまま
+  <br/>② <b>v2 完全互換</b>: maxWidth 520, padding 20, gap 12, borderRadius 6, background panel2
+  <br/>③ <b>v4 + box-sizing: border-box</b>: ① に box-sizing border-box だけ追加した版 (これで grid 内に padding 込み 100% で収まるか検証)
+  <br/>iPhone 375px 幅相当のフレームで描画。input/select の実寸を <code>preview_inspect</code> で測定する。
+</p>
+
+<h2>① v4 現状 (S14.3) — Modal maxWidth 420, padding 18, gap 10, box-sizing 未指定</h2>
+<div class="phone-frame">
+  <span class="label-tag">v4 (S14.3)</span>
+  <div class="v4-modal">
+    <div class="modal-head">
+      <span class="title">🏃 練習を追加</span>
+      <span class="close">✕</span>
+    </div>
+    <div class="grid-2">
+      <div class="field">
+        <label>日付 *</label>
+        <input id="v4-date" type="date" value="2026-04-27">
+      </div>
+      <div class="field">
+        <label>種別</label>
+        <select id="v4-type">
+          <option>スクール</option>
+          <option>自主練</option>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label>イベント名</label>
+      <input id="v4-name" type="text" placeholder="例: ナイターレッスン中上級">
+    </div>
+    <div class="grid-2">
+      <div class="field">
+        <label>開始時刻</label>
+        <input id="v4-start" type="time" value="22:24">
+      </div>
+      <div class="field">
+        <label>終了時刻</label>
+        <input id="v4-end" type="time" value="22:25">
+      </div>
+    </div>
+  </div>
+</div>
+
+<h2>② v2 完全互換 — Modal maxWidth 520, padding 20, gap 12, background panel2</h2>
+<div class="phone-frame">
+  <span class="label-tag v2">v2 完全互換</span>
+  <div class="v2-modal">
+    <div class="modal-head">
+      <span class="title">🏃 練習を追加</span>
+      <span class="close">✕</span>
+    </div>
+    <div class="grid-2">
+      <div class="field">
+        <label>日付</label>
+        <input id="v2-date" type="date" value="2026-04-27">
+      </div>
+      <div class="field">
+        <label>場所</label>
+        <select id="v2-type">
+          <option>スクール</option>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label>イベント名</label>
+      <input id="v2-name" type="text" placeholder="例: ナイターレッスン中上級">
+    </div>
+    <div class="grid-2">
+      <div class="field">
+        <label>開始時刻</label>
+        <input id="v2-start" type="time" value="22:24">
+      </div>
+      <div class="field">
+        <label>終了時刻</label>
+        <input id="v2-end" type="time" value="22:25">
+      </div>
+    </div>
+  </div>
+</div>
+
+<h2>③ v4 + box-sizing: border-box — ① に box-sizing だけ追加</h2>
+<div class="phone-frame">
+  <span class="label-tag bbx">v4 + box-sizing</span>
+  <div class="v4bbx-modal">
+    <div class="modal-head">
+      <span class="title">🏃 練習を追加</span>
+      <span class="close">✕</span>
+    </div>
+    <div class="grid-2">
+      <div class="field">
+        <label>日付 *</label>
+        <input id="v4bbx-date" type="date" value="2026-04-27">
+      </div>
+      <div class="field">
+        <label>種別</label>
+        <select id="v4bbx-type">
+          <option>スクール</option>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label>イベント名</label>
+      <input id="v4bbx-name" type="text" placeholder="例: ナイターレッスン中上級">
+    </div>
+    <div class="grid-2">
+      <div class="field">
+        <label>開始時刻</label>
+        <input id="v4bbx-start" type="time" value="22:24">
+      </div>
+      <div class="field">
+        <label>終了時刻</label>
+        <input id="v4bbx-end" type="time" value="22:25">
+      </div>
+    </div>
+  </div>
+</div>
+
+<h2>④ v4 + box-sizing + -webkit-appearance: none — iPhone Safari 対策候補</h2>
+<p class="note">
+  <b>仮説</b>: ③ (box-sizing: border-box) では PC Chrome で完全に揃ったが、iPhone Safari の <code>&lt;input type="date"&gt;</code> <code>&lt;input type="time"&gt;</code> は内部 hardcoded サイズで描画され、box-sizing を効かせても背高/横ずれが残る。<code>-webkit-appearance: none</code> + <code>appearance: none</code> で Safari の native UI を無効化し、CSS で揃えられるか実機検証する。タップで date/time picker は引き続き起動する仕様。
+</p>
+<div class="phone-frame">
+  <span class="label-tag app">v4 + box-sizing + appearance:none</span>
+  <div class="v4app-modal">
+    <div class="modal-head">
+      <span class="title">🏃 練習を追加</span>
+      <span class="close">✕</span>
+    </div>
+    <div class="grid-2">
+      <div class="field">
+        <label>日付 *</label>
+        <input id="v4app-date" type="date" value="2026-04-27">
+      </div>
+      <div class="field">
+        <label>種別</label>
+        <select id="v4app-type">
+          <option>スクール</option>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label>イベント名</label>
+      <input id="v4app-name" type="text" placeholder="例: ナイターレッスン中上級">
+    </div>
+    <div class="grid-2">
+      <div class="field">
+        <label>開始時刻</label>
+        <input id="v4app-start" type="time" value="22:24">
+      </div>
+      <div class="field">
+        <label>終了時刻</label>
+        <input id="v4app-end" type="time" value="22:25">
+      </div>
+    </div>
+  </div>
+</div>
+
+<h2 style="background:#5f6368">📐 測定対象 (preview_inspect で読み取る ID)</h2>
+<p class="note" style="font-size:11px">
+  <b>① v4 (S14.3)</b>: <code>#v4-date</code> <code>#v4-type</code> <code>#v4-start</code> <code>#v4-end</code><br/>
+  <b>② v2 完全互換</b>: <code>#v2-date</code> <code>#v2-type</code> <code>#v2-start</code> <code>#v2-end</code><br/>
+  <b>③ v4 + box-sizing</b>: <code>#v4bbx-date</code> <code>#v4bbx-type</code> <code>#v4bbx-start</code> <code>#v4bbx-end</code><br/>
+  <b>④ v4 + box-sizing + appearance:none</b>: <code>#v4app-date</code> <code>#v4app-type</code> <code>#v4app-start</code> <code>#v4app-end</code>
+</p>
+
+<h2 style="background:#FF9500">📱 iPhone Safari 実機検証手順</h2>
+<p class="note">
+  ご自身の <code>serve.ps1</code> 経由で、iPhone Safari で <code>http://192.168.1.4:8080/preview_s14_p3.html</code> (LAN) を開いてください。
+  <br/><b>確認</b>: ④ variant の練習 Modal で「日付フィールドが種別と重ならない、高さが他と揃う、開始/終了時刻フィールドに 22:24 / 22:25 の文字が表示される」かをスクショで確認。
+  <br/><b>OK の判断基準</b>: ① と ③ では崩れていて、④ で揃っている = 真の解
+</p>
+
+</body>
+</html>

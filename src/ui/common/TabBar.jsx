@@ -28,7 +28,7 @@ function TabBar({ tab, onTabChange }) {
         backdropFilter: "saturate(180%) blur(12px)",
         WebkitBackdropFilter: "saturate(180%) blur(12px)",
         borderTop: "1px solid rgba(0,0,0,0.08)",
-        height: 56,
+        // S14.6: height 削除し button に minHeight: 56 を持たせる (PWA で上の隙間が狭くなる現象を解消)
         paddingBottom: "env(safe-area-inset-bottom, 0)",
         zIndex: 60,
       }}
@@ -47,6 +47,7 @@ function TabBar({ tab, onTabChange }) {
               alignItems: "center",
               justifyContent: "center",
               gap: 2,
+              minHeight: 56, // S14.6: TabBar 全体の height ではなく button 個別に固定 (PWA safe-area 影響を受けない)
               color: active ? C.primary : "#80868b",
               background: active ? C.primaryLight : "transparent",
               border: "none",

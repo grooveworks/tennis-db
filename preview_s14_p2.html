@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>preview_s14_p2 — 天気詳細 Modal (Glass)</title>
+<link href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css" rel="stylesheet">
+<link href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/duotone/style.css" rel="stylesheet">
+<link href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Helvetica Neue",sans-serif;background:#e8eaed;padding:24px 12px 60px;color:#202124}
+  h1{font-size:18px;margin-bottom:8px;font-weight:700}
+  .subhead{font-size:13px;color:#5f6368;margin-bottom:18px;line-height:1.7;max-width:1100px}
+  .subhead b{color:#202124}
+  .subhead code{background:#f1f3f4;padding:2px 6px;border-radius:4px;font-size:11px}
+
+  ::-webkit-scrollbar{width:6px;height:6px}
+  ::-webkit-scrollbar-thumb{background:rgba(0,0,0,0.18);border-radius:3px}
+  ::-webkit-scrollbar-track{background:transparent}
+  *{scrollbar-width:thin;scrollbar-color:rgba(0,0,0,0.18) transparent}
+
+  .row{display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap;margin-bottom:24px}
+  .phone-wrap{display:flex;flex-direction:column;align-items:center;gap:8px}
+  .phone-label{font-size:11px;font-weight:700;padding:6px 12px;border-radius:4px;background:#fff7e6;color:#7E4F00;border:1px solid #FF9500;letter-spacing:.3px}
+
+  .phone{width:380px;background:#F2F2F7;border:7px solid #1a1a1a;border-radius:42px;overflow:hidden;position:relative;box-shadow:0 8px 24px rgba(0,0,0,.12)}
+  .screen{display:flex;flex-direction:column;height:780px;position:relative;overflow:hidden}
+
+  .ic{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;line-height:1}
+
+  /* Header */
+  .a-header{height:56px;flex:0 0 56px;display:flex;align-items:center;padding:0 16px;background:rgba(255,255,255,0.94);backdrop-filter:saturate(180%) blur(12px);-webkit-backdrop-filter:saturate(180%) blur(12px);border-bottom:1px solid rgba(0,0,0,.08);z-index:5}
+  .a-logo{display:flex;align-items:baseline;gap:5px;flex:1;cursor:pointer}
+  .a-logo .ic{font-size:22px;color:#007AFF;align-self:center}
+  .a-logo .tns{font-size:18px;font-weight:400;color:#1a1a1a}
+  .a-logo .db{font-size:18px;font-weight:800;color:#007AFF;margin-left:1px}
+  .a-logo .ver{font-size:9px;color:#8e8e93;margin-left:5px;align-self:flex-end;margin-bottom:2px;font-feature-settings:"tnum"}
+  .a-header-meta{display:flex;align-items:center;gap:6px;margin-left:8px}
+  .a-cloud{font-size:13px;color:#34C759}
+  .a-weather{display:flex;align-items:center;gap:3px;font-size:12px;color:#1a1a1a;font-weight:500;padding:4px 7px;border-radius:8px;background:rgba(255,149,0,0.10);cursor:pointer}
+  .a-weather.active{background:rgba(255,149,0,0.25);box-shadow:0 0 0 2px rgba(255,149,0,0.4)}
+  .a-weather .ic-w{font-size:14px;color:#FF9500}
+  .a-logout{width:32px;height:32px;display:flex;align-items:center;justify-content:center;color:#8e8e93;font-size:18px;margin-left:2px}
+  .a-tab-name{padding:4px 16px 0;font-size:11px;color:#8e8e93;font-weight:600}
+
+  .a-body{flex:1;overflow-y:auto;padding:8px 14px 12px;background:#F2F2F7;position:relative}
+
+  /* 背景の Home (簡略表示、Modal の背後イメージ) */
+  .a-card{background:#fff;border-radius:20px;padding:16px;margin-bottom:8px}
+  .a-quick3{display:flex;gap:10px;margin:4px 0 10px}
+  .a-quick3 button{flex:1;height:72px;border:none;border-radius:18px;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-family:inherit;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.06),0 4px 14px rgba(0,0,0,.06)}
+  .a-quick3 button .label{font-size:12px;font-weight:700}
+  .a-quick3 button .ic-q{font-size:26px}
+  .a-tour{background:linear-gradient(180deg,#FFB340,#FF9500)}
+  .a-prac{background:linear-gradient(180deg,#34C759,#30B050)}
+  .a-trial{background:linear-gradient(180deg,#AF52DE,#9334E0)}
+
+  /* TabBar */
+  .a-tabbar{height:60px;flex:0 0 60px;background:rgba(255,255,255,.94);backdrop-filter:saturate(180%) blur(12px);-webkit-backdrop-filter:saturate(180%) blur(12px);border-top:1px solid rgba(0,0,0,.08);display:grid;grid-template-columns:repeat(5,1fr);position:relative;z-index:5}
+  .a-tabbar .tab{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;color:#8e8e93;font-size:10px;font-weight:500}
+  .a-tabbar .tab .ic-t{font-size:24px}
+  .a-tabbar .tab.active{color:#007AFF}
+
+  /* === 天気 Modal (Glass) === */
+  .wm-overlay{position:absolute;inset:0;background:rgba(0,0,0,0.18);z-index:9}
+  .wm-modal{
+    position:absolute;
+    left:0;right:0;
+    bottom:60px; /* TabBar 上 */
+    background:rgba(255,255,255,0.72);
+    backdrop-filter:saturate(180%) blur(28px);
+    -webkit-backdrop-filter:saturate(180%) blur(28px);
+    border-radius:22px 22px 0 0;
+    padding:18px 16px 16px;
+    box-shadow:0 -4px 20px rgba(0,0,0,.12);
+    border:1px solid rgba(255,255,255,0.5);
+    border-bottom:none;
+    z-index:10;
+    max-height:62%;
+    overflow-y:auto;
+  }
+  .wm-grip{width:36px;height:4px;border-radius:2px;background:rgba(120,120,128,.32);margin:0 auto 10px}
+  .wm-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+  .wm-title{font-size:14px;font-weight:700;color:#1a1a1a}
+  .wm-title b{font-size:14px;font-weight:700}
+  .wm-sub{font-size:11px;color:#8e8e93;margin-left:6px;font-weight:500}
+  .wm-close{width:28px;height:28px;border-radius:14px;background:rgba(120,120,128,.16);color:#1a1a1a;border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px}
+
+  /* メイン気温ブロック (P2 縮小: アイコン 54→42 / 気温 40→32 / padding 8 4 14→6 4 10) */
+  .wm-main{display:flex;align-items:center;gap:12px;padding:4px 4px 10px;border-bottom:1px solid rgba(0,0,0,0.08)}
+  .wm-main-icon{font-size:42px;color:#FF9500;line-height:1;flex-shrink:0}
+  .wm-main-text{flex:1;min-width:0}
+  .wm-main-temp{font-size:32px;font-weight:800;color:#1a1a1a;line-height:1;font-feature-settings:"tnum"}
+  .wm-main-temp .deg{font-size:20px;font-weight:700;color:#8e8e93;margin-left:2px}
+  .wm-main-cond{font-size:12px;color:#5f6368;font-weight:600;margin-top:4px}
+  .wm-main-range{font-size:10px;color:#8e8e93;margin-top:2px;font-feature-settings:"tnum"}
+
+  /* テニス指標 3 列 (P2 縮小: padding 10 6→7 4 / アイコン 18→16 / 数字 18→16) */
+  .wm-stats-head{font-size:10px;font-weight:700;color:#8e8e93;text-transform:uppercase;letter-spacing:.5px;margin-top:10px;margin-bottom:6px}
+  .wm-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+  .wm-stat-cell{background:rgba(255,255,255,0.6);border-radius:10px;padding:7px 4px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:2px}
+  .wm-stat-icon{font-size:16px;line-height:1}
+  .wm-stat-icon.rain{color:#007AFF}
+  .wm-stat-icon.wind{color:#8e8e93}
+  .wm-stat-icon.feel{color:#FF9500}
+  .wm-stat-val{font-size:16px;font-weight:800;color:#1a1a1a;line-height:1;font-feature-settings:"tnum"}
+  .wm-stat-val .unit{font-size:10px;font-weight:700;color:#8e8e93;margin-left:1px}
+  .wm-stat-label{font-size:9px;color:#8e8e93;font-weight:600;letter-spacing:.3px;margin-top:1px}
+
+  /* 時間別ブロック (P2 縮小: cell padding 8→6 / 時刻 10→9 / アイコン 18→16 / 気温 13→12) */
+  .wm-hourly-head{font-size:10px;font-weight:700;color:#8e8e93;text-transform:uppercase;letter-spacing:.5px;margin-top:10px;margin-bottom:6px}
+  .wm-hourly{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px}
+  .wm-h-cell{flex:0 0 52px;display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 4px;border-radius:10px;background:rgba(255,255,255,0.6);position:relative}
+  .wm-h-cell.now{background:rgba(0,122,255,0.12);box-shadow:inset 0 0 0 1px rgba(0,122,255,0.4)}
+  .wm-h-time{font-size:9px;color:#8e8e93;font-weight:600;font-feature-settings:"tnum"}
+  .wm-h-time.now-label{color:#007AFF;font-weight:700}
+  .wm-h-icon{font-size:16px;color:#FF9500}
+  .wm-h-icon.cloud{color:#8e8e93}
+  .wm-h-icon.rain{color:#007AFF}
+  .wm-h-temp{font-size:12px;font-weight:700;color:#1a1a1a;font-feature-settings:"tnum"}
+  .wm-h-rain{font-size:9px;color:#007AFF;font-weight:700;font-feature-settings:"tnum";line-height:1}
+  .wm-h-rain.dry{color:transparent} /* 30% 未満は透明 (場所のみ確保で縦ズレ防止) */
+
+  /* フッタ注釈 */
+  .wm-foot{font-size:10px;color:#8e8e93;text-align:center;margin-top:12px;padding-top:10px;border-top:1px solid rgba(0,0,0,0.08)}
+  .wm-foot a{color:#8e8e93;text-decoration:underline}
+
+  /* 凡例 */
+  .legend{font-size:11px;color:#5f6368;line-height:1.7;max-width:1100px;margin-top:14px;padding:10px 14px;background:#fff;border:1px solid #e8eaed;border-radius:8px}
+  .legend b{color:#202124}
+  .legend ul{margin-left:18px;margin-top:4px}
+  .legend li{margin-bottom:2px}
+  .legend code{background:#f1f3f4;padding:2px 5px;border-radius:3px;font-size:11px}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-tennis" viewBox="0 0 24 24">
+    <path d="M11.578 14.453a6 6 0 1 0 -8.027 -8.029" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M9 14l-3.69 3.69a2 2 0 1 0 2.83 2.83l3.69 -3.69" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="14" cy="10" r="6" fill="none" stroke="currentColor" stroke-width="2"/>
+  </symbol>
+</svg>
+
+<h1>preview_s14_p2 — 天気詳細 Modal (Glass、ボトムシート)</h1>
+<p class="subhead">
+  <b>P2 範囲</b>: Header の天気スロット (<code>22°</code> 橙 tinted) タップで Glass モーダルが下からせり上がる。Open-Meteo API を hourly 拡張 (key 不要)。
+  <br/><b>UI 構成</b>: グリップ → ヘッダ「今日の天気 4/27(月)」 + 閉じる × → メインブロック (現在気温 40px 大数字 + アイコン + 状態 + 最高/最低) → 時間別 (横スクロール 16 セル、現在時刻 17:00 を Apple Blue ハイライト) → フッタ注釈 (位置 + Open-Meteo)。
+  <br/><b>S20 スコープ外</b>: 大会・練習との関連表示 (4/29 大会の予報など) は <b>S20 (自動連関) で実装</b>。P2 では純粋な天気詳細のみ。
+</p>
+
+<div class="row">
+  <div class="phone-wrap">
+    <span class="phone-label">P2 — 天気タップ後の Glass Modal</span>
+    <div class="phone"><div class="screen">
+
+      <!-- Header (天気が active 状態でハイライト) -->
+      <div class="a-header">
+        <div class="a-logo">
+          <span class="ic"><svg viewBox="0 0 24 24" width="22" height="22"><use href="#i-tennis"/></svg></span>
+          <span class="tns">Tennis</span><span class="db">DB</span>
+          <span class="ver">v4.0.0-S14</span>
+        </div>
+        <div class="a-header-meta">
+          <span class="a-cloud"><i class="ph ph-cloud"></i></span>
+          <div class="a-weather active"><i class="ph ph-sun ic-w"></i><span>22°</span></div>
+          <div class="a-logout"><i class="ph ph-user-circle"></i></div>
+        </div>
+      </div>
+      <div class="a-tab-name">ホーム</div>
+
+      <!-- 背景の Home (簡略、ぼかし下に見える形) -->
+      <div class="a-body">
+        <div class="a-quick3">
+          <button class="a-tour"><i class="ph ph-trophy ic-q"></i><span class="label">大会を記録</span></button>
+          <button class="a-prac"><i class="ph ph-person-simple-run ic-q"></i><span class="label">練習を記録</span></button>
+          <button class="a-trial">
+            <span class="ic ic-q"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-tennis"/></svg></span>
+            <span class="label">試打を記録</span>
+          </button>
+        </div>
+        <div class="a-card">
+          <div style="font-size:14px;font-weight:700;color:#1a1a1a">現在の状況</div>
+          <div style="font-size:11px;color:#8e8e93;margin-top:6px">(背景に Home が透けて見える状態)</div>
+        </div>
+
+        <!-- Glass Overlay + Modal -->
+        <div class="wm-overlay"></div>
+        <div class="wm-modal">
+          <div class="wm-grip"></div>
+          <div class="wm-head">
+            <div>
+              <span class="wm-title">今日の天気</span>
+              <span class="wm-sub">4/27 (月)</span>
+            </div>
+            <button class="wm-close"><i class="ph ph-x"></i></button>
+          </div>
+
+          <!-- メイン気温ブロック -->
+          <div class="wm-main">
+            <div class="wm-main-icon"><i class="ph-fill ph-sun"></i></div>
+            <div class="wm-main-text">
+              <div class="wm-main-temp">22<span class="deg">°</span></div>
+              <div class="wm-main-cond">晴れ</div>
+              <div class="wm-main-range">最高 24° / 最低 15°</div>
+            </div>
+          </div>
+
+          <!-- テニス指標 3 列 (降水確率 / 風速 / 体感気温) -->
+          <div class="wm-stats-head">テニス指標</div>
+          <div class="wm-stats">
+            <div class="wm-stat-cell">
+              <i class="ph-fill ph-cloud-rain wm-stat-icon rain"></i>
+              <div class="wm-stat-val">5<span class="unit">%</span></div>
+              <div class="wm-stat-label">降水</div>
+            </div>
+            <div class="wm-stat-cell">
+              <i class="ph ph-wind wm-stat-icon wind"></i>
+              <div class="wm-stat-val">3<span class="unit">m/s</span></div>
+              <div class="wm-stat-label">風速</div>
+            </div>
+            <div class="wm-stat-cell">
+              <i class="ph ph-thermometer wm-stat-icon feel"></i>
+              <div class="wm-stat-val">21<span class="unit">°</span></div>
+              <div class="wm-stat-label">体感</div>
+            </div>
+          </div>
+
+          <!-- 時間別 (06:00 - 21:00、16 セル) -->
+          <div class="wm-hourly-head">時間別</div>
+          <div class="wm-hourly">
+            <div class="wm-h-cell"><span class="wm-h-time">06</span><i class="ph-fill ph-sun wm-h-icon"></i><span class="wm-h-temp">15°</span><span class="wm-h-rain dry">0%</span></div>
+            <div class="wm-h-cell"><span class="wm-h-time">07</span><i class="ph-fill ph-sun wm-h-icon"></i><span class="wm-h-temp">16°</span><span class="wm-h-rain dry">0%</span></div>
+            <div class="wm-h-cell"><span class="wm-h-time">08</span><i class="ph-fill ph-sun wm-h-icon"></i><span class="wm-h-temp">17°</span><span class="wm-h-rain dry">0%</span></div>
+            <div class="wm-h-cell"><span class="wm-h-time">09</span><i class="ph-fill ph-sun wm-h-icon"></i><span class="wm-h-temp">19°</span><span class="wm-h-rain dry">0%</span></div>
+            <div class="wm-h-cell"><span class="wm-h-time">10</span><i class="ph ph-cloud-sun wm-h-icon cloud"></i><span class="wm-h-temp">20°</span><span class="wm-h-rain dry">5%</span></div>
+            <div class="wm-h-cell"><span class="wm-h-time">11</span><i class="ph ph-cloud-sun wm-h-icon cloud"></i><span class="wm-h-temp">21°</span><span class="wm-h-rain dry">5%</span></div>
+            <div class="wm-h-cell"><span class="wm-h-time">12</span><i class="ph-fill ph-sun wm-h-icon"></i><span class="wm-h-temp">22°</span><span class="wm-h-rain dry">0%</span></div>
+            <div class="wm-h-cell"><span class="wm-h-time">13</span><i class="ph-fill ph-sun wm-h-icon"></i><span class="wm-h-temp">23°</span><span class="wm-h-rain dry">0%</span></div>
+            <div class="wm-h-cell"><span class="wm-h-time">14</span><i class="ph-fill ph-sun wm-h-icon"></i><span class="wm-h-temp">24°</span><span class="wm-h-rain dry">5%</span></div>
+            <div class="wm-h-cell"><span class="wm-h-time">15</span><i class="ph-fill ph-sun wm-h-icon"></i><span class="wm-h-temp">23°</span><span class="wm-h-rain dry">10%</span></div>
+            <div class="wm-h-cell"><span class="wm-h-time">16</span><i class="ph ph-cloud-sun wm-h-icon cloud"></i><span class="wm-h-temp">22°</span><span class="wm-h-rain dry">15%</span></div>
+            <div class="wm-h-cell now"><span class="wm-h-time now-label">17 今</span><i class="ph-fill ph-sun wm-h-icon"></i><span class="wm-h-temp">22°</span><span class="wm-h-rain dry">20%</span></div>
+            <div class="wm-h-cell"><span class="wm-h-time">18</span><i class="ph ph-cloud-sun wm-h-icon cloud"></i><span class="wm-h-temp">20°</span><span class="wm-h-rain dry">25%</span></div>
+            <div class="wm-h-cell"><span class="wm-h-time">19</span><i class="ph-fill ph-cloud-rain wm-h-icon rain"></i><span class="wm-h-temp">19°</span><span class="wm-h-rain">35%</span></div>
+            <div class="wm-h-cell"><span class="wm-h-time">20</span><i class="ph-fill ph-cloud-rain wm-h-icon rain"></i><span class="wm-h-temp">18°</span><span class="wm-h-rain">50%</span></div>
+            <div class="wm-h-cell"><span class="wm-h-time">21</span><i class="ph-fill ph-cloud-rain wm-h-icon rain"></i><span class="wm-h-temp">17°</span><span class="wm-h-rain">65%</span></div>
+          </div>
+
+          <!-- フッタ -->
+          <div class="wm-foot">
+            位置: 埼玉県 (35.85, 139.65) · データ: Open-Meteo
+          </div>
+        </div>
+      </div>
+
+      <!-- TabBar -->
+      <div class="a-tabbar">
+        <div class="tab active"><i class="ph ph-house ic-t"></i><span>ホーム</span></div>
+        <div class="tab"><i class="ph ph-list ic-t"></i><span>記録</span></div>
+        <div class="tab"><i class="ph ph-backpack ic-t"></i><span>機材</span></div>
+        <div class="tab"><i class="ph ph-note-pencil ic-t"></i><span>計画</span></div>
+        <div class="tab"><i class="ph ph-chart-bar ic-t"></i><span>分析</span></div>
+      </div>
+
+    </div></div>
+  </div>
+</div>
+
+<div class="legend">
+<b>P2 確認チェックリスト</b>
+<ul>
+  <li><b>① Header 天気タップでハイライト</b>: <code>22°</code> セルが橙 tinted bg のさらに濃いめ + 外周薄リングで「タップ中」を示す (Modal 開いている間)</li>
+  <li><b>② Glass モーダル</b>: 画面下から TabBar (60px) のすぐ上に bottom-sheet で出現、上端のみ角丸 22px、グリップ 36×4px (引きおろし可ヒント)</li>
+  <li><b>③ メインブロック</b>: 左に天気アイコン 54px (晴れ=Phosphor fill <code>sun</code>、橙)、右に気温 40px Display tier「22°」+ 状態テキスト「晴れ」+ 「最高 24° / 最低 15°」</li>
+  <li><b>④ 時間別</b>: 横スクロール 16 セル (06:00 - 21:00)。各セル 56px 幅で「時刻 / アイコン / 気温」。<b>現在時刻のセル</b> (例 17:00) を Apple Blue tinted bg + 外周リング + 「17 今」ラベルでハイライト</li>
+  <li><b>⑤ アイコン使い分け</b>: 晴れ=<code>sun</code> (橙 fill) / 晴れ時々曇=<code>cloud-sun</code> (グレー regular) / 曇=<code>cloud</code> (グレー) / 雨=<code>cloud-rain</code> / 雪=<code>cloud-snow</code> / 雷=<code>cloud-lightning</code></li>
+  <li><b>⑥ フッタ注釈</b>: 「位置: 埼玉県 (35.85, 139.65) · データ: Open-Meteo」を 10px グレーで控えめに</li>
+  <li><b>⑦ 閉じる導線</b>: 右上 × ボタン / 背景 dim タップ / グリップ下スワイプ (実装簡略のため Esc + 背景タップで閉じる予定、グリップは視覚的ヒントのみ)</li>
+</ul>
+<b>S14 P2 で「やらない」こと</b> (S20 以降に送る):
+<ul>
+  <li>大会日との関連表示 (例: 4/29 大会の予報、雨注意)</li>
+  <li>週間予報 (今日のみ。明日以降を見たければ Sessions タブのカレンダー側で示唆)</li>
+  <li>UV指数 / 風速 / 湿度 (情報過多回避)</li>
+</ul>
+</div>
+
+<p class="subhead" style="margin-top:18px">
+  この絵で OK なら <b>「OK」</b> とお返しください。実装 (<code>src/ui/common/WeatherModal.jsx</code> 新規 + app.jsx 接続 + Open-Meteo hourly 拡張) → build → ご自身の Ctrl+F5 で実データ動作確認 → S14 全体 push 承認待ち、と進みます。
+  <br/>修正したい箇所があれば項目で指摘してください。
+</p>
+
+</body>
+</html>

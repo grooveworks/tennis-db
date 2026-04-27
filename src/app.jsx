@@ -16,7 +16,8 @@ const normalizeItems = (items) => (items || []).map(it => ({ ...it, date: normDa
 //    v3 と同じく collection 全体を 1 回で取得 (S13: 7 個 await の sequential を batch に変更、5-10x 高速化)
 const loadSessionsFromFirestore = async (user) => {
   if (!user) return null;
-  const keys = ["tournaments", "practices", "trials", "rackets", "strings", "venues", "opponents"];
+  // S14: next も読込追加 (Home Current Context / Next Actions で使用)
+  const keys = ["tournaments", "practices", "trials", "rackets", "strings", "venues", "opponents", "next"];
   const results = {};
   for (const k of keys) results[k] = []; // 既定値 (取得失敗時用)
   try {
@@ -75,7 +76,7 @@ function PlaceholderTab({ name, stage }) {
 function TennisDB() {
   const [user, setUser] = useState(null);
   const [authReady, setAuthReady] = useState(false);
-  const [tab, setTab] = useState("sessions");
+  const [tab, setTab] = useState("home"); // S14: default tab を home に変更 (DECISIONS S13.5 §10.9)
   const [tournaments, setTournaments] = useState([]);
   const [practices, setPractices] = useState([]);
   const [trials, setTrials] = useState([]);
@@ -84,6 +85,8 @@ function TennisDB() {
   const [strings, setStringsList] = useState([]);
   const [venues, setVenues]       = useState([]);
   const [opponents, setOpponents] = useState([]);
+  // S14: next (Home の Current Context / Next Actions で使用)
+  const [next, setNext] = useState([]);
   const [loading, setLoading] = useState(false);
   const [detail, setDetail] = useState(null); // S10: { type, session, mode } | null
   const [weather, setWeather] = useState(null); // S13.5: Open-Meteo 当日気温 { temp, code } | null
@@ -99,19 +102,60 @@ function TennisDB() {
     setStringsList(lsLoad(KEYS.strings) || []);
     setVenues(lsLoad(KEYS.venues)       || []);
     setOpponents(lsLoad(KEYS.opponents) || []);
+    // S14: next もローカルから初期ロード
+    setNext(lsLoad(KEYS.next) || []);
   }, []);
 
-  // S13.5: 天気取得 (Open-Meteo、key 不要、CORS 対応)
+  // S14: 天気取得 拡張 (Open-Meteo、key 不要、CORS 対応)
+  //   current: 気温 / 天気コード / 降水確率 / 風速 / 体感気温
+  //   hourly:  気温 / 天気コード / 降水確率 (24 時間分)
+  //   daily:   最高 / 最低気温 (1 日分)
+  //   wind_speed_unit=ms で m/s 単位 (テニス UI に合わせる)
   // 位置は埼玉県固定 (35.85, 139.65)。profile から取得は後 Stage で
   useEffect(() => {
     const fetchWeather = async () => {
       try {
-        const r = await fetch("https://api.open-meteo.com/v1/forecast?latitude=35.85&longitude=139.65&current=temperature_2m,weather_code");
+        const url = "https://api.open-meteo.com/v1/forecast"
+          + "?latitude=35.85&longitude=139.65"
+          + "&current=temperature_2m,weather_code,precipitation_probability,wind_speed_10m,apparent_temperature"
+          + "&hourly=temperature_2m,weather_code,precipitation_probability"
+          + "&daily=temperature_2m_max,temperature_2m_min"
+          + "&timezone=Asia%2FTokyo"
+          + "&forecast_days=1"
+          + "&wind_speed_unit=ms";
+        const r = await fetch(url);
         if (!r.ok) return;
         const data = await r.json();
-        const temp = data && data.current && data.current.temperature_2m;
-        const code = data && data.current && data.current.weather_code;
-        if (typeof temp === "number") setWeather({ temp, code });
+        const cur = data && data.current;
+        if (!cur || typeof cur.temperature_2m !== "number") return;
+        const daily = data && data.daily;
+        const hData = data && data.hourly;
+        // hourly: array index 0..23 = 当日各時刻 (timezone=Asia/Tokyo)
+        const hourly = [];
+        if (hData && Array.isArray(hData.time)) {
+          for (let i = 0; i < hData.time.length; i++) {
+            const ts = String(hData.time[i] || "");
+            const m = ts.match(/T(\d{2}):/);
+            if (!m) continue;
+            const h = parseInt(m[1], 10);
+            if (h < 0 || h > 23) continue;
+            hourly[h] = {
+              temp: hData.temperature_2m ? hData.temperature_2m[i] : null,
+              code: hData.weather_code   ? hData.weather_code[i]   : null,
+              rain: hData.precipitation_probability ? hData.precipitation_probability[i] : null,
+            };
+          }
+        }
+        setWeather({
+          temp:          cur.temperature_2m,
+          code:          cur.weather_code,
+          precipitation: cur.precipitation_probability,
+          wind:          cur.wind_speed_10m,
+          apparent:      cur.apparent_temperature,
+          todayHigh:     daily && daily.temperature_2m_max ? daily.temperature_2m_max[0] : null,
+          todayLow:      daily && daily.temperature_2m_min ? daily.temperature_2m_min[0] : null,
+          hourly,
+        });
       } catch (err) {
         console.warn("Weather fetch error:", err);
       }
@@ -120,6 +164,11 @@ function TennisDB() {
     const intervalId = setInterval(fetchWeather, 30 * 60 * 1000); // 30 分ごとに更新
     return () => clearInterval(intervalId);
   }, []);
+
+  // S14 P2: 天気詳細 Modal の開閉
+  const [weatherModalOpen, setWeatherModalOpen] = useState(false);
+  const handleWeatherClick = () => { if (weather) setWeatherModalOpen(true); };
+  const handleWeatherClose = () => setWeatherModalOpen(false);
 
   // 認証状態監視 + リアルタイム同期
   useEffect(() => {
@@ -144,6 +193,8 @@ function TennisDB() {
             setStringsList(data.strings || []);
             setVenues(data.venues || []);
             setOpponents(data.opponents || []);
+            // S14: next も
+            setNext(data.next || []);
             // localStorage には正規化前の原データを保存 (v3 互換のため)
             lsSave(KEYS.tournaments, data.tournaments);
             lsSave(KEYS.practices, data.practices);
@@ -152,6 +203,7 @@ function TennisDB() {
             lsSave(KEYS.strings, data.strings);
             lsSave(KEYS.venues, data.venues);
             lsSave(KEYS.opponents, data.opponents);
+            lsSave(KEYS.next, data.next);
             toast.show("クラウドから読み込みました", "success");
           }
           // 2) リアルタイム同期 (v3 と同じ collection レベル onSnapshot)
@@ -171,6 +223,7 @@ function TennisDB() {
               else if (key === "strings")  setStringsList(val);
               else if (key === "venues")   setVenues(val);
               else if (key === "opponents") setOpponents(val);
+              else if (key === "next") setNext(val);
               else return;
               lsSave(key, val);
             });
@@ -370,11 +423,18 @@ function TennisDB() {
     );
   };
 
-  // S12: FAB ミニメニューで種別が選ばれたら QuickAddModal を開く
-  //      "tournament" | "practice" のみ (試打は S14 Home 3 ボタン経由、DECISIONS_v4.md S12)
+  // S12-S14: QuickAdd 起動 (Sessions FAB / Home 3 ボタン共用)
+  //   Sessions FAB = "tournament" | "practice" (試打は除外、DECISIONS S12)
+  //   Home 3 ボタン = "tournament" | "practice" | "trial" (S14、QuickAddModal trial 拡張)
   const [quickAddType, setQuickAddType] = useState(null);
   const handleFabClick = (type) => {
     if (type === "tournament" || type === "practice") {
+      setQuickAddType(type);
+    }
+  };
+  // S14: Home Quick Add 3 ボタン用 (試打 trial を含む)
+  const handleHomeQuickAdd = (type) => {
+    if (type === "tournament" || type === "practice" || type === "trial") {
       setQuickAddType(type);
     }
   };
@@ -420,7 +480,16 @@ function TennisDB() {
       />
     );
   } else if (tab === "home") {
-    tabContent = <PlaceholderTab name="ホーム" stage="S14" />;
+    tabContent = (
+      <HomeTab
+        tournaments={tournaments}
+        practices={practices}
+        trials={trials}
+        next={next}
+        onQuickAdd={handleHomeQuickAdd}
+        onCardClick={handleCardClick}
+      />
+    );
   } else if (tab === "gear") {
     tabContent = <PlaceholderTab name="機材" stage="S16" />;
   } else if (tab === "plan") {
@@ -447,7 +516,7 @@ function TennisDB() {
         syncing={loading}
         onLogout={handleLogout}
         weather={weather}
-        onWeatherClick={null /* S14 で天気詳細 Modal を実装 */}
+        onWeatherClick={handleWeatherClick}
       />
       {tabContent}
       <TabBar tab={tab} onTabChange={setTab} />
@@ -486,6 +555,12 @@ function TennisDB() {
           confirm={cfm}
         />
       )}
+      {/* S14 P2: 天気詳細 Modal (Header 天気タップで開く) */}
+      <WeatherModal
+        open={weatherModalOpen}
+        weather={weather}
+        onClose={handleWeatherClose}
+      />
       {toast.el}
       {cfm.el}
     </div>

@@ -219,6 +219,35 @@ Practice Detail (S10、後続リファクタ):
 
 ---
 
+### S14 (Home タブ + 天気 Modal + QuickAddModal Safari 対応 + PWA TabBar) ✅
+
+**実装範囲**:
+- **HomeTab.jsx** (新規) + 子 6 component (HomeQuickAdd / CurrentContext / WeeklySummary / NextActions / TwoWeekCalendar / HomeDayPanel)、preview_s13.5.html FINAL 準拠
+- **WeatherModal.jsx** (新規) + Open-Meteo API hourly 拡張 (precipitation_probability / wind_speed_10m / apparent_temperature / daily max-min)
+- **QuickAddModal trial 拡張** (type="trial" + 判定 3 大ボタン + blankTrial 利用)
+- **app.jsx 改修**: default tab home / next 読込 / handleHomeQuickAdd / handleWeatherClick / WeatherModal 接続
+
+**Safari iOS 互換修正 (S14.3-S14.5)**:
+- **真の原因**: `<input>` のデフォルト `box-sizing: content-box` で grid track を 26px overflow + Safari iOS の date/time native UI が CSS minHeight を無視して縦拡張
+- **修正**: Input.jsx / Textarea.jsx に `boxSizing: "border-box"` + `WebkitAppearance: "none"` + `appearance: "none"` 追加 / fontSize 14→13 + padding "10px 14px"→"10px 12px" (v2 互換) / wrapper marginBottom 12→10
+- **判明事実**: PC Chrome の iPhone エミュレーションは Safari iOS の date/time native UI を再現しない (実機検証必須)
+- **検証手段**: preview_s14_p3.html (4 variant 比較) + iPhone Safari 実機スクショ判定
+
+**PWA TabBar (S14.6)**:
+- **症状**: PWA standalone モードで TabBar 上部の隙間が狭い (Safari/Chrome では出ない)
+- **原因**: `height: 56` + `paddingBottom: env(safe-area-inset-bottom)` で grid item (button) が padding を含む全領域に stretch → button 内 content が下方向ずれ
+- **修正**: TabBar の `height: 56` 削除 → 各 button に `minHeight: 56` 移行 (PWA safe-area 影響を受けない)
+
+**Phase 分割の教訓 (S14 で確立)**:
+- **2 段階プレビュー方針** (memory `feedback_two_stage_preview.md` 確立): Phase ごとに静的プロト preview_s<N>_p<M>.html を Claude Code preview パネルで承認 → 実データ確認、飛ばすと工数 5 倍化
+- **V2/V3/V4 経緯記録** (memory `project_v2_v3_history.md` 新設): V2 = 実使用 (信頼可)、V3 = 開発中止 (信頼不可、リサーチ参照禁止)、V4 = 再構築中
+- **動作確認チェックリスト + 予測値**: 実装前に Firestore データを集計して各カードの予測値を提示、ユーザーは画面と見比べるだけで判定可能 (視覚で気付きにくいロジックバグの早期発見)
+- **APP_VERSION 中間カウンタ運用**: Stage 中の修正のたびに `4.0.0-S14.1` `.2` `.3` ... と上げ、ユーザーが Header 表示で最新読込を判別できる仕組み (Stage 完了 push 時に `4.0.0-S14` に整える)
+
+**Home Current Context の検討中 = 主力 同一表示**: 仕様判断 1 (そのまま表示)。trial の「採用候補」最新が結局主力に昇格するケースで両方同じラケット名が出る、これは「採用候補→昇格した歴史」を可視化する情報として価値あり、削除しない。
+
+---
+
 ## このファイルの更新
 
 - Stage 完了時に該当節を追記

@@ -45,7 +45,7 @@ input,select,textarea,button{font-family:inherit}
 const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
 // ── 定数定義（色・キー・バージョン）─────────────
-const APP_VERSION="4.0.0-S13.5";
+const APP_VERSION="4.0.0-S14";
 const font="-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif";
 
 // 色設計（DESIGN_SYSTEM_v4.md §1 + §10 S13.5 改訂準拠）
@@ -1423,7 +1423,7 @@ function Input({ label, value, onChange, type = "text", placeholder, required, e
   const borderColor = hasError ? "#d93025" : (focus ? C.primary : C.border);
   const shadow = focus ? `0 0 0 2px ${hasError ? "rgba(217,48,37,0.2)" : C.primaryLight}` : "none";
   return (
-    <div style={{ marginBottom: 12, ...ext }}>
+    <div style={{ marginBottom: 10, ...ext }}>
       {label && (
         <label style={{ display: "block", fontSize: 12, color: C.textSecondary, fontWeight: 500, marginBottom: 4 }}>
           {label}{required && <span style={{ color: "#d93025", marginLeft: 4 }}>*</span>}
@@ -1440,12 +1440,15 @@ function Input({ label, value, onChange, type = "text", placeholder, required, e
         aria-invalid={hasError}
         style={{
           width: "100%",
+          boxSizing: "border-box",
+          WebkitAppearance: "none", // S14.5: Safari iOS の date/time native UI 無効化 (重なり解消、tap で picker は引き続き起動)
+          appearance: "none",
           minHeight: 44,
-          padding: "10px 14px",
+          padding: "10px 12px",    // v2 互換
           border: `1px solid ${borderColor}`,
           borderRadius: 8,
           fontFamily: font,
-          fontSize: 14,
+          fontSize: 13,            // v2 互換
           color: C.text,
           background: C.panel,
           outline: "none",
@@ -1598,7 +1601,7 @@ function Select({ label, value, onChange, options = [], required, error, style: 
   const borderColor = hasError ? "#d93025" : (focus ? C.primary : C.border);
   const shadow = focus ? `0 0 0 2px ${hasError ? "rgba(217,48,37,0.2)" : C.primaryLight}` : "none";
   return (
-    <div style={{ marginBottom: 12, ...ext }}>
+    <div style={{ marginBottom: 10, ...ext }}>
       {label && (
         <label style={{ display: "block", fontSize: 12, color: C.textSecondary, fontWeight: 500, marginBottom: 4 }}>
           {label}{required && <span style={{ color: "#d93025", marginLeft: 4 }}>*</span>}
@@ -1614,11 +1617,11 @@ function Select({ label, value, onChange, options = [], required, error, style: 
         style={{
           width: "100%",
           minHeight: 44,
-          padding: "10px 14px",
+          padding: "10px 12px", // v2 互換
           border: `1px solid ${borderColor}`,
           borderRadius: 8,
           fontFamily: font,
-          fontSize: 14,
+          fontSize: 13,         // v2 互換 (Input と揃える)
           color: C.text,
           background: C.panel,
           outline: "none",
@@ -1671,7 +1674,7 @@ function TabBar({ tab, onTabChange }) {
         backdropFilter: "saturate(180%) blur(12px)",
         WebkitBackdropFilter: "saturate(180%) blur(12px)",
         borderTop: "1px solid rgba(0,0,0,0.08)",
-        height: 56,
+        // S14.6: height 削除し button に minHeight: 56 を持たせる (PWA で上の隙間が狭くなる現象を解消)
         paddingBottom: "env(safe-area-inset-bottom, 0)",
         zIndex: 60,
       }}
@@ -1690,6 +1693,7 @@ function TabBar({ tab, onTabChange }) {
               alignItems: "center",
               justifyContent: "center",
               gap: 2,
+              minHeight: 56, // S14.6: TabBar 全体の height ではなく button 個別に固定 (PWA safe-area 影響を受けない)
               color: active ? C.primary : "#80868b",
               background: active ? C.primaryLight : "transparent",
               border: "none",
@@ -1719,7 +1723,7 @@ function Textarea({ label, value, onChange, rows = 3, placeholder, required, err
   const borderColor = hasError ? "#d93025" : (focus ? C.primary : C.border);
   const shadow = focus ? `0 0 0 2px ${hasError ? "rgba(217,48,37,0.2)" : C.primaryLight}` : "none";
   return (
-    <div style={{ marginBottom: 12, ...ext }}>
+    <div style={{ marginBottom: 10, ...ext }}>
       {label && (
         <label style={{ display: "block", fontSize: 12, color: C.textSecondary, fontWeight: 500, marginBottom: 4 }}>
           {label}{required && <span style={{ color: "#d93025", marginLeft: 4 }}>*</span>}
@@ -1736,12 +1740,13 @@ function Textarea({ label, value, onChange, rows = 3, placeholder, required, err
         aria-invalid={hasError}
         style={{
           width: "100%",
+          boxSizing: "border-box", // S14.4: padding 込みで grid track に収める (Input と揃える)
           minHeight: 80,
-          padding: "10px 14px",
+          padding: "10px 12px",    // v2 互換
           border: `1px solid ${borderColor}`,
           borderRadius: 8,
           fontFamily: font,
-          fontSize: 14,
+          fontSize: 13,            // v2 互換
           color: C.text,
           background: C.panel,
           outline: "none",
@@ -1825,6 +1830,1418 @@ function useToast() {
     />
   ) : null;
   return { show, el };
+}
+
+// === src/ui/common/WeatherModal.jsx ===
+// WeatherModal — 天気詳細 Glass モーダル (S14 P2)
+//
+// preview_s14_p2.html FINAL 準拠:
+//   - Glass bottom sheet (TabBar 60px の上、画面下端から立ち上がる)
+//   - グリップ + ヘッダ「今日の天気 M/D(曜)」+ × 閉じる
+//   - メインブロック: 天気アイコン (42px fill) + 気温 (Display tier 32px) + 状態テキスト + 最高/最低
+//   - テニス指標 3 列: 降水確率 / 風速 / 体感気温
+//   - 時間別 16 セル横スクロール (06:00-21:00)、現在時刻ハイライト + 降水 30% 以上で青強調
+//   - フッタ: 位置 + Open-Meteo 注釈
+//
+// props:
+//   open: boolean
+//   onClose: () => void
+//   weather: {
+//     temp, code: 現在気温・天気コード (WMO)
+//     precipitation, wind, apparent: 降水確率% / 風速 m/s / 体感気温°
+//     todayHigh, todayLow: 当日最高/最低
+//     hourly: [{ temp, code, rain }] index = hour (0-23)
+//   }
+
+const _WM_DOW = ["日","月","火","水","木","金","土"];
+
+// WMO weather code → アイコン名 (Phosphor) + 状態テキスト + 色種別
+const _wmCodeToInfo = (code) => {
+  if (code == null) return { icon: "sun", label: "—", kind: "clear" };
+  if (code === 0)   return { icon: "sun", label: "快晴", kind: "clear" };
+  if (code <= 3)    return { icon: "cloud-sun", label: "晴れ時々曇り", kind: "partly" };
+  if (code <= 48)   return { icon: "cloud", label: "曇り", kind: "cloud" };
+  if (code <= 67)   return { icon: "cloud-rain", label: "雨", kind: "rain" };
+  if (code <= 77)   return { icon: "cloud-snow", label: "雪", kind: "snow" };
+  if (code <= 82)   return { icon: "cloud-rain", label: "にわか雨", kind: "rain" };
+  if (code <= 99)   return { icon: "cloud-lightning", label: "雷雨", kind: "rain" };
+  return { icon: "cloud", label: "—", kind: "cloud" };
+};
+
+const _wmIconColor = (kind) => {
+  if (kind === "clear" || kind === "partly") return C.applePeach; // #FF9500
+  if (kind === "rain")  return C.primary;
+  if (kind === "snow")  return C.appleGray4;
+  return C.textMuted;
+};
+
+const _wmTodayLabel = () => {
+  const d = new Date();
+  return `${d.getMonth() + 1}/${d.getDate()} (${_WM_DOW[d.getDay()]})`;
+};
+
+function WeatherModal({ open, onClose, weather }) {
+  // Esc で閉じる
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e) => { if (e.key === "Escape") onClose && onClose(); };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [open, onClose]);
+
+  if (!open || !weather) return null;
+
+  const info = _wmCodeToInfo(weather.code);
+  const iconColor = _wmIconColor(info.kind);
+  const curHour = new Date().getHours();
+
+  // 時間別 06:00 - 21:00 (16 セル)
+  const hourly = Array.isArray(weather.hourly) ? weather.hourly : [];
+  const hours = [];
+  for (let h = 6; h <= 21; h++) {
+    const item = hourly[h];
+    hours.push({
+      hour: h,
+      temp: item && typeof item.temp === "number" ? Math.round(item.temp) : null,
+      code: item ? item.code : null,
+      rain: item && typeof item.rain === "number" ? Math.round(item.rain) : null,
+    });
+  }
+
+  return (
+    <>
+      {/* 背景 dim overlay (タップで閉じる) */}
+      <div
+        onClick={onClose}
+        style={{
+          position: "fixed", inset: 0,
+          background: "rgba(0,0,0,0.18)",
+          zIndex: 1099,
+        }}
+      />
+      {/* Glass bottom sheet (TabBar 上に貼り付く) */}
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="今日の天気詳細"
+        style={{
+          position: "fixed",
+          left: 0, right: 0,
+          bottom: "calc(56px + env(safe-area-inset-bottom, 0px))",
+          background: "rgba(255,255,255,0.72)",
+          backdropFilter: "saturate(180%) blur(28px)",
+          WebkitBackdropFilter: "saturate(180%) blur(28px)",
+          borderRadius: "22px 22px 0 0",
+          padding: "12px 16px 14px",
+          boxShadow: "0 -4px 20px rgba(0,0,0,.12)",
+          border: "1px solid rgba(255,255,255,0.5)",
+          borderBottom: "none",
+          zIndex: 1100,
+          maxHeight: "70vh",
+          overflowY: "auto",
+        }}
+      >
+        {/* グリップ */}
+        <div style={{
+          width: 36, height: 4, borderRadius: 2,
+          background: "rgba(120,120,128,.32)",
+          margin: "0 auto 10px",
+        }} />
+
+        {/* ヘッダ */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+          <div>
+            <span style={{ fontSize: 14, fontWeight: 700, color: C.text }}>今日の天気</span>
+            <span style={{ fontSize: 11, color: C.textMuted, marginLeft: 6, fontWeight: 500 }}>
+              {_wmTodayLabel()}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="閉じる"
+            style={{
+              width: 28, height: 28, borderRadius: 14,
+              background: "rgba(120,120,128,.16)", color: C.text,
+              border: "none", display: "flex",
+              alignItems: "center", justifyContent: "center",
+              cursor: "pointer", padding: 0,
+            }}
+          >
+            <Icon name="x" size={14} color={C.text} />
+          </button>
+        </div>
+
+        {/* メインブロック */}
+        <div style={{
+          display: "flex", alignItems: "center", gap: 12,
+          padding: "4px 4px 10px",
+          borderBottom: "1px solid rgba(0,0,0,0.08)",
+        }}>
+          <Icon name={info.icon} size={42} color={iconColor} weight="fill" />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{
+              fontSize: 32, fontWeight: 800, color: C.text,
+              lineHeight: 1, fontFeatureSettings: '"tnum"',
+            }}>
+              {Math.round(weather.temp)}
+              <span style={{ fontSize: 20, fontWeight: 700, color: C.textMuted, marginLeft: 2 }}>°</span>
+            </div>
+            <div style={{ fontSize: 12, color: C.textSecondary, fontWeight: 600, marginTop: 4 }}>
+              {info.label}
+            </div>
+            {(typeof weather.todayHigh === "number" && typeof weather.todayLow === "number") && (
+              <div style={{ fontSize: 10, color: C.textMuted, marginTop: 2, fontFeatureSettings: '"tnum"' }}>
+                最高 {Math.round(weather.todayHigh)}° / 最低 {Math.round(weather.todayLow)}°
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* テニス指標 3 列 */}
+        <div style={{
+          fontSize: 10, fontWeight: 700, color: C.textMuted,
+          textTransform: "uppercase", letterSpacing: 0.5,
+          marginTop: 10, marginBottom: 6,
+        }}>テニス指標</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6 }}>
+          <_WMStatCell
+            iconName="cloud-rain"
+            iconColor={C.primary}
+            iconWeight="fill"
+            value={typeof weather.precipitation === "number" ? Math.round(weather.precipitation) : null}
+            unit="%"
+            label="降水"
+          />
+          <_WMStatCell
+            iconName="wind"
+            iconColor={C.textMuted}
+            value={typeof weather.wind === "number" ? Math.round(weather.wind * 10) / 10 : null}
+            unit="m/s"
+            label="風速"
+          />
+          <_WMStatCell
+            iconName="thermometer"
+            iconColor={C.applePeach}
+            value={typeof weather.apparent === "number" ? Math.round(weather.apparent) : null}
+            unit="°"
+            label="体感"
+          />
+        </div>
+
+        {/* 時間別 */}
+        <div style={{
+          fontSize: 10, fontWeight: 700, color: C.textMuted,
+          textTransform: "uppercase", letterSpacing: 0.5,
+          marginTop: 10, marginBottom: 6,
+        }}>時間別</div>
+        <div style={{
+          display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4,
+        }}>
+          {hours.map((h) => {
+            const hInfo = _wmCodeToInfo(h.code);
+            const hIconColor = _wmIconColor(hInfo.kind);
+            const isNow = h.hour === curHour;
+            const isWet = h.rain != null && h.rain >= 30;
+            const useFill = (hInfo.kind === "clear" || hInfo.kind === "rain");
+            return (
+              <div
+                key={h.hour}
+                style={{
+                  flex: "0 0 52px",
+                  display: "flex", flexDirection: "column",
+                  alignItems: "center", gap: 3,
+                  padding: "6px 4px", borderRadius: 10,
+                  background: isNow ? "rgba(0,122,255,0.12)" : "rgba(255,255,255,0.6)",
+                  boxShadow: isNow ? "inset 0 0 0 1px rgba(0,122,255,0.4)" : undefined,
+                  position: "relative",
+                }}
+              >
+                <div style={{
+                  fontSize: 9, fontWeight: isNow ? 700 : 600,
+                  color: isNow ? C.primary : C.textMuted,
+                  fontFeatureSettings: '"tnum"',
+                }}>
+                  {isNow ? `${h.hour} 今` : String(h.hour).padStart(2, "0")}
+                </div>
+                <Icon
+                  name={hInfo.icon}
+                  size={16}
+                  color={hIconColor}
+                  weight={useFill ? "fill" : "regular"}
+                />
+                <div style={{
+                  fontSize: 12, fontWeight: 700, color: C.text,
+                  fontFeatureSettings: '"tnum"',
+                }}>
+                  {h.temp != null ? `${h.temp}°` : "—"}
+                </div>
+                <div style={{
+                  fontSize: 9, fontWeight: 700,
+                  color: isWet ? C.primary : "transparent",
+                  fontFeatureSettings: '"tnum"', lineHeight: 1,
+                }}>
+                  {h.rain != null ? `${h.rain}%` : "0%"}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* フッタ注釈 */}
+        <div style={{
+          fontSize: 10, color: C.textMuted, textAlign: "center",
+          marginTop: 12, paddingTop: 10,
+          borderTop: "1px solid rgba(0,0,0,0.08)",
+        }}>
+          位置: 埼玉県 (35.85, 139.65) · データ: Open-Meteo
+        </div>
+      </div>
+    </>
+  );
+}
+
+// テニス指標 1 セル (3 列カード共通)
+function _WMStatCell({ iconName, iconColor, iconWeight, value, unit, label }) {
+  return (
+    <div style={{
+      background: "rgba(255,255,255,0.6)", borderRadius: 10,
+      padding: "7px 4px", textAlign: "center",
+      display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
+    }}>
+      <Icon name={iconName} size={16} color={iconColor} weight={iconWeight || "regular"} />
+      <div style={{
+        fontSize: 16, fontWeight: 800, color: C.text,
+        lineHeight: 1, fontFeatureSettings: '"tnum"',
+      }}>
+        {value != null ? value : "—"}
+        <span style={{ fontSize: 10, fontWeight: 700, color: C.textMuted, marginLeft: 1 }}>{unit}</span>
+      </div>
+      <div style={{ fontSize: 9, color: C.textMuted, fontWeight: 600, marginTop: 1 }}>{label}</div>
+    </div>
+  );
+}
+
+// === src/ui/home/CurrentContext.jsx ===
+// CurrentContext — Home タブ「現在の状況」カード (S14 / P1 本実装)
+//
+// preview_s13.5.html FINAL L217-243 / DECISIONS_v4.md S13.5 Current Context 生成ルール準拠
+//
+// 5 行構成:
+//   1. 次の大会:     tournaments で normDate(date) >= today、最近 1 件
+//   2. 課題:         next で done=false の優先度最上位 1 件 (priority 順)
+//   3. 主力:         直近 30 日 (practices+tournaments) 使用最多のラケット
+//                    5 回以上 → 「継続使用中」/ 1-4 回 → 「検討中」/ 0 回 → 「待機」
+//   4. 検討中:       trials で judgment="採用候補" の最新 1 件
+//                    主力と同じラケットでも表示する (DECISIONS S14 ユーザー判断 1)
+//                    フォールバック: 該当無しなら行を非表示
+//   5. 直近:         tournaments で date <= today かつ overallResult あり、最新 1 件
+//                    フォールバック: 該当無しなら行を非表示
+//
+// props:
+//   tournaments, practices, trials, next: 全データ
+//
+// ステータス pill:
+//   status-keep   (緑): 「継続使用中」
+//   status-trial  (紫): 「採用候補」「検討中」「待機」
+//   status-result (橙): 大会結果ラベル (優勝/準優勝/3位/予選突破/ベスト8 等)
+
+const _CTX_PRIORITY_ORDER = { "最高": 1, "高": 2, "中": 3, "低": 4, "参考": 5 };
+
+// 30 日前の YYYY-MM-DD
+const _ctxThirtyDaysAgo = () => {
+  const d = new Date();
+  d.setDate(d.getDate() - 30);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+};
+
+// 「12 日後」など day diff 表記
+const _ctxDayDiff = (iso, todayIso) => {
+  if (!iso || !todayIso) return "";
+  const a = new Date(iso); const b = new Date(todayIso);
+  const ms = a.getTime() - b.getTime();
+  const days = Math.round(ms / (1000 * 60 * 60 * 24));
+  if (days === 0) return "今日";
+  if (days < 0) return `${-days} 日前`;
+  return `${days} 日後`;
+};
+
+// 長文省略ルール (ChatGPT 指摘 高 2 / 2026-04-27):
+//   - val (主行): line-height 1.4 で最大 2 行折り返し許容、それ以上は WebkitLineClamp で省略
+//   - sub (補助行): 1 行のみ、nowrap + ellipsis (横にはみ出さない)
+//   - 長い大会名 / ラケット名にも耐える
+function _CtxRow({ keyText, val, sub, status, statusKind }) {
+  const statusStyle =
+    statusKind === "keep"   ? { background: "#E6F4EA", color: "#0a5b35" } :
+    statusKind === "trial"  ? { background: "#F3E8FD", color: "#6a25a8" } :
+    statusKind === "result" ? { background: "#FFE6BD", color: "#7E4F00" } :
+                              { background: C.panel2, color: C.textSecondary };
+  return (
+    <div style={{
+      display: "flex", alignItems: "flex-start", gap: 10,
+      padding: "9px 0",
+      borderTop: `1px solid ${C.bg}`,
+    }}>
+      <div style={{ fontSize: 11, color: C.textMuted, fontWeight: 600, minWidth: 62, paddingTop: 1, letterSpacing: 0.2 }}>
+        {keyText}
+      </div>
+      <div style={{ flex: 1, fontSize: 13, color: C.text, fontWeight: 500, lineHeight: 1.4, minWidth: 0 }}>
+        <span style={{
+          display: "-webkit-box",
+          WebkitLineClamp: 2, WebkitBoxOrient: "vertical",
+          overflow: "hidden",
+        }}>
+          {val}
+          {status && (
+            <span style={{
+              display: "inline-block", fontSize: 10, fontWeight: 700,
+              padding: "1px 7px", borderRadius: 6, marginLeft: 5,
+              letterSpacing: 0.3, verticalAlign: 1,
+              ...statusStyle,
+            }}>{status}</span>
+          )}
+        </span>
+        {sub && (
+          <div style={{
+            fontSize: 11, color: C.textMuted, marginTop: 2,
+            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+          }}>{sub}</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function CurrentContext({ tournaments = [], practices = [], trials = [], next = [] }) {
+  const todayIso = today();
+
+  // 1. 次の大会
+  const upcomingTournament = useMemo(() => {
+    return (tournaments || [])
+      .filter(t => t && t.date && normDate(t.date) >= todayIso)
+      .sort((a, b) => (normDate(a.date) || "").localeCompare(normDate(b.date) || ""))[0] || null;
+  }, [tournaments, todayIso]);
+
+  // 2. 課題 (優先度最上位の OPEN)
+  const topTask = useMemo(() => {
+    const open = (next || []).filter(n => n && !n.done);
+    open.sort((a, b) => (_CTX_PRIORITY_ORDER[a.priority] || 99) - (_CTX_PRIORITY_ORDER[b.priority] || 99));
+    return open[0] || null;
+  }, [next]);
+
+  // 3. 主力ラケット (直近 30 日 練習+大会 使用回数最多)
+  const mainRacket = useMemo(() => {
+    const cutoff = _ctxThirtyDaysAgo();
+    const counts = {};
+    const tally = (item) => {
+      if (!item || !item.racketName) return;
+      const nd = normDate(item.date);
+      if (nd >= cutoff && nd <= todayIso) {
+        counts[item.racketName] = (counts[item.racketName] || 0) + 1;
+      }
+    };
+    (practices || []).forEach(tally);
+    (tournaments || []).forEach(tally);
+    const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+    if (entries.length === 0) return null;
+    const [name, count] = entries[0];
+    let status = "待機";
+    if (count >= 5) status = "継続使用中";
+    else if (count >= 1) status = "検討中";
+    return { name, count, status };
+  }, [practices, tournaments, todayIso]);
+
+  // 4. 検討中 (trial 採用候補 最新)
+  const candidate = useMemo(() => {
+    const list = (trials || [])
+      .filter(tr => tr && tr.judgment === "採用候補")
+      .sort((a, b) => (normDate(b.date) || "").localeCompare(normDate(a.date) || ""));
+    return list[0] || null;
+  }, [trials]);
+
+  // 5. 直近結果 (overallResult あり、最新)
+  const recentResult = useMemo(() => {
+    const list = (tournaments || [])
+      .filter(t => t && t.date && normDate(t.date) <= todayIso && t.overallResult)
+      .sort((a, b) => (normDate(b.date) || "").localeCompare(normDate(a.date) || ""));
+    return list[0] || null;
+  }, [tournaments, todayIso]);
+
+  return (
+    <div style={{ background: C.panel, borderRadius: RADIUS.card, padding: 16, marginBottom: 8 }}>
+      {/* ヘッダ */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: C.text, display: "flex", alignItems: "center", gap: 6 }}>
+          <Icon name="map-pin" size={16} color={C.primary} />
+          現在の状況
+        </div>
+        <span style={{
+          fontSize: 10, fontWeight: 600, color: C.primary,
+          background: C.primaryLight, padding: "3px 8px",
+          borderRadius: 8, letterSpacing: 0.3,
+        }}>CURRENT</span>
+      </div>
+
+      {/* 1. 次の大会 */}
+      <_CtxRow
+        keyText="次の大会"
+        val={upcomingTournament
+          ? <>{fmtDate(upcomingTournament.date)} <b>{upcomingTournament.name || "(無題)"}</b></>
+          : "予定なし"
+        }
+        sub={upcomingTournament
+          ? `${_ctxDayDiff(normDate(upcomingTournament.date), todayIso)} · ${upcomingTournament.level || "—"} ${upcomingTournament.type === "doubles" ? "ダブルス" : upcomingTournament.type === "mixed" ? "ミックス" : "シングルス"}${upcomingTournament.startTime ? ` · ${upcomingTournament.startTime} 開始` : ""}`
+          : null
+        }
+      />
+
+      {/* 2. 課題 */}
+      <_CtxRow
+        keyText="課題"
+        val={topTask ? topTask.label || "(無題)" : "未設定"}
+      />
+
+      {/* 3. 主力 */}
+      <_CtxRow
+        keyText="主力"
+        val={mainRacket ? mainRacket.name : "未設定"}
+        status={mainRacket ? mainRacket.status : null}
+        statusKind={mainRacket && mainRacket.status === "継続使用中" ? "keep" : "trial"}
+        sub={mainRacket
+          ? `直近 30 日 ${mainRacket.count} 回`
+          : null
+        }
+      />
+
+      {/* 4. 検討中 (フォールバック: 行非表示) */}
+      {candidate && (
+        <_CtxRow
+          keyText="検討中"
+          val={candidate.racketName || "(無題)"}
+          status="採用候補"
+          statusKind="trial"
+          sub={`${fmtDate(candidate.date)} 試打`}
+        />
+      )}
+
+      {/* 5. 直近結果 (フォールバック: 行非表示) */}
+      {recentResult && (
+        <_CtxRow
+          keyText="直近"
+          val={<>{fmtDate(recentResult.date)} {recentResult.name || "(無題)"}</>}
+          status={recentResult.overallResult}
+          statusKind="result"
+        />
+      )}
+    </div>
+  );
+}
+
+// === src/ui/home/HomeDayPanel.jsx ===
+// HomeDayPanel — Home タブ「カレンダーマス」タップ時の Glass DayPanel (S14 / P1 本実装)
+//
+// preview_s13.5.html FINAL L406-431 / DECISIONS_v4.md S13.5 §10.5 Glass morphism (floating パネル限定)
+//
+// 配置・スタイル:
+//   - position: fixed (or absolute on parent), 画面下端 bottom: 74px (TabBar 14px 上)
+//   - left/right: 14px, border-radius: 22px
+//   - Glass: rgba(255,255,255,0.72) + backdrop-filter saturate(180%) blur(28px)
+//   - 背景に半透明 overlay (#000 18%) を全画面で
+//
+// 行構造 (各イベント):
+//   - 色帯 4×32 (橙=大会 / 緑=練習)
+//   - title 13px 600 + meta 11px grey
+//   - バッジ (大会のみ overallResult や「予定」、Apple-flavored 橙系)
+//
+// 凡例フッタ: 「━ 緑: 練習 / 橙: 大会 / 紫点: 試打」(ChatGPT 採用)
+//
+// props:
+//   open: boolean
+//   iso: 表示対象日付 (YYYY-MM-DD)
+//   tournaments, practices, trials: 全件
+//   onClose, onItemClick(type, item)
+
+const _HDP_DOW_LABELS = ["日","月","火","水","木","金","土"];
+
+// 「5月9日(土)」表記
+const _hdpDateLabel = (iso) => {
+  if (!iso) return "";
+  const m = iso.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return iso;
+  const d = new Date(iso);
+  return `${parseInt(m[2])}月${parseInt(m[3])}日(${_HDP_DOW_LABELS[d.getDay()]})`;
+};
+
+function HomeDayPanel({ open, iso, tournaments = [], practices = [], trials = [], onClose, onItemClick }) {
+  // Esc で閉じる
+  useEffect(() => {
+    if (!open) return;
+    const h = (e) => { if (e.key === "Escape") onClose && onClose(); };
+    document.addEventListener("keydown", h);
+    return () => document.removeEventListener("keydown", h);
+  }, [open, onClose]);
+
+  if (!open || !iso) return null;
+
+  const dayItems = [];
+  (tournaments || []).forEach(t => {
+    if (t && normDate(t.date) === iso) dayItems.push({ type: "tournament", item: t });
+  });
+  (practices || []).forEach(p => {
+    if (p && normDate(p.date) === iso) dayItems.push({ type: "practice", item: p });
+  });
+  (trials || []).forEach(tr => {
+    if (tr && normDate(tr.date) === iso) dayItems.push({ type: "trial", item: tr });
+  });
+
+  return (
+    <>
+      {/* 背景 dim overlay */}
+      <div
+        onClick={onClose}
+        style={{
+          position: "fixed", inset: 0,
+          background: "rgba(0,0,0,0.18)",
+          zIndex: 9,
+        }}
+      />
+      {/* Glass Panel */}
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={`${_hdpDateLabel(iso)} の予定`}
+        style={{
+          position: "fixed",
+          left: 14, right: 14,
+          bottom: "calc(74px + env(safe-area-inset-bottom, 0px))",
+          background: "rgba(255,255,255,0.72)",
+          backdropFilter: "saturate(180%) blur(28px)",
+          WebkitBackdropFilter: "saturate(180%) blur(28px)",
+          borderRadius: 22,
+          padding: 16,
+          boxShadow: "0 4px 20px rgba(0,0,0,.12)",
+          border: "1px solid rgba(255,255,255,0.5)",
+          zIndex: 10,
+          maxHeight: "60vh",
+          overflowY: "auto",
+        }}
+      >
+        {/* ヘッダ */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>
+            {_hdpDateLabel(iso)} · {dayItems.length} 件
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="閉じる"
+            style={{
+              width: 28, height: 28, borderRadius: 14,
+              background: "rgba(120,120,128,.16)", color: C.text,
+              border: "none", display: "flex",
+              alignItems: "center", justifyContent: "center",
+              cursor: "pointer", fontSize: 14,
+            }}
+          >
+            <Icon name="x" size={14} color={C.text} />
+          </button>
+        </div>
+
+        {/* 行リスト */}
+        {dayItems.length === 0 ? (
+          <div style={{ fontSize: 12, color: C.textMuted, padding: "12px 0", textAlign: "center" }}>
+            この日には予定がありません
+          </div>
+        ) : (
+          dayItems.map((d, i) => {
+            const isT = d.type === "tournament";
+            const isTr = d.type === "trial";
+            const stripColor = isT ? "#FF9500" : isTr ? "#9334E0" : "#34C759";
+            const item = d.item;
+
+            const title = isT
+              ? (item.name || "(無題)")
+              : isTr
+                ? (item.racketName || "(試打)")
+                : (item.title || item.type || "練習");
+
+            const meta = (() => {
+              if (isT) {
+                const parts = [];
+                if (item.startTime) parts.push(item.startTime);
+                if (item.type) parts.push(item.type === "doubles" ? "ダブルス" : item.type === "mixed" ? "ミックス" : "シングルス");
+                if (item.level) parts.push(item.level);
+                return parts.join(" · ") + " · 大会";
+              }
+              if (isTr) {
+                const parts = [];
+                if (item.judgment) parts.push(item.judgment);
+                if (item.venue) parts.push(item.venue);
+                return parts.join(" · ") + " · 試打";
+              }
+              const parts = [];
+              if (item.startTime && item.endTime) parts.push(`${item.startTime}-${item.endTime}`);
+              else if (item.startTime) parts.push(item.startTime);
+              if (item.duration) parts.push(`${item.duration} 分`);
+              if (item.type) parts.push(item.type);
+              return parts.join(" · ") + " · 練習";
+            })();
+
+            const badge = isT
+              ? (item.overallResult || "予定")
+              : null;
+
+            return (
+              <div
+                key={i}
+                onClick={() => onItemClick && onItemClick(d.type, item)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 10,
+                  padding: "8px 0",
+                  borderTop: i === 0 ? "none" : "1px solid rgba(0,0,0,0.08)",
+                  cursor: "pointer",
+                }}
+              >
+                <div style={{
+                  width: 4, height: 32,
+                  borderRadius: 2, background: stripColor,
+                  flexShrink: 0,
+                }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{
+                    fontSize: 13, fontWeight: 600, color: C.text,
+                    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                  }}>{title}</div>
+                  <div style={{
+                    fontSize: 11, color: C.textMuted, marginTop: 1,
+                    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                  }}>{meta}</div>
+                </div>
+                {badge && (
+                  <div style={{
+                    fontSize: 10, fontWeight: 700,
+                    padding: "2px 7px", borderRadius: 6,
+                    background: "#FFE6BD", color: "#7E4F00",
+                  }}>{badge}</div>
+                )}
+              </div>
+            );
+          })
+        )}
+
+        {/* 凡例フッタ */}
+        <div style={{
+          fontSize: 10, color: C.textMuted,
+          marginTop: 8, paddingTop: 8,
+          borderTop: "1px solid rgba(0,0,0,0.08)",
+          textAlign: "center",
+        }}>
+          ━ 緑: 練習 / 橙: 大会 / 紫点: 試打
+        </div>
+      </div>
+    </>
+  );
+}
+
+// === src/ui/home/HomeQuickAdd.jsx ===
+// HomeQuickAdd — Home タブ最上部の Quick Add 3 ボタン (S14 / P1 本実装)
+//
+// preview_s13.5.html FINAL L210-215 / L57-63 に準拠:
+//   - 高さ 72px、border-radius 18px、3 等分横並び
+//   - グラデーション背景 (大会=橙系 / 練習=緑系 / 試打=紫系)
+//   - Phosphor アイコン 26px (大会=trophy / 練習=person-standing→person-simple-run / 試打=tennis(Tabler))
+//   - shadow + active 時 scale(.97)
+//
+// 配線:
+//   - 大会・練習タップ → onQuickAdd(type) → app.jsx setQuickAddType → 既存 QuickAddModal 起動
+//   - 試打タップ → 同 → QuickAddModal trial 拡張 (S14 で QuickAddModal 改修済)
+//
+// props:
+//   onQuickAdd(type): "tournament" | "practice" | "trial" を渡す
+
+const _HQA_BUTTONS = [
+  { type: "tournament", label: "大会を記録", icon: "trophy",          grad: "linear-gradient(180deg,#FFB340,#FF9500)" },
+  { type: "practice",   label: "練習を記録", icon: "person-standing", grad: "linear-gradient(180deg,#34C759,#30B050)" },
+  { type: "trial",      label: "試打を記録", icon: "tennis",          grad: "linear-gradient(180deg,#AF52DE,#9334E0)" },
+];
+
+function HomeQuickAdd({ onQuickAdd }) {
+  return (
+    <div style={{ display: "flex", gap: 10, margin: "4px 0 10px" }}>
+      {_HQA_BUTTONS.map((b) => (
+        <button
+          key={b.type}
+          type="button"
+          onClick={() => onQuickAdd && onQuickAdd(b.type)}
+          aria-label={b.label}
+          style={{
+            flex: 1, height: 72,
+            borderRadius: 18,
+            border: "none",
+            background: b.grad,
+            color: "#fff",
+            display: "flex", flexDirection: "column",
+            alignItems: "center", justifyContent: "center",
+            gap: 3,
+            fontFamily: font,
+            cursor: "pointer",
+            boxShadow: "0 1px 3px rgba(0,0,0,.06), 0 4px 14px rgba(0,0,0,.06)",
+            transition: "transform .15s",
+          }}
+          onMouseDown={(e) => { e.currentTarget.style.transform = "scale(.97)"; }}
+          onMouseUp={(e)   => { e.currentTarget.style.transform = ""; }}
+          onMouseLeave={(e)=> { e.currentTarget.style.transform = ""; }}
+          onTouchStart={(e)=> { e.currentTarget.style.transform = "scale(.97)"; }}
+          onTouchEnd={(e)  => { e.currentTarget.style.transform = ""; }}
+        >
+          <Icon name={b.icon} size={26} color="#fff" />
+          <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: 0.3 }}>{b.label}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// === src/ui/home/HomeTab.jsx ===
+// HomeTab — Home タブ (S14 P1 本実装、Apple-flavored Material 路線)
+//
+// 構成 (preview_s13.5.html FINAL 準拠、5 カード上限):
+//   - HomeQuickAdd: 大会 / 練習 / 試打 の 3 大ボタン (グラデ + Phosphor アイコン + 配線)
+//   - CurrentContext:  現在の状況 (5 行: 次の大会 / 課題 / 主力 / 検討中 / 直近)
+//   - WeeklySummary:   今週サマリー (Display tier 大数字、4 統計 + フッタ)
+//   - NextActions:     次のアクション top 3 (Apple Reminders 風 check circle + priority dot)
+//   - TwoWeekCalendar: 2 週間カレンダー (14 セル + 練習濃淡 + 大会 + 試打 dot)
+//   - HomeDayPanel:    カレンダーマス タップで Glass overlay (本 component 内部で state 管理)
+//
+// 配線:
+//   - onQuickAdd(type): app.jsx → setQuickAddType(type) → 既存 QuickAddModal 起動 (trial 含む)
+//   - onCardClick(type, item): DayPanel 内のセッションタップ → app.jsx → SessionDetailView
+//
+// props:
+//   tournaments, practices, trials, next: 全データ (Firestore からの正規化済)
+//   onQuickAdd(type): 大会/練習/試打 ボタンタップ
+//   onCardClick(type, session): DayPanel 内行タップ
+
+function HomeTab({
+  tournaments = [],
+  practices = [],
+  trials = [],
+  next = [],
+  onQuickAdd,
+  onCardClick,
+}) {
+  // DayPanel: 選択日 (iso) を内部 state で持つ。null なら閉
+  const [dayPanelIso, setDayPanelIso] = useState(null);
+
+  const handleDayTap = useCallback((iso) => {
+    setDayPanelIso(iso);
+  }, []);
+  const handleDayPanelClose = useCallback(() => {
+    setDayPanelIso(null);
+  }, []);
+  const handleDayItemClick = useCallback((type, item) => {
+    setDayPanelIso(null);
+    if (onCardClick) onCardClick(type, item);
+  }, [onCardClick]);
+
+  return (
+    <div style={{
+      flex: 1,
+      overflowY: "auto",
+      WebkitOverflowScrolling: "touch",
+      padding: "8px 14px 12px",
+      background: C.bg,
+    }}>
+      {/* Quick Add 3 ボタン */}
+      <HomeQuickAdd onQuickAdd={onQuickAdd} />
+
+      {/* 1. 現在の状況 */}
+      <CurrentContext
+        tournaments={tournaments}
+        practices={practices}
+        trials={trials}
+        next={next}
+      />
+
+      {/* 2. 今週サマリー */}
+      <WeeklySummary
+        tournaments={tournaments}
+        practices={practices}
+      />
+
+      {/* 3. 次のアクション */}
+      <NextActions next={next} />
+
+      {/* 4. 2 週間カレンダー */}
+      <TwoWeekCalendar
+        tournaments={tournaments}
+        practices={practices}
+        trials={trials}
+        onDayTap={handleDayTap}
+      />
+
+      {/* DayPanel (Glass overlay、選択日のセッション一覧) */}
+      <HomeDayPanel
+        open={!!dayPanelIso}
+        iso={dayPanelIso}
+        tournaments={tournaments}
+        practices={practices}
+        trials={trials}
+        onClose={handleDayPanelClose}
+        onItemClick={handleDayItemClick}
+      />
+    </div>
+  );
+}
+
+// === src/ui/home/NextActions.jsx ===
+// NextActions — Home タブ「次のアクション」カード (S14 / P1 本実装)
+//
+// preview_s13.5.html FINAL L272-302 / DECISIONS_v4.md S13.5 + Apple Reminders 風 check circle
+//
+// 構成:
+//   - ヘッダ: flag アイコン + 「次のアクション」 + 右肩に「N / M」進捗 tag (橙)
+//   - 行 (top 3): priority dot 6×6 + label/meta + check circle 22×22 (右)
+//
+// priority dot 色判定 (DECISIONS S13.5):
+//   - 赤 (#FF3B30): dueDate が 7 日以内
+//   - 橙 (#FF9500): 期限なし継続課題 (デフォルト)
+//   - 灰 (#C7C7CC): priority="低" or category="参考"
+//
+// check circle (Apple Reminders 風、DECISIONS §10.6):
+//   - 未チェック: 22px 円、border 2px Apple Blue、ニュートラル白
+//   - チェック済: 22px 塗り Apple Blue + 中央に白 check
+//   - タップ領域 44px 以上 (周辺 padding)
+//
+// S14 P1 では「読み取りのみ」(タップ完了化は S17 Plan タブで実装)
+// 本 P1 ではタップで何もしない (将来 onToggle prop を生やす)
+//
+// props: next (全件)、onToggle (将来用、未実装で OK)
+
+const _NA_PRIORITY_ORDER = { "最高": 1, "高": 2, "中": 3, "低": 4, "参考": 5 };
+
+// priority dot 色決定
+const _naDotColor = (n, todayIso) => {
+  if (n.priority === "低" || n.category === "参考") return C.appleGray4;
+  if (n.dueDate) {
+    const due = normDate(n.dueDate);
+    if (due) {
+      const a = new Date(due).getTime();
+      const b = new Date(todayIso).getTime();
+      const days = Math.round((a - b) / (1000 * 60 * 60 * 24));
+      if (days >= 0 && days <= 7) return "#FF3B30";
+    }
+  }
+  return "#FF9500";
+};
+
+function _NACheckCircle({ checked, onClick }) {
+  if (checked) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        aria-label="完了済"
+        style={{
+          width: 22, height: 22, borderRadius: 11,
+          background: C.primary, border: "none",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          flexShrink: 0, cursor: onClick ? "pointer" : "default",
+          padding: 0,
+        }}
+      >
+        <Icon name="check" size={12} color="#fff" />
+      </button>
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label="未完了"
+      style={{
+        width: 22, height: 22, borderRadius: 11,
+        background: C.panel, border: `1.5px solid ${C.appleGray4}`,
+        flexShrink: 0, cursor: onClick ? "pointer" : "default",
+        padding: 0,
+      }}
+    />
+  );
+}
+
+function NextActions({ next = [], onToggle }) {
+  const todayIso = today();
+
+  const open = useMemo(() => {
+    return (next || []).filter(n => n && !n.done).slice().sort(
+      (a, b) => (_NA_PRIORITY_ORDER[a.priority] || 99) - (_NA_PRIORITY_ORDER[b.priority] || 99)
+    );
+  }, [next]);
+
+  const top3 = open.slice(0, 3);
+
+  return (
+    <div style={{ background: C.panel, borderRadius: RADIUS.card, padding: 16, marginBottom: 8 }}>
+      {/* ヘッダ */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: C.text, display: "flex", alignItems: "center", gap: 6 }}>
+          <Icon name="flag" size={16} color={C.textMuted} />
+          次のアクション
+        </div>
+        <span style={{
+          fontSize: 10, fontWeight: 600,
+          color: "#FF9500", background: "rgba(255,149,0,0.10)",
+          padding: "3px 8px", borderRadius: 8, letterSpacing: 0.3,
+        }}>{top3.length} / {open.length}</span>
+      </div>
+
+      {/* 行 (top 3) */}
+      {top3.length === 0 ? (
+        <div style={{ fontSize: 12, color: C.textMuted, padding: "12px 0", textAlign: "center" }}>
+          未完了のアクションはありません
+        </div>
+      ) : (
+        top3.map((n, i) => {
+          const dot = _naDotColor(n, todayIso);
+          const due = n.dueDate ? normDate(n.dueDate) : null;
+          const meta = due
+            ? `${due} まで`
+            : (n.category || "継続課題");
+          return (
+            <div key={n.id || i} style={{
+              display: "flex", alignItems: "center", gap: 10,
+              padding: "9px 0",
+              borderTop: i === 0 ? "none" : `1px solid ${C.bg}`,
+            }}>
+              {/* priority dot */}
+              <div style={{
+                width: 6, height: 6, borderRadius: "50%",
+                background: dot, flexShrink: 0,
+              }} />
+              {/* body */}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{
+                  fontSize: 13, fontWeight: 600, color: C.text,
+                  lineHeight: 1.3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                }}>
+                  {n.label || "(無題)"}
+                </div>
+                <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>
+                  {meta}
+                </div>
+              </div>
+              {/* check circle (S14 P1 ではタップ動作なし、S17 Plan タブで実装) */}
+              <_NACheckCircle checked={false} onClick={onToggle ? () => onToggle(n.id) : null} />
+            </div>
+          );
+        })
+      )}
+    </div>
+  );
+}
+
+// === src/ui/home/TwoWeekCalendar.jsx ===
+// TwoWeekCalendar — Home タブ「カレンダー (2 週間)」カード (S14 / P1 本実装)
+//
+// preview_s13.5.html FINAL L304-329 / DECISIONS_v4.md S13.5 + ChatGPT 採用「カレンダー下部凡例 1 行常設」
+//
+// 構成:
+//   - ヘッダ: 「カレンダー」 + 右肩に「M/D 〜 M/D · 2 週間」 tag (grey)
+//   - 7×2 グリッド (今日含む 14 日): aspect-ratio 1/1, radius 10
+//   - 曜日見出し: 日 (赤) / 月-金 (grey) / 土 (Apple Blue)
+//   - セル分類:
+//     * today    : Apple Blue 塗り、白文字、bold
+//     * tour     : tour bg #FFE6BD、右上に小 trophy 10px (橙)
+//     * prac-acc : 練習 90 分以上、濃緑 #34C759 + 白文字
+//     * prac-mid : 練習 60-89 分、中緑 #B7E1C9
+//     * prac-light: 練習 < 60 分 or 単純練習 1 件、淡緑 #E6F4EA
+//     * trial dot: 試打 (期間内に judgment 不問の trial レコード) があれば底中央に紫 dot 5×5
+//   - フッタ: 「日付タップ → 詳細パネル展開 (色の意味も表示)」
+//
+// 日付タップ → onDayTap(iso, dayInfo) → app.jsx で HomeDayPanel を Glass overlay 表示
+//
+// props:
+//   tournaments, practices, trials: 全件
+//   onDayTap(iso, info): 日付タップで親に通知
+
+const _TWC_DOW_LABELS = ["日","月","火","水","木","金","土"];
+const _TWC_DOW_COLORS = ["#FF3B30", C.textMuted, C.textMuted, C.textMuted, C.textMuted, C.textMuted, C.primary];
+
+// 今週日曜から N 日後 (Sessions CalendarView と同じ日曜始まり方針、ChatGPT 指摘で統一)
+const _twcSundayPlusDays = (n) => {
+  const d = new Date();
+  d.setDate(d.getDate() - d.getDay() + n); // 今週日曜から n 日
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+};
+
+// 「M/D 〜 M/D」表記
+const _twcRangeLabel = (startIso, endIso) => {
+  const s = startIso.match(/(\d{4})-(\d{2})-(\d{2})/);
+  const e = endIso.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if (!s || !e) return "";
+  return `${parseInt(s[2])}/${parseInt(s[3])} 〜 ${parseInt(e[2])}/${parseInt(e[3])}`;
+};
+
+function TwoWeekCalendar({ tournaments = [], practices = [], trials = [], onDayTap }) {
+  const todayIso = today();
+
+  // 14 日分のセル状態を構築 (日曜始まり、今週日曜 〜 来週土曜の 2 週間固定)
+  const cells = useMemo(() => {
+    const arr = [];
+    for (let i = 0; i < 14; i++) {
+      const iso = _twcSundayPlusDays(i);
+      const d = new Date(iso);
+      const isPast = iso < todayIso;
+      arr.push({
+        iso,
+        dayNum: d.getDate(),
+        dow: d.getDay(),
+        isPast,
+        practiceCount: 0,
+        practiceMin: 0,
+        tournament: null,
+        hasTrial: false,
+      });
+    }
+
+    const idx = {};
+    arr.forEach((c, i) => { idx[c.iso] = i; });
+
+    (practices || []).forEach(p => {
+      if (!p || !p.date) return;
+      const i = idx[normDate(p.date)];
+      if (i === undefined) return;
+      arr[i].practiceCount += 1;
+      const n = parseInt(p.duration, 10);
+      if (!isNaN(n) && n > 0) arr[i].practiceMin += n;
+    });
+    (tournaments || []).forEach(t => {
+      if (!t || !t.date) return;
+      const i = idx[normDate(t.date)];
+      if (i === undefined) return;
+      if (!arr[i].tournament) arr[i].tournament = t;
+    });
+    (trials || []).forEach(tr => {
+      if (!tr || !tr.date) return;
+      const i = idx[normDate(tr.date)];
+      if (i === undefined) return;
+      arr[i].hasTrial = true;
+    });
+
+    return arr;
+  }, [tournaments, practices, trials, todayIso]);
+
+  const startIso = cells[0] ? cells[0].iso : todayIso;
+  const endIso = cells[13] ? cells[13].iso : todayIso;
+
+  // セル背景 / 文字色決定
+  const cellStyle = (c) => {
+    // 今日より前のセル (今週日曜含む過去日): 薄グレー背景塗り + 数字 textMuted
+    // 他セル (今日=青塗 / 大会=橙塗 / 練習=緑塗 / 未来空白=白) と同じ「背景色で意味」一貫体系に統一
+    if (c.isPast) {
+      return {
+        aspectRatio: "1 / 1",
+        borderRadius: 10,
+        background: "#F8F9FA",
+        color: C.textMuted,
+        cursor: "default",
+        fontSize: 11,
+        position: "relative",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        fontWeight: 500,
+      };
+    }
+
+    let bg = "transparent";
+    let fg = C.text;
+    let fontWeight = 500;
+
+    if (c.iso === todayIso) {
+      bg = C.primary;
+      fg = "#fff";
+      fontWeight = 700;
+    } else if (c.tournament) {
+      bg = "#FFE6BD";
+      fg = "#7E4F00";
+    } else if (c.practiceMin >= 90) {
+      bg = "#34C759";
+      fg = "#fff";
+    } else if (c.practiceMin >= 60) {
+      bg = "#B7E1C9";
+    } else if (c.practiceCount > 0) {
+      bg = "#E6F4EA";
+    }
+
+    return {
+      aspectRatio: "1 / 1",
+      borderRadius: 10,
+      background: bg,
+      color: fg,
+      fontWeight,
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      justifyContent: "center",
+      fontSize: 11,
+      position: "relative",
+      cursor: "pointer",
+    };
+  };
+
+  const numColor = (c) => {
+    if (c.isPast) return undefined; // 過去セル: cellStyle の C.appleGray4 を継承
+    if (c.iso === todayIso) return "#fff";
+    if (c.tournament) return "#7E4F00";  // 大会セル: 数字も橙茶
+    if (c.practiceMin >= 90) return "#fff"; // 濃緑セル: 白文字
+    if (c.dow === 0) return "#FF3B30";
+    if (c.dow === 6) return C.primary;
+    return undefined;
+  };
+
+  return (
+    <div style={{ background: C.panel, borderRadius: RADIUS.card, padding: 16, marginBottom: 8 }}>
+      {/* ヘッダ */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>カレンダー</div>
+        <div style={{
+          fontSize: 10, color: C.textMuted, fontWeight: 600,
+          background: C.bg, padding: "3px 8px", borderRadius: 6,
+        }}>{_twcRangeLabel(startIso, endIso)} · 2 週間</div>
+      </div>
+
+      {/* 曜日見出し (日曜始まり固定、Sessions CalendarView と統一) */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 3, marginBottom: 4 }}>
+        {_TWC_DOW_LABELS.map((lbl, i) => (
+          <div key={i} style={{
+            fontSize: 9, fontWeight: 600,
+            color: _TWC_DOW_COLORS[i],
+            textAlign: "center", padding: "2px 0",
+          }}>{lbl}</div>
+        ))}
+      </div>
+
+      {/* 14 セル grid (日曜始まり、過去セルは empty) */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 3 }}>
+        {cells.map((c, i) => (
+          <div
+            key={i}
+            onClick={() => !c.isPast && onDayTap && onDayTap(c.iso, c)}
+            style={cellStyle(c)}
+          >
+            {!c.isPast && c.tournament && (
+              <span style={{ position: "absolute", top: 2, right: 2, lineHeight: 0 }}>
+                <Icon name="trophy" size={10} color="#FF9500" />
+              </span>
+            )}
+            <span style={{ color: numColor(c) || "inherit", lineHeight: 1.1 }}>
+              {c.dayNum}
+            </span>
+            {!c.isPast && c.hasTrial && (
+              <div style={{
+                position: "absolute", bottom: 3,
+                width: 5, height: 5, borderRadius: "50%",
+                background: "#9334E0",
+              }} />
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* フッタ */}
+      <div style={{
+        fontSize: 10, color: C.textMuted, textAlign: "center",
+        marginTop: 8, paddingTop: 8, borderTop: `1px solid ${C.bg}`,
+      }}>
+        日付タップ → 詳細パネル展開 (色の意味も表示)
+      </div>
+    </div>
+  );
+}
+
+// === src/ui/home/WeeklySummary.jsx ===
+// WeeklySummary — Home タブ「今週サマリー」カード (S14 / P1 本実装)
+//
+// preview_s13.5.html FINAL L245-270 / DECISIONS_v4.md S13.5 + ChatGPT 採用案準拠
+//
+// 4 統計 (Display tier 大数字 34px、tabular-nums):
+//   - 練習: 直近 7 日の練習回数 (緑 #34C759)
+//   - 大会: 直近 7 日の大会数 (橙 #FF9500)
+//   - 平均/回: 直近 7 日 練習 duration の平均 (Apple Blue) + 「分」単位
+//   - 直近: 全 matches の最新 10 試合 N勝N敗 (Apple Blue)
+//
+// フッタ: 「主力 X · 試合勝率 N%」 (主力 = 直近 30 日最多ラケット、勝率 = 全 matches)
+//
+// props: tournaments, practices
+
+const _WS_DAY_MS = 1000 * 60 * 60 * 24;
+
+// ISO YYYY-MM-DD で N 日前
+const _wsDaysAgo = (n) => {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+};
+
+function _WSStat({ num, unit, label, color }) {
+  return (
+    <div style={{ flex: 1, textAlign: "center", position: "relative" }}>
+      <div style={{
+        fontSize: 34, fontWeight: 800, color: color || C.primary,
+        lineHeight: 1, fontFeatureSettings: '"tnum"',
+      }}>
+        {num}
+        {unit && (
+          <span style={{ fontSize: 13, fontWeight: 700, marginLeft: 1, color: "inherit" }}>{unit}</span>
+        )}
+      </div>
+      <div style={{
+        fontSize: 10, color: C.textMuted, fontWeight: 600,
+        letterSpacing: 0.4, textTransform: "uppercase", marginTop: 4,
+      }}>{label}</div>
+    </div>
+  );
+}
+
+// 縦区切り (a-stat::before の代替)
+function _WSDivider() {
+  return (
+    <div style={{
+      width: 1, alignSelf: "stretch", margin: "8px 0",
+      background: C.bg,
+    }} />
+  );
+}
+
+function WeeklySummary({ tournaments = [], practices = [] }) {
+  const todayIso = today();
+  const weekStart = _wsDaysAgo(6); // 今日含む 7 日 = -6 日前から
+
+  // 練習回数 / 平均/回
+  const weekP = useMemo(() =>
+    (practices || []).filter(p => {
+      if (!p || !p.date) return false;
+      const nd = normDate(p.date);
+      return nd >= weekStart && nd <= todayIso;
+    }), [practices, weekStart, todayIso]);
+
+  // 大会数
+  const weekT = useMemo(() =>
+    (tournaments || []).filter(t => {
+      if (!t || !t.date) return false;
+      const nd = normDate(t.date);
+      return nd >= weekStart && nd <= todayIso;
+    }), [tournaments, weekStart, todayIso]);
+
+  // 平均/回 (duration あり練習の平均)
+  const avgMin = useMemo(() => {
+    let total = 0, cnt = 0;
+    weekP.forEach(p => {
+      const n = parseInt(p.duration, 10);
+      if (!isNaN(n) && n > 0) { total += n; cnt += 1; }
+    });
+    return cnt > 0 ? Math.round(total / cnt) : 0;
+  }, [weekP]);
+
+  // 直近 10 試合 N勝N敗 + 全試合勝率
+  const matchStats = useMemo(() => {
+    const all = [];
+    [...(tournaments || [])]
+      .sort((a, b) => (normDate(b.date) || "").localeCompare(normDate(a.date) || ""))
+      .forEach(t => {
+        if (Array.isArray(t.matches)) {
+          t.matches.forEach(m => {
+            if (m && (m.result === "勝利" || m.result === "敗北")) {
+              all.push(m.result);
+            }
+          });
+        }
+      });
+    const last10 = all.slice(0, 10);
+    const wins10 = last10.filter(r => r === "勝利").length;
+    const loses10 = last10.filter(r => r === "敗北").length;
+    const winsAll = all.filter(r => r === "勝利").length;
+    const losesAll = all.filter(r => r === "敗北").length;
+    const totalAll = winsAll + losesAll;
+    const winRate = totalAll > 0 ? Math.round((winsAll * 100) / totalAll) : 0;
+    return { wins10, loses10, winsAll, losesAll, winRate, hasMatches: totalAll > 0 };
+  }, [tournaments]);
+
+  // 主力ラケット (直近 30 日)
+  const mainRacketName = useMemo(() => {
+    const cutoff = (() => {
+      const d = new Date();
+      d.setDate(d.getDate() - 30);
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+    })();
+    const counts = {};
+    [...(practices || []), ...(tournaments || [])].forEach(item => {
+      if (!item || !item.racketName) return;
+      const nd = normDate(item.date);
+      if (nd >= cutoff && nd <= todayIso) {
+        counts[item.racketName] = (counts[item.racketName] || 0) + 1;
+      }
+    });
+    const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+    return top ? top[0] : null;
+  }, [practices, tournaments, todayIso]);
+
+  return (
+    <div style={{ background: C.panel, borderRadius: RADIUS.card, padding: 16, marginBottom: 8 }}>
+      {/* ヘッダ */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>今週サマリー</div>
+        <div style={{
+          fontSize: 10, color: C.textMuted, fontWeight: 600,
+          background: C.bg, padding: "3px 8px", borderRadius: 6,
+        }}>直近 7 日</div>
+      </div>
+
+      {/* 4 統計 (横 4 等分、区切り線) */}
+      <div style={{ display: "flex", alignItems: "flex-end", padding: "6px 0 4px" }}>
+        <_WSStat num={weekP.length} label="練習" color="#34C759" />
+        <_WSDivider />
+        <_WSStat num={weekT.length} label="大会" color="#FF9500" />
+        <_WSDivider />
+        <_WSStat num={avgMin} unit="分" label="平均/回" color={C.primary} />
+        <_WSDivider />
+        {matchStats.hasMatches ? (
+          <div style={{ flex: 1, textAlign: "center" }}>
+            <div style={{
+              fontSize: 34, fontWeight: 800, color: C.primary,
+              lineHeight: 1, fontFeatureSettings: '"tnum"',
+            }}>
+              {matchStats.wins10}
+              <span style={{ fontSize: 13, fontWeight: 700, color: C.textMuted, marginLeft: 1 }}>勝</span>
+              {matchStats.loses10}
+              <span style={{ fontSize: 13, fontWeight: 700, color: C.textMuted, marginLeft: 1 }}>敗</span>
+            </div>
+            <div style={{
+              fontSize: 10, color: C.textMuted, fontWeight: 600,
+              letterSpacing: 0.4, textTransform: "uppercase", marginTop: 4,
+            }}>直近</div>
+          </div>
+        ) : (
+          <_WSStat num="—" label="直近" color={C.textMuted} />
+        )}
+      </div>
+
+      {/* フッタ: 主力 + 勝率 */}
+      <div style={{
+        fontSize: 11, color: C.textSecondary, textAlign: "center",
+        marginTop: 8, paddingTop: 8, borderTop: `1px solid ${C.bg}`,
+        fontWeight: 500,
+      }}>
+        {mainRacketName ? (
+          <>主力 <b style={{ color: C.primary, fontWeight: 700 }}>{mainRacketName}</b>{matchStats.hasMatches ? <> · 試合勝率 <b style={{ color: C.primary, fontWeight: 700 }}>{matchStats.winRate}%</b></> : null}</>
+        ) : (
+          matchStats.hasMatches ? <>試合勝率 <b style={{ color: C.primary, fontWeight: 700 }}>{matchStats.winRate}%</b></> : "データなし"
+        )}
+      </div>
+    </div>
+  );
 }
 
 // === src/ui/LoginScreen.jsx ===
@@ -4368,6 +5785,46 @@ function QuickAddFab({ onSelect, bottom = 180, ariaLabel = "記録を追加" }) 
 //   - 練習の startTime/endTime 入力で duration 自動計算 (v3 互換)
 //   - 必須未入力の form を保存しない (作成ボタンが disabled になっていれば不要だが防御)
 
+// 試打: 判定 3 大ボタン (S14、preview_s14.html L662-676 / DECISIONS S14 採用候補/保留/却下)
+function _qaJudgment({ value, onChange }) {
+  const cur = value || "保留";
+  const opts = [
+    { v: "採用候補", icon: "check", color: "#0a5b35", bg: C.practiceLight, border: C.practiceAccent },
+    { v: "保留",     icon: "clock", color: "#7e5d00", bg: C.warningLight,  border: C.warning },
+    { v: "却下",     icon: "x",     color: "#a31511", bg: C.errorLight,    border: C.error },
+  ];
+  return (
+    <div style={{ marginTop: 4 }}>
+      <label style={{ display: "block", fontSize: 12, color: C.textSecondary, fontWeight: 500, marginBottom: 4 }}>判定</label>
+      <div style={{ display: "flex", gap: 8 }}>
+        {opts.map((o) => {
+          const on = cur === o.v;
+          return (
+            <button
+              key={o.v}
+              type="button"
+              onClick={() => onChange(o.v)}
+              style={{
+                flex: 1, minHeight: 48, padding: "8px 12px",
+                borderRadius: 8, border: `1px solid ${on ? o.border : C.border}`,
+                background: on ? o.bg : C.panel,
+                color: on ? o.color : C.textSecondary,
+                fontSize: 13, fontWeight: 700, cursor: "pointer",
+                display: "flex", flexDirection: "column",
+                alignItems: "center", justifyContent: "center",
+                gap: 2, fontFamily: font,
+              }}
+            >
+              <Icon name={o.icon} size={16} color={on ? o.color : C.textSecondary} />
+              <span>{o.v}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // 番号付きセクション見出し (S11 各 form と同じパターン)
 function _qaSectionHead({ num, label }) {
   return (
@@ -4440,6 +5897,7 @@ function QuickAddModal({ open, type, racketNames = [], stringNames = [], venueNa
     if (!open || !type) return;
     if (type === "tournament") setForm(blankTournament());
     else if (type === "practice") setForm(blankPractice());
+    else if (type === "trial") setForm(blankTrial()); // S14: 試打 (Home 3 ボタン経由、preview_s14.html L575-)
     else setForm(null);
   }, [open, type]);
 
@@ -4478,12 +5936,14 @@ function QuickAddModal({ open, type, racketNames = [], stringNames = [], venueNa
     onSave && onSave(form);
   };
 
-  const titleText  = type === "tournament" ? "大会を追加" : "練習を追加";
-  const titleColor = type === "tournament" ? "#a04f00" : "#0a5b35";
-  const titleIcon  = type === "tournament" ? "trophy"   : "person-standing";
+  const titleText  = type === "tournament" ? "大会を追加" : type === "practice" ? "練習を追加" : "試打を追加";
+  const titleColor = type === "tournament" ? "#a04f00"   : type === "practice"   ? "#0a5b35"   : "#6a25a8";
+  const titleIcon  = type === "tournament" ? "trophy"    : type === "practice"   ? "person-standing" : "tennis";
   const hint = type === "tournament"
     ? "まず作成 → 結果 / 機材 / 試合記録は後から編集ボタンで追記。30 秒で記録できます。"
-    : "機材 / 体調 / メモは後から編集で追記。練習時間は時刻から自動計算。";
+    : type === "practice"
+      ? "機材 / 体調 / メモは後から編集で追記。練習時間は時刻から自動計算。"
+      : "判定だけ決めて作成 → 評価 17 項目 (打感 / 特性 / ショット) と連携先 (大会内 match / 練習) は後から編集ボタンで追記。";
 
   return (
     <div
@@ -4548,6 +6008,26 @@ function QuickAddModal({ open, type, racketNames = [], stringNames = [], venueNa
               <label style={{ display: "block", fontSize: 12, color: C.textSecondary, fontWeight: 500, marginBottom: 4 }}>公開設定</label>
               <_qaVisibility value={form.visibility} onChange={(v) => set("visibility", v)} />
             </div>
+          </>
+        )}
+
+        {/* 試打フォーム (S14、preview_s14.html L575-) */}
+        {type === "trial" && (
+          <>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>
+              <Input type="date" label="日付" required value={form.date || ""} onChange={(v) => set("date", v)} error={errors.date} />
+              <MasterField label="会場" value={form.venue || ""} onChange={(v) => set("venue", v)} masterValues={venueNames} placeholder="-- 会場を選択 --" />
+            </div>
+            <MasterField label="ラケット" required value={form.racketName || ""} onChange={(v) => set("racketName", v)} masterValues={racketNames} placeholder="-- ラケットを選択 --" error={errors.racketName} />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>
+              <MasterField label="縦糸" value={form.stringMain || ""} onChange={(v) => set("stringMain", v)} masterValues={stringNames} placeholder="-- 縦糸 --" />
+              <MasterField label="横糸" value={form.stringCross || ""} onChange={(v) => set("stringCross", v)} masterValues={stringNames} placeholder="-- 横糸 --" />
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>
+              <Input label="テンション 縦" value={form.tensionMain || ""} onChange={(v) => set("tensionMain", v)} placeholder="例: 48" />
+              <Input label="テンション 横" value={form.tensionCross || ""} onChange={(v) => set("tensionCross", v)} placeholder="例: 46" />
+            </div>
+            <_qaJudgment value={form.judgment} onChange={(v) => set("judgment", v)} />
           </>
         )}
 
@@ -7605,7 +9085,8 @@ const normalizeItems = (items) => (items || []).map(it => ({ ...it, date: normDa
 //    v3 と同じく collection 全体を 1 回で取得 (S13: 7 個 await の sequential を batch に変更、5-10x 高速化)
 const loadSessionsFromFirestore = async (user) => {
   if (!user) return null;
-  const keys = ["tournaments", "practices", "trials", "rackets", "strings", "venues", "opponents"];
+  // S14: next も読込追加 (Home Current Context / Next Actions で使用)
+  const keys = ["tournaments", "practices", "trials", "rackets", "strings", "venues", "opponents", "next"];
   const results = {};
   for (const k of keys) results[k] = []; // 既定値 (取得失敗時用)
   try {
@@ -7664,7 +9145,7 @@ function PlaceholderTab({ name, stage }) {
 function TennisDB() {
   const [user, setUser] = useState(null);
   const [authReady, setAuthReady] = useState(false);
-  const [tab, setTab] = useState("sessions");
+  const [tab, setTab] = useState("home"); // S14: default tab を home に変更 (DECISIONS S13.5 §10.9)
   const [tournaments, setTournaments] = useState([]);
   const [practices, setPractices] = useState([]);
   const [trials, setTrials] = useState([]);
@@ -7673,6 +9154,8 @@ function TennisDB() {
   const [strings, setStringsList] = useState([]);
   const [venues, setVenues]       = useState([]);
   const [opponents, setOpponents] = useState([]);
+  // S14: next (Home の Current Context / Next Actions で使用)
+  const [next, setNext] = useState([]);
   const [loading, setLoading] = useState(false);
   const [detail, setDetail] = useState(null); // S10: { type, session, mode } | null
   const [weather, setWeather] = useState(null); // S13.5: Open-Meteo 当日気温 { temp, code } | null
@@ -7688,19 +9171,60 @@ function TennisDB() {
     setStringsList(lsLoad(KEYS.strings) || []);
     setVenues(lsLoad(KEYS.venues)       || []);
     setOpponents(lsLoad(KEYS.opponents) || []);
+    // S14: next もローカルから初期ロード
+    setNext(lsLoad(KEYS.next) || []);
   }, []);
 
-  // S13.5: 天気取得 (Open-Meteo、key 不要、CORS 対応)
+  // S14: 天気取得 拡張 (Open-Meteo、key 不要、CORS 対応)
+  //   current: 気温 / 天気コード / 降水確率 / 風速 / 体感気温
+  //   hourly:  気温 / 天気コード / 降水確率 (24 時間分)
+  //   daily:   最高 / 最低気温 (1 日分)
+  //   wind_speed_unit=ms で m/s 単位 (テニス UI に合わせる)
   // 位置は埼玉県固定 (35.85, 139.65)。profile から取得は後 Stage で
   useEffect(() => {
     const fetchWeather = async () => {
       try {
-        const r = await fetch("https://api.open-meteo.com/v1/forecast?latitude=35.85&longitude=139.65&current=temperature_2m,weather_code");
+        const url = "https://api.open-meteo.com/v1/forecast"
+          + "?latitude=35.85&longitude=139.65"
+          + "&current=temperature_2m,weather_code,precipitation_probability,wind_speed_10m,apparent_temperature"
+          + "&hourly=temperature_2m,weather_code,precipitation_probability"
+          + "&daily=temperature_2m_max,temperature_2m_min"
+          + "&timezone=Asia%2FTokyo"
+          + "&forecast_days=1"
+          + "&wind_speed_unit=ms";
+        const r = await fetch(url);
         if (!r.ok) return;
         const data = await r.json();
-        const temp = data && data.current && data.current.temperature_2m;
-        const code = data && data.current && data.current.weather_code;
-        if (typeof temp === "number") setWeather({ temp, code });
+        const cur = data && data.current;
+        if (!cur || typeof cur.temperature_2m !== "number") return;
+        const daily = data && data.daily;
+        const hData = data && data.hourly;
+        // hourly: array index 0..23 = 当日各時刻 (timezone=Asia/Tokyo)
+        const hourly = [];
+        if (hData && Array.isArray(hData.time)) {
+          for (let i = 0; i < hData.time.length; i++) {
+            const ts = String(hData.time[i] || "");
+            const m = ts.match(/T(\d{2}):/);
+            if (!m) continue;
+            const h = parseInt(m[1], 10);
+            if (h < 0 || h > 23) continue;
+            hourly[h] = {
+              temp: hData.temperature_2m ? hData.temperature_2m[i] : null,
+              code: hData.weather_code   ? hData.weather_code[i]   : null,
+              rain: hData.precipitation_probability ? hData.precipitation_probability[i] : null,
+            };
+          }
+        }
+        setWeather({
+          temp:          cur.temperature_2m,
+          code:          cur.weather_code,
+          precipitation: cur.precipitation_probability,
+          wind:          cur.wind_speed_10m,
+          apparent:      cur.apparent_temperature,
+          todayHigh:     daily && daily.temperature_2m_max ? daily.temperature_2m_max[0] : null,
+          todayLow:      daily && daily.temperature_2m_min ? daily.temperature_2m_min[0] : null,
+          hourly,
+        });
       } catch (err) {
         console.warn("Weather fetch error:", err);
       }
@@ -7709,6 +9233,11 @@ function TennisDB() {
     const intervalId = setInterval(fetchWeather, 30 * 60 * 1000); // 30 分ごとに更新
     return () => clearInterval(intervalId);
   }, []);
+
+  // S14 P2: 天気詳細 Modal の開閉
+  const [weatherModalOpen, setWeatherModalOpen] = useState(false);
+  const handleWeatherClick = () => { if (weather) setWeatherModalOpen(true); };
+  const handleWeatherClose = () => setWeatherModalOpen(false);
 
   // 認証状態監視 + リアルタイム同期
   useEffect(() => {
@@ -7733,6 +9262,8 @@ function TennisDB() {
             setStringsList(data.strings || []);
             setVenues(data.venues || []);
             setOpponents(data.opponents || []);
+            // S14: next も
+            setNext(data.next || []);
             // localStorage には正規化前の原データを保存 (v3 互換のため)
             lsSave(KEYS.tournaments, data.tournaments);
             lsSave(KEYS.practices, data.practices);
@@ -7741,6 +9272,7 @@ function TennisDB() {
             lsSave(KEYS.strings, data.strings);
             lsSave(KEYS.venues, data.venues);
             lsSave(KEYS.opponents, data.opponents);
+            lsSave(KEYS.next, data.next);
             toast.show("クラウドから読み込みました", "success");
           }
           // 2) リアルタイム同期 (v3 と同じ collection レベル onSnapshot)
@@ -7760,6 +9292,7 @@ function TennisDB() {
               else if (key === "strings")  setStringsList(val);
               else if (key === "venues")   setVenues(val);
               else if (key === "opponents") setOpponents(val);
+              else if (key === "next") setNext(val);
               else return;
               lsSave(key, val);
             });
@@ -7959,11 +9492,18 @@ function TennisDB() {
     );
   };
 
-  // S12: FAB ミニメニューで種別が選ばれたら QuickAddModal を開く
-  //      "tournament" | "practice" のみ (試打は S14 Home 3 ボタン経由、DECISIONS_v4.md S12)
+  // S12-S14: QuickAdd 起動 (Sessions FAB / Home 3 ボタン共用)
+  //   Sessions FAB = "tournament" | "practice" (試打は除外、DECISIONS S12)
+  //   Home 3 ボタン = "tournament" | "practice" | "trial" (S14、QuickAddModal trial 拡張)
   const [quickAddType, setQuickAddType] = useState(null);
   const handleFabClick = (type) => {
     if (type === "tournament" || type === "practice") {
+      setQuickAddType(type);
+    }
+  };
+  // S14: Home Quick Add 3 ボタン用 (試打 trial を含む)
+  const handleHomeQuickAdd = (type) => {
+    if (type === "tournament" || type === "practice" || type === "trial") {
       setQuickAddType(type);
     }
   };
@@ -8009,7 +9549,16 @@ function TennisDB() {
       />
     );
   } else if (tab === "home") {
-    tabContent = <PlaceholderTab name="ホーム" stage="S14" />;
+    tabContent = (
+      <HomeTab
+        tournaments={tournaments}
+        practices={practices}
+        trials={trials}
+        next={next}
+        onQuickAdd={handleHomeQuickAdd}
+        onCardClick={handleCardClick}
+      />
+    );
   } else if (tab === "gear") {
     tabContent = <PlaceholderTab name="機材" stage="S16" />;
   } else if (tab === "plan") {
@@ -8036,7 +9585,7 @@ function TennisDB() {
         syncing={loading}
         onLogout={handleLogout}
         weather={weather}
-        onWeatherClick={null /* S14 で天気詳細 Modal を実装 */}
+        onWeatherClick={handleWeatherClick}
       />
       {tabContent}
       <TabBar tab={tab} onTabChange={setTab} />
@@ -8075,6 +9624,12 @@ function TennisDB() {
           confirm={cfm}
         />
       )}
+      {/* S14 P2: 天気詳細 Modal (Header 天気タップで開く) */}
+      <WeatherModal
+        open={weatherModalOpen}
+        weather={weather}
+        onClose={handleWeatherClose}
+      />
       {toast.el}
       {cfm.el}
     </div>

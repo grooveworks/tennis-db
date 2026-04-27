@@ -1,22 +1,58 @@
-$port = 8080
+# Tennis DB local dev server.
+# Port resolution:
+#   1) Use $env:PORT if a valid number (preview_start integration).
+#   2) Else try 8080 (standalone default).
+#   3) If 8080 is busy, fall back to an OS-assigned free port.
+
+function Get-FreePort {
+    $t = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
+    $t.Start()
+    $p = $t.LocalEndpoint.Port
+    $t.Stop()
+    return $p
+}
+
+$port = $null
+if ($env:PORT -match '^[1-9]\d{0,4}$') { $port = [int]$env:PORT }
+if (-not $port) { $port = 8080 }
+
 $root = $PSScriptRoot
 if (-not $root) { $root = (Get-Location).Path }
-$listener = New-Object System.Net.HttpListener
 
-# 管理者で起動すれば LAN 公開 (スマホ等からアクセス可)、通常起動なら localhost のみ
+$listener = $null
 $lanMode = $false
+$started = $false
+
+# Try http://+:$port (LAN visible, requires admin).
 try {
+    $listener = New-Object System.Net.HttpListener
     $listener.Prefixes.Add("http://+:$port/")
     $listener.Start()
     $lanMode = $true
-} catch {
+    $started = $true
+} catch { $listener = $null }
+
+# Fallback: http://localhost:$port (no admin needed).
+if (-not $started) {
+    try {
+        $listener = New-Object System.Net.HttpListener
+        $listener.Prefixes.Add("http://localhost:$port/")
+        $listener.Start()
+        $started = $true
+    } catch { $listener = $null }
+}
+
+# Fallback: pick a free port if the requested one is taken.
+if (-not $started) {
+    $port = Get-FreePort
     $listener = New-Object System.Net.HttpListener
     $listener.Prefixes.Add("http://localhost:$port/")
     $listener.Start()
+    $started = $true
 }
 
 Write-Host "Serving $root on:" -ForegroundColor Green
-Write-Host "  PC: http://localhost:$port" -ForegroundColor Cyan
+Write-Host "  Local: http://localhost:$port" -ForegroundColor Cyan
 if ($lanMode) {
     $lanIPs = @(Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue | Where-Object { $_.PrefixOrigin -eq 'Dhcp' -or $_.PrefixOrigin -eq 'Manual' } | Select-Object -ExpandProperty IPAddress)
     foreach ($ip in $lanIPs) {
@@ -25,7 +61,7 @@ if ($lanMode) {
         }
     }
 } else {
-    Write-Host "  (LAN/phone: 管理者として PowerShell を起動すると有効化)" -ForegroundColor DarkYellow
+    Write-Host "  (LAN/phone: run PowerShell as administrator to enable)" -ForegroundColor DarkYellow
 }
 
 $mimeTypes = @{

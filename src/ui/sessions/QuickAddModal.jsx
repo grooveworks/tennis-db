@@ -18,6 +18,46 @@
 //   - 練習の startTime/endTime 入力で duration 自動計算 (v3 互換)
 //   - 必須未入力の form を保存しない (作成ボタンが disabled になっていれば不要だが防御)
 
+// 試打: 判定 3 大ボタン (S14、preview_s14.html L662-676 / DECISIONS S14 採用候補/保留/却下)
+function _qaJudgment({ value, onChange }) {
+  const cur = value || "保留";
+  const opts = [
+    { v: "採用候補", icon: "check", color: "#0a5b35", bg: C.practiceLight, border: C.practiceAccent },
+    { v: "保留",     icon: "clock", color: "#7e5d00", bg: C.warningLight,  border: C.warning },
+    { v: "却下",     icon: "x",     color: "#a31511", bg: C.errorLight,    border: C.error },
+  ];
+  return (
+    <div style={{ marginTop: 4 }}>
+      <label style={{ display: "block", fontSize: 12, color: C.textSecondary, fontWeight: 500, marginBottom: 4 }}>判定</label>
+      <div style={{ display: "flex", gap: 8 }}>
+        {opts.map((o) => {
+          const on = cur === o.v;
+          return (
+            <button
+              key={o.v}
+              type="button"
+              onClick={() => onChange(o.v)}
+              style={{
+                flex: 1, minHeight: 48, padding: "8px 12px",
+                borderRadius: 8, border: `1px solid ${on ? o.border : C.border}`,
+                background: on ? o.bg : C.panel,
+                color: on ? o.color : C.textSecondary,
+                fontSize: 13, fontWeight: 700, cursor: "pointer",
+                display: "flex", flexDirection: "column",
+                alignItems: "center", justifyContent: "center",
+                gap: 2, fontFamily: font,
+              }}
+            >
+              <Icon name={o.icon} size={16} color={on ? o.color : C.textSecondary} />
+              <span>{o.v}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // 番号付きセクション見出し (S11 各 form と同じパターン)
 function _qaSectionHead({ num, label }) {
   return (
@@ -90,6 +130,7 @@ function QuickAddModal({ open, type, racketNames = [], stringNames = [], venueNa
     if (!open || !type) return;
     if (type === "tournament") setForm(blankTournament());
     else if (type === "practice") setForm(blankPractice());
+    else if (type === "trial") setForm(blankTrial()); // S14: 試打 (Home 3 ボタン経由、preview_s14.html L575-)
     else setForm(null);
   }, [open, type]);
 
@@ -128,12 +169,14 @@ function QuickAddModal({ open, type, racketNames = [], stringNames = [], venueNa
     onSave && onSave(form);
   };
 
-  const titleText  = type === "tournament" ? "大会を追加" : "練習を追加";
-  const titleColor = type === "tournament" ? "#a04f00" : "#0a5b35";
-  const titleIcon  = type === "tournament" ? "trophy"   : "person-standing";
+  const titleText  = type === "tournament" ? "大会を追加" : type === "practice" ? "練習を追加" : "試打を追加";
+  const titleColor = type === "tournament" ? "#a04f00"   : type === "practice"   ? "#0a5b35"   : "#6a25a8";
+  const titleIcon  = type === "tournament" ? "trophy"    : type === "practice"   ? "person-standing" : "tennis";
   const hint = type === "tournament"
     ? "まず作成 → 結果 / 機材 / 試合記録は後から編集ボタンで追記。30 秒で記録できます。"
-    : "機材 / 体調 / メモは後から編集で追記。練習時間は時刻から自動計算。";
+    : type === "practice"
+      ? "機材 / 体調 / メモは後から編集で追記。練習時間は時刻から自動計算。"
+      : "判定だけ決めて作成 → 評価 17 項目 (打感 / 特性 / ショット) と連携先 (大会内 match / 練習) は後から編集ボタンで追記。";
 
   return (
     <div
@@ -198,6 +241,26 @@ function QuickAddModal({ open, type, racketNames = [], stringNames = [], venueNa
               <label style={{ display: "block", fontSize: 12, color: C.textSecondary, fontWeight: 500, marginBottom: 4 }}>公開設定</label>
               <_qaVisibility value={form.visibility} onChange={(v) => set("visibility", v)} />
             </div>
+          </>
+        )}
+
+        {/* 試打フォーム (S14、preview_s14.html L575-) */}
+        {type === "trial" && (
+          <>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>
+              <Input type="date" label="日付" required value={form.date || ""} onChange={(v) => set("date", v)} error={errors.date} />
+              <MasterField label="会場" value={form.venue || ""} onChange={(v) => set("venue", v)} masterValues={venueNames} placeholder="-- 会場を選択 --" />
+            </div>
+            <MasterField label="ラケット" required value={form.racketName || ""} onChange={(v) => set("racketName", v)} masterValues={racketNames} placeholder="-- ラケットを選択 --" error={errors.racketName} />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>
+              <MasterField label="縦糸" value={form.stringMain || ""} onChange={(v) => set("stringMain", v)} masterValues={stringNames} placeholder="-- 縦糸 --" />
+              <MasterField label="横糸" value={form.stringCross || ""} onChange={(v) => set("stringCross", v)} masterValues={stringNames} placeholder="-- 横糸 --" />
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>
+              <Input label="テンション 縦" value={form.tensionMain || ""} onChange={(v) => set("tensionMain", v)} placeholder="例: 48" />
+              <Input label="テンション 横" value={form.tensionCross || ""} onChange={(v) => set("tensionCross", v)} placeholder="例: 46" />
+            </div>
+            <_qaJudgment value={form.judgment} onChange={(v) => set("judgment", v)} />
           </>
         )}
 

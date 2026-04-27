@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>preview_s14_p1 — Home 5 カード本実装 (デモデータ)</title>
+<link href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css" rel="stylesheet">
+<link href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/duotone/style.css" rel="stylesheet">
+<link href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Helvetica Neue",sans-serif;background:#e8eaed;padding:24px 12px 60px;color:#202124}
+  h1{font-size:18px;margin-bottom:8px;font-weight:700}
+  .subhead{font-size:13px;color:#5f6368;margin-bottom:18px;line-height:1.7;max-width:1100px}
+  .subhead b{color:#202124}
+  .subhead code{background:#f1f3f4;padding:2px 6px;border-radius:4px;font-size:11px}
+
+  /* Subtle scrollbar */
+  ::-webkit-scrollbar{width:6px;height:6px}
+  ::-webkit-scrollbar-thumb{background:rgba(0,0,0,0.18);border-radius:3px}
+  ::-webkit-scrollbar-track{background:transparent}
+  *{scrollbar-width:thin;scrollbar-color:rgba(0,0,0,0.18) transparent}
+
+  .row{display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap;margin-bottom:24px}
+  .phone-wrap{display:flex;flex-direction:column;align-items:center;gap:8px}
+  .phone-label{font-size:11px;font-weight:700;padding:6px 12px;border-radius:4px;background:#e8f4fe;color:#005DBE;border:1px solid #007AFF;letter-spacing:.3px}
+
+  .phone{width:380px;background:#F2F2F7;border:7px solid #1a1a1a;border-radius:42px;overflow:hidden;position:relative;box-shadow:0 8px 24px rgba(0,0,0,.12)}
+  .screen{display:flex;flex-direction:column;height:780px;position:relative;overflow:hidden}
+
+  .ic{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;line-height:1}
+
+  /* Header */
+  .a-header{height:56px;flex:0 0 56px;display:flex;align-items:center;padding:0 16px;background:rgba(255,255,255,0.94);backdrop-filter:saturate(180%) blur(12px);-webkit-backdrop-filter:saturate(180%) blur(12px);border-bottom:1px solid rgba(0,0,0,.08);z-index:5}
+  .a-logo{display:flex;align-items:baseline;gap:5px;flex:1;cursor:pointer}
+  .a-logo .ic{font-size:22px;color:#007AFF;align-self:center}
+  .a-logo .tns{font-size:18px;font-weight:400;color:#1a1a1a;letter-spacing:-.01em}
+  .a-logo .db{font-size:18px;font-weight:800;color:#007AFF;letter-spacing:-.02em;margin-left:1px}
+  .a-logo .ver{font-size:9px;color:#8e8e93;margin-left:5px;align-self:flex-end;margin-bottom:2px;font-feature-settings:"tnum"}
+  .a-header-meta{display:flex;align-items:center;gap:6px;margin-left:8px}
+  .a-cloud{font-size:13px;color:#34C759;display:flex;align-items:center}
+  .a-weather{display:flex;align-items:center;gap:3px;font-size:12px;color:#1a1a1a;font-weight:500;padding:4px 7px;border-radius:8px;background:rgba(255,149,0,0.10)}
+  .a-weather .ic-w{font-size:14px;color:#FF9500}
+  .a-logout{width:32px;height:32px;display:flex;align-items:center;justify-content:center;color:#8e8e93;font-size:18px;margin-left:2px}
+  .a-tab-name{padding:4px 16px 0;font-size:11px;color:#8e8e93;font-weight:600;letter-spacing:.3px}
+
+  .a-body{flex:1;overflow-y:auto;padding:8px 14px 12px;background:#F2F2F7}
+
+  /* Quick Add 3 ボタン (本実装、グラデ) */
+  .a-quick3{display:flex;gap:10px;margin:4px 0 10px}
+  .a-quick3 button{flex:1;height:72px;border:none;border-radius:18px;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-family:inherit;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.06),0 4px 14px rgba(0,0,0,.06);transition:transform .15s}
+  .a-quick3 button:active{transform:scale(.97)}
+  .a-quick3 button .label{font-size:12px;font-weight:700;letter-spacing:.3px}
+  .a-quick3 button .ic-q{font-size:26px}
+  .a-tour{background:linear-gradient(180deg,#FFB340,#FF9500)}
+  .a-prac{background:linear-gradient(180deg,#34C759,#30B050)}
+  .a-trial{background:linear-gradient(180deg,#AF52DE,#9334E0)}
+
+  /* Card */
+  .a-card{background:#fff;border-radius:20px;padding:16px;margin-bottom:8px}
+
+  /* Current Context */
+  .ctx-title-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+  .ctx-title{font-size:14px;font-weight:700;color:#1a1a1a;display:flex;align-items:center;gap:6px}
+  .ctx-title .ic-c{font-size:16px;color:#007AFF}
+  .ctx-tag{font-size:10px;font-weight:600;color:#007AFF;background:#E1F0FF;padding:3px 8px;border-radius:8px;letter-spacing:.3px}
+  .ctx-row{display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-top:1px solid #F2F2F7}
+  .ctx-row:first-of-type{border-top:none;padding-top:4px}
+  .ctx-key{font-size:11px;color:#8e8e93;font-weight:600;min-width:62px;padding-top:1px;letter-spacing:.2px}
+  .ctx-val{flex:1;font-size:13px;color:#1a1a1a;font-weight:500;line-height:1.4;min-width:0}
+  .ctx-val b{font-weight:700}
+  .ctx-status{display:inline-block;font-size:10px;font-weight:700;padding:1px 7px;border-radius:6px;margin-left:5px;letter-spacing:.3px;vertical-align:1px}
+  .status-keep{background:#E6F4EA;color:#0a5b35}
+  .status-trial{background:#F3E8FD;color:#6a25a8}
+  .status-result{background:#FFE6BD;color:#7E4F00}
+  .ctx-sub{font-size:11px;color:#8e8e93;margin-top:2px}
+
+  /* 今週サマリー */
+  .a-week-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+  .a-week-title{font-size:14px;font-weight:700;color:#1a1a1a}
+  .a-week-period{font-size:10px;color:#8e8e93;font-weight:600;background:#F2F2F7;padding:3px 8px;border-radius:6px}
+  .a-week{display:flex;align-items:flex-end;padding:6px 0 4px}
+  .a-stat{flex:1;text-align:center;position:relative}
+  .a-stat-divider{width:1px;align-self:stretch;margin:8px 0;background:#F2F2F7}
+  .a-stat-num{font-size:34px;font-weight:800;color:#007AFF;line-height:1;font-feature-settings:"tnum"}
+  .a-stat-num.green{color:#34C759}
+  .a-stat-num.orange{color:#FF9500}
+  .a-stat-unit{font-size:13px;font-weight:700;color:inherit;margin-left:1px}
+  .a-stat-label{font-size:10px;color:#8e8e93;font-weight:600;letter-spacing:.4px;text-transform:uppercase;margin-top:4px}
+  .a-week-foot{font-size:11px;color:#5f6368;text-align:center;margin-top:8px;padding-top:8px;border-top:1px solid #F2F2F7;font-weight:500}
+  .a-week-foot b{color:#007AFF;font-weight:700}
+
+  /* 次のアクション */
+  .na-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid #F2F2F7}
+  .na-row:first-of-type{border-top:none;padding-top:4px}
+  .na-priority{width:6px;height:6px;border-radius:50%;background:#FF9500;flex-shrink:0}
+  .na-priority.high{background:#FF3B30}
+  .na-priority.gray{background:#C7C7CC}
+  .na-body{flex:1;min-width:0}
+  .na-label{font-size:13px;font-weight:600;color:#1a1a1a;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .na-meta{font-size:11px;color:#8e8e93;margin-top:2px}
+  .na-check{width:22px;height:22px;border-radius:11px;background:#fff;border:1.5px solid #C7C7CC;flex-shrink:0}
+  .na-progress-tag{font-size:10px;font-weight:600;color:#FF9500;background:rgba(255,149,0,0.10);padding:3px 8px;border-radius:8px;letter-spacing:.3px}
+
+  /* カレンダー (2 週間) */
+  .a-mc-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+  .a-mc-title{font-size:14px;font-weight:700;color:#1a1a1a}
+  .a-mc-period{font-size:10px;color:#8e8e93;font-weight:600;background:#F2F2F7;padding:3px 8px;border-radius:6px}
+  .a-mc-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+  .a-mc-dow{font-size:9px;font-weight:600;color:#8e8e93;text-align:center;padding:2px 0}
+  .a-mc-dow.sun{color:#FF3B30}
+  .a-mc-dow.sat{color:#007AFF}
+  .a-mc-cell{aspect-ratio:1/1;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:11px;font-weight:500;color:#1a1a1a;position:relative;cursor:pointer}
+  .a-mc-cell.today{background:#007AFF;color:#fff;font-weight:700}
+  .a-mc-cell.prac-light{background:#E6F4EA}
+  .a-mc-cell.prac-mid{background:#B7E1C9}
+  .a-mc-cell.prac-acc{background:#34C759;color:#fff;font-weight:600}
+  .a-mc-cell.tour{background:#FFE6BD;color:#7E4F00}
+  .a-mc-cell .ic-tr{position:absolute;top:2px;right:2px;font-size:10px;color:#FF9500}
+  .a-mc-cell .num-sun{color:#FF3B30}
+  .a-mc-cell .num-sat{color:#007AFF}
+  .a-mc-cell.today .num-sun,.a-mc-cell.today .num-sat,.a-mc-cell.prac-acc .num-sun,.a-mc-cell.prac-acc .num-sat{color:inherit}
+  .a-mc-cell .dot{position:absolute;bottom:3px;width:5px;height:5px;border-radius:50%;background:#9334E0}
+  .a-mc-foot{font-size:10px;color:#8e8e93;text-align:center;margin-top:8px;padding-top:8px;border-top:1px solid #F2F2F7}
+
+  /* TabBar */
+  .a-tabbar{height:60px;flex:0 0 60px;background:rgba(255,255,255,.94);backdrop-filter:saturate(180%) blur(12px);-webkit-backdrop-filter:saturate(180%) blur(12px);border-top:1px solid rgba(0,0,0,.08);display:grid;grid-template-columns:repeat(5,1fr)}
+  .a-tabbar .tab{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;color:#8e8e93;font-size:10px;font-weight:500;cursor:pointer}
+  .a-tabbar .tab .ic-t{font-size:24px}
+  .a-tabbar .tab.active{color:#007AFF}
+
+  /* 凡例ボックス (preview 専用説明) */
+  .legend{font-size:11px;color:#5f6368;line-height:1.7;max-width:1100px;margin-top:14px;padding:10px 14px;background:#fff;border:1px solid #e8eaed;border-radius:8px}
+  .legend b{color:#202124}
+  .legend table{border-collapse:collapse;margin-top:8px;width:100%;max-width:760px}
+  .legend th,.legend td{font-size:11px;text-align:left;padding:4px 8px;border-bottom:1px solid #e8eaed;vertical-align:top}
+  .legend th{background:#f8f9fa;color:#5f6368;font-weight:700}
+  .legend code{background:#f1f3f4;padding:2px 5px;border-radius:3px;font-size:11px}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-tennis" viewBox="0 0 24 24">
+    <path d="M11.578 14.453a6 6 0 1 0 -8.027 -8.029" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M9 14l-3.69 3.69a2 2 0 1 0 2.83 2.83l3.69 -3.69" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="14" cy="10" r="6" fill="none" stroke="currentColor" stroke-width="2"/>
+  </symbol>
+</svg>
+
+<h1>preview_s14_p1 — Home 5 カード本実装 (デモデータ = 実データ予測値)</h1>
+<p class="subhead">
+  <b>P1 範囲</b>: <code>HomeQuickAdd</code> + <code>CurrentContext</code> + <code>WeeklySummary</code> + <code>NextActions</code> + <code>TwoWeekCalendar</code> + <code>HomeDayPanel</code> 全 6 component 本実装 + <code>QuickAddModal</code> trial 拡張 + <code>app.jsx</code> next 読込追加。
+  <br/>表示値は <b>tennis_db_20260424.json (3 日前スナップショット) を集計した予測値</b>。実データ Ctrl+F5 時には 4/25-4/27 分で多少ずれる可能性あり (=最新読込が動いている証拠)。
+  <br/><br/>
+  <b>確認の指針</b>: ① Quick Add 3 ボタンの色と発色 (グラデ) ② Current Context 5 行が予測値通り (主力=検討中の冗長は意図通り) ③ 今週サマリー 4 統計の Display tier 大数字インパクト ④ 次のアクション top 3 + 全橙 dot ⑤ カレンダー 14 セルで 4/27 today (青塗白文字)・4/29 大会・4/28/5/1/5/5/5/8 練習濃緑 ⑥ Apple Blue・角丸・スクロール挙動が S13.5 規律維持。
+</p>
+
+<div class="row">
+
+  <div class="phone-wrap">
+    <span class="phone-label">FINAL — S14 P1 完成 (実データ予測値)</span>
+    <div class="phone"><div class="screen">
+
+      <!-- Header -->
+      <div class="a-header">
+        <div class="a-logo">
+          <span class="ic"><svg viewBox="0 0 24 24" width="22" height="22"><use href="#i-tennis"/></svg></span>
+          <span class="tns">Tennis</span><span class="db">DB</span>
+          <span class="ver">v4.0.0-S14</span>
+        </div>
+        <div class="a-header-meta">
+          <span class="a-cloud"><i class="ph ph-cloud"></i></span>
+          <div class="a-weather"><i class="ph ph-sun ic-w"></i><span>22°</span></div>
+          <div class="a-logout"><i class="ph ph-user-circle"></i></div>
+        </div>
+      </div>
+      <div class="a-tab-name">ホーム</div>
+
+      <div class="a-body">
+
+        <!-- Quick Add 3 ボタン -->
+        <div class="a-quick3">
+          <button class="a-tour"><i class="ph ph-trophy ic-q"></i><span class="label">大会を記録</span></button>
+          <button class="a-prac"><i class="ph ph-person-simple-run ic-q"></i><span class="label">練習を記録</span></button>
+          <button class="a-trial">
+            <span class="ic ic-q"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-tennis"/></svg></span>
+            <span class="label">試打を記録</span>
+          </button>
+        </div>
+
+        <!-- 1. Current Context -->
+        <div class="a-card">
+          <div class="ctx-title-row">
+            <div class="ctx-title"><i class="ph ph-map-pin ic-c"></i>現在の状況</div>
+            <span class="ctx-tag">CURRENT</span>
+          </div>
+          <div class="ctx-row">
+            <div class="ctx-key">次の大会</div>
+            <div class="ctx-val">4/29 <b>インスピシングルス中上級</b><div class="ctx-sub">2 日後 · 中上級 シングルス · 05:30 開始</div></div>
+          </div>
+          <div class="ctx-row">
+            <div class="ctx-key">課題</div>
+            <div class="ctx-val">Boom Pro × Phantom Spin 17 で実打</div>
+          </div>
+          <div class="ctx-row">
+            <div class="ctx-key">主力</div>
+            <div class="ctx-val">YONEX EZONE 100 TOUR <span class="ctx-status status-keep">継続使用中</span><div class="ctx-sub">直近 30 日 5 回</div></div>
+          </div>
+          <div class="ctx-row">
+            <div class="ctx-key">検討中</div>
+            <div class="ctx-val">YONEX EZONE 100 TOUR <span class="ctx-status status-trial">採用候補</span><div class="ctx-sub">4/8 試打</div></div>
+          </div>
+          <div class="ctx-row">
+            <div class="ctx-key">直近</div>
+            <div class="ctx-val">4/12 所沢市民大会ベテランダブルス <span class="ctx-status status-result">予選突破</span></div>
+          </div>
+        </div>
+
+        <!-- 2. 今週サマリー -->
+        <div class="a-card">
+          <div class="a-week-head">
+            <div class="a-week-title">今週サマリー</div>
+            <div class="a-week-period">直近 7 日</div>
+          </div>
+          <div class="a-week">
+            <div class="a-stat">
+              <div class="a-stat-num green">2</div>
+              <div class="a-stat-label">練習</div>
+            </div>
+            <div class="a-stat-divider"></div>
+            <div class="a-stat">
+              <div class="a-stat-num orange">2</div>
+              <div class="a-stat-label">大会</div>
+            </div>
+            <div class="a-stat-divider"></div>
+            <div class="a-stat">
+              <div class="a-stat-num">90<span class="a-stat-unit">分</span></div>
+              <div class="a-stat-label">平均/回</div>
+            </div>
+            <div class="a-stat-divider"></div>
+            <div class="a-stat">
+              <div class="a-stat-num">7<span class="a-stat-unit" style="color:#8e8e93">勝</span>3<span class="a-stat-unit" style="color:#8e8e93">敗</span></div>
+              <div class="a-stat-label">直近</div>
+            </div>
+          </div>
+          <div class="a-week-foot">主力 <b>YONEX EZONE 100 TOUR</b> · 試合勝率 <b>71%</b></div>
+        </div>
+
+        <!-- 3. 次のアクション -->
+        <div class="a-card">
+          <div class="ctx-title-row">
+            <div class="ctx-title"><i class="ph ph-flag ic-c" style="color:#8e8e93"></i>次のアクション</div>
+            <span class="na-progress-tag">3 / 5</span>
+          </div>
+          <div class="na-row">
+            <div class="na-priority"></div>
+            <div class="na-body">
+              <div class="na-label">Boom Pro × Phantom Spin 17 で実打</div>
+              <div class="na-meta">検証</div>
+            </div>
+            <div class="na-check"></div>
+          </div>
+          <div class="na-row">
+            <div class="na-priority"></div>
+            <div class="na-body">
+              <div class="na-label">Boom Pro × Razor Soft 1.25 検証</div>
+              <div class="na-meta">検証</div>
+            </div>
+            <div class="na-check"></div>
+          </div>
+          <div class="na-row">
+            <div class="na-priority"></div>
+            <div class="na-body">
+              <div class="na-label">TOUR 100 × Phantom Spin 17 / 47p で実打</div>
+              <div class="na-meta">検証</div>
+            </div>
+            <div class="na-check"></div>
+          </div>
+        </div>
+
+        <!-- 4. カレンダー (2 週間、日曜始まり、Sessions と統一) -->
+        <div class="a-card">
+          <div class="a-mc-head">
+            <div class="a-mc-title">カレンダー</div>
+            <div class="a-mc-period">4/26 〜 5/9 · 2 週間</div>
+          </div>
+          <div class="a-mc-grid">
+            <!-- 曜日見出し: 日曜始まり固定 -->
+            <div class="a-mc-dow sun">日</div>
+            <div class="a-mc-dow">月</div>
+            <div class="a-mc-dow">火</div>
+            <div class="a-mc-dow">水</div>
+            <div class="a-mc-dow">木</div>
+            <div class="a-mc-dow">金</div>
+            <div class="a-mc-dow sat">土</div>
+
+            <!-- 1 行目: 4/26(日) - 5/2(土)、4/26 は過去日なので薄グレー背景 + textMuted 文字 -->
+            <div class="a-mc-cell" style="background:#F8F9FA;color:#80868b;cursor:default;font-weight:500">26</div>
+            <div class="a-mc-cell today">27</div>
+            <div class="a-mc-cell prac-acc">28</div>
+            <div class="a-mc-cell tour"><i class="ph ph-trophy ic-tr"></i>29</div>
+            <div class="a-mc-cell">30</div>
+            <div class="a-mc-cell prac-acc">1</div>
+            <div class="a-mc-cell"><span class="num-sat">2</span></div>
+
+            <!-- 2 行目: 5/3(日) - 5/9(土) -->
+            <div class="a-mc-cell"><span class="num-sun">3</span></div>
+            <div class="a-mc-cell">4</div>
+            <div class="a-mc-cell prac-acc">5</div>
+            <div class="a-mc-cell">6</div>
+            <div class="a-mc-cell">7</div>
+            <div class="a-mc-cell prac-acc">8</div>
+            <div class="a-mc-cell"><span class="num-sat">9</span></div>
+          </div>
+          <div class="a-mc-foot">日付タップ → 詳細パネル展開 (色の意味も表示)</div>
+        </div>
+
+      </div>
+
+      <!-- TabBar -->
+      <div class="a-tabbar">
+        <div class="tab active"><i class="ph ph-house ic-t"></i><span>ホーム</span></div>
+        <div class="tab"><i class="ph ph-list ic-t"></i><span>記録</span></div>
+        <div class="tab"><i class="ph ph-backpack ic-t"></i><span>機材</span></div>
+        <div class="tab"><i class="ph ph-note-pencil ic-t"></i><span>計画</span></div>
+        <div class="tab"><i class="ph ph-chart-bar ic-t"></i><span>分析</span></div>
+      </div>
+
+    </div></div>
+  </div>
+</div>
+
+<div class="legend">
+<b>P1 確認チェックリスト</b>
+<table>
+<tr><th>カード</th><th>確認項目</th><th>予測値</th></tr>
+<tr><td>Quick Add</td><td>3 ボタンのグラデ + 文字色</td><td>大会=橙系 / 練習=緑系 / 試打=紫系、高さ 72px、radius 18</td></tr>
+<tr><td>Current Context</td><td>次の大会</td><td>4/29 インスピシングルス中上級 (2 日後 · 中上級 シングルス · 05:30 開始)</td></tr>
+<tr><td>Current Context</td><td>課題</td><td>Boom Pro × Phantom Spin 17 で実打</td></tr>
+<tr><td>Current Context</td><td>主力</td><td>YONEX EZONE 100 TOUR [継続使用中] (直近 30 日 5 回)</td></tr>
+<tr><td>Current Context</td><td>検討中</td><td>YONEX EZONE 100 TOUR [採用候補] (4/8 試打) ← 主力と同じが意図通り</td></tr>
+<tr><td>Current Context</td><td>直近</td><td>4/12 所沢市民大会ベテランダブルス [予選突破]</td></tr>
+<tr><td>今週サマリー</td><td>練習</td><td><b>2</b> (緑)</td></tr>
+<tr><td>今週サマリー</td><td>大会</td><td><b>2</b> (橙)</td></tr>
+<tr><td>今週サマリー</td><td>平均/回</td><td><b>90</b> 分 (Apple Blue)</td></tr>
+<tr><td>今週サマリー</td><td>直近</td><td><b>7 勝 3 敗</b> (Apple Blue)</td></tr>
+<tr><td>今週サマリー</td><td>フッタ</td><td>主力 YONEX EZONE 100 TOUR · 試合勝率 71%</td></tr>
+<tr><td>次のアクション</td><td>top 3 + tag</td><td>3 / 5 表示、3 件全部 橙 dot (dueDate なし、低/参考なし)</td></tr>
+<tr><td>カレンダー</td><td>4/27 (月) 今日</td><td>Apple Blue 塗り + 白 「27」 + 太字</td></tr>
+<tr><td>カレンダー</td><td>4/28 (火)</td><td>濃緑塗り + 白 「28」 (90 分練習)</td></tr>
+<tr><td>カレンダー</td><td>4/29 (水) 大会</td><td>tour bg (薄橙) + 右上 trophy + 「29」</td></tr>
+<tr><td>カレンダー</td><td>5/1, 5/5, 5/8</td><td>濃緑塗り + 白 (各 90 分練習)</td></tr>
+<tr><td>カレンダー</td><td>試打 dot</td><td>なし (期間内 試打 0)</td></tr>
+</table>
+</div>
+
+<p class="subhead" style="margin-top:18px">
+  この絵で OK なら <b>「OK」</b> とお返しください。問題なければ ご自身の <code>serve.ps1</code> (port 8080) を <b>Ctrl+F5</b> で実データ確認に進みます。
+  <br/>修正したい箇所があれば、上の表の項目で指摘してください (例: 「Current Context の検討中行は非表示にしたい」など)。
+</p>
+
+</body>
+</html>
