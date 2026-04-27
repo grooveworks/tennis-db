@@ -39,6 +39,9 @@ function _formatRecentRecord(tournaments) {
 function SummaryHeader({ tournaments = [], practices = [], filtered = false, filteredCount = 0, totalCount = 0, viewMode = "list", onViewModeChange }) {
   const monthStats = useMemo(() => _formatMonthCounts(tournaments, practices), [tournaments, practices]);
   const recent = useMemo(() => _formatRecentRecord(tournaments), [tournaments]);
+  // S13.5 (2026-04-27): text タップで詳細 Modal を開く。
+  //   サマリー帯が幅狭で省略されていた問題への対応。最小情報 (件数 + 勝敗) のみ、将来 Insights 統合時にリッチ化可能。
+  const [summaryOpen, setSummaryOpen] = useState(false);
 
   const wrapStyle = {
     padding: "8px 16px",
@@ -59,7 +62,16 @@ function SummaryHeader({ tournaments = [], practices = [], filtered = false, fil
     overflow: "hidden",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
+    cursor: filtered ? "default" : "pointer",
+    // タップ領域確保のための padding (clickable な時のみ visual hint)
+    padding: filtered ? 0 : "2px 4px",
+    margin: filtered ? 0 : "-2px -4px",
+    borderRadius: 4,
+    transition: "background 150ms",
   };
+
+  // 絞り込み中は count 表示で完結、Modal 不要 (S13.5: 詳細は今月数値のみ表示)
+  const handleTextClick = filtered ? undefined : () => setSummaryOpen(true);
 
   let textNode;
   if (filtered) {
@@ -70,15 +82,65 @@ function SummaryHeader({ tournaments = [], practices = [], filtered = false, fil
     if (monthStats.total > 0) parts.push(`（練${monthStats.p} / 大${monthStats.t}）`);
     const line1 = parts.join("");
     const line2 = recent.count > 0 ? `直近${recent.count}試合 ${recent.wins}勝${recent.losses}敗` : "";
-    textNode = <div style={textStyle}>{line1}{line2 && ` ・ ${line2}`}</div>;
+    textNode = (
+      <div
+        style={textStyle}
+        onClick={handleTextClick}
+        role={handleTextClick ? "button" : undefined}
+        tabIndex={handleTextClick ? 0 : undefined}
+        aria-label={handleTextClick ? "今月のサマリー詳細を開く" : undefined}
+        onKeyDown={handleTextClick ? (e) => {
+          if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleTextClick(); }
+        } : undefined}
+      >
+        {line1}{line2 && ` ・ ${line2}`}
+      </div>
+    );
   }
 
+  // S13.5: 勝率計算 (Modal 内で表示)
+  const winRate = recent.wins + recent.losses > 0
+    ? Math.round((recent.wins / (recent.wins + recent.losses)) * 100)
+    : null;
+
   return (
-    <div style={wrapStyle}>
-      {textNode}
-      {onViewModeChange && (
-        <ViewModeSwitcher value={viewMode} onChange={onViewModeChange} />
-      )}
-    </div>
+    <>
+      <div style={wrapStyle}>
+        {textNode}
+        {onViewModeChange && (
+          <ViewModeSwitcher value={viewMode} onChange={onViewModeChange} />
+        )}
+      </div>
+
+      {/* S13.5: 今月のサマリー詳細 Modal (text タップで開く)
+          最小情報のみ。将来リッチ化候補 (主力ラケット / 平均練習時間 / 月次推移) は Insights タブ完成後に統合 */}
+      <Modal open={summaryOpen} onClose={() => setSummaryOpen(false)} title="今月のサマリー">
+        <div style={{ padding: "4px 4px 8px", fontSize: 14, color: C.text }}>
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>
+              活動: {monthStats.total} 件
+            </div>
+            <div style={{ paddingLeft: 14, color: C.textSecondary, fontSize: 13, lineHeight: 1.8 }}>
+              練習 {monthStats.p} 回 / 大会 {monthStats.t} 回
+            </div>
+          </div>
+          {recent.count > 0 && (
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>
+                直近 {recent.count} 試合: {recent.wins} 勝 {recent.losses} 敗
+              </div>
+              <div style={{ paddingLeft: 14, color: C.textSecondary, fontSize: 13, lineHeight: 1.8 }}>
+                勝率 {winRate}%
+              </div>
+            </div>
+          )}
+          {monthStats.total === 0 && recent.count === 0 && (
+            <div style={{ color: C.textMuted, fontSize: 13, textAlign: "center", padding: "12px 0" }}>
+              今月のデータはまだありません
+            </div>
+          )}
+        </div>
+      </Modal>
+    </>
   );
 }
