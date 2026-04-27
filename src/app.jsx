@@ -390,7 +390,7 @@ function TennisDB() {
   // 認証状態判定完了前はスピナー
   if (!authReady) {
     return (
-      <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", color: C.textMuted, fontSize: 13 }}>
+      <div style={{ minHeight: "100dvh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", color: C.textMuted, fontSize: 13 }}>
         読み込み中...
       </div>
     );
@@ -399,7 +399,7 @@ function TennisDB() {
   // 未ログイン: LoginScreen のみ
   if (!user) {
     return (
-      <div style={{ minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column" }}>
+      <div style={{ minHeight: "100dvh", background: C.bg, display: "flex", flexDirection: "column" }}>
         <LoginScreen />
         {toast.el}
       </div>
@@ -433,8 +433,10 @@ function TennisDB() {
 
   return (
     <div style={{
-      height: "100vh", background: C.bg, display: "flex", flexDirection: "column",
+      height: "100dvh", background: C.bg, display: "flex", flexDirection: "column",
       // S13.5 (2026-04-27 修正): TabBar が position: fixed になったため、コンテンツが TabBar の裏に隠れないよう下余白を確保
+      // 100vh は iPhone Safari で URL バー込みの値を返すため、見える範囲より大きくなり検索欄等が画面外に押し出される。
+      // 100dvh は見える範囲の高さなので、WeekPanel/DayPanel が glass overlay 化されて heatmap を押し縮めない今、再採用が安全。
       paddingBottom: "calc(56px + env(safe-area-inset-bottom, 0))",
     }}>
       {/* S13.5 共通 Header: Tennis*DB* + version + ☁️ + 🌤 + 👤 (§10.8 / DECISIONS S13.5) */}
