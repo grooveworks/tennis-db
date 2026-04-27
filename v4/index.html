@@ -5521,9 +5521,13 @@ const _buildTrialLinkedSets = (tournaments, practices, trials) => {
 const TRIAL_BADGE = { variant: "trial", icon: "badge-check", label: "試打" };
 
 // ── S7: 検索・絞り込み / S8: 表示モード ─────────────────────────────────
-const LS_SEARCH   = "v4-sessions-search";
-const LS_FILTERS  = "v4-sessions-filters";
-const LS_VIEWMODE = "v4-sessions-viewmode";
+const LS_SEARCH       = "v4-sessions-search";
+const LS_FILTERS      = "v4-sessions-filters";
+const LS_VIEWMODE     = "v4-sessions-viewmode";
+// S13.5 (2026-04-27): 検索欄の展開状態を localStorage に永続化。
+//   フリーワード検索は使用頻度が低いため、デフォルトは閉じた状態 (アイコンのみ表示) で
+//   メイン領域を約 60px 広げる。検索語が入っている時は強制展開で結果状態が見える。
+const LS_SEARCH_OPEN  = "v4-sessions-search-open";
 const _loadViewMode = () => {
   try {
     const v = localStorage.getItem(LS_VIEWMODE);
@@ -5543,6 +5547,7 @@ const FILTER_DRAWER_TITLE  = { type: "種類で絞り込む", racket: "ラケッ
 
 const _emptyFilters = () => ({ type: [], racket: [], opponent: [], result: [] });
 const _loadSearch = () => { try { return localStorage.getItem(LS_SEARCH) || ""; } catch { return ""; } };
+const _loadSearchOpen = () => { try { return localStorage.getItem(LS_SEARCH_OPEN) === "true"; } catch { return false; } };
 const _loadFilters = () => {
   try {
     const raw = localStorage.getItem(LS_FILTERS);
@@ -5697,8 +5702,13 @@ function SessionsTab({ tournaments = [], practices = [], trials = [], loading = 
   const [search, setSearch] = useState(_loadSearch);
   const [filters, setFilters] = useState(_loadFilters);
   const [openDrawerAxis, setOpenDrawerAxis] = useState(null); // "type"|"racket"|"opponent"|"result"|null
+  // S13.5: 検索欄の展開状態 (デフォルト閉じる、検索語があれば強制展開)
+  const [searchOpen, setSearchOpen] = useState(_loadSearchOpen);
   useEffect(() => { try { localStorage.setItem(LS_SEARCH, search || ""); } catch {} }, [search]);
   useEffect(() => { try { localStorage.setItem(LS_FILTERS, JSON.stringify(filters)); } catch {} }, [filters]);
+  useEffect(() => { try { localStorage.setItem(LS_SEARCH_OPEN, String(searchOpen)); } catch {} }, [searchOpen]);
+  // 検索語がある時は強制展開
+  const showSearch = searchOpen || (search || "").trim().length > 0;
 
   // S8-S9: 表示モード切替 (list / calendar / year、localStorage 永続化)
   const [viewMode, setViewMode] = useState(_loadViewMode);
@@ -5927,17 +5937,19 @@ function SessionsTab({ tournaments = [], practices = [], trials = [], loading = 
       </div>
       )}
 
-      {/* S7: 操作帯 (画面下、TabBar 直上) — タップした直上に Drawer がせり上がる導線 */}
+      {/* S7: 操作帯 (画面下、TabBar 直上) — タップした直上に Drawer がせり上がる導線
+          S13.5: 検索欄を collapsible 化 (デフォルト閉、🔍 ボタンで開閉、検索語あれば強制展開) */}
       <div style={{
         borderTop: `1px solid ${C.divider}`,
         background: C.bg,
         flexShrink: 0,
       }}>
-        {/* 絞り込みチップ行 (横スクロール) */}
+        {/* 絞り込みチップ行 + 検索トグル (横スクロール) */}
         <div style={{
           display: "flex", gap: 8,
           padding: "8px 16px",
           overflowX: "auto",
+          alignItems: "center",
         }}>
           {FILTER_AXES.map(axis => (
             <FilterChip
@@ -5948,11 +5960,34 @@ function SessionsTab({ tournaments = [], practices = [], trials = [], loading = 
               onClear={filters[axis].length > 0 ? () => clearAxis(axis) : undefined}
             />
           ))}
+          {/* S13.5: 検索トグルボタン (アイコン only)。アクティブ時は primaryLight bg で展開状態を視覚化 */}
+          <button
+            onClick={() => setSearchOpen(prev => !prev)}
+            aria-label={showSearch ? "検索を閉じる" : "検索を開く"}
+            aria-pressed={showSearch}
+            style={{
+              flexShrink: 0,
+              width: 32, height: 32,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              border: `1px solid ${showSearch ? C.primary : C.border}`,
+              borderRadius: 16,
+              background: showSearch ? C.primaryLight : C.panel,
+              color: showSearch ? C.primary : C.textSecondary,
+              cursor: "pointer",
+              padding: 0,
+              transition: "background 150ms, border-color 150ms",
+              fontFamily: font,
+            }}
+          >
+            <Icon name="search" size={16} color={showSearch ? C.primary : C.textSecondary} />
+          </button>
         </div>
-        {/* 検索行 */}
-        <div style={{ padding: "0 16px 8px" }}>
-          <SearchBar value={search} onChange={setSearch} />
-        </div>
+        {/* 検索行 (条件描画: searchOpen=true or search 語あり) */}
+        {showSearch && (
+          <div style={{ padding: "0 16px 8px", animation: "dayPanelSlideUp 200ms ease-out" }}>
+            <SearchBar value={search} onChange={setSearch} />
+          </div>
+        )}
       </div>
 
       {/* FAB + ミニメニュー (S12): タップで大会/練習の 2 択ポップオーバー。
