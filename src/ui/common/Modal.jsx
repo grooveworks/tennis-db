@@ -33,7 +33,7 @@ function Modal({ open, onClose, title, children }) {
       <div
         style={{
           background: C.panel,
-          borderRadius: 16,
+          borderRadius: RADIUS.card, // S13.5: 16 → 20 (Apple ライク、§10.3)
           padding: 20,
           width: "100%",
           maxWidth: 400,

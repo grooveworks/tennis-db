@@ -133,16 +133,26 @@ function DayPanel({ dateISO, tournaments = [], practices = [], onClose, onCardCl
   const count = ordered.length;
   const label = _formatDateLabel(dateISO);
 
+  // S13.5 (2026-04-27 修正): flex sibling → 親 (CalendarView container) の position: absolute オーバーレイ化。
+  //   理由: 旧仕様ではカレンダーグリッドを縦に押し縮めていた。半透明 glass で重ねる形に変更。
   return (
     <div
       style={{
-        background: C.panel,
-        borderTop: `1px solid ${C.divider}`,
+        position: "absolute",
+        bottom: 0,
+        left: 0,
+        right: 0,
         maxHeight: 220,
+        background: "rgba(255,255,255,0.78)",
+        backdropFilter: "saturate(180%) blur(28px)",
+        WebkitBackdropFilter: "saturate(180%) blur(28px)",
+        borderTop: "1px solid rgba(255,255,255,0.5)",
+        borderRadius: "16px 16px 0 0",
+        boxShadow: "0 -4px 20px rgba(0,0,0,0.08)",
         display: "flex",
         flexDirection: "column",
-        flexShrink: 0,
         animation: "dayPanelSlideUp 200ms ease-out",
+        zIndex: 30,
       }}
     >
       {/* ヘッダ */}

@@ -86,6 +86,7 @@ function TennisDB() {
   const [opponents, setOpponents] = useState([]);
   const [loading, setLoading] = useState(false);
   const [detail, setDetail] = useState(null); // S10: { type, session, mode } | null
+  const [weather, setWeather] = useState(null); // S13.5: Open-Meteo 当日気温 { temp, code } | null
   const toast = useToast();
   const cfm = useConfirm();
 
@@ -98,6 +99,26 @@ function TennisDB() {
     setStringsList(lsLoad(KEYS.strings) || []);
     setVenues(lsLoad(KEYS.venues)       || []);
     setOpponents(lsLoad(KEYS.opponents) || []);
+  }, []);
+
+  // S13.5: 天気取得 (Open-Meteo、key 不要、CORS 対応)
+  // 位置は埼玉県固定 (35.85, 139.65)。profile から取得は後 Stage で
+  useEffect(() => {
+    const fetchWeather = async () => {
+      try {
+        const r = await fetch("https://api.open-meteo.com/v1/forecast?latitude=35.85&longitude=139.65&current=temperature_2m,weather_code");
+        if (!r.ok) return;
+        const data = await r.json();
+        const temp = data && data.current && data.current.temperature_2m;
+        const code = data && data.current && data.current.weather_code;
+        if (typeof temp === "number") setWeather({ temp, code });
+      } catch (err) {
+        console.warn("Weather fetch error:", err);
+      }
+    };
+    fetchWeather();
+    const intervalId = setInterval(fetchWeather, 30 * 60 * 1000); // 30 分ごとに更新
+    return () => clearInterval(intervalId);
   }, []);
 
   // 認証状態監視 + リアルタイム同期
@@ -408,28 +429,23 @@ function TennisDB() {
     tabContent = <PlaceholderTab name="分析" stage="S18" />;
   }
 
-  const tabTitles = { home: "ホーム", sessions: "Sessions", gear: "機材", plan: "計画", insights: "分析" };
-
-  const logoutBtn = (
-    <button
-      onClick={handleLogout}
-      aria-label="ログアウト"
-      style={{
-        width: 40, height: 40,
-        display: "flex", alignItems: "center", justifyContent: "center",
-        borderRadius: 8, border: "none", background: "transparent",
-        color: C.textSecondary, cursor: "pointer",
-      }}
-    >
-      <Icon name="log-out" size={22} ariaLabel="ログアウト" />
-    </button>
-  );
+  const tabTitles = { home: "ホーム", sessions: "記録 (Sessions)", gear: "機材", plan: "計画", insights: "分析" };
 
   return (
-    <div style={{ height: "100vh", background: C.bg, display: "flex", flexDirection: "column" }}>
+    <div style={{
+      height: "100vh", background: C.bg, display: "flex", flexDirection: "column",
+      // S13.5 (2026-04-27 修正): TabBar が position: fixed になったため、コンテンツが TabBar の裏に隠れないよう下余白を確保
+      paddingBottom: "calc(56px + env(safe-area-inset-bottom, 0))",
+    }}>
+      {/* S13.5 共通 Header: Tennis*DB* + version + ☁️ + 🌤 + 👤 (§10.8 / DECISIONS S13.5) */}
       <Header
-        title={tabTitles[tab] || "Tennis DB"}
-        right={logoutBtn}
+        tabTitle={tabTitles[tab] || ""}
+        onLogoClick={() => setTab("home")}
+        user={user}
+        syncing={loading}
+        onLogout={handleLogout}
+        weather={weather}
+        onWeatherClick={null /* S14 で天気詳細 Modal を実装 */}
       />
       {tabContent}
       <TabBar tab={tab} onTabChange={setTab} />

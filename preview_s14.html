@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>preview_s14 — Home タブ (3 ボタン / Next Actions / MiniCalendar / 近日予定 / 好成績)</title>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;background:#e8eaed;padding:28px 16px 48px;color:#202124}
+  h1{font-size:18px;margin-bottom:6px}
+  h2{font-size:15px;margin:32px 0 8px;padding:10px 14px;border-radius:8px;background:#202124;color:#fff;display:inline-block}
+  h3{font-size:13px;margin:14px 0 6px;color:#5f6368;font-weight:600}
+  .note{font-size:12px;color:#5f6368;margin-bottom:14px;line-height:1.7;max-width:920px}
+  .note b{color:#202124}
+  .note code{background:#f1f3f4;padding:2px 6px;border-radius:4px;font-size:11px}
+  .note ul{margin:6px 0 0 18px}
+  .note li{margin-bottom:3px}
+
+  .row{display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap;margin-bottom:24px}
+  .phone-wrap{display:flex;flex-direction:column;align-items:center;gap:8px}
+  .phone-label{font-size:11px;font-weight:700;padding:4px 10px;border-radius:4px;background:#fff;color:#202124;border:1px solid #dadce0}
+  .phone-label.s14{background:#e8f0fe;color:#0d47a1;border-color:#1a73e8}
+  .phone-label.trial{background:#f3e8fd;color:#6a25a8;border-color:#9334e0}
+
+  .phone{width:420px;background:#f8f9fa;border:7px solid #202124;border-radius:42px;overflow:hidden;position:relative;box-shadow:0 8px 24px rgba(0,0,0,.12)}
+  .screen{background:#f8f9fa;display:flex;flex-direction:column;min-height:780px}
+
+  .header{height:56px;flex:0 0 56px;display:flex;align-items:center;gap:8px;padding:0 16px;background:#fff;border-bottom:1px solid #e8eaed;position:relative;z-index:3}
+  .header-title{flex:1;font-size:16px;font-weight:600;color:#202124}
+  .header-right{width:40px;height:40px;display:flex;align-items:center;justify-content:center;color:#5f6368;border-radius:8px;cursor:pointer}
+  .header-right svg{width:22px;height:22px}
+
+  /* Body */
+  .body{padding:12px 12px 70px;overflow-y:auto;flex:1}
+
+  /* 3 大ボタン */
+  .quick3{display:flex;gap:8px;margin-bottom:12px}
+  .quick3-btn{flex:1;height:64px;border-radius:12px;border:none;color:#fff;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-family:inherit;box-shadow:0 1px 2px rgba(0,0,0,.08)}
+  .quick3-btn svg{width:22px;height:22px}
+  .quick3-btn .label{font-size:12px;font-weight:700;letter-spacing:.5px}
+  .quick3-tour{background:#f9ab00}
+  .quick3-prac{background:#0f9d58}
+  .quick3-trial{background:#9334e0}
+  .quick3-btn:active{transform:scale(.97)}
+
+  /* Card */
+  .card{background:#fff;border:1px solid #dadce0;border-radius:12px;padding:14px;margin-bottom:10px}
+  .card-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+  .card-title{font-size:12px;font-weight:700;color:#5f6368;letter-spacing:.5px;text-transform:uppercase;display:flex;align-items:center;gap:6px}
+  .card-title svg{width:14px;height:14px;color:#5f6368}
+  .card-link{background:none;border:none;color:#1a73e8;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:2px}
+  .card-link svg{width:14px;height:14px}
+
+  /* Next Actions row */
+  .next-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #e8eaed;cursor:pointer}
+  .next-row:last-child{border-bottom:none}
+  .next-check{width:22px;height:22px;border-radius:6px;border:2px solid #1a73e8;flex-shrink:0;background:#fff}
+  .next-body{flex:1;min-width:0}
+  .next-label{font-size:13px;font-weight:600;color:#202124;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.3}
+  .next-meta{display:flex;gap:6px;align-items:center;margin-top:2px}
+  .next-cat-badge{font-size:10px;font-weight:600;padding:2px 6px;border-radius:4px;background:#e8f0fe;color:#1a73e8}
+  .next-due{font-size:11px;color:#80868b}
+
+  /* MiniCalendar */
+  .mc-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+  .mc-nav{width:32px;height:32px;display:flex;align-items:center;justify-content:center;background:none;border:none;color:#5f6368;cursor:pointer;border-radius:6px}
+  .mc-nav svg{width:18px;height:18px}
+  .mc-month{font-size:14px;font-weight:700;color:#202124}
+  .mc-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;text-align:center}
+  .mc-dow{font-size:10px;font-weight:600;padding:4px 0;color:#5f6368}
+  .mc-dow.sun{color:#dc2626}
+  .mc-dow.sat{color:#1a73e8}
+  .mc-cell{position:relative;aspect-ratio:1/1;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:6px;cursor:pointer;background:transparent;border:2px solid transparent}
+  .mc-cell.empty{background:#f1f3f4;cursor:default}
+  .mc-cell.today{border-color:#1a73e8}
+  .mc-cell.selected{box-shadow:0 0 0 2px #1a73e8}
+  .mc-cell.has-tour{background:#feefc3}
+  .mc-cell.has-prac-light{background:#e6f4ea}
+  .mc-cell.has-prac-mid{background:#b7e1c9}
+  .mc-cell.has-prac-accent{background:#0f9d58}
+  .mc-cell.has-prac-accent .mc-day-num{color:#fff}
+  .mc-day-num{font-size:13px;color:#202124;line-height:1.1}
+  .mc-day-num.sun{color:#dc2626}
+  .mc-day-num.sat{color:#1a73e8}
+  .mc-day-num.today{font-weight:700}
+  .mc-dots{display:flex;gap:2px;margin-top:1px;height:6px}
+  .mc-dot{width:5px;height:5px;border-radius:50%}
+  .mc-dot-tour{background:#f9ab00}
+  .mc-dot-prac{background:#0f9d58}
+  .mc-dot-trial{background:#9334e0}
+  .mc-tr-icon{position:absolute;top:1px;right:1px}
+  .mc-tr-icon svg{width:10px;height:10px;color:#a04f00}
+
+  /* MiniCalendar inline DayPanel (展開時) */
+  .mc-daypanel{margin-top:10px;border-top:1px solid #e8eaed;padding-top:10px}
+  .mc-daypanel-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+  .mc-daypanel-date{font-size:12px;font-weight:600;color:#202124}
+  .mc-daypanel-close{width:24px;height:24px;background:none;border:none;color:#5f6368;cursor:pointer;display:flex;align-items:center;justify-content:center}
+  .mc-daypanel-close svg{width:16px;height:16px}
+  .mc-evrow{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #f1f3f4;cursor:pointer}
+  .mc-evrow:last-child{border-bottom:none}
+  .mc-evstrip{width:4px;height:32px;border-radius:2px;flex-shrink:0}
+  .mc-evstrip.tour{background:#f9ab00}
+  .mc-evstrip.prac{background:#0f9d58}
+  .mc-evbody{flex:1;min-width:0}
+  .mc-evtitle{font-size:13px;font-weight:600;color:#202124;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .mc-evmeta{font-size:11px;color:#5f6368;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .mc-evbadge{font-size:10px;font-weight:600;padding:2px 6px;border-radius:4px}
+  .mc-evbadge.win{background:#fff;color:#a04f00;border:1px solid rgba(249,171,0,.7)}
+  .mc-evchev{color:#80868b;font-size:14px}
+
+  /* Upcoming */
+  .up-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #f1f3f4;cursor:pointer}
+  .up-row:last-child{border-bottom:none}
+  .up-icon{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .up-icon.tour{background:#feefc3;color:#a04f00}
+  .up-icon.prac{background:#e6f4ea;color:#0a5b35}
+  .up-icon svg{width:16px;height:16px}
+  .up-body{flex:1;min-width:0}
+  .up-title{font-size:13px;font-weight:600;color:#202124;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .up-meta{font-size:11px;color:#5f6368;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .up-chev{color:#80868b;font-size:14px}
+
+  /* Best results */
+  .best-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #f1f3f4;cursor:pointer}
+  .best-row:last-child{border-bottom:none}
+  .best-medal{font-size:18px;flex-shrink:0;width:28px;text-align:center}
+  .best-body{flex:1;min-width:0}
+  .best-title{font-size:13px;font-weight:600;color:#202124;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .best-meta{font-size:11px;color:#5f6368;margin-top:1px}
+  .best-result{font-size:12px;font-weight:700}
+  .best-result.gold{color:#a04f00}
+  .best-result.silver{color:#0d47a1}
+  .best-result.bronze{color:#6a25a8}
+  .best-result.qualify{color:#7e5d00}
+
+  /* Stats */
+  .stats{display:flex;gap:8px}
+  .stats-cell{flex:1;background:#f1f3f4;border-radius:8px;padding:10px 6px;text-align:center}
+  .stats-icon{font-size:18px;line-height:1}
+  .stats-num{font-size:18px;font-weight:700;color:#1a73e8;margin-top:2px;font-variant-numeric:tabular-nums}
+  .stats-label{font-size:10px;color:#5f6368;margin-top:1px}
+
+  /* TabBar (footer) */
+  .tabbar{position:absolute;left:0;right:0;bottom:0;height:60px;background:#fff;border-top:1px solid #dadce0;display:flex;z-index:5}
+  .tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:#80868b;cursor:pointer;font-size:10px;font-weight:600}
+  .tab svg{width:22px;height:22px}
+  .tab.active{color:#1a73e8;background:#e8f0fe}
+
+  /* Modal (Trial QuickAdd) */
+  .modal-overlay{position:absolute;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:flex-start;justify-content:center;padding:24px 12px;z-index:50;overflow-y:auto}
+  .modal-box{background:#fff;border-radius:16px;padding:18px;max-width:380px;width:100%}
+  .modal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+  .modal-title{font-size:15px;font-weight:700;display:flex;align-items:center;gap:6px;color:#6a25a8}
+  .modal-title svg{width:18px;height:18px}
+  .modal-close{width:32px;height:32px;background:none;border:none;color:#5f6368;cursor:pointer;display:flex;align-items:center;justify-content:center;border-radius:6px}
+  .modal-close svg{width:18px;height:18px}
+
+  /* Form */
+  .field{margin-bottom:10px}
+  .field-label{display:block;font-size:12px;color:#5f6368;font-weight:500;margin-bottom:4px}
+  .field-required{color:#d93025;margin-left:2px}
+  .input{width:100%;min-height:44px;padding:10px 12px;border:1px solid #dadce0;border-radius:8px;font-size:14px;color:#202124;background:#fff;font-family:inherit}
+  .input:focus{outline:none;border-color:#1a73e8;box-shadow:0 0 0 2px #e8f0fe}
+  .input.empty{color:#80868b}
+  .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}
+  .grid-2-13{display:grid;grid-template-columns:2fr 1fr 1fr;gap:0 8px}
+
+  /* 判定 (試打) — 大ボタン 3 連 */
+  .judge-row{display:flex;gap:8px;margin-bottom:10px}
+  .judge-btn{flex:1;min-height:48px;border-radius:8px;border:1px solid #dadce0;background:#fff;color:#5f6368;font-size:14px;font-weight:700;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
+  .judge-btn .judge-ic{font-size:16px}
+  .judge-btn.on-good{background:#e6f4ea;border-color:#0f9d58;color:#0a5b35}
+  .judge-btn.on-hold{background:#fef7e0;border-color:#fbbc04;color:#7e5d00}
+  .judge-btn.on-reject{background:#fce8e6;border-color:#d93025;color:#a31511}
+
+  /* hint */
+  .hint{font-size:11px;color:#5f6368;background:#f3e8fd;border-left:2px solid #9334e0;padding:8px 10px;border-radius:4px;margin-top:8px;margin-bottom:10px;line-height:1.6}
+
+  /* actions */
+  .actions{display:flex;gap:8px;justify-content:flex-end;margin-top:6px}
+  .btn{min-height:44px;padding:10px 18px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px}
+  .btn-secondary{background:#fff;border:1px solid #dadce0;color:#5f6368}
+  .btn-primary{background:#9334e0;border:none;color:#fff;font-weight:700}
+  .btn-primary svg{width:16px;height:16px}
+  .btn-primary.disabled{background:#dadce0;color:#80868b;cursor:not-allowed}
+
+  /* Quick reference for design choices below the phones */
+  .design-notes{background:#fff;border:1px solid #dadce0;border-radius:12px;padding:14px;max-width:920px;margin-top:16px}
+  .design-notes h4{font-size:13px;color:#202124;font-weight:700;margin-bottom:6px}
+  .design-notes p{font-size:12px;color:#5f6368;line-height:1.7;margin-bottom:8px}
+  .design-notes b{color:#202124}
+  .design-notes code{background:#f1f3f4;padding:2px 5px;border-radius:3px;font-size:11px}
+</style>
+</head>
+<body>
+
+<h1>preview_s14 — Home タブ UX プロトタイプ</h1>
+<p class="note">
+  <b>S14 範囲</b>: 3 大ボタン (大会 / 練習 / 試打) + Next Actions (読み取りのみ) + MiniCalendar (月マス + インライン展開) + 近日予定 + 好成績 + Stats summary。
+  <b>除外</b>: バックアップ警告 (S19 export 待ち)、GCal rollback (v4 未導入)、Next Actions 編集 (S17 で実装)、v3 QuickTrialMode カルーセル (別 Stage)。
+  <br/>
+  <b>判断ポイント (5.3)</b>: 試打ボタン → QuickAddModal を type="trial" 拡張 / MiniCalendar の DayPanel はインライン展開 / 「全て見る」は Plan タブ切替 (placeholder 表示) / 3 ボタンは横 3 列 / overallResult dropdown に「準決勝敗退」「決勝敗退」追加 (Minor 1 同梱)。
+</p>
+
+<h2>① ホーム — 既定状態 (MiniCalendar 折りたたみ)</h2>
+<p class="note">
+  上部 <b>3 大ボタン (64px)</b> は色分けで親指届く位置に固定。下スクロール領域に Next Actions (3 件まで) → MiniCalendar → 近日予定 (5 件まで) → 好成績 (5 件まで) → Stats summary を縦積み。
+  <ul>
+    <li>3 ボタン色: 大会=Orange / 練習=Green / 試打=Purple (DESIGN §1.2 と完全一致)</li>
+    <li>Next Actions の checkbox は読み取り専用 (S17 で完了化機能、S14 はタップで toast「Plan タブで編集」)</li>
+    <li>MiniCalendar マス: 練習濃淡 3 段階 (CalendarView §8.5.7 の practiceLight/Mid/Accent と統一)、大会日は背景 tournamentLight + 右上 trophy アイコン</li>
+  </ul>
+</p>
+
+<div class="row">
+
+  <!-- Phone A: Home default -->
+  <div class="phone-wrap">
+    <span class="phone-label s14">Home (既定)</span>
+    <div class="phone"><div class="screen">
+      <div class="header">
+        <div class="header-title">ホーム</div>
+        <div class="header-right" data-lucide="log-out"></div>
+      </div>
+      <div class="body">
+        <!-- 3 大ボタン -->
+        <div class="quick3">
+          <button class="quick3-btn quick3-tour">
+            <span data-lucide="trophy"></span>
+            <span class="label">大会を記録</span>
+          </button>
+          <button class="quick3-btn quick3-prac">
+            <span data-lucide="person-standing"></span>
+            <span class="label">練習を記録</span>
+          </button>
+          <button class="quick3-btn quick3-trial">
+            <span data-lucide="badge-check"></span>
+            <span class="label">試打を記録</span>
+          </button>
+        </div>
+
+        <!-- Next Actions -->
+        <div class="card">
+          <div class="card-head">
+            <div class="card-title"><span data-lucide="flag"></span>Next Actions</div>
+            <button class="card-link">全て見る <span data-lucide="chevron-right"></span></button>
+          </div>
+          <div class="next-row">
+            <div class="next-check"></div>
+            <div class="next-body">
+              <div class="next-label">サーブ精度向上 — 1stIn 65% 目標</div>
+              <div class="next-meta">
+                <span class="next-cat-badge">最高</span>
+                <span class="next-due">2026-04-30 まで</span>
+              </div>
+            </div>
+          </div>
+          <div class="next-row">
+            <div class="next-check"></div>
+            <div class="next-body">
+              <div class="next-label">バックハンドのテイクバック改善</div>
+              <div class="next-meta">
+                <span class="next-cat-badge">高</span>
+              </div>
+            </div>
+          </div>
+          <div class="next-row">
+            <div class="next-check"></div>
+            <div class="next-body">
+              <div class="next-label">所沢ベテラン 5 月のエントリー</div>
+              <div class="next-meta">
+                <span class="next-cat-badge">中</span>
+                <span class="next-due">2026-05-05 まで</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- MiniCalendar (折りたたみ) -->
+        <div class="card">
+          <div class="mc-head">
+            <button class="mc-nav"><span data-lucide="chevron-left"></span></button>
+            <span class="mc-month">2026年4月</span>
+            <button class="mc-nav"><span data-lucide="chevron-right"></span></button>
+          </div>
+          <div class="mc-grid">
+            <div class="mc-dow sun">日</div><div class="mc-dow">月</div><div class="mc-dow">火</div>
+            <div class="mc-dow">水</div><div class="mc-dow">木</div><div class="mc-dow">金</div><div class="mc-dow sat">土</div>
+
+            <!-- 4/1 (水) start -->
+            <div class="mc-cell empty"></div>
+            <div class="mc-cell empty"></div>
+            <div class="mc-cell empty"></div>
+            <div class="mc-cell"><div class="mc-day-num">1</div><div class="mc-dots"></div></div>
+            <div class="mc-cell has-prac-light"><div class="mc-day-num">2</div><div class="mc-dots"><div class="mc-dot mc-dot-prac"></div></div></div>
+            <div class="mc-cell"><div class="mc-day-num">3</div><div class="mc-dots"></div></div>
+            <div class="mc-cell"><div class="mc-day-num sat">4</div><div class="mc-dots"></div></div>
+
+            <div class="mc-cell"><div class="mc-day-num sun">5</div><div class="mc-dots"></div></div>
+            <div class="mc-cell has-prac-mid"><div class="mc-day-num">6</div><div class="mc-dots"><div class="mc-dot mc-dot-prac"></div></div></div>
+            <div class="mc-cell"><div class="mc-day-num">7</div><div class="mc-dots"></div></div>
+            <div class="mc-cell has-prac-light"><div class="mc-day-num">8</div><div class="mc-dots"><div class="mc-dot mc-dot-prac"></div></div></div>
+            <div class="mc-cell"><div class="mc-day-num">9</div></div>
+            <div class="mc-cell has-prac-accent"><div class="mc-day-num">10</div><div class="mc-dots"><div class="mc-dot mc-dot-prac"></div></div></div>
+            <div class="mc-cell has-tour">
+              <div class="mc-tr-icon"><span data-lucide="trophy"></span></div>
+              <div class="mc-day-num sat">11</div>
+              <div class="mc-dots"><div class="mc-dot mc-dot-trial"></div></div>
+            </div>
+
+            <div class="mc-cell"><div class="mc-day-num sun">12</div><div class="mc-dots"></div></div>
+            <div class="mc-cell has-prac-mid"><div class="mc-day-num">13</div><div class="mc-dots"><div class="mc-dot mc-dot-prac"></div></div></div>
+            <div class="mc-cell"><div class="mc-day-num">14</div></div>
+            <div class="mc-cell has-prac-light"><div class="mc-day-num">15</div><div class="mc-dots"><div class="mc-dot mc-dot-prac"></div></div></div>
+            <div class="mc-cell"><div class="mc-day-num">16</div></div>
+            <div class="mc-cell"><div class="mc-day-num">17</div></div>
+            <div class="mc-cell has-tour">
+              <div class="mc-tr-icon"><span data-lucide="trophy"></span></div>
+              <div class="mc-day-num sat">18</div>
+            </div>
+
+            <div class="mc-cell"><div class="mc-day-num sun">19</div></div>
+            <div class="mc-cell has-prac-mid"><div class="mc-day-num">20</div><div class="mc-dots"><div class="mc-dot mc-dot-prac"></div></div></div>
+            <div class="mc-cell"><div class="mc-day-num">21</div></div>
+            <div class="mc-cell has-prac-light"><div class="mc-day-num">22</div><div class="mc-dots"><div class="mc-dot mc-dot-prac"></div></div></div>
+            <div class="mc-cell"><div class="mc-day-num">23</div></div>
+            <div class="mc-cell"><div class="mc-day-num">24</div></div>
+            <div class="mc-cell"><div class="mc-day-num sat">25</div></div>
+
+            <div class="mc-cell today"><div class="mc-day-num today sun">26</div></div>
+            <div class="mc-cell"><div class="mc-day-num">27</div></div>
+            <div class="mc-cell has-prac-light"><div class="mc-day-num">28</div><div class="mc-dots"><div class="mc-dot mc-dot-prac"></div></div></div>
+            <div class="mc-cell"><div class="mc-day-num">29</div></div>
+            <div class="mc-cell"><div class="mc-day-num">30</div></div>
+            <div class="mc-cell empty"></div>
+            <div class="mc-cell empty"></div>
+          </div>
+        </div>
+
+        <!-- 近日予定 -->
+        <div class="card">
+          <div class="card-head">
+            <div class="card-title"><span data-lucide="calendar"></span>近日予定</div>
+          </div>
+          <div class="up-row">
+            <div class="up-icon prac"><span data-lucide="person-standing"></span></div>
+            <div class="up-body">
+              <div class="up-title">インスピリッツテニスクラブ ナイター</div>
+              <div class="up-meta">4月28日(火) 19:00-20:30 · 90 分</div>
+            </div>
+            <span class="up-chev">›</span>
+          </div>
+          <div class="up-row">
+            <div class="up-icon tour"><span data-lucide="trophy"></span></div>
+            <div class="up-body">
+              <div class="up-title">所沢ベテランオープン (シングルス 中上級)</div>
+              <div class="up-meta">5月3日(日) 8:30 · 所沢市総合運動場</div>
+            </div>
+            <span class="up-chev">›</span>
+          </div>
+          <div class="up-row">
+            <div class="up-icon prac"><span data-lucide="person-standing"></span></div>
+            <div class="up-body">
+              <div class="up-title">自主練 (サーブ&リターン)</div>
+              <div class="up-meta">5月5日(火) 18:00-19:30</div>
+            </div>
+            <span class="up-chev">›</span>
+          </div>
+        </div>
+
+        <!-- 好成績 -->
+        <div class="card">
+          <div class="card-head">
+            <div class="card-title"><span data-lucide="trophy"></span>好成績</div>
+          </div>
+          <div class="best-row">
+            <div class="best-medal">🏆</div>
+            <div class="best-body">
+              <div class="best-title">所沢ベテランオープン</div>
+              <div class="best-meta">2026年4月18日 · シングルス 中上級</div>
+            </div>
+            <div class="best-result gold">優勝</div>
+            <span class="up-chev">›</span>
+          </div>
+          <div class="best-row">
+            <div class="best-medal">🥈</div>
+            <div class="best-body">
+              <div class="best-title">入間市春季大会</div>
+              <div class="best-meta">2026年3月20日 · ダブルス オープン</div>
+            </div>
+            <div class="best-result silver">準優勝</div>
+            <span class="up-chev">›</span>
+          </div>
+          <div class="best-row">
+            <div class="best-medal">🥉</div>
+            <div class="best-body">
+              <div class="best-title">埼玉県市民大会</div>
+              <div class="best-meta">2026年2月14日 · シングルス 中級</div>
+            </div>
+            <div class="best-result bronze">3位</div>
+            <span class="up-chev">›</span>
+          </div>
+          <div class="best-row">
+            <div class="best-medal">✅</div>
+            <div class="best-body">
+              <div class="best-title">関東オープン予選</div>
+              <div class="best-meta">2025年11月10日</div>
+            </div>
+            <div class="best-result qualify">予選突破</div>
+            <span class="up-chev">›</span>
+          </div>
+        </div>
+
+        <!-- Stats -->
+        <div class="card">
+          <div class="stats">
+            <div class="stats-cell">
+              <div class="stats-icon">🏆</div>
+              <div class="stats-num">36</div>
+              <div class="stats-label">大会</div>
+            </div>
+            <div class="stats-cell">
+              <div class="stats-icon">🏃</div>
+              <div class="stats-num">142</div>
+              <div class="stats-label">練習</div>
+            </div>
+            <div class="stats-cell">
+              <div class="stats-icon">🎾</div>
+              <div class="stats-num">46</div>
+              <div class="stats-label">試打</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- TabBar -->
+      <div class="tabbar">
+        <div class="tab active"><span data-lucide="house"></span><span>ホーム</span></div>
+        <div class="tab"><span data-lucide="list"></span><span>記録</span></div>
+        <div class="tab"><span data-lucide="backpack"></span><span>機材</span></div>
+        <div class="tab"><span data-lucide="notebook-pen"></span><span>計画</span></div>
+        <div class="tab"><span data-lucide="bar-chart-3"></span><span>分析</span></div>
+      </div>
+
+    </div></div>
+  </div>
+
+  <!-- Phone B: MiniCalendar with day selected (inline expansion) -->
+  <div class="phone-wrap">
+    <span class="phone-label s14">MiniCalendar 日選択 (4/11 タップ)</span>
+    <div class="phone"><div class="screen">
+      <div class="header">
+        <div class="header-title">ホーム</div>
+        <div class="header-right" data-lucide="log-out"></div>
+      </div>
+      <div class="body">
+        <div class="quick3">
+          <button class="quick3-btn quick3-tour">
+            <span data-lucide="trophy"></span>
+            <span class="label">大会を記録</span>
+          </button>
+          <button class="quick3-btn quick3-prac">
+            <span data-lucide="person-standing"></span>
+            <span class="label">練習を記録</span>
+          </button>
+          <button class="quick3-btn quick3-trial">
+            <span data-lucide="badge-check"></span>
+            <span class="label">試打を記録</span>
+          </button>
+        </div>
+
+        <div class="card">
+          <div class="mc-head">
+            <button class="mc-nav"><span data-lucide="chevron-left"></span></button>
+            <span class="mc-month">2026年4月</span>
+            <button class="mc-nav"><span data-lucide="chevron-right"></span></button>
+          </div>
+          <div class="mc-grid">
+            <div class="mc-dow sun">日</div><div class="mc-dow">月</div><div class="mc-dow">火</div>
+            <div class="mc-dow">水</div><div class="mc-dow">木</div><div class="mc-dow">金</div><div class="mc-dow sat">土</div>
+
+            <div class="mc-cell empty"></div>
+            <div class="mc-cell empty"></div>
+            <div class="mc-cell empty"></div>
+            <div class="mc-cell"><div class="mc-day-num">1</div></div>
+            <div class="mc-cell has-prac-light"><div class="mc-day-num">2</div><div class="mc-dots"><div class="mc-dot mc-dot-prac"></div></div></div>
+            <div class="mc-cell"><div class="mc-day-num">3</div></div>
+            <div class="mc-cell"><div class="mc-day-num sat">4</div></div>
+
+            <div class="mc-cell"><div class="mc-day-num sun">5</div></div>
+            <div class="mc-cell has-prac-mid"><div class="mc-day-num">6</div><div class="mc-dots"><div class="mc-dot mc-dot-prac"></div></div></div>
+            <div class="mc-cell"><div class="mc-day-num">7</div></div>
+            <div class="mc-cell has-prac-light"><div class="mc-day-num">8</div><div class="mc-dots"><div class="mc-dot mc-dot-prac"></div></div></div>
+            <div class="mc-cell"><div class="mc-day-num">9</div></div>
+            <div class="mc-cell has-prac-accent"><div class="mc-day-num">10</div><div class="mc-dots"><div class="mc-dot mc-dot-prac"></div></div></div>
+            <div class="mc-cell has-tour selected">
+              <div class="mc-tr-icon"><span data-lucide="trophy"></span></div>
+              <div class="mc-day-num sat">11</div>
+              <div class="mc-dots"><div class="mc-dot mc-dot-trial"></div></div>
+            </div>
+
+            <div class="mc-cell"><div class="mc-day-num sun">12</div></div>
+            <div class="mc-cell has-prac-mid"><div class="mc-day-num">13</div><div class="mc-dots"><div class="mc-dot mc-dot-prac"></div></div></div>
+            <div class="mc-cell"><div class="mc-day-num">14</div></div>
+            <div class="mc-cell has-prac-light"><div class="mc-day-num">15</div><div class="mc-dots"><div class="mc-dot mc-dot-prac"></div></div></div>
+            <div class="mc-cell"><div class="mc-day-num">16</div></div>
+            <div class="mc-cell"><div class="mc-day-num">17</div></div>
+            <div class="mc-cell has-tour">
+              <div class="mc-tr-icon"><span data-lucide="trophy"></span></div>
+              <div class="mc-day-num sat">18</div>
+            </div>
+
+            <div class="mc-cell"><div class="mc-day-num sun">19</div></div>
+            <div class="mc-cell has-prac-mid"><div class="mc-day-num">20</div><div class="mc-dots"><div class="mc-dot mc-dot-prac"></div></div></div>
+            <div class="mc-cell"><div class="mc-day-num">21</div></div>
+            <div class="mc-cell has-prac-light"><div class="mc-day-num">22</div><div class="mc-dots"><div class="mc-dot mc-dot-prac"></div></div></div>
+            <div class="mc-cell"><div class="mc-day-num">23</div></div>
+            <div class="mc-cell"><div class="mc-day-num">24</div></div>
+            <div class="mc-cell"><div class="mc-day-num sat">25</div></div>
+
+            <div class="mc-cell today"><div class="mc-day-num today sun">26</div></div>
+            <div class="mc-cell"><div class="mc-day-num">27</div></div>
+            <div class="mc-cell has-prac-light"><div class="mc-day-num">28</div><div class="mc-dots"><div class="mc-dot mc-dot-prac"></div></div></div>
+            <div class="mc-cell"><div class="mc-day-num">29</div></div>
+            <div class="mc-cell"><div class="mc-day-num">30</div></div>
+            <div class="mc-cell empty"></div>
+            <div class="mc-cell empty"></div>
+          </div>
+
+          <!-- インライン DayPanel (展開) -->
+          <div class="mc-daypanel">
+            <div class="mc-daypanel-head">
+              <div class="mc-daypanel-date">4月11日(土) · 2 件</div>
+              <button class="mc-daypanel-close"><span data-lucide="x"></span></button>
+            </div>
+            <div class="mc-evrow">
+              <div class="mc-evstrip tour"></div>
+              <div class="mc-evbody">
+                <div class="mc-evtitle">所沢市民オープン</div>
+                <div class="mc-evmeta">8:30 · シングルス 中上級 · ベスト8</div>
+              </div>
+              <div class="mc-evbadge win">ベスト8</div>
+              <span class="mc-evchev">›</span>
+            </div>
+            <div class="mc-evrow">
+              <div class="mc-evstrip prac"></div>
+              <div class="mc-evbody">
+                <div class="mc-evtitle">イトマンテニス自主練</div>
+                <div class="mc-evmeta">18:30-20:00 · 90 分 · 試打 ×1</div>
+              </div>
+              <span class="mc-evchev">›</span>
+            </div>
+          </div>
+        </div>
+
+        <p style="font-size:11px;color:#80868b;text-align:center;margin-top:8px">↓ 下方の「近日予定」「好成績」「Stats」は ① と同じため省略</p>
+
+      </div>
+
+      <div class="tabbar">
+        <div class="tab active"><span data-lucide="house"></span><span>ホーム</span></div>
+        <div class="tab"><span data-lucide="list"></span><span>記録</span></div>
+        <div class="tab"><span data-lucide="backpack"></span><span>機材</span></div>
+        <div class="tab"><span data-lucide="notebook-pen"></span><span>計画</span></div>
+        <div class="tab"><span data-lucide="bar-chart-3"></span><span>分析</span></div>
+      </div>
+    </div></div>
+  </div>
+
+</div>
+
+<h2>② 試打 QuickAdd モーダル — 3 ボタン「試打を記録」タップ後</h2>
+<p class="note">
+  <b>QuickAddModal を type="trial" 拡張</b>。最小フォーム (日付 / ラケット* / 縦糸+横糸 / テンション縦+横 / 判定 3 大ボタン / 会場) のみ。詳細評価 (打感 6 + 特性 2 + ショット 8 + 安心感 1) と連携先は <b>作成後 Detail → 編集ボタン</b>で追記。
+  <ul>
+    <li><b>必須</b>: 日付 / ラケット (SCHEMA <code>required:true</code> 駆動、S11 と同じ <code>getRequiredErrors</code>)</li>
+    <li><b>判定 3 ボタン</b>: 「採用候補 (緑) / 保留 (黄) / 却下 (赤)」、最低 48px 高、ラベル + アイコン</li>
+    <li><b>visibility</b> 公開設定は trial には無い (DECISIONS S11)、その分シンプル</li>
+    <li><b>保存後</b>: SessionDetailView (mode="detail") で slide-in、空項目は「—」表示。S11 で確立済の遷移を再利用</li>
+  </ul>
+</p>
+
+<div class="row">
+  <div class="phone-wrap">
+    <span class="phone-label trial">QuickAdd Trial Modal</span>
+    <div class="phone"><div class="screen">
+      <div class="header">
+        <div class="header-title">ホーム</div>
+        <div class="header-right" data-lucide="log-out"></div>
+      </div>
+      <div class="body" style="position:relative">
+        <!-- 背景 (3 ボタンが見えてる状態) -->
+        <div class="quick3" style="opacity:.45">
+          <button class="quick3-btn quick3-tour">
+            <span data-lucide="trophy"></span>
+            <span class="label">大会を記録</span>
+          </button>
+          <button class="quick3-btn quick3-prac">
+            <span data-lucide="person-standing"></span>
+            <span class="label">練習を記録</span>
+          </button>
+          <button class="quick3-btn quick3-trial">
+            <span data-lucide="badge-check"></span>
+            <span class="label">試打を記録</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Modal overlay -->
+      <div class="modal-overlay">
+        <div class="modal-box">
+          <div class="modal-head">
+            <div class="modal-title">
+              <span data-lucide="badge-check"></span>
+              試打を追加
+            </div>
+            <button class="modal-close"><span data-lucide="x"></span></button>
+          </div>
+
+          <div class="grid-2">
+            <div class="field">
+              <label class="field-label">日付<span class="field-required">*</span></label>
+              <input class="input" type="text" value="2026-04-26"/>
+            </div>
+            <div class="field">
+              <label class="field-label">会場</label>
+              <input class="input empty" type="text" placeholder="-- 会場を選択 --"/>
+            </div>
+          </div>
+
+          <div class="field">
+            <label class="field-label">ラケット<span class="field-required">*</span></label>
+            <input class="input" type="text" value="Ezone98 2025"/>
+          </div>
+
+          <div class="grid-2">
+            <div class="field">
+              <label class="field-label">縦糸</label>
+              <input class="input" type="text" value="Hyper-G 1.20"/>
+            </div>
+            <div class="field">
+              <label class="field-label">横糸</label>
+              <input class="input empty" type="text" placeholder="-- 同じ --"/>
+            </div>
+          </div>
+
+          <div class="grid-2">
+            <div class="field">
+              <label class="field-label">テンション 縦</label>
+              <input class="input" type="text" value="48"/>
+            </div>
+            <div class="field">
+              <label class="field-label">テンション 横</label>
+              <input class="input" type="text" value="46"/>
+            </div>
+          </div>
+
+          <div class="field">
+            <label class="field-label">判定</label>
+            <div class="judge-row">
+              <button class="judge-btn on-good">
+                <span class="judge-ic">✓</span>
+                <span>採用候補</span>
+              </button>
+              <button class="judge-btn">
+                <span class="judge-ic">⏸</span>
+                <span>保留</span>
+              </button>
+              <button class="judge-btn">
+                <span class="judge-ic">✕</span>
+                <span>却下</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="hint">
+            打感 / 特性 / ショット / 安心感の 17 項目評価と<br/>
+            連携先 (大会内 match / 練習) は作成後の<br/>
+            <b>Detail → 編集</b>で追記してください。30 秒で記録できます。
+          </div>
+
+          <div class="actions">
+            <button class="btn btn-secondary">キャンセル</button>
+            <button class="btn btn-primary">
+              <span data-lucide="plus"></span>
+              作成
+            </button>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="tabbar">
+        <div class="tab active"><span data-lucide="house"></span><span>ホーム</span></div>
+        <div class="tab"><span data-lucide="list"></span><span>記録</span></div>
+        <div class="tab"><span data-lucide="backpack"></span><span>機材</span></div>
+        <div class="tab"><span data-lucide="notebook-pen"></span><span>計画</span></div>
+        <div class="tab"><span data-lucide="bar-chart-3"></span><span>分析</span></div>
+      </div>
+    </div></div>
+  </div>
+</div>
+
+<div class="design-notes">
+  <h4>このプロトで確認してほしいこと</h4>
+  <p>
+    <b>1. 3 ボタン色分け</b>: 大会 Orange / 練習 Green / 試打 Purple で十分判別できますか? 横並び 3 列 (64px 高) で親指届きますか?
+  </p>
+  <p>
+    <b>2. MiniCalendar の濃淡</b>: 練習 3 段階 (薄緑 / 中緑 / 濃緑) と大会 (淡 Orange + trophy アイコン) の重なりは読み取れますか? Phone A 4/11 マスは「大会 + 試打 (紫ドット)」、4/10 マスは「練習 60 分超で濃緑+白文字」を表現しています。
+  </p>
+  <p>
+    <b>3. インライン DayPanel</b>: Phone B のように MiniCalendar カード内で展開する形式 (vs CalendarView §8.5.7.1 の本格 DayPanel) で問題ないですか? ホームは多数セクションが縦に並ぶため、外周モーダル展開だと文脈が断絶すると判断しました。
+  </p>
+  <p>
+    <b>4. 試打 QuickAdd</b>: 「日付 / ラケット* / 縦糸+横糸 / テンション縦+横 / 判定 3 ボタン / 会場」の 7 項目で出先入力に必要十分ですか? 評価 17 項目は Detail → 編集で OK ですか?
+  </p>
+  <p>
+    <b>5. Next Actions の「全て見る」</b>: タップで Plan タブ (S17 まで placeholder) に切替で良いですか? 「読み取りのみ」を明示する補助文 (e.g. 「Plan タブで管理」) を入れた方が良いですか?
+  </p>
+  <p>
+    <b>6. 好成績の上限</b>: 5 件 (優勝 → 準優勝 → 3 位 → 予選突破の優先順、同優先内は日付降順) で良いですか? それとも 3 件で十分ですか?
+  </p>
+  <p>
+    <b>7. 順番</b>: 「3 ボタン → Next Actions → MiniCalendar → 近日予定 → 好成績 → Stats」の縦並び順で良いですか? (v3 と同じ並び。Next Actions は機能未実装な分上に出すべきか / 下げるべきか)
+  </p>
+</div>
+
+<script>
+  // Lucide icons render
+  if (window.lucide && window.lucide.createIcons) {
+    window.lucide.createIcons();
+  } else {
+    window.addEventListener('load', () => {
+      if (window.lucide && window.lucide.createIcons) window.lucide.createIcons();
+    });
+  }
+</script>
+
+</body>
+</html>

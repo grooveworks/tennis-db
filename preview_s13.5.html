@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>preview_s13.5 FINAL — Home タブ最終案</title>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Helvetica Neue",sans-serif;background:#e8eaed;padding:24px 12px 60px;color:#202124}
+  h1{font-size:20px;margin-bottom:8px;font-weight:700}
+  .subhead{font-size:13px;color:#5f6368;margin-bottom:18px;line-height:1.7;max-width:1100px}
+  .subhead b{color:#202124}
+  h2{font-size:14px;margin:28px 0 8px;padding:8px 14px;border-radius:6px;background:#202124;color:#fff;display:inline-block;font-weight:700}
+
+  /* Subtle scrollbar (S13.5 規律) */
+  ::-webkit-scrollbar{width:6px;height:6px}
+  ::-webkit-scrollbar-thumb{background:rgba(0,0,0,0.18);border-radius:3px}
+  ::-webkit-scrollbar-thumb:hover{background:rgba(0,0,0,0.32)}
+  ::-webkit-scrollbar-track{background:transparent}
+  *{scrollbar-width:thin;scrollbar-color:rgba(0,0,0,0.18) transparent}
+
+  /* Phone row */
+  .row{display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap;margin-bottom:24px}
+  .phone-wrap{display:flex;flex-direction:column;align-items:center;gap:8px}
+  .phone-label{font-size:11px;font-weight:700;padding:6px 12px;border-radius:4px;background:#e8f4fe;color:#005DBE;border:1px solid #007AFF;letter-spacing:.3px}
+  .phone-label.glass{background:#f3e8fd;color:#6a25a8;border-color:#9334e0}
+
+  .phone{width:380px;background:#F2F2F7;border:7px solid #1a1a1a;border-radius:42px;overflow:hidden;position:relative;box-shadow:0 8px 24px rgba(0,0,0,.12)}
+  .screen{display:flex;flex-direction:column;height:780px;position:relative;overflow:hidden}
+
+  .ic{width:1em;height:1em;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
+  [data-lucide]{width:1em;height:1em;display:inline-flex;align-items:center;justify-content:center}
+  [data-lucide] svg{width:100%;height:100%}
+
+  /* ---------- Header (Apple flavor) ---------- */
+  .a-header{height:56px;flex:0 0 56px;display:flex;align-items:center;padding:0 16px;background:rgba(255,255,255,0.94);backdrop-filter:saturate(180%) blur(12px);-webkit-backdrop-filter:saturate(180%) blur(12px);border-bottom:1px solid rgba(0,0,0,.08);z-index:5}
+  .a-logo{display:flex;align-items:baseline;gap:5px;flex:1;cursor:pointer;user-select:none}
+  .a-logo .ic{font-size:22px;color:#007AFF;align-self:center}
+  .a-logo .tns{font-size:18px;font-weight:400;color:#1a1a1a;letter-spacing:-.01em}
+  .a-logo .db{font-size:18px;font-weight:800;color:#007AFF;letter-spacing:-.02em;margin-left:1px}
+  .a-logo .ver{font-size:9px;color:#8e8e93;margin-left:5px;align-self:flex-end;margin-bottom:2px;font-feature-settings:"tnum"}
+
+  .a-header-meta{display:flex;align-items:center;gap:6px;margin-left:8px}
+  .a-cloud{font-size:13px;color:#34C759;display:flex;align-items:center}
+  .a-weather{display:flex;align-items:center;gap:3px;font-size:12px;color:#1a1a1a;font-weight:500;padding:4px 7px;border-radius:8px;background:rgba(255,149,0,0.10);cursor:pointer}
+  .a-weather .ic{font-size:14px;color:#FF9500}
+  .a-weather .chev{font-size:9px;color:#8e8e93}
+  .a-logout{width:32px;height:32px;display:flex;align-items:center;justify-content:center;color:#8e8e93;font-size:18px;margin-left:2px}
+
+  .a-tab-name{padding:4px 16px 0;font-size:11px;color:#8e8e93;font-weight:600;letter-spacing:.3px}
+
+  .a-body{flex:1;overflow-y:auto;padding:6px 14px 12px;background:#F2F2F7}
+
+  /* ---------- Quick Add 3 大ボタン ---------- */
+  .a-quick3{display:flex;gap:10px;margin:8px 0 12px}
+  .a-quick3 button{flex:1;height:72px;border:none;border-radius:18px;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-family:inherit;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.06),0 4px 14px rgba(0,0,0,.06);transition:transform .15s}
+  .a-quick3 button:active{transform:scale(.97)}
+  .a-quick3 button .label{font-size:12px;font-weight:700;letter-spacing:.3px}
+  .a-quick3 button .ic{font-size:26px}
+  .a-tour{background:linear-gradient(180deg,#FFB340,#FF9500)}
+  .a-prac{background:linear-gradient(180deg,#34C759,#30B050)}
+  .a-trial{background:linear-gradient(180deg,#AF52DE,#9334E0)}
+
+  /* ---------- Section header ---------- */
+  .a-section{font-size:11px;font-weight:700;color:#8e8e93;text-transform:uppercase;letter-spacing:.6px;margin:14px 6px 6px;display:flex;align-items:center;gap:5px}
+  .a-section .ic{font-size:13px;color:#8e8e93}
+
+  /* ---------- Card (大カード = 20px、中行 = 14px) ---------- */
+  .a-card{background:#fff;border-radius:20px;padding:16px;margin-bottom:8px;transition:transform .2s ease,box-shadow .2s ease}
+  @media (hover:hover) and (pointer:fine){
+    .a-card:hover{transform:translateY(-2px);box-shadow:0 4px 16px rgba(0,0,0,.08)}
+  }
+
+  /* ---------- Current Context ---------- */
+  .ctx-title-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+  .ctx-title{font-size:14px;font-weight:700;color:#1a1a1a;display:flex;align-items:center;gap:6px}
+  .ctx-title .ic{font-size:16px;color:#007AFF}
+  .ctx-tag{font-size:10px;font-weight:600;color:#007AFF;background:#E1F0FF;padding:3px 8px;border-radius:8px;letter-spacing:.3px}
+  .ctx-row{display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-top:1px solid #F2F2F7}
+  .ctx-row:first-of-type{border-top:none;padding-top:4px}
+  .ctx-key{font-size:11px;color:#8e8e93;font-weight:600;min-width:62px;padding-top:1px;letter-spacing:.2px}
+  .ctx-val{flex:1;font-size:13px;color:#1a1a1a;font-weight:500;line-height:1.4}
+  .ctx-val b{font-weight:700}
+  .ctx-status{display:inline-block;font-size:10px;font-weight:700;padding:1px 7px;border-radius:6px;margin-left:5px;letter-spacing:.3px;vertical-align:1px}
+  .status-keep{background:#E6F4EA;color:#0a5b35}
+  .status-trial{background:#F3E8FD;color:#6a25a8}
+  .status-result{background:#FFE6BD;color:#7E4F00}
+  .ctx-sub{font-size:11px;color:#8e8e93;margin-top:2px}
+
+  /* ---------- 今週サマリー (Display tier) ---------- */
+  .a-week-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+  .a-week-title{font-size:14px;font-weight:700;color:#1a1a1a}
+  .a-week-period{font-size:10px;color:#8e8e93;font-weight:600;background:#F2F2F7;padding:3px 8px;border-radius:6px}
+  .a-week{display:flex;justify-content:space-around;align-items:flex-end;padding:6px 0 4px}
+  .a-stat{text-align:center;flex:1;position:relative}
+  .a-stat + .a-stat::before{content:"";position:absolute;left:0;top:8px;bottom:8px;width:1px;background:#F2F2F7}
+  .a-stat-num{font-size:34px;font-weight:800;color:#007AFF;line-height:1;font-feature-settings:"tnum"}
+  .a-stat-num.green{color:#34C759}
+  .a-stat-num.orange{color:#FF9500}
+  .a-stat-unit{font-size:13px;font-weight:700;color:inherit;margin-left:1px}
+  .a-stat-label{font-size:10px;color:#8e8e93;font-weight:600;letter-spacing:.4px;text-transform:uppercase;margin-top:4px}
+  .a-week-foot{font-size:11px;color:#5f6368;text-align:center;margin-top:8px;padding-top:8px;border-top:1px solid #F2F2F7;font-weight:500}
+  .a-week-foot b{color:#007AFF;font-weight:700}
+
+  /* ---------- 次のアクション ---------- */
+  .a-next-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid #F2F2F7;cursor:pointer}
+  .a-next-row:first-of-type{border-top:none;padding-top:4px}
+  .a-next-check{width:22px;height:22px;border-radius:11px;border:2px solid #007AFF;flex-shrink:0;background:#fff}
+  .a-next-priority{width:6px;height:6px;border-radius:50%;background:#FF9500;flex-shrink:0}
+  .a-next-priority.high{background:#FF3B30}
+  .a-next-body{flex:1;min-width:0}
+  .a-next-label{font-size:13px;font-weight:600;color:#1a1a1a;line-height:1.3}
+  .a-next-meta{font-size:11px;color:#8e8e93;margin-top:2px}
+
+  /* ---------- カレンダー (2 週間) ---------- */
+  .a-mc-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+  .a-mc-title{font-size:14px;font-weight:700;color:#1a1a1a}
+  .a-mc-period{font-size:10px;color:#8e8e93;font-weight:600;background:#F2F2F7;padding:3px 8px;border-radius:6px}
+  .a-mc-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+  .a-mc-dow{font-size:9px;font-weight:600;color:#8e8e93;text-align:center;padding:2px 0}
+  .a-mc-dow.sun{color:#FF3B30}
+  .a-mc-dow.sat{color:#007AFF}
+  .a-mc-cell{aspect-ratio:1/1;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:11px;font-weight:500;color:#1a1a1a;position:relative;cursor:pointer}
+  .a-mc-cell.empty{background:transparent;color:transparent;cursor:default}
+  .a-mc-cell.today{background:#007AFF;color:#fff;font-weight:700}
+  .a-mc-cell.prac-light{background:#E6F4EA}
+  .a-mc-cell.prac-mid{background:#B7E1C9}
+  .a-mc-cell.prac-acc{background:#34C759;color:#fff}
+  .a-mc-cell.tour{background:#FFE6BD}
+  .a-mc-cell.tour .ic{position:absolute;top:2px;right:2px;font-size:10px;color:#FF9500}
+  .a-mc-cell .dot{position:absolute;bottom:3px;width:5px;height:5px;border-radius:50%;background:#9334E0}
+  .a-mc-foot{font-size:10px;color:#8e8e93;text-align:center;margin-top:8px;padding-top:8px;border-top:1px solid #F2F2F7}
+
+  /* ---------- TabBar ---------- */
+  .a-tabbar{height:60px;flex:0 0 60px;background:rgba(255,255,255,.94);backdrop-filter:saturate(180%) blur(12px);-webkit-backdrop-filter:saturate(180%) blur(12px);border-top:1px solid rgba(0,0,0,.08);display:grid;grid-template-columns:repeat(5,1fr)}
+  .a-tabbar .tab{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;color:#8e8e93;font-size:10px;font-weight:500;cursor:pointer}
+  .a-tabbar .tab .ic{font-size:24px}
+  .a-tabbar .tab.active{color:#007AFF}
+
+  /* ---------- Glass DayPanel ---------- */
+  .g-glass-modal{position:absolute;left:14px;right:14px;bottom:74px;background:rgba(255,255,255,0.72);backdrop-filter:saturate(180%) blur(28px);-webkit-backdrop-filter:saturate(180%) blur(28px);border-radius:22px;padding:16px;box-shadow:0 4px 20px rgba(0,0,0,.12);border:1px solid rgba(255,255,255,.5);z-index:10}
+  .g-glass-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+  .g-glass-title{font-size:14px;font-weight:700;color:#1a1a1a}
+  .g-glass-close{width:28px;height:28px;border-radius:14px;background:rgba(120,120,128,.16);color:#1a1a1a;display:flex;align-items:center;justify-content:center;font-size:14px}
+  .g-glass-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid rgba(0,0,0,.08)}
+  .g-glass-row:first-of-type{border-top:none}
+  .g-strip{width:4px;height:32px;border-radius:2px;flex-shrink:0}
+  .g-strip.tour{background:#FF9500}
+  .g-strip.prac{background:#34C759}
+  .g-glass-body{flex:1;min-width:0}
+  .g-glass-rtitle{font-size:13px;font-weight:600;color:#1a1a1a}
+  .g-glass-rmeta{font-size:11px;color:#8e8e93;margin-top:1px}
+  .g-glass-badge{font-size:10px;font-weight:700;padding:2px 7px;border-radius:6px;background:#FFE6BD;color:#7E4F00}
+  .g-glass-overlay{position:absolute;inset:0;background:rgba(0,0,0,.18);z-index:9}
+
+  .legend{font-size:11px;color:#5f6368;line-height:1.7;max-width:1100px;margin-top:14px;padding:10px 14px;background:#fff;border:1px solid #e8eaed;border-radius:8px}
+  .legend b{color:#202124}
+  .legend ul{margin-left:18px;margin-top:4px}
+  .legend li{margin-bottom:2px}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-tennis" viewBox="0 0 24 24">
+    <path d="M11.578 14.453a6 6 0 1 0 -8.027 -8.029" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M9 14l-3.69 3.69a2 2 0 1 0 2.83 2.83l3.69 -3.69" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="14" cy="10" r="6" fill="none" stroke="currentColor" stroke-width="2"/>
+  </symbol>
+</svg>
+
+<h1>preview_s13.5 FINAL — Home タブ最終案</h1>
+<p class="subhead">
+  全採用要素を反映した最終 Home 案。<b>5 カード構成</b>で情報過多を避け、<b>Current Context</b> を上部に配置して「現在地把握画面」に振りました。
+  <br/>右の <b>+ Glass</b> phone は DayPanel タップ時の挙動 (frosted glass) のみ別表示。
+  <br/><br/>
+  <b>S13.5 範囲</b>: Apple System Blue / Tennis<b style="color:#007AFF">DB</b> ロゴ / 角丸ヒエラルキー (大 20 / 中 14 / ボタン 12) / Display tier (32-34px) / Card hover (PC のみ) / Glass = floating パネル限定 / スクロールバー細身 / 100dvh 修正
+  <br/><b>S14 反映</b>: Current Context カード新設 / 順序 = Quick Add → Current Context → 今週サマリー → 次のアクション → カレンダー / 「7勝3敗」表記 / 「平均/回」表記 / 主力ラケットに判断状態 / 天気タップ可 (背景 tinted で示唆) / 文言日本語統一 / カード最大 5 (Gear Context は Current Context に統合)
+  <br/><br/>
+  <span style="font-size:11px;color:#80868b">※ プレビューでは Lucide + テニスラケット (Tabler MIT 拝借) を使用。実装時は Lucide → Phosphor (duotone) に置換。</span>
+</p>
+
+<h2>① FINAL Home (通常状態)</h2>
+
+<div class="row">
+
+  <!-- ===== FINAL Phone ===== -->
+  <div class="phone-wrap">
+    <span class="phone-label">FINAL — 5 カード構成</span>
+    <div class="phone"><div class="screen">
+
+      <div class="a-header">
+        <div class="a-logo">
+          <span class="ic"><svg viewBox="0 0 24 24" width="22" height="22"><use href="#i-tennis"/></svg></span>
+          <span class="tns">Tennis</span><span class="db">DB</span>
+          <span class="ver">v4.0.0-S13.5</span>
+        </div>
+        <div class="a-header-meta">
+          <span class="a-cloud"><span class="ic" data-lucide="cloud"></span></span>
+          <div class="a-weather"><span class="ic" data-lucide="sun"></span><span>22°</span><span class="chev" data-lucide="chevron-down"></span></div>
+          <div class="a-logout"><span class="ic" data-lucide="user-circle"></span></div>
+        </div>
+      </div>
+
+      <div class="a-tab-name">ホーム</div>
+
+      <div class="a-body">
+
+        <!-- Quick Add 3 ボタン -->
+        <div class="a-quick3">
+          <button class="a-tour"><span class="ic" data-lucide="trophy"></span><span class="label">大会を記録</span></button>
+          <button class="a-prac"><span class="ic" data-lucide="person-standing"></span><span class="label">練習を記録</span></button>
+          <button class="a-trial"><span class="ic" data-lucide="badge-check"></span><span class="label">試打を記録</span></button>
+        </div>
+
+        <!-- 1. Current Context -->
+        <div class="a-card">
+          <div class="ctx-title-row">
+            <div class="ctx-title"><span class="ic" data-lucide="map-pin"></span>現在の状況</div>
+            <span class="ctx-tag">CURRENT</span>
+          </div>
+          <div class="ctx-row">
+            <div class="ctx-key">次の大会</div>
+            <div class="ctx-val">5/9 (土) <b>所沢市民オープン</b><div class="ctx-sub">12 日後 · シングルス 中上級 · 8:30 開始</div></div>
+          </div>
+          <div class="ctx-row">
+            <div class="ctx-key">課題</div>
+            <div class="ctx-val">サーブ精度向上 — 1stIn 65% 目標</div>
+          </div>
+          <div class="ctx-row">
+            <div class="ctx-key">主力</div>
+            <div class="ctx-val">Ezone98 2025 <span class="ctx-status status-keep">継続使用中</span><div class="ctx-sub">使用 23 回 / 直近 30 日 8 回</div></div>
+          </div>
+          <div class="ctx-row">
+            <div class="ctx-key">検討中</div>
+            <div class="ctx-val">Pure Strike 100 <span class="ctx-status status-trial">採用候補</span><div class="ctx-sub">4/14 試打</div></div>
+          </div>
+          <div class="ctx-row">
+            <div class="ctx-key">直近</div>
+            <div class="ctx-val">4/26 所沢ベテランオープン <span class="ctx-status status-result">ベスト8</span></div>
+          </div>
+        </div>
+
+        <!-- 2. 今週サマリー -->
+        <div class="a-card">
+          <div class="a-week-head">
+            <div class="a-week-title">今週サマリー</div>
+            <div class="a-week-period">直近 7 日</div>
+          </div>
+          <div class="a-week">
+            <div class="a-stat">
+              <div class="a-stat-num green">3</div>
+              <div class="a-stat-label">練習</div>
+            </div>
+            <div class="a-stat">
+              <div class="a-stat-num orange">1</div>
+              <div class="a-stat-label">大会</div>
+            </div>
+            <div class="a-stat">
+              <div class="a-stat-num">80<span class="a-stat-unit">分</span></div>
+              <div class="a-stat-label">平均/回</div>
+            </div>
+            <div class="a-stat">
+              <div class="a-stat-num">7<span class="a-stat-unit" style="color:#8e8e93">勝</span>3<span class="a-stat-unit" style="color:#8e8e93">敗</span></div>
+              <div class="a-stat-label">直近</div>
+            </div>
+          </div>
+          <div class="a-week-foot">主力 <b>Ezone98 2025</b> · 試合勝率 70%</div>
+        </div>
+
+        <!-- 3. 次のアクション -->
+        <div class="a-card">
+          <div class="ctx-title-row">
+            <div class="ctx-title"><span class="ic" data-lucide="flag"></span>次のアクション</div>
+            <span class="ctx-tag" style="color:#FF9500;background:rgba(255,149,0,0.10)">3 / 5</span>
+          </div>
+          <div class="a-next-row">
+            <div class="a-next-priority high"></div>
+            <div class="a-next-body">
+              <div class="a-next-label">サーブ精度向上 — 1stIn 65% 目標</div>
+              <div class="a-next-meta">2026-04-30 まで · 大会 5/9 前</div>
+            </div>
+            <div class="a-next-check"></div>
+          </div>
+          <div class="a-next-row">
+            <div class="a-next-priority"></div>
+            <div class="a-next-body">
+              <div class="a-next-label">バックハンドのテイクバック改善</div>
+              <div class="a-next-meta">継続課題</div>
+            </div>
+            <div class="a-next-check"></div>
+          </div>
+          <div class="a-next-row">
+            <div class="a-next-priority"></div>
+            <div class="a-next-body">
+              <div class="a-next-label">所沢ベテラン 5 月のエントリー</div>
+              <div class="a-next-meta">2026-05-05 まで</div>
+            </div>
+            <div class="a-next-check"></div>
+          </div>
+        </div>
+
+        <!-- 4. カレンダー (2 週間) -->
+        <div class="a-card">
+          <div class="a-mc-head">
+            <div class="a-mc-title">カレンダー</div>
+            <div class="a-mc-period">4/27 〜 5/10 · 2 週間</div>
+          </div>
+          <div class="a-mc-grid">
+            <div class="a-mc-dow sun">日</div><div class="a-mc-dow">月</div><div class="a-mc-dow">火</div>
+            <div class="a-mc-dow">水</div><div class="a-mc-dow">木</div><div class="a-mc-dow">金</div><div class="a-mc-dow sat">土</div>
+            <div class="a-mc-cell empty"></div>
+            <div class="a-mc-cell today">27</div>
+            <div class="a-mc-cell prac-light">28</div>
+            <div class="a-mc-cell">29</div>
+            <div class="a-mc-cell prac-mid">30</div>
+            <div class="a-mc-cell">1</div>
+            <div class="a-mc-cell">2</div>
+            <div class="a-mc-cell">3</div>
+            <div class="a-mc-cell prac-acc">4</div>
+            <div class="a-mc-cell">5</div>
+            <div class="a-mc-cell prac-light">6</div>
+            <div class="a-mc-cell">7</div>
+            <div class="a-mc-cell">8</div>
+            <div class="a-mc-cell tour"><span class="ic" data-lucide="trophy"></span>9<div class="dot"></div></div>
+          </div>
+          <div class="a-mc-foot">日付タップ → 詳細パネル展開 (色の意味も表示)</div>
+        </div>
+
+      </div>
+
+      <div class="a-tabbar">
+        <div class="tab active"><span class="ic" data-lucide="house"></span><span>ホーム</span></div>
+        <div class="tab"><span class="ic" data-lucide="list"></span><span>記録</span></div>
+        <div class="tab"><span class="ic" data-lucide="backpack"></span><span>機材</span></div>
+        <div class="tab"><span class="ic" data-lucide="notebook-pen"></span><span>計画</span></div>
+        <div class="tab"><span class="ic" data-lucide="bar-chart-3"></span><span>分析</span></div>
+      </div>
+
+    </div></div>
+  </div>
+
+  <!-- ===== Glass DayPanel Phone ===== -->
+  <div class="phone-wrap">
+    <span class="phone-label glass">DayPanel タップ時 (Glass)</span>
+    <div class="phone"><div class="screen">
+
+      <div class="a-header">
+        <div class="a-logo">
+          <span class="ic"><svg viewBox="0 0 24 24" width="22" height="22"><use href="#i-tennis"/></svg></span>
+          <span class="tns">Tennis</span><span class="db">DB</span>
+          <span class="ver">v4.0.0-S13.5</span>
+        </div>
+        <div class="a-header-meta">
+          <span class="a-cloud"><span class="ic" data-lucide="cloud"></span></span>
+          <div class="a-weather"><span class="ic" data-lucide="sun"></span><span>22°</span><span class="chev" data-lucide="chevron-down"></span></div>
+          <div class="a-logout"><span class="ic" data-lucide="user-circle"></span></div>
+        </div>
+      </div>
+      <div class="a-tab-name">ホーム</div>
+      <div class="a-body">
+        <div class="a-quick3">
+          <button class="a-tour"><span class="ic" data-lucide="trophy"></span><span class="label">大会を記録</span></button>
+          <button class="a-prac"><span class="ic" data-lucide="person-standing"></span><span class="label">練習を記録</span></button>
+          <button class="a-trial"><span class="ic" data-lucide="badge-check"></span><span class="label">試打を記録</span></button>
+        </div>
+
+        <div class="a-card">
+          <div class="ctx-title-row">
+            <div class="ctx-title"><span class="ic" data-lucide="map-pin"></span>現在の状況</div>
+            <span class="ctx-tag">CURRENT</span>
+          </div>
+          <div class="ctx-row">
+            <div class="ctx-key">次の大会</div>
+            <div class="ctx-val">5/9 (土) <b>所沢市民オープン</b></div>
+          </div>
+        </div>
+
+        <div class="a-card">
+          <div class="a-mc-head">
+            <div class="a-mc-title">カレンダー</div>
+            <div class="a-mc-period">5/9 マスをタップ</div>
+          </div>
+          <div class="a-mc-grid">
+            <div class="a-mc-dow sun">日</div><div class="a-mc-dow">月</div><div class="a-mc-dow">火</div>
+            <div class="a-mc-dow">水</div><div class="a-mc-dow">木</div><div class="a-mc-dow">金</div><div class="a-mc-dow sat">土</div>
+            <div class="a-mc-cell empty"></div>
+            <div class="a-mc-cell today">27</div>
+            <div class="a-mc-cell prac-light">28</div>
+            <div class="a-mc-cell">29</div>
+            <div class="a-mc-cell prac-mid">30</div>
+            <div class="a-mc-cell">1</div>
+            <div class="a-mc-cell">2</div>
+            <div class="a-mc-cell">3</div>
+            <div class="a-mc-cell prac-acc">4</div>
+            <div class="a-mc-cell">5</div>
+            <div class="a-mc-cell prac-light">6</div>
+            <div class="a-mc-cell">7</div>
+            <div class="a-mc-cell">8</div>
+            <div class="a-mc-cell tour" style="box-shadow:0 0 0 2px #007AFF"><span class="ic" data-lucide="trophy"></span>9<div class="dot"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- DayPanel as frosted glass overlay -->
+      <div class="g-glass-overlay"></div>
+      <div class="g-glass-modal">
+        <div class="g-glass-head">
+          <div class="g-glass-title">5月9日(土) · 2 件</div>
+          <div class="g-glass-close"><span class="ic" data-lucide="x"></span></div>
+        </div>
+        <div class="g-glass-row">
+          <div class="g-strip tour"></div>
+          <div class="g-glass-body">
+            <div class="g-glass-rtitle">所沢市民オープン</div>
+            <div class="g-glass-rmeta">8:30 · シングルス 中上級 · 大会</div>
+          </div>
+          <div class="g-glass-badge">予定</div>
+        </div>
+        <div class="g-glass-row">
+          <div class="g-strip prac"></div>
+          <div class="g-glass-body">
+            <div class="g-glass-rtitle">夕方ストレッチ</div>
+            <div class="g-glass-rmeta">18:00-19:00 · 60 分 · 練習</div>
+          </div>
+        </div>
+        <div style="font-size:10px;color:#8e8e93;margin-top:8px;padding-top:8px;border-top:1px solid rgba(0,0,0,.08);text-align:center">
+          ━ 緑: 練習 / 橙: 大会 / 紫点: 試打
+        </div>
+      </div>
+
+      <div class="a-tabbar">
+        <div class="tab active"><span class="ic" data-lucide="house"></span><span>ホーム</span></div>
+        <div class="tab"><span class="ic" data-lucide="list"></span><span>記録</span></div>
+        <div class="tab"><span class="ic" data-lucide="backpack"></span><span>機材</span></div>
+        <div class="tab"><span class="ic" data-lucide="notebook-pen"></span><span>計画</span></div>
+        <div class="tab"><span class="ic" data-lucide="bar-chart-3"></span><span>分析</span></div>
+      </div>
+
+    </div></div>
+  </div>
+
+</div>
+
+<div class="legend">
+<b>FINAL Home の構成 (5 カード + Quick Add)</b>
+<ul>
+  <li><b>Header</b>: Tennis<b style="color:#007AFF">DB</b> + version + 同期 + 天気 (タップで詳細展開、tinted bg で示唆) + ユーザー</li>
+  <li><b>Quick Add</b>: 大会 / 練習 / 試打 の 3 大ボタン (絶対変えない)</li>
+  <li><b>1. 現在の状況 (Current Context)</b>: 次の大会 / 課題 / 主力 [継続使用中] / 検討中 [採用候補] / 直近結果 — Gear Context をここに統合</li>
+  <li><b>2. 今週サマリー</b>: 直近 7 日 — 練習 3 / 大会 1 / 平均 80 分/回 / 直近 7 勝 3 敗 (大数字 34px tabular)</li>
+  <li><b>3. 次のアクション</b>: 上位 3 件 (priority dot + チェック circle、タップで完了化は S17 で本格)</li>
+  <li><b>4. カレンダー</b>: 4/27〜5/10 の 2 週間、日付タップで DayPanel 展開</li>
+</ul>
+<b>Glass の使用範囲</b>: DayPanel と Modal のみ。通常 Home カードには適用しない (情報密度確保のため)。<br/>
+<b>角丸ヒエラルキー</b>: Card 20 / 行カード (DayPanel 内) 14 / ボタン 12 / バッジ 6-8。<br/>
+<b>hover lift</b>: PC/タブレット (`@media (hover:hover) and (pointer:fine)`) のみ、スマホでは無効。
+</div>
+
+<p class="subhead" style="margin-top:18px">
+  この最終案で問題なければ <b>「進めて」</b> と言ってください。実装フェーズに入ります (ROADMAP/DECISIONS/DESIGN_SYSTEM 更新 → コンポーネント書き換え → build → 動作確認 → push 承認待ち)。
+  <br/>修正したい箇所があれば項目で指摘してください。
+</p>
+
+<script>
+  if (window.lucide && window.lucide.createIcons) {
+    window.lucide.createIcons();
+  } else {
+    window.addEventListener('load', () => {
+      if (window.lucide && window.lucide.createIcons) window.lucide.createIcons();
+    });
+  }
+</script>
+
+</body>
+</html>

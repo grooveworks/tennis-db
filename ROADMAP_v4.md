@@ -48,7 +48,8 @@
 | **S11** ✅ | Session 編集画面 + Match 編集 + GameTracker (F1.4.1 復活) + 試打フィルタ暫定 | 既存記録の更新が v4 で可能、ゲーム単位スコア+状況メモ (奇数ゲーム後 CO 自動発動) を v2 から復活、試打への暫定動線確保 |
 | **S12** ✅ | Session 追加（FAB + QuickAdd 大会/練習 2 択） | 右下 FAB から新規記録、**v4 実運用可能ライン**。試打は S14 Home 3 ボタン経由に集約 |
 | **S13** ✅ | Session 削除 + cascade | 関連する linkedXxx を自動クリアする安全削除。focus 型誤定義の根本修正・編集 UX 改善・Firestore batch load・left-edge swipe を history pushState 方式に も同梱 |
-| **S14** | Home タブ | 3ボタン登録導線、MiniCalendar、Next Actions |
+| **S13.5** 🎨 | **DESIGN_SYSTEM 全面改訂 (Apple-flavored Material 路線)** | Primary `#1a73e8`→`#007AFF` / Lucide→Phosphor + Tabler `tennis` 拝借 / 角丸ヒエラルキー (大 20 / 中 14 / ボタン 10-12) / Display tier (28-40px) / Glass = floating panel 限定 / Card hover lift (PC のみ) / 100vh→100dvh / スクロールバー細身 / Next Actions check circle (Apple Reminders 風) — 2026-04-27 ピボット、AUDIT_v4_design_research_2026-04-27.md と DECISIONS_v4.md S13.5 参照 |
+| **S14** | Home タブ | Quick Add 3 ボタン / Current Context / 今週サマリー / 次のアクション / 2 週間カレンダー (= 5 カード上限) / 共通 Header (Tennis**DB** + version + 同期 + 天気 + logout) / default tab home 変更同梱 |
 | **S15** | Sessions マージ機能 | 同タイプ2件の統合、A/B 切替・競合選択 |
 | **S16** | **Gear タブ（v3 未実装を v4 で初実装）** | ラケット/ガット/セッティング/実測値 |
 | **S17** | **Plan タブ（v3 未実装を v4 で初実装）** | Next Actions 詳細、対戦相手管理 |
@@ -57,7 +58,25 @@
 | **S20** | セッション自動連関 | 試打→大会、練習→大会 の自動リンク表示（機械的に繋ぐ） |
 | **S21** | リリース準備 | v3 を凍結、/v4/ を正式化、日付形式の最終一括マイグレーション |
 
-合計 **22 Stage**。S2-S5 が UI/UX 先行、S6-S15 がコア機能、S16-S18 が v3 未実装を v4 で新規実装、S19-S21 が仕上げ。
+合計 **23 Stage** (2026-04-27 に S13.5 挿入)。S2-S5 が UI/UX 先行、S6-S15 がコア機能、S16-S18 が v3 未実装を v4 で新規実装、S19-S21 が仕上げ、S13.5 は Apple ライク化のためのデザイン再構築。
+
+### Home タブ責務 (S14 でこれを満たすよう実装、DECISIONS_v4.md S13.5 と一致)
+
+**Home に置くもの (5 カード上限)**:
+1. Quick Add 3 ボタン (大会 / 練習 / 試打、絶対変えない)
+2. Current Context (現在の状況: 次の大会 / 課題 / 主力 / 検討中 / 直近結果)
+3. 今週サマリー (直近 7 日: 練習回数 / 大会数 / 平均分/回 / 7勝3敗、Display tier 大数字)
+4. 次のアクション (top 3、Apple Reminders 風 check circle)
+5. 2 週間カレンダー (4/27 〜 5/10 形式、日付タップで DayPanel 展開、下部凡例)
+
+**Home に置かないもの**:
+- 詳細分析 → Insights タブ (S18)
+- 長い履歴一覧 → Sessions タブ (S6-S10)
+- 機材詳細比較 → Gear タブ (S16)
+- 年間俯瞰 → Sessions タブ Year mode (S9)
+- 詳細セッション探索 → Sessions タブ
+
+「Home は要約、探索は他タブ」原則で V1/V3 の情報過多に戻らない。
 
 ### 2026-04-21 の再スコープ記録
 

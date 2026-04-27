@@ -11,7 +11,7 @@ function Input({ label, value, onChange, type = "text", placeholder, required, e
   const [focus, setFocus] = useState(false);
   const hasError = !!error;
   const borderColor = hasError ? "#d93025" : (focus ? C.primary : C.border);
-  const shadow = focus ? `0 0 0 2px ${hasError ? "rgba(217,48,37,0.2)" : "#e8f0fe"}` : "none";
+  const shadow = focus ? `0 0 0 2px ${hasError ? "rgba(217,48,37,0.2)" : C.primaryLight}` : "none";
   return (
     <div style={{ marginBottom: 12, ...ext }}>
       {label && (

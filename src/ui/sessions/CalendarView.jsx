@@ -110,9 +110,10 @@ function CalendarView({ items = [], trialLinks = { linkedTournamentIds: new Set(
   const selectedISO = selectedDay ? _toISO(month.y, month.m + 1, selectedDay) : null;
   const selectedSlot = selectedDay ? (dayMap[selectedDay] || { tournaments: [], practices: [] }) : null;
 
+  // S13.5 (2026-04-27 修正): DayPanel が absolute overlay になったので、親に position: relative が必要。
+  //   旧構造の Fragment + flex sibling → 単一 div コンテナに統合。
   return (
-    <>
-      <div style={{ flex: 1, overflow: "auto", padding: "8px 12px 12px", background: C.bg, minHeight: 0 }}>
+    <div style={{ flex: 1, overflow: "auto", padding: "8px 12px 12px", background: C.bg, minHeight: 0, position: "relative" }}>
         {/* 月ヘッダ + 前後ナビ + 今日へジャンプ */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 4px 10px" }}>
           <button
@@ -195,9 +196,8 @@ function CalendarView({ items = [], trialLinks = { linkedTournamentIds: new Set(
             );
           })}
         </div>
-      </div>
 
-      {/* 選択中の日詳細パネル */}
+      {/* 選択中の日詳細パネル (S13.5: absolute overlay でカレンダーグリッドを覆う) */}
       {selectedDay && selectedISO && selectedSlot && (
         <DayPanel
           dateISO={selectedISO}
@@ -207,6 +207,6 @@ function CalendarView({ items = [], trialLinks = { linkedTournamentIds: new Set(
           onCardClick={onCardClick}
         />
       )}
-    </>
+    </div>
   );
 }

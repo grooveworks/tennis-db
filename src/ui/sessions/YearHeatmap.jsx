@@ -144,9 +144,11 @@ function YearHeatmap({ items = [], trialLinks = { linkedTournamentIds: new Set()
   const selectedLabel = selected ? _yhWeekLabel(year, selected.m, selected.w) : "";
   const selectedItems = selected && selectedSlot ? _yhBuildWeekItems(selectedSlot) : [];
 
+  // S13.5 (2026-04-27 修正): WeekPanel が absolute overlay になったので、親に position: relative が必要。
+  //   旧構造の Fragment + flex sibling → 単一 div コンテナに統合。
   return (
-    <>
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", padding: "10px 14px", background: C.bg, minHeight: 0 }}>
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", padding: "10px 14px", background: C.bg, minHeight: 0, position: "relative" }}>
+      <>
         {/* 年ヘッダ + 前後ナビ + 今年バッジ */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 0 8px", flexShrink: 0 }}>
           <button
@@ -284,7 +286,7 @@ function YearHeatmap({ items = [], trialLinks = { linkedTournamentIds: new Set()
           <span style={{ marginLeft: 8, width: 8, height: 8, borderRadius: "50%", background: C.trialAccent, border: `1px solid #fff`, display: "inline-block", verticalAlign: "middle" }} />
           <span>試打</span>
         </div>
-      </div>
+      </>
 
       {selected && selectedSlot && (
         <WeekPanel
@@ -294,6 +296,6 @@ function YearHeatmap({ items = [], trialLinks = { linkedTournamentIds: new Set()
           onCardClick={onCardClick}
         />
       )}
-    </>
+    </div>
   );
 }

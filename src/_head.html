@@ -1,4 +1,13 @@
 <!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<!-- iOS PWA standalone モード対応 (DESIGN_SYSTEM §10.x、Header の env(safe-area-inset-top) と組): -->
+<!-- 1. mobile-web-app-capable: PWA 登録の標準 (Apple/Google 共通)、Apple 互換は別途下行 -->
+<!-- 2. apple-mobile-web-app-capable=yes: ホーム画面追加時に Safari URL バー無し standalone モードで起動 -->
+<!-- 3. apple-mobile-web-app-status-bar-style=default: 上端 status bar を白背景・黒文字 (Apple iOS 標準)、Header の白系と blend -->
+<!-- 4. apple-mobile-web-app-title: ホーム画面アイコン下のラベル -->
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="TennisDB">
 <title>Tennis DB v4</title>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
@@ -6,12 +15,21 @@
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone@7.23.9/babel.min.js"></script>
-<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<!-- S13.5: Lucide UMD → Phosphor web font に差し替え (DESIGN_SYSTEM_v4.md §5 / §10.5) -->
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/duotone/style.css">
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css">
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/bold/style.css">
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;background:#f8f9fa;overscroll-behavior:none;color:#202124}
+body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;background:#F2F2F7;overscroll-behavior:none;color:#202124}
 input,select,textarea,button{font-family:inherit}
-::-webkit-scrollbar{display:none}
+/* S13.5: スクロールバー細身 (DESIGN_SYSTEM_v4.md §10.7) */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-thumb{background:rgba(0,0,0,0.18);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:rgba(0,0,0,0.32)}
+::-webkit-scrollbar-track{background:transparent}
+*{scrollbar-width:thin;scrollbar-color:rgba(0,0,0,0.18) transparent}
 @keyframes modalEnter{from{opacity:0;transform:scale(0.95)}to{opacity:1;transform:scale(1)}}
 @keyframes drawerEnter{from{transform:translateY(100%)}to{transform:translateY(0)}}
 @keyframes dayPanelSlideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}

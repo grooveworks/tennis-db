@@ -1,4 +1,13 @@
 <!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<!-- iOS PWA standalone モード対応 (DESIGN_SYSTEM §10.x、Header の env(safe-area-inset-top) と組): -->
+<!-- 1. mobile-web-app-capable: PWA 登録の標準 (Apple/Google 共通)、Apple 互換は別途下行 -->
+<!-- 2. apple-mobile-web-app-capable=yes: ホーム画面追加時に Safari URL バー無し standalone モードで起動 -->
+<!-- 3. apple-mobile-web-app-status-bar-style=default: 上端 status bar を白背景・黒文字 (Apple iOS 標準)、Header の白系と blend -->
+<!-- 4. apple-mobile-web-app-title: ホーム画面アイコン下のラベル -->
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="TennisDB">
 <title>Tennis DB v4</title>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
@@ -6,12 +15,21 @@
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone@7.23.9/babel.min.js"></script>
-<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<!-- S13.5: Lucide UMD → Phosphor web font に差し替え (DESIGN_SYSTEM_v4.md §5 / §10.5) -->
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/duotone/style.css">
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css">
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/bold/style.css">
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;background:#f8f9fa;overscroll-behavior:none;color:#202124}
+body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;background:#F2F2F7;overscroll-behavior:none;color:#202124}
 input,select,textarea,button{font-family:inherit}
-::-webkit-scrollbar{display:none}
+/* S13.5: スクロールバー細身 (DESIGN_SYSTEM_v4.md §10.7) */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-thumb{background:rgba(0,0,0,0.18);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:rgba(0,0,0,0.32)}
+::-webkit-scrollbar-track{background:transparent}
+*{scrollbar-width:thin;scrollbar-color:rgba(0,0,0,0.18) transparent}
 @keyframes modalEnter{from{opacity:0;transform:scale(0.95)}to{opacity:1;transform:scale(1)}}
 @keyframes drawerEnter{from{transform:translateY(100%)}to{transform:translateY(0)}}
 @keyframes dayPanelSlideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
@@ -27,28 +45,35 @@ input,select,textarea,button{font-family:inherit}
 const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
 // ── 定数定義（色・キー・バージョン）─────────────
-const APP_VERSION="4.0.0-S13";
+const APP_VERSION="4.0.0-S13.5";
 const font="-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif";
 
-// 色設計（DESIGN_SYSTEM_v4.md §1 準拠）
-// Primary (青) を主色、Sessions カテゴリ (Orange/Green/Purple)、Semantic (Info/Success/Warning/Error)
+// 色設計（DESIGN_SYSTEM_v4.md §1 + §10 S13.5 改訂準拠）
+// 2026-04-27 S13.5: Material Blue (#1a73e8) → Apple System Blue (#007AFF) に置換
+// Primary (Apple System Blue)、Sessions カテゴリ (Orange/Green/Purple) 維持、Apple System 補助色追加
 const C={
-  // Surface (§1.5)
-  bg:"#f8f9fa",panel:"#ffffff",panel2:"#f1f3f4",border:"#dadce0",divider:"#e8eaed",
+  // Surface (§1.5、S13.5 で bg を Apple System Gray 6 に微調整)
+  bg:"#F2F2F7",panel:"#ffffff",panel2:"#f1f3f4",border:"#dadce0",divider:"#e8eaed",
   // Text (§1.4)
   text:"#202124",textSecondary:"#5f6368",textMuted:"#80868b",
-  // Primary (§1.1)
-  primary:"#1a73e8",primaryHover:"#1765cc",primaryLight:"#e8f0fe",
-  // Sessions カテゴリ (§1.2) — 左端色帯・アイコン色に使用
+  // Primary (§1.1、S13.5 で Apple System Blue に置換)
+  primary:"#007AFF",primaryHover:"#0062CC",primaryLight:"#E1F0FF",
+  // Sessions カテゴリ (§1.2、維持) — 左端色帯・アイコン色に使用
   tournamentAccent:"#f9ab00",tournamentLight:"#feefc3",
   practiceAccent:"#0f9d58",practiceMid:"#b7e1c9",practiceLight:"#e6f4ea",
   trialAccent:"#9334e0",trialLight:"#f3e8fd",
-  // Semantic (§1.3)
-  info:"#1a73e8",infoLight:"#e8f0fe",
+  // Semantic (§1.3、Info を Primary 連動で更新)
+  info:"#007AFF",infoLight:"#E1F0FF",
   success:"#0f9d58",successLight:"#e6f4ea",
   warning:"#fbbc04",warningLight:"#fef7e0",
   error:"#d93025",errorLight:"#fce8e6",
+  // Apple System 補助色 (§10.1 S13.5 新設、装飾アクセント用)
+  appleMint:"#00C7BE",appleIndigo:"#5856D6",applePeach:"#FF9500",
+  appleGray4:"#C7C7CC",  // チェック circle 未チェック border、ニュートラル境界
 };
+
+// 角丸ヒエラルキー (§10.3 S13.5 新設)
+const RADIUS={card:20,row:14,btn:12,btnSm:10,badge:6};
 
 // localStorage プレフィックス（v2 時代から継承。変更禁止）
 const LS_PREFIX="yuke-";
@@ -910,22 +935,24 @@ function Badge({ variant = "default", icon, minWidth, children }) {
 }
 
 // === src/ui/common/Button.jsx ===
-// Button — 5 variants
+// Button — 5 variants (S13.5 で角丸 8→12、Primary 色 #1a73e8→#007AFF への移行)
 // props:
 //   variant: primary | secondary | ghost | danger | disabled (default primary)
-//   icon: Material Symbols 名 (省略可)
+//   icon: アイコン名 (省略可、Icon コンポーネントで描画)
 //   onClick, disabled, children, style (追加 style 上書き)
-// DESIGN_SYSTEM §4.3 準拠、最小 44×44px のタップ領域
-const BUTTON_STYLES = {
-  primary:   { bg: "#1a73e8", text: "#ffffff", border: "none", hover: "#1765cc" },
-  secondary: { bg: "#ffffff", text: "#1a73e8", border: "1px solid #1a73e8", hover: "#e8f0fe" },
-  ghost:     { bg: "transparent", text: "#1a73e8", border: "none", hover: "#e8f0fe" },
-  danger:    { bg: "#d93025", text: "#ffffff", border: "none", hover: "#b3271e" },
-  disabled:  { bg: "#f1f3f4", text: "#80868b", border: "none", hover: "#f1f3f4" },
-};
+// DESIGN_SYSTEM §4.3 + §10.3 準拠、最小 44×44px のタップ領域
+// 色は C.primary 経由で参照 (constants.js) — ハードコード hex 禁止
 function Button({ variant = "primary", icon, onClick, disabled, children, style: ext = {}, ...rest }) {
   const isDisabled = disabled || variant === "disabled";
-  const s = BUTTON_STYLES[isDisabled ? "disabled" : variant] || BUTTON_STYLES.primary;
+  // BUTTON_STYLES は関数内で構築 (C 定数依存のため timing 安全)
+  const STYLES = {
+    primary:   { bg: C.primary,    text: "#ffffff",  border: "none",                       hover: C.primaryHover  },
+    secondary: { bg: C.panel,      text: C.primary,  border: `1px solid ${C.primary}`,     hover: C.primaryLight  },
+    ghost:     { bg: "transparent",text: C.primary,  border: "none",                       hover: C.primaryLight  },
+    danger:    { bg: C.error,      text: "#ffffff",  border: "none",                       hover: "#b3271e"       },
+    disabled:  { bg: C.panel2,     text: C.textMuted,border: "none",                       hover: C.panel2        },
+  };
+  const s = STYLES[isDisabled ? "disabled" : variant] || STYLES.primary;
   const [hover, setHover] = useState(false);
   return (
     <button
@@ -940,7 +967,7 @@ function Button({ variant = "primary", icon, onClick, disabled, children, style:
         gap: 8,
         minHeight: 44,
         padding: "10px 20px",
-        borderRadius: 8,
+        borderRadius: RADIUS.btn, // S13.5: 8 → 12
         fontFamily: font,
         fontSize: 14,
         fontWeight: 500,
@@ -960,14 +987,24 @@ function Button({ variant = "primary", icon, onClick, disabled, children, style:
 }
 
 // === src/ui/common/Card.jsx ===
-// Card — 基本カード
+// Card — 基本カード (S13.5 で角丸 12→20、PC のみ hover lift 追加 §10.3 / §10.4)
 // props:
-//   onClick: 指定ありでクリック可能カード (hover 効果あり)
+//   onClick: 指定ありでクリック可能カード (hover lift 効果あり、PC のみ)
 //   style: 追加 style 上書き
-// DESIGN_SYSTEM §4.2 準拠 (角丸12px、border 1px、padding 16px)
+// DESIGN_SYSTEM §4.2 + §10.3 + §10.4 準拠
+//   - 角丸: RADIUS.card = 20px (S13.5 で 12→20、Apple ライク)
+//   - hover lift: @media (hover:hover) and (pointer:fine) のみ発動
+//     (matchMedia で device 判定、touch device では無発動)
+
+// hover 対応 device かどうかを module load 時に 1 回判定
+const _SUPPORTS_HOVER = typeof window !== "undefined"
+  && window.matchMedia
+  && window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+
 function Card({ onClick, children, style: ext = {}, ...rest }) {
   const [hover, setHover] = useState(false);
   const clickable = !!onClick;
+  const lift = clickable && hover && _SUPPORTS_HOVER;
   return (
     <div
       onClick={onClick}
@@ -977,13 +1014,15 @@ function Card({ onClick, children, style: ext = {}, ...rest }) {
       tabIndex={clickable ? 0 : undefined}
       onKeyDown={clickable ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(e); } } : undefined}
       style={{
-        background: clickable && hover ? C.panel2 : C.panel,
+        background: lift ? C.panel2 : C.panel,
         border: `1px solid ${C.border}`,
-        borderRadius: 12,
+        borderRadius: RADIUS.card, // S13.5: 12 → 20 (Apple ライク)
         padding: 16,
         marginBottom: 8,
         cursor: clickable ? "pointer" : "default",
-        transition: "background 150ms ease-out",
+        transition: "transform 0.2s ease, box-shadow 0.2s ease, background 150ms ease-out",
+        transform: lift ? "translateY(-2px)" : "none",
+        boxShadow: lift ? "0 4px 16px rgba(0,0,0,0.08)" : "none",
         ...ext,
       }}
       {...rest}
@@ -1057,113 +1096,313 @@ function useConfirm() {
 }
 
 // === src/ui/common/Header.jsx ===
-// Header — 画面上部共通ヘッダ
+// Header — アプリ全体共通のトップヘッダ (S13.5 で全面改訂、§10.8 共通 Header 復活)
+// v2/v3 形式踏襲 + Apple-flavored Material 路線で再構築:
+//   - 左端: 🎾 (Tabler tennis SVG) + Tennis (細字 grey) + DB (太字 Apple Blue) + v{APP_VERSION}
+//   - ロゴタップ → home タブに遷移
+//   - 右側 (3 要素): ☁️同期状態 + 🌤天気 + 👤user
+//   - 背景: rgba(255,255,255,0.94) + backdrop-filter blur(12px) (Glass-header)
+//   - サブ行: 現在タブ名 (小さい灰色テキスト、TabBar 見切れ時のフォールバック)
+// import/export ボタンは S13.5 では除外、後 Stage で Claude 直接連携 + GoogleDrive 強制バックアップを別設計
+//
 // props:
-//   title: 画面タイトル
-//   onBack: 戻るコールバック (省略時は戻るボタン非表示)
-//   onMenu: メニューコールバック (省略時はメニューボタン非表示)
-//   right: 右側にカスタム要素 (onMenu の代わり、例: 保存ボタン)
-// DESIGN_SYSTEM §4.9 準拠、左上=戻る・右上=メニュー の位置固定
-function Header({ title, onBack, onMenu, right }) {
-  const iconBtn = (icon, onClick, label) => (
-    <button
-      onClick={onClick}
-      aria-label={label}
-      style={{
-        width: 40, height: 40,
-        display: "flex", alignItems: "center", justifyContent: "center",
-        borderRadius: 8,
-        border: "none",
-        background: "transparent",
-        color: C.textSecondary,
-        cursor: "pointer",
-        transition: "background 150ms",
-      }}
-      onMouseEnter={(e) => { e.currentTarget.style.background = C.panel2; }}
-      onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
-    >
-      <Icon name={icon} size={24} ariaLabel={label} />
-    </button>
-  );
+//   tabTitle: 現在のタブ名 (例: "ホーム" / "Sessions")、サブ行に表示
+//   onLogoClick: ロゴタップ時のコールバック (home に遷移)
+//   user: firebase user オブジェクト (cloud アイコン表示判定用)
+//   syncing: 同期中フラグ (true なら☁️ をハイライト)
+//   onLogout: ログアウトコールバック
+//   onWeatherClick: 天気タップコールバック (S14 で Open-Meteo 詳細 Modal を開く)、null 時は無反応
+//   weather: { temp: number, code: number } | null (S14 で実装、S13.5 では null = "—°" placeholder)
+function Header({ tabTitle, onLogoClick, user, syncing, onLogout, onWeatherClick, weather }) {
+  const hasWeather = weather && typeof weather.temp === "number";
+  const tempStr = hasWeather ? `${Math.round(weather.temp)}°` : "";
+
   return (
     <header style={{
       display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      height: 56,
-      padding: "0 16px",
-      background: C.panel,
-      borderBottom: `1px solid ${C.border}`,
+      flexDirection: "column",
+      background: "rgba(255,255,255,0.94)",
+      backdropFilter: "saturate(180%) blur(12px)",
+      WebkitBackdropFilter: "saturate(180%) blur(12px)",
+      borderBottom: "1px solid rgba(0,0,0,0.08)",
+      flexShrink: 0,
+      zIndex: 5,
+      // iOS PWA standalone モード対応: ステータスバー (時刻 / 電池等) の裏に潜らないよう
+      // safe-area-inset-top 分だけ上端に padding を確保。Safari ブラウザモードでは env() = 0
+      paddingTop: "env(safe-area-inset-top, 0)",
+      paddingLeft: "env(safe-area-inset-left, 0)",
+      paddingRight: "env(safe-area-inset-right, 0)",
     }}>
-      <div style={{ width: 40, height: 40 }}>
-        {onBack && iconBtn("arrow-left", onBack, "戻る")}
+      {/* メイン行 */}
+      <div style={{
+        height: 56, display: "flex", alignItems: "center", padding: "0 16px",
+      }}>
+        {/* ロゴ部 (タップで home に戻る、v3 line:3185 踏襲) */}
+        <div
+          onClick={onLogoClick}
+          role="button"
+          aria-label="ホームへ戻る"
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onLogoClick && onLogoClick(); } }}
+          style={{
+            display: "flex", alignItems: "baseline", gap: 5,
+            flex: 1, minWidth: 0,
+            cursor: onLogoClick ? "pointer" : "default",
+            userSelect: "none",
+          }}
+        >
+          <Icon name="tennis" size={22} color={C.primary} ariaLabel="Tennis DB" style={{ alignSelf: "center" }} />
+          <span style={{
+            fontSize: 18, fontWeight: 400, color: C.text,
+            letterSpacing: "-0.01em", alignSelf: "center",
+          }}>Tennis</span>
+          <span style={{
+            fontSize: 18, fontWeight: 800, color: C.primary,
+            letterSpacing: "-0.02em", marginLeft: 1, alignSelf: "center",
+          }}>DB</span>
+          <span style={{
+            fontSize: 9, color: C.textMuted, marginLeft: 5,
+            alignSelf: "flex-end", marginBottom: 2,
+            fontFeatureSettings: '"tnum"',
+          }}>v{APP_VERSION}</span>
+        </div>
+
+        {/* 右側メタ (3 要素まで、§10.8) */}
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginLeft: 8 }}>
+          {/* 同期状態 (user ログイン時のみ) */}
+          {user && (
+            <span
+              aria-label={syncing ? "同期中" : "同期済"}
+              style={{
+                display: "flex", alignItems: "center",
+                width: 28, height: 28,
+                justifyContent: "center",
+              }}
+            >
+              <Icon
+                name="cloud"
+                size={18}
+                color={syncing ? C.warning : C.success}
+                weight="regular"
+                ariaLabel={syncing ? "クラウド同期中" : "クラウド同期済"}
+              />
+            </span>
+          )}
+
+          {/* 天気スロット (S13.5: Open-Meteo 接続済、データ取得後のみ表示) */}
+          {hasWeather && (
+            <div
+              onClick={onWeatherClick}
+              role={onWeatherClick ? "button" : undefined}
+              aria-label="今日の天気"
+              tabIndex={onWeatherClick ? 0 : undefined}
+              style={{
+                display: "flex", alignItems: "center", gap: 3,
+                fontSize: 12, color: C.text, fontWeight: 500,
+                padding: "4px 7px", borderRadius: 8,
+                background: "rgba(255,149,0,0.10)",
+                cursor: onWeatherClick ? "pointer" : "default",
+              }}
+            >
+              <Icon name="sun" size={14} color={C.applePeach} weight="fill" />
+              <span style={{ fontFeatureSettings: '"tnum"' }}>{tempStr}</span>
+            </div>
+          )}
+
+          {/* ユーザー / ログアウト */}
+          {user && (
+            <button
+              onClick={onLogout}
+              aria-label="ログアウト"
+              style={{
+                width: 32, height: 32,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                color: C.textSecondary, cursor: "pointer",
+                border: "none", background: "transparent",
+                borderRadius: 8,
+                padding: 0,
+              }}
+            >
+              <Icon name="user-circle" size={22} color={C.textSecondary} weight="regular" />
+            </button>
+          )}
+        </div>
       </div>
-      <div style={{ fontSize: 16, fontWeight: 600, color: C.text, flex: 1, textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-        {title}
-      </div>
-      <div style={{ width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
-        {right ? right : (onMenu && iconBtn("more-vertical", onMenu, "メニュー"))}
-      </div>
+
+      {/* タブ名サブ行 (TabBar 見切れ時のフォールバック、§10.8) */}
+      {tabTitle && (
+        <div style={{
+          padding: "0 16px 6px",
+          fontSize: 11, color: C.textMuted, fontWeight: 600,
+          letterSpacing: "0.3px",
+          marginTop: -2,
+        }}>
+          {tabTitle}
+        </div>
+      )}
     </header>
   );
 }
 
 // === src/ui/common/Icon.jsx ===
-// Icon — Lucide SVG のラッパー
+// Icon — Phosphor アイコン (duotone weight 主) + Tabler tennis (1 個拝借) のラッパー
+// S13.5 で Lucide → Phosphor に内部実装を差し替え (DESIGN_SYSTEM_v4.md §10 / DECISIONS S13.5)
+// 呼び出し API は維持: <Icon name="trophy" size={24} color="..." ariaLabel="..." />
+//
 // props:
-//   name: Lucide アイコン名 (kebab-case、例: "trophy", "arrow-left", "badge-check")
-//   size: px (default 24)
+//   name: アイコン名 (旧 Lucide 名で受け付け、内部で Phosphor 名にマップ)。"tennis" は Tabler の SVG 拝借
+//   size: px (default 24) — span の width/height + Phosphor は font-size として効く
 //   color: CSS color (default "currentColor")
-//   strokeWidth: SVG stroke 幅 (default 2)
+//   weight: "regular" | "duotone" | "fill" | "bold" | "thin" | "light" (default "regular")
 //   ariaLabel: スクリーンリーダー用ラベル（アイコンのみのボタンでは必須）
-// 依存: _head.html で Lucide UMD CDN 読み込み済み (window.lucide.icons)
-// 実装: window.lucide.icons[PascalCase(name)] から IconNode を取得し、SVG 文字列として構築
+// 依存: _head.html で Phosphor web font CSS 読み込み済み
+// 旧 props (strokeWidth) は受け付けるが無視する (Phosphor は weight で表現するため)
 
-const _toPascalCase = (kebab) => String(kebab || "").replace(/(^|-)(\w)/g, (_, __, c) => c.toUpperCase());
-
-// IconNode を再帰的に SVG 文字列に変換
-// IconNode 形式: [[tagName, attrs, children?], ...]
-const _iconNodeToSvgString = (node) => {
-  if (!Array.isArray(node)) return "";
-  return node.map((entry) => {
-    if (!Array.isArray(entry)) return "";
-    const [tag, attrs, children] = entry;
-    const attrStr = Object.entries(attrs || {})
-      .map(([k, v]) => `${k}="${String(v).replace(/"/g, "&quot;")}"`)
-      .join(" ");
-    const inner = children ? _iconNodeToSvgString(children) : "";
-    return `<${tag}${attrStr ? " " + attrStr : ""}>${inner}</${tag}>`;
-  }).join("");
+// Lucide name → Phosphor name マッピング (S13.5 移行)
+// 既存呼び出し側が Lucide 名で書かれているため、内部で Phosphor 名に変換する
+// 未マップのキーは name そのまま (Phosphor 名で書かれている場合のフォールバック)
+// 名前は ChatGPT 推奨 (DECISIONS S13.5 「Phosphor 適材適所ルール」) に揃える
+const _PHOSPHOR_MAP = {
+  // 大会・スポーツ系
+  "trophy": "trophy",
+  "medal": "medal",
+  "award": "medal-military",
+  "badge-check": "seal-check",
+  "person-standing": "person-simple-run", // S13.5: ChatGPT 推奨 (走る = 練習らしい)
+  "watch": "watch",
+  "brain": "brain",
+  "dumbbell": "barbell",
+  "play-circle": "play-circle",
+  // ナビ・タブ
+  "house": "house",
+  "list": "list",
+  "backpack": "backpack",
+  "notebook-pen": "note-pencil",
+  "bar-chart-3": "chart-bar",
+  // 矢印・ナビゲーション
+  "arrow-left": "arrow-left",
+  "arrow-right": "arrow-right",
+  "chevron-left": "caret-left",
+  "chevron-right": "caret-right",
+  "chevron-up": "caret-up",
+  "chevron-down": "caret-down",
+  "rotate-ccw": "arrow-counter-clockwise",
+  // アクション
+  "x": "x",
+  "plus": "plus",
+  "check": "check",
+  "pencil": "pencil-simple-line", // S13.5: ChatGPT 推奨 (編集の標準)
+  "edit": "pencil-simple-line",
+  "save": "floppy-disk",
+  "trash-2": "trash",
+  "search": "magnifying-glass",
+  "filter": "funnel",
+  "settings": "gear",
+  "refresh-cw": "arrows-clockwise",
+  "clipboard-copy": "clipboard-text",
+  // 認証・ユーザー
+  "log-in": "sign-in",
+  "log-out": "sign-out",
+  "user-circle": "user-circle",
+  "user": "user",
+  "users": "users",
+  // 状態・通知
+  "info": "info",
+  "circle-check": "check-circle",
+  "circle-alert": "warning-circle",
+  "triangle-alert": "warning",
+  "circle": "circle",
+  "more-vertical": "dots-three-vertical",
+  // 時間・日付
+  "calendar": "calendar",
+  "calendar-days": "calendar",
+  "calendar-range": "calendar-blank",
+  "calendar-blank": "calendar-blank",
+  "calendar-check": "calendar-check",
+  "clock": "clock",
+  "history": "clock-counter-clockwise",
+  // 場所・天気
+  "map-pin": "map-pin",
+  "sun": "sun",
+  "cloud": "cloud",
+  "cloud-sun": "cloud-sun",
+  "thermometer": "thermometer",
+  // 健康・Apple Watch (S14 / Practice Detail で使用)
+  "flame": "flame",
+  "heartbeat": "heartbeat",
+  "gauge": "gauge",
+  "heart": "heart",
+  // 練習種別 (Home Quick Add + Practice Detail のチップで使用)
+  "student": "student",
+  "users-three": "users-three",
+  "handshake": "handshake",
+  // メモ・計画系 (Home Current Context / Plan タブで使用)
+  "flag": "flag",
+  "target": "target",
+  "crosshair": "crosshair",
+  "trending-up": "trend-up",
+  "trend-up": "trend-up",
+  "note": "note",
+  "notebook": "notebook",
+  "note-pencil": "note-pencil",
+  // その他
+  "grid-3x3": "squares-four",
 };
 
-function Icon({ name, size = 24, color = "currentColor", strokeWidth = 2, ariaLabel, style: ext = {} }) {
-  const svgString = useMemo(() => {
-    if (typeof window === "undefined" || !window.lucide || !window.lucide.icons) return "";
-    const key = _toPascalCase(name);
-    const iconData = window.lucide.icons[key];
-    if (!iconData || !Array.isArray(iconData)) return "";
-    const inner = _iconNodeToSvgString(iconData);
-    return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
-  }, [name, size, color, strokeWidth]);
+// Tabler tennis SVG (MIT、Phosphor にラケット無いため 1 個だけ拝借)
+const _TENNIS_SVG_INNER = '<path d="M11.578 14.453a6 6 0 1 0 -8.027 -8.029"/><path d="M9 14l-3.69 3.69a2 2 0 1 0 2.83 2.83l3.69 -3.69"/><circle cx="14" cy="10" r="6"/>';
 
-  if (!svgString) {
-    return <span style={{ display: "inline-block", width: size, height: size, ...ext }} />;
+function Icon({ name, size = 24, color = "currentColor", weight = "regular", ariaLabel, style: ext = {} }) {
+  // 特別ケース: テニスラケット (Tabler の SVG をインライン埋め込み)
+  if (name === "tennis") {
+    const svgString = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${_TENNIS_SVG_INNER}</svg>`;
+    return (
+      <span
+        role={ariaLabel ? "img" : undefined}
+        aria-label={ariaLabel}
+        aria-hidden={ariaLabel ? undefined : true}
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          width: size,
+          height: size,
+          lineHeight: 0,
+          verticalAlign: "middle",
+          ...ext,
+        }}
+        dangerouslySetInnerHTML={{ __html: svgString }}
+      />
+    );
   }
 
+  // Phosphor web font ベース (S13.5)
+  const phName = _PHOSPHOR_MAP[name] || name; // 未マップは name そのまま (Phosphor 名で書かれてる場合)
+  const wClass =
+    weight === "duotone" ? "ph-duotone" :
+    weight === "fill"    ? "ph-fill"    :
+    weight === "bold"    ? "ph-bold"    :
+    weight === "thin"    ? "ph-thin"    :
+    weight === "light"   ? "ph-light"   :
+                            "ph";
+
   return (
-    <span
+    <i
+      className={`${wClass} ph-${phName}`}
       role={ariaLabel ? "img" : undefined}
       aria-label={ariaLabel}
       aria-hidden={ariaLabel ? undefined : true}
       style={{
+        fontSize: size,
+        lineHeight: 1,
+        color,
         display: "inline-flex",
         alignItems: "center",
         justifyContent: "center",
-        lineHeight: 0,
         verticalAlign: "middle",
+        flexShrink: 0,
         ...ext,
       }}
-      dangerouslySetInnerHTML={{ __html: svgString }}
     />
   );
 }
@@ -1182,7 +1421,7 @@ function Input({ label, value, onChange, type = "text", placeholder, required, e
   const [focus, setFocus] = useState(false);
   const hasError = !!error;
   const borderColor = hasError ? "#d93025" : (focus ? C.primary : C.border);
-  const shadow = focus ? `0 0 0 2px ${hasError ? "rgba(217,48,37,0.2)" : "#e8f0fe"}` : "none";
+  const shadow = focus ? `0 0 0 2px ${hasError ? "rgba(217,48,37,0.2)" : C.primaryLight}` : "none";
   return (
     <div style={{ marginBottom: 12, ...ext }}>
       {label && (
@@ -1281,7 +1520,7 @@ function Modal({ open, onClose, title, children }) {
       <div
         style={{
           background: C.panel,
-          borderRadius: 16,
+          borderRadius: RADIUS.card, // S13.5: 16 → 20 (Apple ライク、§10.3)
           padding: 20,
           width: "100%",
           maxWidth: 400,
@@ -1357,7 +1596,7 @@ function Select({ label, value, onChange, options = [], required, error, style: 
   const [focus, setFocus] = useState(false);
   const hasError = !!error;
   const borderColor = hasError ? "#d93025" : (focus ? C.primary : C.border);
-  const shadow = focus ? `0 0 0 2px ${hasError ? "rgba(217,48,37,0.2)" : "#e8f0fe"}` : "none";
+  const shadow = focus ? `0 0 0 2px ${hasError ? "rgba(217,48,37,0.2)" : C.primaryLight}` : "none";
   return (
     <div style={{ marginBottom: 12, ...ext }}>
       {label && (
@@ -1415,16 +1654,26 @@ const TABS = [
   { id: "insights", label: "分析",   icon: "bar-chart-3" },
 ];
 function TabBar({ tab, onTabChange }) {
+  // S13.5 (2026-04-27 修正): position: fixed で画面下端に貼り付け。
+  //   理由: 100vh コンテナが iPhone Safari で URL バーの裏に押し出されると、flex 最下段の TabBar が見切れる。
+  //   貼り付け表示にすると Safari URL バー有無 / PWA standalone / PC ブラウザ全環境で常時下端可視。
   return (
     <div
       role="tablist"
       style={{
+        position: "fixed",
+        bottom: 0,
+        left: 0,
+        right: 0,
         display: "grid",
         gridTemplateColumns: "repeat(5, 1fr)",
-        background: C.panel,
-        borderTop: `1px solid ${C.border}`,
+        background: "rgba(255,255,255,0.94)",
+        backdropFilter: "saturate(180%) blur(12px)",
+        WebkitBackdropFilter: "saturate(180%) blur(12px)",
+        borderTop: "1px solid rgba(0,0,0,0.08)",
         height: 56,
         paddingBottom: "env(safe-area-inset-bottom, 0)",
+        zIndex: 60,
       }}
     >
       {TABS.map((t) => {
@@ -1442,7 +1691,7 @@ function TabBar({ tab, onTabChange }) {
               justifyContent: "center",
               gap: 2,
               color: active ? C.primary : "#80868b",
-              background: active ? "#e8f0fe" : "transparent",
+              background: active ? C.primaryLight : "transparent",
               border: "none",
               cursor: "pointer",
               fontSize: 11,
@@ -1468,7 +1717,7 @@ function Textarea({ label, value, onChange, rows = 3, placeholder, required, err
   const [focus, setFocus] = useState(false);
   const hasError = !!error;
   const borderColor = hasError ? "#d93025" : (focus ? C.primary : C.border);
-  const shadow = focus ? `0 0 0 2px ${hasError ? "rgba(217,48,37,0.2)" : "#e8f0fe"}` : "none";
+  const shadow = focus ? `0 0 0 2px ${hasError ? "rgba(217,48,37,0.2)" : C.primaryLight}` : "none";
   return (
     <div style={{ marginBottom: 12, ...ext }}>
       {label && (
@@ -1893,9 +2142,10 @@ function CalendarView({ items = [], trialLinks = { linkedTournamentIds: new Set(
   const selectedISO = selectedDay ? _toISO(month.y, month.m + 1, selectedDay) : null;
   const selectedSlot = selectedDay ? (dayMap[selectedDay] || { tournaments: [], practices: [] }) : null;
 
+  // S13.5 (2026-04-27 修正): DayPanel が absolute overlay になったので、親に position: relative が必要。
+  //   旧構造の Fragment + flex sibling → 単一 div コンテナに統合。
   return (
-    <>
-      <div style={{ flex: 1, overflow: "auto", padding: "8px 12px 12px", background: C.bg, minHeight: 0 }}>
+    <div style={{ flex: 1, overflow: "auto", padding: "8px 12px 12px", background: C.bg, minHeight: 0, position: "relative" }}>
         {/* 月ヘッダ + 前後ナビ + 今日へジャンプ */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 4px 10px" }}>
           <button
@@ -1978,9 +2228,8 @@ function CalendarView({ items = [], trialLinks = { linkedTournamentIds: new Set(
             );
           })}
         </div>
-      </div>
 
-      {/* 選択中の日詳細パネル */}
+      {/* 選択中の日詳細パネル (S13.5: absolute overlay でカレンダーグリッドを覆う) */}
       {selectedDay && selectedISO && selectedSlot && (
         <DayPanel
           dateISO={selectedISO}
@@ -1990,7 +2239,7 @@ function CalendarView({ items = [], trialLinks = { linkedTournamentIds: new Set(
           onCardClick={onCardClick}
         />
       )}
-    </>
+    </div>
   );
 }
 
@@ -2130,16 +2379,26 @@ function DayPanel({ dateISO, tournaments = [], practices = [], onClose, onCardCl
   const count = ordered.length;
   const label = _formatDateLabel(dateISO);
 
+  // S13.5 (2026-04-27 修正): flex sibling → 親 (CalendarView container) の position: absolute オーバーレイ化。
+  //   理由: 旧仕様ではカレンダーグリッドを縦に押し縮めていた。半透明 glass で重ねる形に変更。
   return (
     <div
       style={{
-        background: C.panel,
-        borderTop: `1px solid ${C.divider}`,
+        position: "absolute",
+        bottom: 0,
+        left: 0,
+        right: 0,
         maxHeight: 220,
+        background: "rgba(255,255,255,0.78)",
+        backdropFilter: "saturate(180%) blur(28px)",
+        WebkitBackdropFilter: "saturate(180%) blur(28px)",
+        borderTop: "1px solid rgba(255,255,255,0.5)",
+        borderRadius: "16px 16px 0 0",
+        boxShadow: "0 -4px 20px rgba(0,0,0,0.08)",
         display: "flex",
         flexDirection: "column",
-        flexShrink: 0,
         animation: "dayPanelSlideUp 200ms ease-out",
+        zIndex: 30,
       }}
     >
       {/* ヘッダ */}
@@ -4348,7 +4607,7 @@ function QuickAddModal({ open, type, racketNames = [], stringNames = [], venueNa
 function SearchBar({ value, onChange, placeholder = "タイトル・相手・メモを検索" }) {
   const [focus, setFocus] = useState(false);
   const borderColor = focus ? C.primary : C.border;
-  const shadow = focus ? "0 0 0 2px #e8f0fe" : "none";
+  const shadow = focus ? `0 0 0 2px ${C.primaryLight}` : "none";
   return (
     <div style={{
       position: "relative",
@@ -6764,16 +7023,27 @@ function WeekPanel({ weekLabel, items = [], onClose, onCardClick }) {
 
   const count = items.length;
 
+  // S13.5 (2026-04-27 修正): flex sibling → 親 (YearHeatmap container) の position: absolute オーバーレイ化。
+  //   理由: 旧仕様では heatmap を縦に押し縮めていた。半透明 glass で重ねる形に変更し、
+  //         heatmap は 12 月分常時フルサイズ表示を維持。iPhone 通知センター方式。
   return (
     <div
       style={{
-        background: C.panel,
-        borderTop: `1px solid ${C.divider}`,
+        position: "absolute",
+        bottom: 0,
+        left: 0,
+        right: 0,
         height: 198,
+        background: "rgba(255,255,255,0.78)",
+        backdropFilter: "saturate(180%) blur(28px)",
+        WebkitBackdropFilter: "saturate(180%) blur(28px)",
+        borderTop: "1px solid rgba(255,255,255,0.5)",
+        borderRadius: "16px 16px 0 0",
+        boxShadow: "0 -4px 20px rgba(0,0,0,0.08)",
         display: "flex",
         flexDirection: "column",
-        flexShrink: 0,
         animation: "dayPanelSlideUp 200ms ease-out",
+        zIndex: 30,
       }}
     >
       <div style={{
@@ -6961,9 +7231,11 @@ function YearHeatmap({ items = [], trialLinks = { linkedTournamentIds: new Set()
   const selectedLabel = selected ? _yhWeekLabel(year, selected.m, selected.w) : "";
   const selectedItems = selected && selectedSlot ? _yhBuildWeekItems(selectedSlot) : [];
 
+  // S13.5 (2026-04-27 修正): WeekPanel が absolute overlay になったので、親に position: relative が必要。
+  //   旧構造の Fragment + flex sibling → 単一 div コンテナに統合。
   return (
-    <>
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", padding: "10px 14px", background: C.bg, minHeight: 0 }}>
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", padding: "10px 14px", background: C.bg, minHeight: 0, position: "relative" }}>
+      <>
         {/* 年ヘッダ + 前後ナビ + 今年バッジ */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 0 8px", flexShrink: 0 }}>
           <button
@@ -7101,7 +7373,7 @@ function YearHeatmap({ items = [], trialLinks = { linkedTournamentIds: new Set()
           <span style={{ marginLeft: 8, width: 8, height: 8, borderRadius: "50%", background: C.trialAccent, border: `1px solid #fff`, display: "inline-block", verticalAlign: "middle" }} />
           <span>試打</span>
         </div>
-      </div>
+      </>
 
       {selected && selectedSlot && (
         <WeekPanel
@@ -7111,7 +7383,7 @@ function YearHeatmap({ items = [], trialLinks = { linkedTournamentIds: new Set()
           onCardClick={onCardClick}
         />
       )}
-    </>
+    </div>
   );
 }
 
@@ -7306,6 +7578,7 @@ function TennisDB() {
   const [opponents, setOpponents] = useState([]);
   const [loading, setLoading] = useState(false);
   const [detail, setDetail] = useState(null); // S10: { type, session, mode } | null
+  const [weather, setWeather] = useState(null); // S13.5: Open-Meteo 当日気温 { temp, code } | null
   const toast = useToast();
   const cfm = useConfirm();
 
@@ -7318,6 +7591,26 @@ function TennisDB() {
     setStringsList(lsLoad(KEYS.strings) || []);
     setVenues(lsLoad(KEYS.venues)       || []);
     setOpponents(lsLoad(KEYS.opponents) || []);
+  }, []);
+
+  // S13.5: 天気取得 (Open-Meteo、key 不要、CORS 対応)
+  // 位置は埼玉県固定 (35.85, 139.65)。profile から取得は後 Stage で
+  useEffect(() => {
+    const fetchWeather = async () => {
+      try {
+        const r = await fetch("https://api.open-meteo.com/v1/forecast?latitude=35.85&longitude=139.65&current=temperature_2m,weather_code");
+        if (!r.ok) return;
+        const data = await r.json();
+        const temp = data && data.current && data.current.temperature_2m;
+        const code = data && data.current && data.current.weather_code;
+        if (typeof temp === "number") setWeather({ temp, code });
+      } catch (err) {
+        console.warn("Weather fetch error:", err);
+      }
+    };
+    fetchWeather();
+    const intervalId = setInterval(fetchWeather, 30 * 60 * 1000); // 30 分ごとに更新
+    return () => clearInterval(intervalId);
   }, []);
 
   // 認証状態監視 + リアルタイム同期
@@ -7628,28 +7921,23 @@ function TennisDB() {
     tabContent = <PlaceholderTab name="分析" stage="S18" />;
   }
 
-  const tabTitles = { home: "ホーム", sessions: "Sessions", gear: "機材", plan: "計画", insights: "分析" };
-
-  const logoutBtn = (
-    <button
-      onClick={handleLogout}
-      aria-label="ログアウト"
-      style={{
-        width: 40, height: 40,
-        display: "flex", alignItems: "center", justifyContent: "center",
-        borderRadius: 8, border: "none", background: "transparent",
-        color: C.textSecondary, cursor: "pointer",
-      }}
-    >
-      <Icon name="log-out" size={22} ariaLabel="ログアウト" />
-    </button>
-  );
+  const tabTitles = { home: "ホーム", sessions: "記録 (Sessions)", gear: "機材", plan: "計画", insights: "分析" };
 
   return (
-    <div style={{ height: "100vh", background: C.bg, display: "flex", flexDirection: "column" }}>
+    <div style={{
+      height: "100vh", background: C.bg, display: "flex", flexDirection: "column",
+      // S13.5 (2026-04-27 修正): TabBar が position: fixed になったため、コンテンツが TabBar の裏に隠れないよう下余白を確保
+      paddingBottom: "calc(56px + env(safe-area-inset-bottom, 0))",
+    }}>
+      {/* S13.5 共通 Header: Tennis*DB* + version + ☁️ + 🌤 + 👤 (§10.8 / DECISIONS S13.5) */}
       <Header
-        title={tabTitles[tab] || "Tennis DB"}
-        right={logoutBtn}
+        tabTitle={tabTitles[tab] || ""}
+        onLogoClick={() => setTab("home")}
+        user={user}
+        syncing={loading}
+        onLogout={handleLogout}
+        weather={weather}
+        onWeatherClick={null /* S14 で天気詳細 Modal を実装 */}
       />
       {tabContent}
       <TabBar tab={tab} onTabChange={setTab} />

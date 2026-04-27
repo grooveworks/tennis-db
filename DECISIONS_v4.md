@@ -53,6 +53,150 @@ HANDOFF はこのファイルを参照する形で軽量化される。
 - **blank helper**: `src/domain/blank.js` 新規 (3 種別とも作成、blankTrial は S14 で再利用予定)
 - **会場 / ラケット / ストリング**: MasterField (S11 確定) を再利用、master データから Select
 
+### S13.5 (DESIGN_SYSTEM 全面改訂 + Apple-flavored Material 路線、2026-04-27 ピボット)
+
+**経緯**: S14 (Home タブ) 着手前に、ユーザーから「v4 が退屈」「アイコンの限界 (テニスラケット欠落)」「iPhone 主体ユーザーには Apple ライクの方が好み」の指摘。AUDIT (`AUDIT_v4_design_research_2026-04-27.md`) で v4 の構造的弱点を確認 (Primary 色を Green→Blue 変更で視覚習慣破壊 / 大数字 28px+ 消失 / グラデ廃止 / Card 全部 12 角丸でフラット過多)。S14 着手前に DESIGN_SYSTEM 全面改訂のため S13.5 を新設。
+
+**確定事項 (preview_s13.5.html FINAL で承認、ChatGPT 第三者評価で「進めて大丈夫」確認済)**:
+
+- **Primary 色**: `#1a73e8` (Material Blue) → **`#007AFF` (Apple System Blue)** に置換
+  - `primaryHover`、`primaryLight` も Apple ライクに調整 (`#E1F0FF` 系)
+  - 違反: ハードコード `#1a73e8` を残すと色置換が不完全 → grep 必須
+
+- **アイコンライブラリ**: Lucide → **Phosphor (duotone weight 主)** に全面差し替え
+  - **テニスラケットだけ Tabler `tennis` (MIT) を SVG インライン埋め込み** で 1 個拝借
+  - `Icon.jsx` 内部実装を変更、呼び出し側 API (`<Icon name="trophy" />`) は維持
+  - 違反: Lucide にはテニスラケット無し、3 年来の最大の不足
+
+- **角丸ヒエラルキー** (新設):
+  - 大カード (Card セクション): `20px`
+  - 中行カード (DayPanel 内行 / リスト行): `14px`
+  - ボタン: `10-12px`
+  - バッジ: `6-8px`
+  - 違反: 全部 12 で揃えると階層感が出ない (v4 の現状問題)
+
+- **Display tier タイポ** (新設、§2.2 に追加):
+  - `display1=40px / display2=32px / display3=28px、font-weight:800、font-feature-settings:"tnum"`
+  - 用途: スコア表示、stats summary 主要数値、Current Context 強調
+  - 違反: 14-16px のみだと視覚インパクトが消える (v2 28px 800 から後退)
+
+- **Card hover lift**: `@media (hover:hover) and (pointer:fine)` で限定
+  - `transform: translateY(-2px)` + `box-shadow: 0 4px 16px rgba(0,0,0,.08)`
+  - スマホでは無効
+
+- **Glass morphism**: **floating パネル / Modal 限定** (Home 通常カードには使わない)
+  - DayPanel / Modal / 一時オーバーレイ系のみ
+  - `backdrop-filter: saturate(180%) blur(12-28px)` + `background: rgba(255,255,255,0.72)`
+  - 違反: 通常カードに適用すると情報密度が落ちる
+
+- **ロゴ**: `Tennis` (細字 fontWeight:400 grey) + `DB` (太字 fontWeight:800 Apple Blue)
+  - グラデは不採用 (v2 形式の復活 NG)
+  - 補助情報: `v4.0.0-S(N)` を 9px tnum で末尾並列
+
+- **スクロールバー**: 細身 6px、半透明、hover で濃く
+  - `::-webkit-scrollbar` 6px / `scrollbar-width: thin`
+
+- **`100vh` → `100dvh`**: Chrome モバイル TabBar 見切れ修正 (`src/app.jsx:429`)
+
+- **Next Actions チェック circle (Apple Reminders 風、2026-04-27 確定)**:
+  - 未チェック: 20px circle、1.5px border `#C7C7CC` (System Gray 4)、ニュートラル灰
+  - チェック済: 20px filled `#007AFF` + 中央に白い check (`<Icon name="check"/>`)
+  - タップ領域は周辺 padding で 44px 確保
+  - 違反: Next Actions = **試合外ツール** (試合中は GameTracker)、強コントラストは不要 / `user_match_day_usage.md` 参照
+
+**Home タブ責務文書化** (S14 で実装、ROADMAP_v4.md に転記):
+
+- Home に置く: Quick Add 3 ボタン / Current Context / 今週サマリー / 次のアクション / 2 週間カレンダー = **5 カード上限**
+- Home に置かない: 詳細分析 (Insights) / 長い履歴一覧 (Sessions) / 機材詳細比較 (Gear) / 年間俯瞰 (Sessions Year mode)
+- 違反: V1 V3 のような情報過多に戻る、Home の「現在地把握」役割を希薄化
+
+**Current Context 生成ルール** (S14 で実装、データバインディング):
+
+| フィールド | ルール | フォールバック |
+|---|---|---|
+| 次の大会 | `tournaments` で `normDate(date) >= today`、最近 1 件 | 「直近の大会なし」 |
+| 課題 | `next` で `done=false` の優先度最上位 1 件 | 「未設定」 |
+| 主力 | 直近 30 日使用最多のラケット 1 件、5 回以上 → 「継続使用中」 / 1-4 回 → 「検討中」 / 0 回 → 「待機」 | 「未設定」 |
+| 検討中 | `trials` で `judgment="採用候補"` の最新 1 件 | 行を非表示 |
+| 直近 | `tournaments` で `date <= today` かつ `overallResult` 有りの最新 1 件 | 行を非表示 |
+
+**Next Actions 優先度ルール** (S14 で実装、表示 top 3):
+
+- **赤 dot**: 期限が 7 日以内 or 直前の大会 (7 日以内) に関係するアクション
+- **橙 dot**: 期限なし継続課題
+- **灰 dot**: 低優先 (priority="低" or category="参考")
+- 編集本格化は S17 Plan タブで
+
+**S14 反映事項 (ChatGPT 提案より採用)**:
+- 「7勝3敗」表記 (「7/10 勝率」廃止)
+- 「平均/回」表記 (単位明示)
+- 文言日本語統一 (「Next Actions」 → 「次のアクション」)
+- カレンダー下部に凡例 1 行常設 (「━ 緑: 練習 / 橙: 大会 / 紫点: 試打」)
+- 天気アイコンタップで詳細 Modal (Open-Meteo 接続)
+- Current Context 文字量制御 (主見出し 1 行省略 / 補足 1 行まで / 詳細はタップ先)
+- 主力ラケットに判断状態 (継続中/検討中/待機) 推測表示
+- カード最大 5 (Gear Context は Current Context に統合)
+
+**default tab 変更**: `app.jsx:78` を `useState("home")` に変更。S14 完了と同梱で push。
+
+**Stage リナンバリング**: S15 以降の番号は変更なし (S15 = Sessions マージ、S16 = Gear、S17 = Plan、S18 = Insights、S19 = インポート、S20 = 自動連関、S21 = リリース)。S13.5 の追加分だけ ROADMAP に挿入。
+
+**Phosphor 適材適所ルール (2026-04-27 ChatGPT 助言を採用、S14 以降の指針)**:
+
+「アイコンは**意味の圧縮**に使う、装飾には使わない」。全ラベル全セクション全フィールドに機械的に付けない。
+
+**入れる場所**:
+- ナビ系: 戻る `arrow-left` / 前後 `caret-left`/`caret-right` / 右遷移 `caret-right`
+- アクションボタン (下部 Action bar): 編集 `pencil-simple-line` / 一覧 `clipboard-text` / 削除 `trash` / 追加 `plus`
+- ステータスバッジ・チップ: 形式 (`user`/`users`)、結果 (`trophy`/`medal`)、種別 (`student`/`person-simple-run`/`users-three`/`barbell`/`handshake`)
+- メタ情報セル: 会場 `map-pin` / 気温 `thermometer` / 天気 `sun`/`cloud`/`cloud-sun`
+- Apple Watch ブロック (Practice Detail): `watch`/`clock`/`flame`/`heartbeat`/`gauge`/`heart`
+- Home 「現在の状況 (Current Context)」セクション**見出し 1 個だけ** `crosshair` or `map-pin`、各行はラベル文字のみ
+- 次のアクション 見出し: `flag`、完了丸: `circle`/`check-circle`
+
+**入れない場所**:
+- セクション見出し**全部**にアイコンを付ける (一気に「UI 部品置きました感」が出る)
+- フィールドラベル全部 (会場/気温/天気/ラケット/テンション/縦糸/横糸 等を機械的に揃える)
+- 試合記録の各項目全部 (右端 `caret-right` 以外は不要)
+- 機材セクションの縦糸/横糸 (ラケット 1 個か全部なし)
+- 体調 1-5 ボタン内 (1-5 自体が UI として強い、アイコン重複)
+- 総括メモ (文字とカードで十分)
+- 今週サマリーの各数字 (大数字が主役、アイコンは小さく見出し横が限度)
+
+**スタイル規律 (DESIGN_SYSTEM §5 補強)**:
+- weight: **regular 基本**。fill/duotone は active tab / ステータスチップ / 例外状態のみ
+- サイズ: 14 (チップ・メタラベル横) / 16 (セクション見出し・リスト内小) / 20 (アクションボタン・タブ) / 24 (ナビ戻る等)、**24 超は多用しない**
+- 色: ニュートラル (`textSecondary`/`textMuted`) 基本、semantic 色は status/result/action 限定
+- 違反: weight=duotone を Header 等で乱用すると Material 寄りになり Apple-flavored から離れる
+
+**画面別 ChatGPT 推奨アイコンセット (S14 以降の実装指針)**:
+
+Home (S14):
+- Quick Add: `trophy` / `person-simple-run` / `seal-check` (or `tennis` for trial)
+- Current Context 見出しのみ: `crosshair` or `map-pin`、各行ラベルはアイコン無し
+- 今週サマリー: アイコン無し (大数字主役)、入れるなら 14px ラベル横のみ
+- 次のアクション 見出し: `flag`、完了 circle: `circle`/`check-circle`、優先度は色ドット
+- カレンダー 見出し: `calendar-blank`、ナビ: `caret-left`/`caret-right`、大会日: `trophy`、試打: 紫ドット (アイコン無し)
+
+Tournament Detail (S10、後続リファクタ):
+- Header: 戻る `arrow-left`、画面種別ラベルにはアイコン無し
+- チップ: `user`(シングルス) `users`(ダブルス) `trophy`(優勝) `medal`(準優勝/3位)、敗退系はアイコン無し (ネガ強調回避)
+- 会場/気象: `map-pin`/`thermometer`/`sun` (各セル左 14px)
+- 機材: ラケット文字のみ、テンションだけ `gauge` 可、縦糸/横糸はアイコン無し
+- 試合記録: 右端 `caret-right` のみ、勝敗は文字+色
+- 下部アクション: `pencil-simple-line`(編集) / `clipboard-text`(全試合) / `trash`(削除)
+
+Practice Detail (S10、後続リファクタ):
+- Header: 戻る `arrow-left`
+- 種別チップ: `student`/`person-simple-run`/`users-three`/`barbell`/`handshake`
+- Apple Watch: `watch` 見出し、`clock`(時間)/`flame`(Active)/`heartbeat`(平均)/`gauge`(合計)/`heart`(回復)
+- 心拍ゾーン: 見出しに `heartbeat`、回復行に `heart`、各ゾーン行はアイコン無し (色帯で十分)
+- 体調 1-5: アイコン無し
+- 機材: 文字のみ
+- 下部アクション: `pencil-simple-line` / `clipboard-text` / `trash`
+
+---
+
 ### S11 (Session 編集画面) ✅
 - **編集画面の統一フォーマット** (3 種別共通の並び):
   1. 基本情報 (種別ごとのメイン項目 + 日付*)

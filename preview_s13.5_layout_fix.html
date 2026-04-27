@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>レイアウト修正案 — Before / After</title>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Helvetica Neue",sans-serif;background:#e8eaed;padding:24px 16px 48px;color:#202124}
+  h1{font-size:20px;margin-bottom:6px;font-weight:700}
+  .lead{font-size:13px;color:#5f6368;margin-bottom:20px;line-height:1.7;max-width:1100px}
+  .lead b{color:#202124}
+
+  .row{display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap;margin-bottom:30px}
+  .phone-wrap{display:flex;flex-direction:column;align-items:center;gap:10px}
+  .phone-label{font-size:13px;font-weight:700;padding:8px 14px;border-radius:6px;letter-spacing:.3px}
+  .phone-label.before{background:#fce8e6;color:#a31511;border:1px solid #d93025}
+  .phone-label.after{background:#e6f4ea;color:#0a5b35;border:1px solid #0f9d58}
+
+  /* iPhone frame */
+  .phone{width:380px;background:#1a1a1a;border-radius:46px;padding:11px;box-shadow:0 8px 24px rgba(0,0,0,.18);position:relative}
+  .screen{background:#F2F2F7;border-radius:36px;overflow:hidden;height:780px;position:relative}
+
+  /* iOS native status bar (端末側、アプリ外) */
+  .ios-statusbar{position:absolute;top:0;left:0;right:0;height:46px;display:flex;align-items:center;justify-content:space-between;padding:14px 28px 0;font-size:14px;font-weight:600;color:#1a1a1a;z-index:100}
+
+  /* iOS bottom toolbar (Safari ブラウザモードの URL バー) */
+  .ios-toolbar{position:absolute;bottom:0;left:0;right:0;height:90px;background:linear-gradient(180deg,rgba(220,220,225,.9),rgba(200,200,205,.95));backdrop-filter:blur(20px);display:flex;align-items:center;justify-content:space-between;padding:14px 22px;z-index:99;border-top:1px solid rgba(0,0,0,.1)}
+  .ios-toolbar-icon{width:32px;height:32px;color:#1a1a1a;display:flex;align-items:center;justify-content:center}
+  .ios-toolbar-url{flex:1;text-align:center;font-size:13px;color:#5f6368;background:rgba(255,255,255,.6);padding:8px 14px;border-radius:12px;margin:0 8px}
+
+  /* App content area (visible inside Safari) */
+  .app-area{position:absolute;top:46px;left:0;right:0;bottom:0;display:flex;flex-direction:column;background:#F2F2F7}
+
+  /* Header (app) */
+  .app-header{height:56px;flex-shrink:0;background:rgba(255,255,255,0.94);backdrop-filter:blur(12px);border-bottom:1px solid rgba(0,0,0,.08);display:flex;flex-direction:column;justify-content:center;padding:0 16px;z-index:5}
+  .app-header-row{display:flex;align-items:baseline;gap:5px}
+  .app-logo-icon{font-size:20px;color:#007AFF}
+  .app-logo-tns{font-size:16px;font-weight:400;color:#1a1a1a}
+  .app-logo-db{font-size:16px;font-weight:800;color:#007AFF}
+  .app-ver{font-size:9px;color:#8e8e93;margin-left:4px}
+  .app-meta{margin-left:auto;display:flex;gap:6px;align-items:center;font-size:11px;color:#5f6368}
+
+  /* Sub-row "記録 (Sessions)" */
+  .app-sub{padding:4px 16px 0;font-size:11px;color:#8e8e93;font-weight:600}
+
+  /* Summary header */
+  .app-summary{padding:8px 16px;background:#E1F0FF;color:#005DBE;font-size:12px;font-weight:500;flex-shrink:0}
+
+  /* YearHeatmap (year nav + columns + grid + legend) */
+  .yh-nav{display:flex;justify-content:space-between;align-items:center;padding:6px 14px;flex-shrink:0}
+  .yh-nav-title{font-size:14px;font-weight:700}
+  .yh-cols{display:grid;grid-template-columns:30px repeat(5,1fr);gap:3px;padding:0 14px 4px;flex-shrink:0;font-size:9px;color:#8e8e93;text-align:center;font-weight:600}
+  .yh-grid{display:grid;grid-template-columns:30px repeat(5,1fr);gap:3px;padding:0 14px;flex:1;min-height:0}
+  .yh-rowlabel{font-size:11px;color:#8e8e93;text-align:right;padding-right:4px;align-self:center;font-weight:500}
+  .yh-cell{background:#E6F4EA;border-radius:5px}
+  .yh-cell.acc{background:#34C759}
+  .yh-cell.tour{background:#FFE6BD;position:relative}
+  .yh-cell.tour::before{content:"";position:absolute;top:0;left:0;right:0;height:3px;background:#FF9500;border-radius:5px 5px 0 0}
+  .yh-cell.empty{background:transparent}
+  .yh-legend{padding:6px 14px;font-size:10px;color:#8e8e93;border-top:1px dashed #e0e0e4;margin-top:4px;display:flex;gap:8px;align-items:center;flex-shrink:0}
+  .yh-legend-sw{width:12px;height:12px;border-radius:3px;display:inline-block}
+
+  /* WeekPanel as flex sibling (BEFORE) */
+  .wp-flex{height:198px;background:#fff;border-top:1px solid #e0e0e4;flex-shrink:0;display:flex;flex-direction:column;padding:8px 14px}
+
+  /* WeekPanel as glass overlay (AFTER) */
+  .wp-glass{position:absolute;left:14px;right:14px;bottom:170px;height:198px;background:rgba(255,255,255,0.78);backdrop-filter:blur(28px);-webkit-backdrop-filter:blur(28px);border-radius:18px;box-shadow:0 4px 20px rgba(0,0,0,.12);border:1px solid rgba(255,255,255,.5);padding:10px 14px;display:flex;flex-direction:column;z-index:50}
+  .wp-head{display:flex;justify-content:space-between;align-items:center;font-size:13px;font-weight:700;margin-bottom:6px;flex-shrink:0}
+  .wp-row{display:flex;align-items:center;gap:8px;padding:5px 0;font-size:12px;border-top:1px solid rgba(0,0,0,.06)}
+  .wp-row:first-of-type{border-top:none}
+  .wp-strip{width:3px;height:28px;border-radius:2px}
+  .wp-strip.tour{background:#FF9500}
+  .wp-strip.prac{background:#34C759}
+  .wp-rowtitle{flex:1;font-weight:600;color:#1a1a1a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
+  .wp-rowmeta{font-size:10px;color:#8e8e93}
+
+  /* Filter strip + Search */
+  .app-filter{padding:6px 16px;border-top:1px solid #e0e0e4;background:#F2F2F7;flex-shrink:0;display:flex;gap:8px;overflow-x:auto}
+  .app-filter-chip{font-size:11px;padding:4px 10px;border-radius:14px;background:#fff;border:1px solid #d0d0d4;color:#5f6368;white-space:nowrap}
+  .app-search{padding:6px 16px 8px;background:#F2F2F7;flex-shrink:0}
+  .app-searchbox{height:34px;background:#fff;border:1px solid #d0d0d4;border-radius:17px;padding:0 12px;display:flex;align-items:center;font-size:11px;color:#8e8e93;gap:6px}
+
+  /* TabBar — BEFORE: flex sibling at bottom */
+  .tabbar-flex{height:56px;background:#fff;border-top:1px solid #d0d0d4;display:grid;grid-template-columns:repeat(5,1fr);flex-shrink:0}
+
+  /* TabBar — AFTER: position fixed */
+  .tabbar-fixed{position:absolute;bottom:0;left:0;right:0;height:56px;background:rgba(255,255,255,0.94);backdrop-filter:saturate(180%) blur(12px);border-top:1px solid rgba(0,0,0,.08);display:grid;grid-template-columns:repeat(5,1fr);z-index:60}
+  .tab{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;color:#8e8e93;font-size:9px}
+  .tab.active{color:#007AFF}
+  .tab i{font-size:18px}
+
+  /* Cut-off line indicator (BEFORE) */
+  .cutoff-line{position:absolute;left:-30px;right:-30px;border-top:2px dashed #d93025;z-index:200;pointer-events:none}
+  .cutoff-label{position:absolute;background:#d93025;color:#fff;font-size:10px;font-weight:700;padding:3px 7px;border-radius:4px;white-space:nowrap}
+
+  .annotation{font-size:11px;color:#5f6368;background:#fff;border:1px solid #d0d0d4;border-radius:8px;padding:8px 12px;max-width:380px;line-height:1.6}
+  .annotation b{color:#202124}
+  .annotation.ng{border-color:#d93025;background:#fef2f2;color:#a31511}
+  .annotation.ok{border-color:#0f9d58;background:#f0fdf4;color:#0a5b35}
+  .annotation.ng b,.annotation.ok b{color:inherit}
+</style>
+</head>
+<body>
+
+<h1>レイアウト修正案 — 今 (NG) vs 直した後 (OK)</h1>
+<p class="lead">
+  iPhone Safari でアプリを開いた時の画面を 2 つ並べました。<br/>
+  <b>左 (NG)</b> = 今の状態。下のタブが Safari の URL バーの裏に隠れて見えない。週パネルが年間表を縦に押し縮めている。<br/>
+  <b>右 (OK)</b> = 修正後。下のタブが必ず見える位置に貼り付け。週パネルは年間表の上に半透明で重なる (年間表のサイズは変わらない)。
+</p>
+
+<div class="row">
+
+  <!-- BEFORE -->
+  <div class="phone-wrap">
+    <span class="phone-label before">今 (NG): タブが消える、年間表が縮む</span>
+    <div class="phone"><div class="screen">
+      <!-- iOS status bar (端末側) -->
+      <div class="ios-statusbar">
+        <span>6:51</span>
+        <span style="display:flex;gap:6px;align-items:center;font-size:12px">📶 📡 80%</span>
+      </div>
+
+      <!-- アプリの中身 -->
+      <div class="app-area">
+        <div class="app-header">
+          <div class="app-header-row">
+            <span class="app-logo-icon">🎾</span>
+            <span class="app-logo-tns">Tennis</span>
+            <span class="app-logo-db">DB</span>
+            <span class="app-ver">v4.0.0-S13.5</span>
+            <span class="app-meta">☁️ <span style="color:#FF9500">☀ 13°</span> 👤</span>
+          </div>
+          <div class="app-sub">記録 (Sessions)</div>
+        </div>
+        <div class="app-summary">今月: 17件 (練13/大4) ・ 直近10試合 5...</div>
+
+        <div class="yh-nav">
+          <span style="color:#8e8e93">‹</span>
+          <span class="yh-nav-title">2026年 <span style="color:#8e8e93;font-size:11px;font-weight:400">103件</span></span>
+          <span style="color:#8e8e93">›</span>
+        </div>
+        <div class="yh-cols"><div></div><div>W1</div><div>W2</div><div>W3</div><div>W4</div><div>W5</div></div>
+
+        <!-- 縮められた年間表 (高さ約 130px しかない) -->
+        <div class="yh-grid" style="max-height:130px">
+          <!-- 12 月分 × 6 列 = 72 セル、squashed -->
+          <div class="yh-rowlabel">1月</div><div class="yh-cell tour"></div><div class="yh-cell tour"></div><div class="yh-cell acc"></div><div class="yh-cell tour"></div><div class="yh-cell"></div>
+          <div class="yh-rowlabel">2月</div><div class="yh-cell tour"></div><div class="yh-cell tour"></div><div class="yh-cell acc"></div><div class="yh-cell tour"></div><div class="yh-cell empty"></div>
+          <div class="yh-rowlabel">3月</div><div class="yh-cell tour"></div><div class="yh-cell tour"></div><div class="yh-cell acc"></div><div class="yh-cell tour"></div><div class="yh-cell"></div>
+          <div class="yh-rowlabel" style="color:#007AFF;font-weight:700">4月</div><div class="yh-cell acc"></div><div class="yh-cell tour"></div><div class="yh-cell"></div><div class="yh-cell tour" style="box-shadow:0 0 0 2px #007AFF"></div><div class="yh-cell tour"></div>
+          <div class="yh-rowlabel">5月</div><div class="yh-cell"></div><div class="yh-cell"></div><div class="yh-cell"></div><div class="yh-cell"></div><div class="yh-cell"></div>
+          <div class="yh-rowlabel">6月</div><div class="yh-cell"></div><div class="yh-cell"></div><div class="yh-cell"></div><div class="yh-cell"></div><div class="yh-cell"></div>
+          <div class="yh-rowlabel" style="font-size:9px">7月</div><div class="yh-cell empty"></div><div class="yh-cell empty"></div><div class="yh-cell empty"></div><div class="yh-cell empty"></div><div class="yh-cell empty"></div>
+          <div class="yh-rowlabel" style="font-size:9px">8月</div><div class="yh-cell empty"></div><div class="yh-cell empty"></div><div class="yh-cell empty"></div><div class="yh-cell empty"></div><div class="yh-cell empty"></div>
+          <div class="yh-rowlabel" style="font-size:9px">9-12</div><div class="yh-cell empty"></div><div class="yh-cell empty"></div><div class="yh-cell empty"></div><div class="yh-cell empty"></div><div class="yh-cell empty"></div>
+        </div>
+
+        <div class="yh-legend">
+          <span>練習</span>
+          <span class="yh-legend-sw" style="background:#E6F4EA"></span>
+          <span class="yh-legend-sw" style="background:#34C759"></span>
+          <span style="margin-left:6px">大会</span>
+          <span class="yh-legend-sw" style="background:#FFE6BD;border-top:2px solid #FF9500"></span>
+        </div>
+
+        <!-- WeekPanel (今: flex sibling、198px 占有して年間表を縮める) -->
+        <div class="wp-flex">
+          <div class="wp-head">
+            <span>4/22 - 4/28 (第4週) <span style="color:#8e8e93;font-weight:500">4件</span></span>
+            <span style="color:#8e8e93">✕</span>
+          </div>
+          <div class="wp-row">
+            <div class="wp-strip prac"></div>
+            <div>
+              <div class="wp-rowtitle">4/24 (金) テニス練習</div>
+              <div class="wp-rowmeta">20:00-21:30 / 90分</div>
+            </div>
+          </div>
+          <div class="wp-row">
+            <div class="wp-strip tour"></div>
+            <div>
+              <div class="wp-rowtitle">4/26 (日) 所沢市民大会...</div>
+              <div class="wp-rowmeta">07:15 / シングルス</div>
+            </div>
+          </div>
+          <div class="wp-row">
+            <div class="wp-strip prac"></div>
+            <div>
+              <div class="wp-rowtitle">4/26 (日) スクールレッスン</div>
+              <div class="wp-rowmeta">12:10-13:40 / 90分</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 操作帯 -->
+        <div class="app-filter">
+          <span class="app-filter-chip">種類 ▾</span>
+          <span class="app-filter-chip">ラケット ▾</span>
+          <span class="app-filter-chip">対戦相手 ▾</span>
+          <span class="app-filter-chip">結果 ▾</span>
+        </div>
+        <div class="app-search">
+          <div class="app-searchbox">🔍 タイトル・相手・メモを検索</div>
+        </div>
+
+        <!-- TabBar (今: flex 最下段、Safari URL バーの裏に押し出される) -->
+        <div class="tabbar-flex">
+          <div class="tab active"><i data-lucide="house"></i><span>ホーム</span></div>
+          <div class="tab"><i data-lucide="list"></i><span>記録</span></div>
+          <div class="tab"><i data-lucide="backpack"></i><span>機材</span></div>
+          <div class="tab"><i data-lucide="notebook-pen"></i><span>計画</span></div>
+          <div class="tab"><i data-lucide="bar-chart-3"></i><span>分析</span></div>
+        </div>
+      </div>
+
+      <!-- iOS Safari 下のツールバー (URL バーが TabBar の上に被さる) -->
+      <div class="ios-toolbar">
+        <span style="font-size:18px;color:#8e8e93">‹</span>
+        <span style="font-size:18px;color:#8e8e93">›</span>
+        <span class="ios-toolbar-url">192.168.1.4:8080</span>
+        <span style="font-size:18px;color:#8e8e93">↻</span>
+        <span style="font-size:18px;color:#8e8e93">⋯</span>
+      </div>
+
+      <!-- Cut-off indicator -->
+      <div class="cutoff-line" style="bottom:90px"></div>
+      <span class="cutoff-label" style="bottom:96px;right:10px">↓ ここから下は Safari URL バーの裏</span>
+      <span class="cutoff-label" style="bottom:50px;right:10px;background:#a31511">タブバーが見えない</span>
+    </div></div>
+
+    <div class="annotation ng">
+      <b>NG ポイント:</b><br/>
+      ① タブバー (ホーム/記録/...) が Safari の URL バー (下のグレー帯) の裏に押し出されて見えない<br/>
+      ② 週パネル (WeekPanel) が年間表を縦に押し縮めていて、12 月分が小さくしか表示されない (各行 11px)
+    </div>
+  </div>
+
+  <!-- AFTER -->
+  <div class="phone-wrap">
+    <span class="phone-label after">直した後 (OK): タブ常時可視、年間表そのまま</span>
+    <div class="phone"><div class="screen">
+      <div class="ios-statusbar">
+        <span>6:51</span>
+        <span style="display:flex;gap:6px;align-items:center;font-size:12px">📶 📡 80%</span>
+      </div>
+
+      <div class="app-area" style="padding-bottom:56px">
+        <div class="app-header">
+          <div class="app-header-row">
+            <span class="app-logo-icon">🎾</span>
+            <span class="app-logo-tns">Tennis</span>
+            <span class="app-logo-db">DB</span>
+            <span class="app-ver">v4.0.0-S13.5</span>
+            <span class="app-meta">☁️ <span style="color:#FF9500">☀ 13°</span> 👤</span>
+          </div>
+          <div class="app-sub">記録 (Sessions)</div>
+        </div>
+        <div class="app-summary">今月: 17件 (練13/大4) ・ 直近10試合 5...</div>
+
+        <div class="yh-nav">
+          <span style="color:#8e8e93">‹</span>
+          <span class="yh-nav-title">2026年 <span style="color:#8e8e93;font-size:11px;font-weight:400">103件</span></span>
+          <span style="color:#8e8e93">›</span>
+        </div>
+        <div class="yh-cols"><div></div><div>W1</div><div>W2</div><div>W3</div><div>W4</div><div>W5</div></div>
+
+        <!-- 年間表が full size (12 月とも各行 ~30px) -->
+        <div class="yh-grid">
+          <div class="yh-rowlabel">1月</div><div class="yh-cell tour"></div><div class="yh-cell tour"></div><div class="yh-cell acc"></div><div class="yh-cell tour"></div><div class="yh-cell"></div>
+          <div class="yh-rowlabel">2月</div><div class="yh-cell tour"></div><div class="yh-cell tour"></div><div class="yh-cell acc"></div><div class="yh-cell tour"></div><div class="yh-cell empty"></div>
+          <div class="yh-rowlabel">3月</div><div class="yh-cell tour"></div><div class="yh-cell tour"></div><div class="yh-cell acc"></div><div class="yh-cell tour"></div><div class="yh-cell"></div>
+          <div class="yh-rowlabel" style="color:#007AFF;font-weight:700">4月</div><div class="yh-cell acc"></div><div class="yh-cell tour"></div><div class="yh-cell"></div><div class="yh-cell tour" style="box-shadow:0 0 0 2px #007AFF"></div><div class="yh-cell tour"></div>
+          <div class="yh-rowlabel">5月</div><div class="yh-cell"></div><div class="yh-cell"></div><div class="yh-cell"></div><div class="yh-cell"></div><div class="yh-cell"></div>
+          <div class="yh-rowlabel">6月</div><div class="yh-cell"></div><div class="yh-cell"></div><div class="yh-cell"></div><div class="yh-cell"></div><div class="yh-cell"></div>
+          <div class="yh-rowlabel">7月</div><div class="yh-cell empty"></div><div class="yh-cell empty"></div><div class="yh-cell empty"></div><div class="yh-cell empty"></div><div class="yh-cell empty"></div>
+          <div class="yh-rowlabel">8月</div><div class="yh-cell empty"></div><div class="yh-cell empty"></div><div class="yh-cell empty"></div><div class="yh-cell empty"></div><div class="yh-cell empty"></div>
+          <div class="yh-rowlabel">9月</div><div class="yh-cell empty"></div><div class="yh-cell empty"></div><div class="yh-cell empty"></div><div class="yh-cell empty"></div><div class="yh-cell empty"></div>
+          <div class="yh-rowlabel">10月</div><div class="yh-cell empty"></div><div class="yh-cell empty"></div><div class="yh-cell empty"></div><div class="yh-cell empty"></div><div class="yh-cell empty"></div>
+          <div class="yh-rowlabel">11月</div><div class="yh-cell empty"></div><div class="yh-cell empty"></div><div class="yh-cell empty"></div><div class="yh-cell empty"></div><div class="yh-cell empty"></div>
+          <div class="yh-rowlabel">12月</div><div class="yh-cell empty"></div><div class="yh-cell empty"></div><div class="yh-cell empty"></div><div class="yh-cell empty"></div><div class="yh-cell empty"></div>
+        </div>
+
+        <div class="yh-legend">
+          <span>練習</span>
+          <span class="yh-legend-sw" style="background:#E6F4EA"></span>
+          <span class="yh-legend-sw" style="background:#34C759"></span>
+          <span style="margin-left:6px">大会</span>
+          <span class="yh-legend-sw" style="background:#FFE6BD;border-top:2px solid #FF9500"></span>
+        </div>
+
+        <!-- 操作帯 (年間表のすぐ下、week panel が flex から外れた分を埋める) -->
+        <div class="app-filter">
+          <span class="app-filter-chip">種類 ▾</span>
+          <span class="app-filter-chip">ラケット ▾</span>
+          <span class="app-filter-chip">対戦相手 ▾</span>
+          <span class="app-filter-chip">結果 ▾</span>
+        </div>
+        <div class="app-search">
+          <div class="app-searchbox">🔍 タイトル・相手・メモを検索</div>
+        </div>
+      </div>
+
+      <!-- WeekPanel (直した後: 半透明オーバーレイで年間表の上に重なる) -->
+      <div class="wp-glass">
+        <div class="wp-head">
+          <span>4/22 - 4/28 (第4週) <span style="color:#8e8e93;font-weight:500">4件</span></span>
+          <span style="color:#8e8e93">✕</span>
+        </div>
+        <div class="wp-row">
+          <div class="wp-strip prac"></div>
+          <div>
+            <div class="wp-rowtitle">4/24 (金) テニス練習</div>
+            <div class="wp-rowmeta">20:00-21:30 / 90分</div>
+          </div>
+        </div>
+        <div class="wp-row">
+          <div class="wp-strip tour"></div>
+          <div>
+            <div class="wp-rowtitle">4/26 (日) 所沢市民大会...</div>
+            <div class="wp-rowmeta">07:15 / シングルス</div>
+          </div>
+        </div>
+        <div class="wp-row">
+          <div class="wp-strip prac"></div>
+          <div>
+            <div class="wp-rowtitle">4/26 (日) スクールレッスン</div>
+            <div class="wp-rowmeta">12:10-13:40 / 90分</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TabBar (直した後: position fixed で画面下端に貼り付け、URL バーの上に乗る) -->
+      <div class="tabbar-fixed">
+        <div class="tab active"><i data-lucide="house"></i><span>ホーム</span></div>
+        <div class="tab"><i data-lucide="list"></i><span>記録</span></div>
+        <div class="tab"><i data-lucide="backpack"></i><span>機材</span></div>
+        <div class="tab"><i data-lucide="notebook-pen"></i><span>計画</span></div>
+        <div class="tab"><i data-lucide="bar-chart-3"></i><span>分析</span></div>
+      </div>
+
+      <!-- iOS Safari 下のツールバー (TabBar が上に固定されているので押し出されない) -->
+      <div class="ios-toolbar" style="bottom:-90px">
+        <span style="font-size:18px;color:#8e8e93">‹</span>
+        <span style="font-size:18px;color:#8e8e93">›</span>
+        <span class="ios-toolbar-url">192.168.1.4:8080</span>
+        <span style="font-size:18px;color:#8e8e93">↻</span>
+        <span style="font-size:18px;color:#8e8e93">⋯</span>
+      </div>
+    </div></div>
+
+    <div class="annotation ok">
+      <b>OK ポイント:</b><br/>
+      ① タブバーが画面下端に「貼り付け」表示で、Safari URL バーがあろうがなかろうが必ず見える<br/>
+      ② 週パネルが半透明で年間表の上に「重なる」形に変わり、年間表は 12 月分すべて元のサイズで見える<br/>
+      ③ 操作帯 (フィルタ + 検索) も年間表の下に表示、タブバーの上にちゃんと収まる
+    </div>
+  </div>
+
+</div>
+
+<div style="background:#fff;border:1px solid #d0d0d4;border-radius:10px;padding:16px;max-width:1100px;font-size:13px;color:#5f6368;line-height:1.7">
+<b style="color:#202124">技術的な変更箇所 (実装時に何を触るか)</b>:
+<ol style="margin-left:20px;margin-top:6px">
+  <li><b>TabBar (src/ui/common/TabBar.jsx)</b>: 普通の配置 → 「画面下端に貼り付け」 (LINE と同じ仕組み)</li>
+  <li><b>app.jsx の中身ラッパー</b>: タブバー分の下余白を追加 (タブバーが浮いて重なる分、コンテンツが裏に隠れないように)</li>
+  <li><b>WeekPanel (src/ui/sessions/WeekPanel.jsx)</b>: 年間表の下に並ぶ → 年間表の上に半透明で重なるオーバーレイ</li>
+  <li><b>DayPanel (src/ui/sessions/DayPanel.jsx)</b>: 月カレンダーの下に並ぶ → 月カレンダーの上に半透明で重なる (3 と同じ仕組み)</li>
+</ol>
+他のタブ (ホーム placeholder / 機材 / 計画 / 分析) は 1 と 2 が共通で効くので追加修正なし。
+</div>
+
+<script>
+  if (window.lucide && window.lucide.createIcons) window.lucide.createIcons();
+  else window.addEventListener('load', () => window.lucide && window.lucide.createIcons && window.lucide.createIcons());
+</script>
+
+</body>
+</html>

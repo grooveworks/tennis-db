@@ -10,7 +10,7 @@
 function SearchBar({ value, onChange, placeholder = "タイトル・相手・メモを検索" }) {
   const [focus, setFocus] = useState(false);
   const borderColor = focus ? C.primary : C.border;
-  const shadow = focus ? "0 0 0 2px #e8f0fe" : "none";
+  const shadow = focus ? `0 0 0 2px ${C.primaryLight}` : "none";
   return (
     <div style={{
       position: "relative",
