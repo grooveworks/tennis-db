@@ -248,6 +248,49 @@ Practice Detail (S10、後続リファクタ):
 
 ---
 
+### S15 (Sessions マージ機能 — F1.10) ✅
+
+**実装範囲**:
+- **`src/domain/merge.js`** (新規): 純関数 5 つ — `computeMergeDiff` / `applyMerge` / `mergeMatches` / `relinkAfterMerge` / `countRelinks`。SCHEMA 駆動で type 分岐は本ファイルのみ (N3.3)。S19 (インポート再挑戦) でも流用可能な設計
+- **`src/ui/sessions/MergePartnerPicker.jsx`** (新規): 同タイプ候補から相手 (B) を選ぶ Modal、日付近い順 + 検索、同日候補は青強調
+- **`src/ui/sessions/MergeModal.jsx`** (新規): 2 ステップ (compare → confirm)、独自 overlay (Modal の maxWidth 400 を超えるため、560px で実装)
+- **`src/ui/sessions/SessionDetailView.jsx`** (改修): Action bar を 3 → 4 ボタン化 (編集 / マージ / Claude / 削除、危険度の昇順)。tournament の Claude ボタンの「全試合」テキスト削除 (アイコンのみ、aria-label で意味は維持)
+- **`src/app.jsx`** (改修): mergeStarting / mergePartner state + handleMergeStart / handlePartnerSelect / handleMergeCancel / handleMergeConfirm。Firestore 書き込みは handleDelete と同じ Promise.all パターン
+- **`tests/run.html`** (改修): merge.js のユニットテスト 31 件追加 (合計 44 tests 全 pass)。**inline 化方式に変更** (preview パネルが `<script src="../src/...">` 相対パスを解決できないため、core/05_schema.js + cascade.js + merge.js の中身を inline コピー)
+
+**確定した方針** (preview_s15_p1.html FINAL でユーザー承認):
+- **起点**: Detail 画面のマージボタンから (編集モード経由は採用せず、F1.9 一括削除と切り離し)
+- **id 付け替え**: practice 同士のマージのみ trial.linkedPracticeId を B.id → A.id に書き換え。tournament は matches[] 合算で match.id が維持されるため relink 不要
+- **matches[] (大会)**: A の matches[] を残し、B の中で id 重複しないものだけ追加 (内容重複の検出はしない、マージ後 Detail で個別削除)
+- **競合 / 補完**: SCHEMA `combinable: true` のテキスト系のみ「結合 (A | B)」選択肢を出す。それ以外は A 採用 / B 採用の 2 択
+- **自動推測なし**: 「両方値ありで異なる」競合は全件手動選択 (V2 時代の AW カロリー上書き事故の教訓)
+- **補完は自動**: 「片方空、もう片方に値」は値ある側を自動採用 (争いゼロ、V3 と同じ挙動)
+- **2 段階確認**: ① 比較ビュー (競合 ラジオ) → 「次へ」 → ② 最終確認 (削除される B / 統合後 A の中身を 2 列で全フィールド表示、緑字=B から補完 / 青字=B 採用、連携試打 N 件の付け替え通知)
+- **規律**: Detail で開いている方が必ず A (残す側)、Picker で選んだ方が B (削除側)。後から入れ替える UI は出さない (混乱回避)
+
+**スコープ外** (S15 では実装しない):
+- ❌ Sessions 一覧の編集モード新設 (F1.9 一括削除と一緒に別 Stage で)
+- ❌ 異なる type 間のマージ (大会 ↔ 練習)
+- ❌ 試合 (match) 同士の重複検出マージ
+- ❌ 3 件以上の同時マージ
+- ❌ Undo (確認段階で戻れる + ダイアログでカバー)
+- ❌ インポート時マージ (S19 で別途、ただし S15 の merge.js を流用設計)
+
+**S15 検証中に発覚した既存バグの修正**:
+- **`handleQuickAddSave` の history.pushState 抜け** (S12 から潜在): 新規練習作成 → Detail → 戻るボタンで Tennis DB の前のページ (Google など) に飛ぶ問題。`handleCardClick` と同じく `try { window.history.pushState({ tdb: "detail" }, ""); } catch(_) {}` を追加
+- 修正同梱で APP_VERSION を `4.0.0-S15.2` 経由 → 完了 push 時に `4.0.0-S15` に整える
+
+**過去データ救済の位置付け** (memory `project_data_quality_legacy.md`):
+- V2 時代に GCal インポートが中止された結果、1 年以上前の練習は AW カロリーだけ残った空イベントが多数残存
+- S15 マージ機能はこの過去データを手動で救済する導線にもなる (重複統合だけが目的ではない)
+- S19 で GCal インポートを再挑戦する場合、incoming + existing のマージは S15 の `merge.js` をそのまま流用
+
+**メタ運用 (S15 で再確認)**:
+- 2 段階プレビュー方針 (memory `feedback_two_stage_preview.md`) を S15 でも厳守 — preview_s15_p1.html で 3 画面 (Action bar / Picker / MergeModal 比較+確認) をユーザー承認 → 本実装
+- preview パネルの相対パス制約: `tests/run.html` から `../src/*.js` を `<script src>` で読めない (panel が file:// 風、または相対パス制限)。**自己完結型 (inline コピー) に変更**、実装変更時は手動同期を規律で守る
+
+---
+
 ## このファイルの更新
 
 - Stage 完了時に該当節を追記

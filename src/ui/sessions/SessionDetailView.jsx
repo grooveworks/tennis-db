@@ -191,7 +191,7 @@ function _dvMemoItem({ label, text }) {
 // ── メインコンポーネント ────────────────────────
 // S11: mode prop で Detail (既定) と Edit (編集モード) を切替。
 //      Edit モード時は SessionEditView で置換し、slide-in overlay は維持 (再 mount せず scrollTop 保持)
-function SessionDetailView({ type, session, mode = "detail", tournaments, trials, practices, racketNames, stringNames, venueNames, opponentNames, levelNames, onClose, onEdit, onEditCancel, onSave, onDelete, onOpenLinkedSession, toast, confirm }) {
+function SessionDetailView({ type, session, mode = "detail", tournaments, trials, practices, racketNames, stringNames, venueNames, opponentNames, levelNames, onClose, onEdit, onEditCancel, onSave, onDelete, onMerge, onOpenLinkedSession, toast, confirm }) {
   const [visible, setVisible] = useState(false);
   const [closing, setClosing] = useState(false);
   const reduced = typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -236,6 +236,11 @@ function SessionDetailView({ type, session, mode = "detail", tournaments, trials
   const handleEditClick = () => {
     if (onEdit) onEdit(type, session);
     else toast.show("編集ハンドラ未接続", "warning");
+  };
+
+  const handleMergeClick = () => {
+    if (onMerge) onMerge(type, session);
+    else toast.show("マージハンドラ未接続", "warning");
   };
 
   // linked セッション算出
@@ -342,26 +347,31 @@ function SessionDetailView({ type, session, mode = "detail", tournaments, trials
         )}
       </div>
 
-      {/* Action bar */}
-      <div style={{ flex: "0 0 64px", background: C.panel, borderTop: `1px solid ${C.divider}`, display: "flex", alignItems: "center", gap: 8, padding: "10px 16px" }}>
+      {/* Action bar (S15 で 3 → 4 ボタン化: 編集 / マージ / Claude / 削除、危険度の昇順) */}
+      <div style={{ flex: "0 0 64px", background: C.panel, borderTop: `1px solid ${C.divider}`, display: "flex", alignItems: "center", gap: 6, padding: "10px 12px" }}>
         <button
           onClick={handleEditClick}
-          style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 44, padding: "10px 16px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.panel, color: C.text, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+          style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 4, minHeight: 44, padding: "10px 6px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.panel, color: C.text, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
         >
-          <Icon name="pencil" size={18} /> 編集
+          <Icon name="pencil" size={16} /> 編集
+        </button>
+        <button
+          onClick={handleMergeClick}
+          style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 4, minHeight: 44, padding: "10px 6px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.panel, color: C.text, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+        >
+          <Icon name="git-merge" size={16} /> マージ
         </button>
         <button
           onClick={handleClaudeCopy}
-          aria-label="Claudeにコピー"
-          style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 44, padding: "10px 14px", borderRadius: 8, border: `1px solid rgba(147,52,224,0.5)`, background: C.trialLight, color: C.trialAccent, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+          aria-label={type === "tournament" ? "Claudeに全試合をコピー" : "Claudeにコピー"}
+          style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minHeight: 44, minWidth: 44, padding: "10px 12px", borderRadius: 8, border: `1px solid rgba(147,52,224,0.5)`, background: C.trialLight, color: C.trialAccent, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
         >
-          <Icon name="clipboard-copy" size={18} ariaLabel="Claudeにコピー" />
-          {type === "tournament" ? <span>全試合</span> : null}
+          <Icon name="clipboard-copy" size={18} ariaLabel={type === "tournament" ? "Claudeに全試合をコピー" : "Claudeにコピー"} />
         </button>
         <button
           onClick={handleDeleteClick}
           aria-label="削除"
-          style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minHeight: 44, minWidth: 44, padding: "10px 14px", borderRadius: 8, border: `1px solid rgba(217,48,37,0.5)`, background: C.errorLight, color: C.error, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+          style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minHeight: 44, minWidth: 44, padding: "10px 12px", borderRadius: 8, border: `1px solid rgba(217,48,37,0.5)`, background: C.errorLight, color: C.error, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
         >
           <Icon name="trash-2" size={18} ariaLabel="削除" />
         </button>

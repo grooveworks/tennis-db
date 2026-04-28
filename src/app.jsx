@@ -423,6 +423,85 @@ function TennisDB() {
     );
   };
 
+  // S15: マージ機能 (Sessions マージ — REQUIREMENTS F1.10)
+  //   1. Detail のマージボタン → handleMergeStart で setMergeStarting({type, sourceItem})
+  //   2. MergePartnerPicker で B を選ぶ → setMergePartner(itemB)
+  //   3. MergeModal で choices 確定 → handleMergeConfirm で applyMerge + relinkAfterMerge + 物理削除 + Firestore 保存
+  //   4. 統合後 A を Detail で再描画
+  const [mergeStarting, setMergeStarting] = useState(null); // { type, sourceItem } | null
+  const [mergePartner, setMergePartner] = useState(null);   // B (MergeModal の itemB)
+
+  const handleMergeStart = (type, item) => {
+    if (!item || !item.id) return;
+    setMergeStarting({ type, sourceItem: item });
+    setMergePartner(null);
+  };
+  const handlePartnerSelect = (itemB) => {
+    if (!itemB || !itemB.id) return;
+    setMergePartner(itemB);
+  };
+  const handleMergeCancel = () => {
+    setMergeStarting(null);
+    setMergePartner(null);
+  };
+  const handleMergeConfirm = async (merged, removed, choices) => {
+    if (!mergeStarting || !merged || !removed) return;
+    const type = mergeStarting.type;
+    const key = type === "tournament" ? "tournaments" : type === "practice" ? "practices" : "trials";
+    const current = type === "tournament" ? tournaments : type === "practice" ? practices : trials;
+
+    // A を merged に置き換え + B を物理削除
+    const newItems = (current || [])
+      .filter(x => x.id !== removed.id)
+      .map(x => x.id === merged.id ? merged : x);
+
+    // trial.linkedXxx の付け替え (practice 同士のマージのみ実効果)
+    const newTrials = relinkAfterMerge(trials, removed, merged, type);
+    const trialsChanged = newTrials !== trials;
+    const relinkCount = countRelinks(trials, removed, type);
+
+    // 即時 state 反映 (onSnapshot 到来前に UI 更新)
+    if (type === "tournament") setTournaments(newItems);
+    else if (type === "practice") setPractices(newItems);
+    else setTrials(newItems);
+    if (trialsChanged) setTrials(newTrials);
+
+    // localStorage
+    lsSave(KEYS[key], newItems);
+    if (trialsChanged) lsSave(KEYS.trials, newTrials);
+
+    // Firestore (A 更新 + trials 更新を並行書き込み、handleDelete と同じパターン)
+    if (user) {
+      try {
+        const writes = [
+          fbDb.collection("users").doc(user.uid).collection("data").doc(key)
+            .set({ items: cleanForFirestore(newItems) }, { merge: false }),
+        ];
+        if (trialsChanged) {
+          writes.push(
+            fbDb.collection("users").doc(user.uid).collection("data").doc("trials")
+              .set({ items: cleanForFirestore(newTrials) }, { merge: false })
+          );
+        }
+        await Promise.all(writes);
+      } catch (e) {
+        console.error("Firestore merge error:", e);
+        toast.show("クラウド同期失敗 (ローカルは統合済み)", "warning");
+      }
+    }
+
+    // Modal/Picker を閉じ、Detail を merged で再描画 (key 同じ id なので mode 維持)
+    setMergeStarting(null);
+    setMergePartner(null);
+    setDetail({ type, session: merged, mode: "detail" });
+
+    const typeLabel = type === "tournament" ? "大会" : type === "practice" ? "練習" : "試打";
+    const msg = relinkCount > 0
+      ? `${typeLabel}を統合しました (試打 ${relinkCount} 件の連携も付け替え)`
+      : `${typeLabel}を統合しました`;
+    toast.show(msg, "success");
+  };
+
   // S12-S14: QuickAdd 起動 (Sessions FAB / Home 3 ボタン共用)
   //   Sessions FAB = "tournament" | "practice" (試打は除外、DECISIONS S12)
   //   Home 3 ボタン = "tournament" | "practice" | "trial" (S14、QuickAddModal trial 拡張)
@@ -440,9 +519,13 @@ function TennisDB() {
   };
   const handleQuickAddClose = () => setQuickAddType(null);
   // QuickAdd 保存: handleSave (新規/更新両対応) を再利用 + Detail 画面で開く (閲覧モード)
+  // S15.1 fix: handleCardClick と同じく history.pushState を 1 個積む。
+  //   これがないと、新規追加 → Detail → 戻る で Tennis DB の前のページ (Google 等) に飛んでしまう
+  //   (popstate listener が setDetail(null) するが、空回りで一覧表示にならない)
   const handleQuickAddSave = (item) => {
     const type = quickAddType;
     if (!type || !item) return;
+    try { window.history.pushState({ tdb: "detail" }, ""); } catch(_) {}
     handleSave(type, item);    // localStorage + Firestore 保存 + Detail 画面遷移 (mode: "detail")
     setQuickAddType(null);     // QuickAddModal を閉じる
   };
@@ -550,11 +633,36 @@ function TennisDB() {
           onEditCancel={handleEditCancel}
           onSave={handleSave}
           onDelete={handleDelete}
+          onMerge={handleMergeStart}
           onOpenLinkedSession={handleOpenLinkedSession}
           toast={toast}
           confirm={cfm}
         />
       )}
+      {/* S15: マージ相手選択 (Detail マージボタン → 起動、相手未選択時のみ) */}
+      <MergePartnerPicker
+        open={!!mergeStarting && !mergePartner}
+        type={mergeStarting?.type}
+        sourceItem={mergeStarting?.sourceItem}
+        candidates={
+          mergeStarting?.type === "tournament" ? tournaments
+          : mergeStarting?.type === "practice"  ? practices
+          : mergeStarting?.type === "trial"     ? trials
+          : []
+        }
+        onSelect={handlePartnerSelect}
+        onClose={handleMergeCancel}
+      />
+      {/* S15: マージ本体 (相手選択完了 → 比較ビュー → 最終確認) */}
+      <MergeModal
+        open={!!mergeStarting && !!mergePartner}
+        type={mergeStarting?.type}
+        itemA={mergeStarting?.sourceItem}
+        itemB={mergePartner}
+        trials={trials}
+        onConfirm={handleMergeConfirm}
+        onCancel={handleMergeCancel}
+      />
       {/* S14 P2: 天気詳細 Modal (Header 天気タップで開く) */}
       <WeatherModal
         open={weatherModalOpen}

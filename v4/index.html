@@ -45,7 +45,7 @@ input,select,textarea,button{font-family:inherit}
 const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
 // ── 定数定義（色・キー・バージョン）─────────────
-const APP_VERSION="4.0.0-S14";
+const APP_VERSION="4.0.0-S15";
 const font="-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif";
 
 // 色設計（DESIGN_SYSTEM_v4.md §1 + §10 S13.5 改訂準拠）
@@ -841,6 +841,194 @@ const computeRunningScore = (games) => {
     return acc;
   }, { me: 0, opp: 0 });
 };
+
+// === src/domain/merge.js ===
+// merge — Session の同タイプ 2 件を 1 件に統合する純関数
+//
+// 役割:
+//   - REQUIREMENTS_v4 F1.10 セッションのマージ (同タイプ 2 件を 1 件に統合)
+//   - cascade.js と対称: 削除 (cascade) は孤児化 (null クリア)、マージ (merge) は付け替え (B.id → A.id)
+//   - SCHEMA (05_schema.js) の COMBINABLE_FIELDS / keysToInspect / labelFor / isEmptyVal を活用
+//
+// 設計方針:
+//   - 副作用なし、React 非依存 (REQUIREMENTS N3.4)
+//   - type 分岐は本ファイル内のみ (N3.3)
+//   - tests/run.html で unit test 必須 (N3.5)
+//   - インポート時マージ (S19 で予定) でも同じ純関数を流用できる構造 (相手が DB か incoming かは呼び出し側責任)
+//
+// 使い方 (S15 手動マージ flow):
+//   const diff = computeMergeDiff(a, b, type);
+//   // ユーザーが diff.conflicts に対して choices を決める
+//   const merged = applyMerge(a, b, choices, type);
+//   // matches[] (tournament) は applyMerge 内で自動合算
+//   const newTrials = relinkAfterMerge(trials, b, a, type);
+//   // save(KEY[type], updatedList); save("trials", newTrials);
+
+// ── 内部: 値の同値判定 (primitives は ===, 配列・オブジェクトは JSON 比較)
+function _isSameValue(a, b) {
+  if (a === b) return true;
+  if (a === null || b === null) return false;
+  if (typeof a === "object" || typeof b === "object") {
+    try { return JSON.stringify(a) === JSON.stringify(b); }
+    catch { return false; }
+  }
+  return String(a) === String(b);
+}
+
+// ── 1) computeMergeDiff: A と B の差分を「一致 / 補完 / 競合」に分類
+//
+// 戻り値:
+//   {
+//     match:      [{ key, label, value }],                      // 両方同じ値、または両方空
+//     complement: [{ key, label, from: "a"|"b", value }],       // 片方空、もう片方に値 (自動採用)
+//     conflicts:  [{ key, label, aValue, bValue, combinable }], // 両方値あり + 異なる (要選択)
+//     unionKeys:  [...]                                         // 全 inspected key
+//   }
+//
+// id / matches[] は分類対象から除外 (id は A 固定、matches は別ロジック)
+function computeMergeDiff(a, b, type) {
+  const result = { match: [], complement: [], conflicts: [], unionKeys: [] };
+  const keys = keysToInspect(a, b, type);
+  result.unionKeys = keys;
+  for (const key of keys) {
+    if (key === "matches") continue; // tournament の matches[] は別処理
+    const av = a ? a[key] : undefined;
+    const bv = b ? b[key] : undefined;
+    const aE = isEmptyVal(av);
+    const bE = isEmptyVal(bv);
+    const label = labelFor(key, type);
+    if (aE && bE) {
+      result.match.push({ key, label, value: undefined });
+    } else if (aE && !bE) {
+      result.complement.push({ key, label, from: "b", value: bv });
+    } else if (!aE && bE) {
+      result.complement.push({ key, label, from: "a", value: av });
+    } else if (_isSameValue(av, bv)) {
+      result.match.push({ key, label, value: av });
+    } else {
+      result.conflicts.push({
+        key, label,
+        aValue: av, bValue: bv,
+        combinable: COMBINABLE_FIELDS.has(key),
+      });
+    }
+  }
+  return result;
+}
+
+// ── 2) applyMerge: A を残し B を取り込む (choices に従って競合を解決)
+//
+// 引数:
+//   a:        残す側 (A) の Session オブジェクト
+//   b:        削除される側 (B) の Session オブジェクト
+//   choices:  { [key]: "a" | "b" | "combined" }  競合の選択結果 (未指定キーは "a")
+//   type:     "tournament" | "practice" | "trial"
+//
+// 戻り値: 統合後の新オブジェクト (A の id を必ず保持、元の a/b は変更しない)
+//
+// 動作:
+//   - 一致 → A の値を維持
+//   - 補完 (B のみ値あり) → B の値を自動採用
+//   - 補完 (A のみ値あり) → A の値を維持
+//   - 競合 → choices[key] に従う ("a" / "b" / "combined")、未指定は "a"
+//   - "combined" は COMBINABLE_FIELDS のみ有効、それ以外は "a" 扱い
+//   - tournament の matches[] は mergeMatches で自動合算
+//   - id は必ず a.id を保持
+function applyMerge(a, b, choices, type) {
+  const _a = a || {};
+  const _b = b || {};
+  const _choices = choices || {};
+  const merged = { ..._a };
+  const keys = keysToInspect(_a, _b, type);
+  for (const key of keys) {
+    if (key === "matches") continue; // 別途 mergeMatches
+    const av = _a[key], bv = _b[key];
+    const aE = isEmptyVal(av), bE = isEmptyVal(bv);
+    if (aE && bE) continue;
+    if (aE && !bE) { merged[key] = bv; continue; }
+    if (!aE && bE) { merged[key] = av; continue; }
+    if (_isSameValue(av, bv)) { merged[key] = av; continue; }
+    // 競合
+    const ch = _choices[key] || "a";
+    if (ch === "b") merged[key] = bv;
+    else if (ch === "combined" && COMBINABLE_FIELDS.has(key)) {
+      merged[key] = `${av} | ${bv}`;
+    } else {
+      merged[key] = av;
+    }
+  }
+  if (type === "tournament") {
+    merged.matches = mergeMatches(_a.matches, _b.matches);
+  }
+  merged.id = _a.id; // 必ず A の id を維持
+  return merged;
+}
+
+// ── 3) mergeMatches: tournament.matches[] を合算 (id 重複は A 側を残す)
+//
+// 同じ match.id が両方にある → A 側のみ残し、B 側は破棄
+// 違う match.id (B のみ) → A の後ろに追加
+// id を持たない match (旧データ) → そのまま追加 (重複排除しない)
+//
+// 元配列は変更しない
+function mergeMatches(matchesA, matchesB) {
+  const a = (Array.isArray(matchesA) ? matchesA : []).filter(m => m);
+  const b = (Array.isArray(matchesB) ? matchesB : []).filter(m => m);
+  const aIds = new Set();
+  for (const m of a) { if (m.id) aIds.add(m.id); }
+  const result = [...a];
+  for (const m of b) {
+    if (m.id && aIds.has(m.id)) continue; // A 側を優先して残す
+    result.push(m);
+  }
+  return result;
+}
+
+// ── 4) relinkAfterMerge: trial.linkedXxx を B → A に付け替え
+//
+// 引数:
+//   trials:        全試打配列
+//   removedItem:   B (削除される側) — id を持つ
+//   keptItem:      A (残す側) — id を持つ
+//   type:          "tournament" | "practice" | "trial"
+//
+// 戻り値: 付け替え済みの新 trial 配列 (元配列は変更しない)
+//
+// 動作:
+//   - type=practice:
+//       trial.linkedPracticeId === B.id → A.id に書き換え
+//   - type=tournament:
+//       matches[] は mergeMatches で合算され、B の match.id も merged.matches[] に残るため
+//       trial.linkedMatchId は付け替え不要 (id がいずれかの match に残る → 参照維持)
+//   - type=trial:
+//       trial 同士のマージは cascade 対象外、relink も不要
+function relinkAfterMerge(trials, removedItem, keptItem, type) {
+  const _trials = Array.isArray(trials) ? trials : [];
+  if (!removedItem || !removedItem.id || !keptItem || !keptItem.id) return _trials;
+  if (type === "practice") {
+    const removedId = removedItem.id;
+    const keptId = keptItem.id;
+    return _trials.map(tr => {
+      if (!tr) return tr;
+      if (tr.linkedPracticeId === removedId) {
+        return { ...tr, linkedPracticeId: keptId };
+      }
+      return tr;
+    });
+  }
+  return _trials;
+}
+
+// ── 5) countRelinks: relink 対象の試打数 (UI で「N 件付け替え」と表示)
+function countRelinks(trials, removedItem, type) {
+  const _trials = Array.isArray(trials) ? trials : [];
+  if (!removedItem || !removedItem.id) return 0;
+  if (type === "practice") {
+    const removedId = removedItem.id;
+    return _trials.filter(tr => tr && tr.linkedPracticeId === removedId).length;
+  }
+  return 0;
+}
 
 // === src/domain/validation.js ===
 // validation — SCHEMA REQUIRED_FIELDS 駆動の必須バリデーション (純関数)
@@ -5180,6 +5368,647 @@ function MatchEditModal({ open, match, trnType, racketNames = [], stringNames = 
   );
 }
 
+// === src/ui/sessions/MergeModal.jsx ===
+// MergeModal — セッションマージ確定モーダル (S15、2 ステップ式)
+//
+// 役割:
+//   - REQUIREMENTS_v4 F1.10 — 同タイプ 2 件の統合 (A 残し B 削除)
+//   - Step 1 (compare): 競合 (赤、ラジオ) → 補完 (緑、自動採用) → 一致/A のみ/両方空 (折り畳み)
+//   - Step 2 (confirm): 削除される B / 統合後 A を 2 列で全フィールド比較 + 連携試打 N 件の付け替え通知
+//
+// props:
+//   open:        boolean
+//   type:        "tournament" | "practice" | "trial"
+//   itemA:       残す側 (Detail で開いている方)
+//   itemB:       削除される側 (MergePartnerPicker で選んだ方)
+//   trials:      全試打配列 (relink 件数算出用)
+//   onConfirm:   (mergedItem, removedItem, choices) => void
+//   onCancel:    () => void
+//
+// 依存: domain/merge.js (computeMergeDiff / applyMerge / countRelinks)、SCHEMA、isEmptyVal
+
+// ── ヘルパー: 値を表示文字列化 (空 / 配列 / オブジェクトを判別)
+function _mergeFmtVal(v) {
+  if (v === undefined || v === null || v === "") return "(空)";
+  if (Array.isArray(v)) return `[${v.length} 件]`;
+  if (typeof v === "object") {
+    try { return JSON.stringify(v).slice(0, 60); }
+    catch { return "(オブジェクト)"; }
+  }
+  return String(v);
+}
+
+// ── ヘルパー: type → 表示ラベル
+function _mergeTypeLabel(type) {
+  return type === "tournament" ? "大会"
+       : type === "practice"   ? "練習"
+       : type === "trial"      ? "試打"
+       : "セッション";
+}
+
+// ── ヘルパー: item → ユーザーに見せる短い名称
+function _mergeItemLabel(item, type) {
+  if (!item) return "(不明)";
+  if (type === "tournament") return item.name || "(無題の大会)";
+  if (type === "practice")   return item.title || item.venue || "(無題の練習)";
+  if (type === "trial")      return item.racketName || "(ラケット未指定)";
+  return "(不明)";
+}
+
+// ── ステップインジケータ (1 比較 → 2 確認)
+function _MergeStepDot({ active, done, num }) {
+  const bg = done ? C.success : (active ? C.primary : C.panel2);
+  const color = (done || active) ? "#fff" : C.textMuted;
+  return (
+    <span style={{
+      width: 18, height: 18, borderRadius: "50%",
+      background: bg, color: color, fontSize: 11, fontWeight: 700,
+      display: "inline-flex", alignItems: "center", justifyContent: "center",
+      flexShrink: 0,
+    }}>
+      {done ? <Icon name="check" size={11} color="#fff" /> : num}
+    </span>
+  );
+}
+
+// ── 競合行 (ラジオ A/B/結合)
+function _MergeConflictRow({ conflict, choice, onChange }) {
+  const c = conflict;
+  return (
+    <div style={{
+      background: C.errorLight,
+      padding: "8px 10px",
+      borderRadius: RADIUS.btnSm,
+      marginBottom: 4,
+      fontSize: 12,
+    }}>
+      <div style={{ display: "grid", gridTemplateColumns: "84px 1fr 1fr", gap: 6, alignItems: "start" }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: C.textSecondary, paddingTop: 2 }}>{c.label}</div>
+        <div style={{ color: C.text, wordBreak: "break-all", lineHeight: 1.45 }}>{_mergeFmtVal(c.aValue)}</div>
+        <div style={{ color: C.text, wordBreak: "break-all", lineHeight: 1.45 }}>{_mergeFmtVal(c.bValue)}</div>
+      </div>
+      <div style={{ marginTop: 8, display: "flex", gap: 6, fontSize: 11, flexWrap: "wrap" }}>
+        <_MergeRadioOption name={`r-${c.key}`} checked={choice === "a"} onChange={() => onChange("a")} label="A 採用" />
+        <_MergeRadioOption name={`r-${c.key}`} checked={choice === "b"} onChange={() => onChange("b")} label="B 採用" />
+        {c.combinable && (
+          <_MergeRadioOption name={`r-${c.key}`} checked={choice === "combined"} onChange={() => onChange("combined")} label="結合" />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function _MergeRadioOption({ name, checked, onChange, label }) {
+  return (
+    <label style={{
+      display: "inline-flex", alignItems: "center", gap: 4, cursor: "pointer",
+      padding: "5px 10px", borderRadius: 8,
+      border: `1px solid ${checked ? C.primary : C.border}`,
+      background: checked ? C.primary : C.panel,
+      color: checked ? "#fff" : C.text,
+      minHeight: 32,
+      fontFamily: font,
+      fontSize: 11,
+      fontWeight: 500,
+    }}>
+      <input
+        type="radio" name={name} checked={checked} onChange={onChange}
+        style={{ margin: 0, cursor: "pointer" }}
+      />
+      {label}
+    </label>
+  );
+}
+
+// ── 補完行 (B → A 自動採用、緑帯)
+function _MergeComplementRow({ comp }) {
+  return (
+    <div style={{
+      background: C.successLight,
+      padding: "8px 10px",
+      borderRadius: RADIUS.btnSm,
+      marginBottom: 4,
+      fontSize: 12,
+    }}>
+      <div style={{ display: "grid", gridTemplateColumns: "84px 1fr 1fr", gap: 6, alignItems: "start" }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: C.textSecondary, paddingTop: 2 }}>{comp.label}</div>
+        <div style={{ color: C.textMuted, fontStyle: "italic", lineHeight: 1.45 }}>(空)</div>
+        <div style={{
+          display: "inline-block",
+          background: C.primary, color: "#fff",
+          padding: "2px 6px", borderRadius: 6,
+          wordBreak: "break-all", lineHeight: 1.45,
+          fontWeight: 600,
+        }}>{_mergeFmtVal(comp.value)} →</div>
+      </div>
+    </div>
+  );
+}
+
+// ── 折り畳み行 (一致 / A のみ値 / 両方空)
+function _MergeCollapsedRow({ keyName, label, itemA, itemB }) {
+  const av = itemA ? itemA[keyName] : undefined;
+  const bv = itemB ? itemB[keyName] : undefined;
+  return (
+    <div style={{
+      background: C.panel2,
+      padding: "6px 10px",
+      borderRadius: RADIUS.btnSm,
+      marginBottom: 3,
+      fontSize: 11,
+    }}>
+      <div style={{ display: "grid", gridTemplateColumns: "84px 1fr 1fr", gap: 6, alignItems: "start" }}>
+        <div style={{ fontSize: 10, color: C.textSecondary, paddingTop: 1 }}>{label}</div>
+        <div style={{ color: isEmptyVal(av) ? C.textMuted : C.text, lineHeight: 1.4, fontStyle: isEmptyVal(av) ? "italic" : "normal" }}>{_mergeFmtVal(av)}</div>
+        <div style={{ color: isEmptyVal(bv) ? C.textMuted : C.text, lineHeight: 1.4, fontStyle: isEmptyVal(bv) ? "italic" : "normal" }}>{_mergeFmtVal(bv)}</div>
+      </div>
+    </div>
+  );
+}
+
+// ── 確認画面の片方カラム (削除される B / 統合後 A)
+function _MergeFinalCol({ title, tone, item, type, highlightFromB, highlightConflictB }) {
+  const isRemoved = tone === "removed";
+  const fields = SCHEMA[type] || [];
+  const fromBSet = new Set(highlightFromB || []);
+  const conflictBSet = new Set(highlightConflictB || []);
+  return (
+    <div style={{
+      borderRadius: RADIUS.row, padding: 10,
+      border: `1px solid ${isRemoved ? C.error : C.primary}`,
+      background: isRemoved ? "#fff5f5" : "#f5fbff",
+    }}>
+      <div style={{
+        fontSize: 11, fontWeight: 700, marginBottom: 8,
+        color: isRemoved ? C.error : C.primary,
+        display: "flex", alignItems: "center", gap: 4,
+      }}>
+        <Icon name={isRemoved ? "trash" : "circle-check"} size={14} color={isRemoved ? C.error : C.primary} />
+        {title}
+      </div>
+      <dl style={{ margin: 0, fontSize: 11 }}>
+        {fields.map(f => {
+          const v = item ? item[f.key] : undefined;
+          if (f.key === "matches") {
+            const cnt = Array.isArray(v) ? v.length : 0;
+            return (
+              <React.Fragment key={f.key}>
+                <dt style={{ color: C.textSecondary, fontSize: 10, marginTop: 6, textTransform: "uppercase", letterSpacing: "0.04em" }}>{f.label}</dt>
+                <dd style={{ margin: "1px 0 0", color: cnt === 0 ? C.textMuted : C.text, fontStyle: cnt === 0 ? "italic" : "normal" }}>
+                  {cnt === 0 ? "(なし)" : `${cnt} 件`}
+                </dd>
+              </React.Fragment>
+            );
+          }
+          const empty = isEmptyVal(v);
+          let valColor = empty ? C.textMuted : C.text;
+          let valWeight = "normal";
+          if (!isRemoved && !empty) {
+            if (fromBSet.has(f.key)) { valColor = C.success; valWeight = "bold"; }
+            else if (conflictBSet.has(f.key)) { valColor = C.primary; valWeight = "bold"; }
+          }
+          return (
+            <React.Fragment key={f.key}>
+              <dt style={{ color: C.textSecondary, fontSize: 10, marginTop: 6, textTransform: "uppercase", letterSpacing: "0.04em" }}>{f.label}</dt>
+              <dd style={{
+                margin: "1px 0 0",
+                color: valColor, fontWeight: valWeight,
+                fontStyle: empty ? "italic" : "normal",
+                wordBreak: "break-all",
+                lineHeight: 1.4,
+              }}>{_mergeFmtVal(v)}</dd>
+            </React.Fragment>
+          );
+        })}
+      </dl>
+    </div>
+  );
+}
+
+// ── 本体
+function MergeModal({ open, type, itemA, itemB, trials, onConfirm, onCancel }) {
+  const [step, setStep] = useState("compare");
+  const [choices, setChoices] = useState({});
+  const [showCollapsed, setShowCollapsed] = useState(false);
+
+  // open / itemB 切替時にリセット (競合のデフォルト = "a")
+  useEffect(() => {
+    if (open && itemA && itemB) {
+      setStep("compare");
+      const diff = computeMergeDiff(itemA, itemB, type);
+      const init = {};
+      diff.conflicts.forEach(c => { init[c.key] = "a"; });
+      setChoices(init);
+      setShowCollapsed(false);
+    }
+  }, [open, itemA && itemA.id, itemB && itemB.id, type]);
+
+  // Esc キー
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e) => { if (e.key === "Escape") onCancel && onCancel(); };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [open, onCancel]);
+
+  if (!open || !itemA || !itemB) return null;
+
+  const diff = computeMergeDiff(itemA, itemB, type);
+  const merged = applyMerge(itemA, itemB, choices, type);
+  const relinkCount = countRelinks(trials || [], itemB, type);
+
+  const typeLabel = _mergeTypeLabel(type);
+  const removedLabel = _mergeItemLabel(itemB, type);
+  const keptLabel = _mergeItemLabel(itemA, type);
+
+  // 補完: B → A のみ表示。A のみ値あり (from=a) は折りたたみ行きへ
+  const complementFromB = diff.complement.filter(c => c.from === "b");
+  const collapsedItems = [
+    ...diff.match.map(m => ({ key: m.key, label: m.label })),
+    ...diff.complement.filter(c => c.from === "a").map(c => ({ key: c.key, label: c.label })),
+  ];
+
+  // ── Step 1: 比較ビュー
+  const renderCompare = () => (
+    <>
+      <div style={{
+        display: "grid", gridTemplateColumns: "84px 1fr 1fr", gap: 6,
+        padding: "6px 10px", fontSize: 10, fontWeight: 700, color: C.textSecondary,
+        borderBottom: `1px solid ${C.divider}`, marginBottom: 8,
+        position: "sticky", top: 0, background: C.panel, zIndex: 1,
+      }}>
+        <div>項目</div>
+        <div style={{ color: C.primary }}>A (残す)</div>
+        <div style={{ color: C.error }}>B (削除)</div>
+      </div>
+
+      {/* 競合 */}
+      {diff.conflicts.length > 0 && (
+        <div style={{ marginBottom: 14 }}>
+          <div style={{
+            fontSize: 11, fontWeight: 700, color: C.error,
+            marginBottom: 6, display: "flex", alignItems: "center", gap: 6,
+            textTransform: "uppercase", letterSpacing: "0.04em",
+          }}>
+            <Icon name="warning" size={14} color={C.error} />
+            競合 {diff.conflicts.length} 件 — 選択してください
+          </div>
+          {diff.conflicts.map(c => (
+            <_MergeConflictRow
+              key={c.key}
+              conflict={c}
+              choice={choices[c.key] || "a"}
+              onChange={(val) => setChoices(prev => ({ ...prev, [c.key]: val }))}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* 補完 (B → A、自動) */}
+      {complementFromB.length > 0 && (
+        <div style={{ marginBottom: 14 }}>
+          <div style={{
+            fontSize: 11, fontWeight: 700, color: C.success,
+            marginBottom: 6, display: "flex", alignItems: "center", gap: 6,
+            textTransform: "uppercase", letterSpacing: "0.04em",
+          }}>
+            <Icon name="plus-circle" size={14} color={C.success} />
+            補完 {complementFromB.length} 件 — 自動採用 (B → A)
+          </div>
+          {complementFromB.map(c => (
+            <_MergeComplementRow key={c.key} comp={c} />
+          ))}
+        </div>
+      )}
+
+      {/* 折りたたみ */}
+      {collapsedItems.length > 0 && (
+        <div style={{ marginBottom: 14 }}>
+          <button
+            onClick={() => setShowCollapsed(prev => !prev)}
+            style={{
+              width: "100%", background: C.panel2,
+              border: `1px dashed ${C.border}`,
+              borderRadius: RADIUS.row, padding: "10px 12px",
+              fontSize: 11, color: C.textSecondary, cursor: "pointer",
+              textAlign: "center", fontFamily: font, minHeight: 40,
+            }}
+          >
+            <Icon name={showCollapsed ? "chevron-down" : "chevron-right"} size={12} color={C.textSecondary} />
+            {" "}一致 / A のみ値あり / 両方空 を {showCollapsed ? "折りたたむ" : "表示"} ({collapsedItems.length} 件)
+          </button>
+          {showCollapsed && (
+            <div style={{ marginTop: 8 }}>
+              {collapsedItems.map(item => (
+                <_MergeCollapsedRow
+                  key={item.key}
+                  keyName={item.key}
+                  label={item.label}
+                  itemA={itemA}
+                  itemB={itemB}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {diff.conflicts.length === 0 && complementFromB.length === 0 && !showCollapsed && (
+        <div style={{ padding: 24, textAlign: "center", color: C.textMuted, fontSize: 12 }}>
+          選択が必要な競合も、自動補完も見つかりませんでした。<br />
+          そのまま「次へ」で統合できます。
+        </div>
+      )}
+    </>
+  );
+
+  // ── Step 2: 最終確認
+  const renderConfirm = () => (
+    <>
+      <div style={{
+        background: C.errorLight, borderRadius: RADIUS.row,
+        padding: 12, marginBottom: 12,
+        fontSize: 12, lineHeight: 1.55, color: "#a31511",
+      }}>
+        <div style={{ fontWeight: 700, color: C.error, marginBottom: 4 }}>
+          <Icon name="warning" size={14} color={C.error} /> この操作は取り消せません
+        </div>
+        B「{removedLabel}」を削除して、A「{keptLabel}」に統合します。
+      </div>
+
+      {relinkCount > 0 && (
+        <div style={{
+          background: C.primaryLight, borderRadius: RADIUS.btnSm,
+          padding: "10px 12px", marginBottom: 12,
+          fontSize: 11, color: "#003a7a", lineHeight: 1.5,
+          display: "flex", alignItems: "flex-start", gap: 6,
+        }}>
+          <Icon name="link" size={16} color={C.primary} />
+          <div>
+            連携している試打 <b>{relinkCount} 件</b> の参照先 (linkedXxx) が <b>B → A</b> に自動で付け替わります。試打自体は残ります。
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
+        <_MergeFinalCol
+          title="削除される B" tone="removed"
+          item={itemB} type={type}
+        />
+        <_MergeFinalCol
+          title="統合後 A" tone="kept"
+          item={merged} type={type}
+          highlightFromB={complementFromB.map(c => c.key)}
+          highlightConflictB={Object.entries(choices).filter(([_, v]) => v === "b").map(([k]) => k)}
+        />
+      </div>
+
+      <div style={{ fontSize: 10, color: C.textSecondary, textAlign: "center", lineHeight: 1.6 }}>
+        <span style={{ color: C.primary, fontWeight: 700 }}>青字</span> = 競合で B を採用 /{" "}
+        <span style={{ color: C.success, fontWeight: 700 }}>緑字</span> = B から補完
+      </div>
+    </>
+  );
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={`${typeLabel}のマージ`}
+      onClick={(e) => { if (e.target === e.currentTarget) onCancel && onCancel(); }}
+      style={{
+        position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        padding: 20, zIndex: 1100,
+      }}
+    >
+      <div style={{
+        background: C.panel,
+        borderRadius: RADIUS.card,
+        width: "100%", maxWidth: 560,
+        maxHeight: "90vh",
+        overflow: "hidden",
+        display: "flex", flexDirection: "column",
+        animation: "modalEnter 250ms ease-out",
+        boxShadow: "0 8px 32px rgba(0,0,0,0.16)",
+      }}>
+        {/* Header */}
+        <div style={{ padding: "14px 18px 12px", borderBottom: `1px solid ${C.divider}`, flexShrink: 0 }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: C.text }}>
+            マージ ({typeLabel})
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, fontSize: 11, color: C.textSecondary }}>
+            <_MergeStepDot active={step === "compare"} done={step === "confirm"} num={1} />
+            <span>比較</span>
+            <span style={{ color: C.textMuted }}>→</span>
+            <_MergeStepDot active={step === "confirm"} done={false} num={2} />
+            <span>確認</span>
+          </div>
+        </div>
+
+        {/* Body (scroll) */}
+        <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "12px 18px" }}>
+          {step === "compare" ? renderCompare() : renderConfirm()}
+        </div>
+
+        {/* Footer */}
+        <div style={{
+          padding: "12px 18px 14px",
+          borderTop: `1px solid ${C.divider}`,
+          display: "flex", justifyContent: "space-between", gap: 8,
+          flexShrink: 0,
+        }}>
+          {step === "compare" ? (
+            <>
+              <Button variant="ghost" onClick={onCancel}>キャンセル</Button>
+              <Button variant="primary" onClick={() => setStep("confirm")}>
+                次へ <Icon name="caret-right" size={16} color="#fff" />
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button variant="ghost" onClick={() => setStep("compare")}>
+                <Icon name="caret-left" size={16} color={C.primary} /> 戻る
+              </Button>
+              <Button variant="danger" onClick={() => onConfirm && onConfirm(merged, itemB, choices)}>
+                <Icon name="trash" size={16} color="#fff" /> 削除して統合
+              </Button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// === src/ui/sessions/MergePartnerPicker.jsx ===
+// MergePartnerPicker — マージ相手 (B 候補) 選択モーダル (S15)
+//
+// 役割:
+//   - REQUIREMENTS_v4 F1.10 セッションのマージ — 「同タイプの 2 件目を選ぶ」フェーズ
+//   - SessionDetailView の「マージ」ボタンから起動
+//   - 同タイプの全件から 1 件を選ぶ → onSelect で MergeModal へ橋渡し
+//
+// props:
+//   open:        boolean
+//   type:        "tournament" | "practice" | "trial"
+//   sourceItem:  A (統合元、自身は候補から除外)
+//   candidates:  同タイプ全件配列 (sourceItem を含むまま渡してよい、内部で除外)
+//   onSelect:    (item) => void   候補選択時 (= B 確定)
+//   onClose:     () => void       キャンセル
+//
+// UX:
+//   - 検索 (タイトル / 会場 部分一致)
+//   - 並び順: 日付差 0 (同日) 最上部 → 日付近い順
+//   - 同日候補は primaryLight 背景 + primary border で強調
+//   - 日付ずれ ≤ 7 日は黄色警告
+
+function MergePartnerPicker({ open, type, sourceItem, candidates, onSelect, onClose }) {
+  const [search, setSearch] = useState("");
+
+  // open 切替時に検索リセット
+  useEffect(() => {
+    if (!open) setSearch("");
+  }, [open]);
+
+  if (!open || !sourceItem) return null;
+
+  const typeLabel = type === "tournament" ? "大会"
+                  : type === "practice"   ? "練習"
+                  : type === "trial"      ? "試打"
+                  : "セッション";
+
+  const labelOf = (item) => {
+    if (!item) return "(不明)";
+    if (type === "tournament") return item.name || "(無題の大会)";
+    if (type === "practice")   return item.title || item.venue || "(無題の練習)";
+    if (type === "trial")      return item.racketName || "(ラケット未指定)";
+    return "(不明)";
+  };
+
+  const metaOf = (item) => {
+    if (!item) return "";
+    const parts = [];
+    parts.push(normDate(item.date) || "(日付なし)");
+    if (item.startTime) parts.push(item.endTime ? `${item.startTime}-${item.endTime}` : item.startTime);
+    if (item.venue && item.venue !== labelOf(item)) parts.push(item.venue);
+    if (type === "practice" && item.heartRateAvg) parts.push(`心拍 ${item.heartRateAvg}`);
+    return parts.join(" / ");
+  };
+
+  // 自分自身を除外
+  const list = (candidates || []).filter(c => c && c.id && c.id !== sourceItem.id);
+
+  // 検索フィルタ (タイトル + 会場)
+  const lower = search.trim().toLowerCase();
+  const filtered = lower
+    ? list.filter(c =>
+        labelOf(c).toLowerCase().includes(lower) ||
+        (c.venue || "").toLowerCase().includes(lower)
+      )
+    : list;
+
+  // 日付差でソート (同日 = 0、日付パース不可 = Infinity)
+  const sourceDate = normDate(sourceItem.date);
+  const daysDiff = (dateStr) => {
+    const a = normDate(dateStr);
+    if (!a || !sourceDate) return Infinity;
+    const da = new Date(a + "T00:00:00");
+    const ds = new Date(sourceDate + "T00:00:00");
+    if (isNaN(da) || isNaN(ds)) return Infinity;
+    return Math.abs(Math.round((da - ds) / (1000 * 60 * 60 * 24)));
+  };
+
+  const sorted = filtered
+    .map(c => ({ item: c, diff: daysDiff(c.date) }))
+    .sort((a, b) => a.diff - b.diff);
+
+  const sourceLabel = labelOf(sourceItem);
+
+  return (
+    <Modal open={open} onClose={onClose} title={`マージ相手を選択 (${typeLabel})`}>
+      <div style={{ fontSize: 12, color: C.textSecondary, marginBottom: 10, lineHeight: 1.5 }}>
+        統合元: <b style={{ color: C.text }}>{sourceLabel}</b>
+        <br />
+        この{typeLabel}にまとめる相手を選んでください。
+      </div>
+
+      <input
+        type="text"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder="🔍 タイトル / 会場で絞り込み"
+        aria-label="候補を検索"
+        style={{
+          width: "100%",
+          padding: "10px 12px",
+          borderRadius: RADIUS.btnSm,
+          border: `1px solid ${C.border}`,
+          background: C.panel2,
+          fontSize: 13,
+          fontFamily: font,
+          marginBottom: 8,
+          boxSizing: "border-box",
+          minHeight: 44,
+          WebkitAppearance: "none",
+          appearance: "none",
+          color: C.text,
+          outline: "none",
+        }}
+      />
+
+      <div style={{ fontSize: 10, color: C.textMuted, marginBottom: 8 }}>
+        全 {list.length} 件 / 表示 {sorted.length} 件 (日付近い順)
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: "50vh", overflowY: "auto" }}>
+        {sorted.length === 0 ? (
+          <div style={{ padding: 20, textAlign: "center", color: C.textMuted, fontSize: 12 }}>
+            {list.length === 0
+              ? `他の${typeLabel}が見つかりません`
+              : "検索条件に一致する候補がありません"}
+          </div>
+        ) : (
+          sorted.map(({ item, diff }) => {
+            const isSameDay = diff === 0;
+            const isClose = diff > 0 && diff <= 7;
+            return (
+              <button
+                key={item.id}
+                onClick={() => onSelect && onSelect(item)}
+                style={{
+                  textAlign: "left",
+                  padding: "10px 12px",
+                  borderRadius: RADIUS.row,
+                  background: isSameDay ? C.primaryLight : C.panel2,
+                  border: `1px solid ${isSameDay ? C.primary : C.border}`,
+                  cursor: "pointer",
+                  fontFamily: font,
+                  minHeight: 44,
+                  width: "100%",
+                  boxSizing: "border-box",
+                }}
+              >
+                <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{labelOf(item)}</div>
+                <div style={{ fontSize: 11, color: C.textSecondary, marginTop: 2 }}>{metaOf(item)}</div>
+                {!isSameDay && diff !== Infinity && (
+                  <div style={{
+                    fontSize: 11,
+                    color: isClose ? "#7e5d00" : C.textMuted,
+                    marginTop: 2,
+                  }}>
+                    {isClose ? "⚠ " : ""}日付が {diff} 日ずれ
+                  </div>
+                )}
+              </button>
+            );
+          })
+        )}
+      </div>
+    </Modal>
+  );
+}
+
 // === src/ui/sessions/PracticeDetail.jsx ===
 // PracticeDetail — 練習セッション詳細 (v5, 2026-04-24 更新)
 // Apple Watch: warning 色体系 + 4 セル (時間/Active/平均/合計) + 積層バー + BPM range + % + 分秒 + 回復心拍
@@ -6461,7 +7290,7 @@ function _dvMemoItem({ label, text }) {
 // ── メインコンポーネント ────────────────────────
 // S11: mode prop で Detail (既定) と Edit (編集モード) を切替。
 //      Edit モード時は SessionEditView で置換し、slide-in overlay は維持 (再 mount せず scrollTop 保持)
-function SessionDetailView({ type, session, mode = "detail", tournaments, trials, practices, racketNames, stringNames, venueNames, opponentNames, levelNames, onClose, onEdit, onEditCancel, onSave, onDelete, onOpenLinkedSession, toast, confirm }) {
+function SessionDetailView({ type, session, mode = "detail", tournaments, trials, practices, racketNames, stringNames, venueNames, opponentNames, levelNames, onClose, onEdit, onEditCancel, onSave, onDelete, onMerge, onOpenLinkedSession, toast, confirm }) {
   const [visible, setVisible] = useState(false);
   const [closing, setClosing] = useState(false);
   const reduced = typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -6506,6 +7335,11 @@ function SessionDetailView({ type, session, mode = "detail", tournaments, trials
   const handleEditClick = () => {
     if (onEdit) onEdit(type, session);
     else toast.show("編集ハンドラ未接続", "warning");
+  };
+
+  const handleMergeClick = () => {
+    if (onMerge) onMerge(type, session);
+    else toast.show("マージハンドラ未接続", "warning");
   };
 
   // linked セッション算出
@@ -6612,26 +7446,31 @@ function SessionDetailView({ type, session, mode = "detail", tournaments, trials
         )}
       </div>
 
-      {/* Action bar */}
-      <div style={{ flex: "0 0 64px", background: C.panel, borderTop: `1px solid ${C.divider}`, display: "flex", alignItems: "center", gap: 8, padding: "10px 16px" }}>
+      {/* Action bar (S15 で 3 → 4 ボタン化: 編集 / マージ / Claude / 削除、危険度の昇順) */}
+      <div style={{ flex: "0 0 64px", background: C.panel, borderTop: `1px solid ${C.divider}`, display: "flex", alignItems: "center", gap: 6, padding: "10px 12px" }}>
         <button
           onClick={handleEditClick}
-          style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 44, padding: "10px 16px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.panel, color: C.text, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+          style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 4, minHeight: 44, padding: "10px 6px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.panel, color: C.text, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
         >
-          <Icon name="pencil" size={18} /> 編集
+          <Icon name="pencil" size={16} /> 編集
+        </button>
+        <button
+          onClick={handleMergeClick}
+          style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 4, minHeight: 44, padding: "10px 6px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.panel, color: C.text, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+        >
+          <Icon name="git-merge" size={16} /> マージ
         </button>
         <button
           onClick={handleClaudeCopy}
-          aria-label="Claudeにコピー"
-          style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 44, padding: "10px 14px", borderRadius: 8, border: `1px solid rgba(147,52,224,0.5)`, background: C.trialLight, color: C.trialAccent, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+          aria-label={type === "tournament" ? "Claudeに全試合をコピー" : "Claudeにコピー"}
+          style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minHeight: 44, minWidth: 44, padding: "10px 12px", borderRadius: 8, border: `1px solid rgba(147,52,224,0.5)`, background: C.trialLight, color: C.trialAccent, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
         >
-          <Icon name="clipboard-copy" size={18} ariaLabel="Claudeにコピー" />
-          {type === "tournament" ? <span>全試合</span> : null}
+          <Icon name="clipboard-copy" size={18} ariaLabel={type === "tournament" ? "Claudeに全試合をコピー" : "Claudeにコピー"} />
         </button>
         <button
           onClick={handleDeleteClick}
           aria-label="削除"
-          style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minHeight: 44, minWidth: 44, padding: "10px 14px", borderRadius: 8, border: `1px solid rgba(217,48,37,0.5)`, background: C.errorLight, color: C.error, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+          style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minHeight: 44, minWidth: 44, padding: "10px 12px", borderRadius: 8, border: `1px solid rgba(217,48,37,0.5)`, background: C.errorLight, color: C.error, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
         >
           <Icon name="trash-2" size={18} ariaLabel="削除" />
         </button>
@@ -9492,6 +10331,85 @@ function TennisDB() {
     );
   };
 
+  // S15: マージ機能 (Sessions マージ — REQUIREMENTS F1.10)
+  //   1. Detail のマージボタン → handleMergeStart で setMergeStarting({type, sourceItem})
+  //   2. MergePartnerPicker で B を選ぶ → setMergePartner(itemB)
+  //   3. MergeModal で choices 確定 → handleMergeConfirm で applyMerge + relinkAfterMerge + 物理削除 + Firestore 保存
+  //   4. 統合後 A を Detail で再描画
+  const [mergeStarting, setMergeStarting] = useState(null); // { type, sourceItem } | null
+  const [mergePartner, setMergePartner] = useState(null);   // B (MergeModal の itemB)
+
+  const handleMergeStart = (type, item) => {
+    if (!item || !item.id) return;
+    setMergeStarting({ type, sourceItem: item });
+    setMergePartner(null);
+  };
+  const handlePartnerSelect = (itemB) => {
+    if (!itemB || !itemB.id) return;
+    setMergePartner(itemB);
+  };
+  const handleMergeCancel = () => {
+    setMergeStarting(null);
+    setMergePartner(null);
+  };
+  const handleMergeConfirm = async (merged, removed, choices) => {
+    if (!mergeStarting || !merged || !removed) return;
+    const type = mergeStarting.type;
+    const key = type === "tournament" ? "tournaments" : type === "practice" ? "practices" : "trials";
+    const current = type === "tournament" ? tournaments : type === "practice" ? practices : trials;
+
+    // A を merged に置き換え + B を物理削除
+    const newItems = (current || [])
+      .filter(x => x.id !== removed.id)
+      .map(x => x.id === merged.id ? merged : x);
+
+    // trial.linkedXxx の付け替え (practice 同士のマージのみ実効果)
+    const newTrials = relinkAfterMerge(trials, removed, merged, type);
+    const trialsChanged = newTrials !== trials;
+    const relinkCount = countRelinks(trials, removed, type);
+
+    // 即時 state 反映 (onSnapshot 到来前に UI 更新)
+    if (type === "tournament") setTournaments(newItems);
+    else if (type === "practice") setPractices(newItems);
+    else setTrials(newItems);
+    if (trialsChanged) setTrials(newTrials);
+
+    // localStorage
+    lsSave(KEYS[key], newItems);
+    if (trialsChanged) lsSave(KEYS.trials, newTrials);
+
+    // Firestore (A 更新 + trials 更新を並行書き込み、handleDelete と同じパターン)
+    if (user) {
+      try {
+        const writes = [
+          fbDb.collection("users").doc(user.uid).collection("data").doc(key)
+            .set({ items: cleanForFirestore(newItems) }, { merge: false }),
+        ];
+        if (trialsChanged) {
+          writes.push(
+            fbDb.collection("users").doc(user.uid).collection("data").doc("trials")
+              .set({ items: cleanForFirestore(newTrials) }, { merge: false })
+          );
+        }
+        await Promise.all(writes);
+      } catch (e) {
+        console.error("Firestore merge error:", e);
+        toast.show("クラウド同期失敗 (ローカルは統合済み)", "warning");
+      }
+    }
+
+    // Modal/Picker を閉じ、Detail を merged で再描画 (key 同じ id なので mode 維持)
+    setMergeStarting(null);
+    setMergePartner(null);
+    setDetail({ type, session: merged, mode: "detail" });
+
+    const typeLabel = type === "tournament" ? "大会" : type === "practice" ? "練習" : "試打";
+    const msg = relinkCount > 0
+      ? `${typeLabel}を統合しました (試打 ${relinkCount} 件の連携も付け替え)`
+      : `${typeLabel}を統合しました`;
+    toast.show(msg, "success");
+  };
+
   // S12-S14: QuickAdd 起動 (Sessions FAB / Home 3 ボタン共用)
   //   Sessions FAB = "tournament" | "practice" (試打は除外、DECISIONS S12)
   //   Home 3 ボタン = "tournament" | "practice" | "trial" (S14、QuickAddModal trial 拡張)
@@ -9509,9 +10427,13 @@ function TennisDB() {
   };
   const handleQuickAddClose = () => setQuickAddType(null);
   // QuickAdd 保存: handleSave (新規/更新両対応) を再利用 + Detail 画面で開く (閲覧モード)
+  // S15.1 fix: handleCardClick と同じく history.pushState を 1 個積む。
+  //   これがないと、新規追加 → Detail → 戻る で Tennis DB の前のページ (Google 等) に飛んでしまう
+  //   (popstate listener が setDetail(null) するが、空回りで一覧表示にならない)
   const handleQuickAddSave = (item) => {
     const type = quickAddType;
     if (!type || !item) return;
+    try { window.history.pushState({ tdb: "detail" }, ""); } catch(_) {}
     handleSave(type, item);    // localStorage + Firestore 保存 + Detail 画面遷移 (mode: "detail")
     setQuickAddType(null);     // QuickAddModal を閉じる
   };
@@ -9619,11 +10541,36 @@ function TennisDB() {
           onEditCancel={handleEditCancel}
           onSave={handleSave}
           onDelete={handleDelete}
+          onMerge={handleMergeStart}
           onOpenLinkedSession={handleOpenLinkedSession}
           toast={toast}
           confirm={cfm}
         />
       )}
+      {/* S15: マージ相手選択 (Detail マージボタン → 起動、相手未選択時のみ) */}
+      <MergePartnerPicker
+        open={!!mergeStarting && !mergePartner}
+        type={mergeStarting?.type}
+        sourceItem={mergeStarting?.sourceItem}
+        candidates={
+          mergeStarting?.type === "tournament" ? tournaments
+          : mergeStarting?.type === "practice"  ? practices
+          : mergeStarting?.type === "trial"     ? trials
+          : []
+        }
+        onSelect={handlePartnerSelect}
+        onClose={handleMergeCancel}
+      />
+      {/* S15: マージ本体 (相手選択完了 → 比較ビュー → 最終確認) */}
+      <MergeModal
+        open={!!mergeStarting && !!mergePartner}
+        type={mergeStarting?.type}
+        itemA={mergeStarting?.sourceItem}
+        itemB={mergePartner}
+        trials={trials}
+        onConfirm={handleMergeConfirm}
+        onCancel={handleMergeCancel}
+      />
       {/* S14 P2: 天気詳細 Modal (Header 天気タップで開く) */}
       <WeatherModal
         open={weatherModalOpen}
