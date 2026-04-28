@@ -324,6 +324,27 @@ Practice Detail (S10、後続リファクタ):
 - `eval_` / `touched` を `useRef` で tracking (popstate handler の stale closure 回避)
 - `persistQuickTrialCards` を関数形式 (`prev => newCards`) にも対応 (setCards `prev => ...` を使えるように)
 
+**S15.5 push 後の Chrome 環境問題への hotfix (S15.5.3 / S15.5.4)**:
+
+ユーザー報告: localhost (Chrome) で登録した試打カードが GitHub Pages 側 (Chrome) と同期されない / Sessions タブ「読み込み中」が永遠に終わらない。Safari では同じ操作で同期できる、Chrome 特有の問題と判明。
+
+- **S15.5.3 fix**: `core/03_storage.js` の `save()` は `setTimeout(800ms)` で Firestore 書き込みをデバウンス。**Chrome 88+ の Background Tab Throttling** で背景タブの setTimeout が大幅に遅延 (1 分以上) → 書き込みが Firestore Server に届かない問題。
+  - 試打カード書き込み (`persistQuickTrialCards`) と `handleQuickTrialSave` 内の trials 書き込み を **`save()` の debounce を bypass して即時 Firestore write** (`fbDb.collection().set()` を直接 await、`handleDelete` と同じ Promise.all パターン)
+  - 失敗時 `toast.show("試打カードのクラウド同期に失敗 (ローカルは保存済み)", "warning")` でユーザーに可視化
+  - `persistQuickTrialCards` の React updater function 内 side effect は `queueMicrotask` で次 tick に逃がす (pure 性維持)
+  - 適用範囲: 試打カード関連のみ。tournaments/practices/trials の通常編集は引き続き `save()` の debounce で OK (背景タブ問題は将来 Stage で別途検討)
+
+- **S15.5.4 fix**: Chrome で `loadSessionsFromFirestore` の Firestore `get()` が永遠に pending → `setLoading(false)` されず Sessions タブが「読み込み中」のまま。
+  - `Promise.race` で **15 秒 timeout** を追加、超えたら `Error("FIRESTORE_GET_TIMEOUT_15S")` で reject
+  - timeout/error 時は `loadSessionsFromFirestore` が `null` を返す → `app.jsx` で `if (data) {...} else { toast.show("クラウド読み込みエラー (ローカルデータで表示中、回線確認を)", "warning"); }` 分岐
+  - localStorage は初期ロード済 (97-111 行) なので、null 時はローカルデータで表示続行 (空にしない)
+  - `onSnapshot` は別途設定するので、後で接続できれば自動同期
+
+**未解決 (将来課題)**:
+- Chrome での Firestore 通信遅延の **根本原因** は未特定 (`enablePersistence` の Multi-Tab IndexedDB 競合 / Cookie / 拡張機能 / Chrome 固有のネットワーク管理など複合要因の可能性)
+- v9 Modular SDK の `FirestoreSettings.cache` への移行で改善する可能性 (現状は v8 互換 SDK)
+- 通常編集の Firestore 書き込みも `save()` debounce 経由なので、Chrome Background Throttling の影響を受ける可能性 → 別 Stage で全 write を即時化検討
+
 **スコープ外 (S16 以降に繰越)**:
 - ❌ Gear タブ全体 (S16 本体で実装) — ラケット status 編集 UI / セッティング組合せ管理 / 実測値ログ
 - ❌ カード編集 UI (V2 互換、追加+削除のみで運用)

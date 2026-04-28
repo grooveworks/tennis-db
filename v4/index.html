@@ -45,7 +45,7 @@ input,select,textarea,button{font-family:inherit}
 const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
 // ── 定数定義（色・キー・バージョン）─────────────
-const APP_VERSION="4.0.0-S15.5";
+const APP_VERSION="4.0.0-S15.5.4";
 const font="-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif";
 
 // 色設計（DESIGN_SYSTEM_v4.md §1 + §10 S13.5 改訂準拠）
@@ -10588,7 +10588,12 @@ const loadSessionsFromFirestore = async (user) => {
   const results = {};
   for (const k of keys) results[k] = []; // 既定値 (取得失敗時用)
   try {
-    const snap = await fbDb.collection("users").doc(user.uid).collection("data").get();
+    // S15.5.3 fix: Chrome で Firestore get が永遠に pending になるケースで Sessions タブが
+    //   「読み込み中」のまま固まる問題に対応 → 15 秒で timeout、ローカルデータで表示続行
+    const snap = await Promise.race([
+      fbDb.collection("users").doc(user.uid).collection("data").get(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("FIRESTORE_GET_TIMEOUT_15S")), 15000)),
+    ]);
     snap.forEach(doc => {
       const id = doc.id;
       if (!keys.includes(id)) return;
@@ -10596,10 +10601,11 @@ const loadSessionsFromFirestore = async (user) => {
       const items = data && data.items;
       if (Array.isArray(items)) results[id] = items;
     });
+    return results;
   } catch (err) {
     console.error("Firestore batch load error:", err);
+    return null;  // null を返すことで呼び出し側で「ローカルデータ維持」分岐へ
   }
-  return results;
 };
 
 // master データ → Select の options 用に name 配列を抽出
@@ -10780,6 +10786,11 @@ function TennisDB() {
             lsSave(KEYS.next, data.next);
             lsSave(KEYS.quickTrialCards, data.quickTrialCards);
             toast.show("クラウドから読み込みました", "success");
+          } else {
+            // S15.5.3 fix: data=null = Firestore get が timeout/error
+            //   localStorage は既にロード済 (97-111 行) なので、そのデータで継続表示
+            //   onSnapshot は別途設定するので、後で接続できれば自動同期
+            toast.show("クラウド読み込みエラー (ローカルデータで表示中、回線確認を)", "warning");
           }
           // 2) リアルタイム同期 (v3 と同じ collection レベル onSnapshot)
           const dataRef = fbDb.collection("users").doc(u.uid).collection("data");
@@ -11104,22 +11115,34 @@ function TennisDB() {
   //   - handleCreateCardFromTrial: TrialDetail から「試打カードに追加」 → 既存試打のラケット情報を新カードとして追加
   // S15.5.2: 関数形式 (prev => newCards) と直接形式 (newCards) の両方に対応
   //   QuickTrialMode の persistCurrentEval は stale closure 回避で関数形式を使う
+  // S15.5.3 fix: Chrome の Background Tab Throttling で save() の setTimeout(800) が
+  //   背景タブで発火されない問題に対応 → debounce を bypass して即時 Firestore write。
+  //   handleDelete / handleMergeConfirm と同じ Promise.all/直接 set パターンに統一。
+  //   (試打カード操作は頻繁ではないので debounce 最適化は不要)
   const persistQuickTrialCards = (newCardsOrFn) => {
-    if (typeof newCardsOrFn === "function") {
-      setQuickTrialCards(prev => {
-        const newCards = newCardsOrFn(prev);
-        lsSave(KEYS.quickTrialCards, newCards);
-        save(KEYS.quickTrialCards, newCards);
-        return newCards;
+    setQuickTrialCards(prev => {
+      const newCards = typeof newCardsOrFn === "function"
+        ? newCardsOrFn(prev)
+        : newCardsOrFn;
+      // localStorage は冪等同期書き込み
+      lsSave(KEYS.quickTrialCards, newCards);
+      // Firestore は次 microtask で即時 set (debounce bypass)
+      // 失敗時は toast でユーザーに通知 (届いていないことが分かる)
+      queueMicrotask(() => {
+        const u = fbAuth.currentUser;
+        if (!u) return;
+        fbDb.collection("users").doc(u.uid).collection("data").doc(KEYS.quickTrialCards)
+          .set({ items: cleanForFirestore(newCards), updatedAt: new Date().toISOString() })
+          .catch(err => {
+            console.error("quickTrialCards Firestore write error:", err);
+            toast.show("試打カードのクラウド同期に失敗 (ローカルは保存済み)", "warning");
+          });
       });
-    } else {
-      setQuickTrialCards(newCardsOrFn);
-      lsSave(KEYS.quickTrialCards, newCardsOrFn);
-      save(KEYS.quickTrialCards, newCardsOrFn);
-    }
+      return newCards;
+    });
   };
 
-  const handleQuickTrialSave = ({ card, eval: e }) => {
+  const handleQuickTrialSave = async ({ card, eval: e }) => {
     if (!card || !card.id || !e) return;
     const todayDate = today();
     // 同日 practice → linkedPracticeId + temp/venue/weather 自動コピー (V2 互換 + weather 拡張)
@@ -11158,12 +11181,28 @@ function TennisDB() {
       linkedMatchId: linkedMtchId,
     };
     const newTrials = [trial, ...(trials || [])];
-    setTrials(newTrials);
-    lsSave(KEYS.trials, newTrials);
-    save(KEYS.trials, newTrials);
-    // 使ったカードを削除
     const newCards = (quickTrialCards || []).filter(c => c.id !== card.id);
-    persistQuickTrialCards(newCards);
+    // 即時 state 更新 + localStorage
+    setTrials(newTrials);
+    setQuickTrialCards(newCards);
+    lsSave(KEYS.trials, newTrials);
+    lsSave(KEYS.quickTrialCards, newCards);
+    // S15.5.3 fix: Chrome Background Throttling 回避のため、trials も quickTrialCards も
+    //   即時 Firestore write (handleDelete と同じ Promise.all パターン)
+    if (user) {
+      try {
+        await Promise.all([
+          fbDb.collection("users").doc(user.uid).collection("data").doc(KEYS.trials)
+            .set({ items: cleanForFirestore(newTrials), updatedAt: new Date().toISOString() }),
+          fbDb.collection("users").doc(user.uid).collection("data").doc(KEYS.quickTrialCards)
+            .set({ items: cleanForFirestore(newCards), updatedAt: new Date().toISOString() }),
+        ]);
+      } catch (err) {
+        console.error("Firestore quickTrial save error:", err);
+        toast.show("クラウド同期失敗 (ローカルは保存済み)", "warning");
+        return;
+      }
+    }
     // toast (連携状況をユーザーに通知)
     const linked = !!matchingP || !!linkedMtchId;
     const linkMsg = linkedMtchId && matchingP ? "練習＋試合と紐付け"

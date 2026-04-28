@@ -49,6 +49,12 @@
   - `eval_` / `touched` は `useRef` で tracking (popstate handler の stale closure 回避)
   - `persistQuickTrialCards` 関数形式対応 (setCards `prev => ...` 用)
 
+- **Chrome 環境 hotfix** (S15.5.3 / S15.5.4):
+  - **試打カード書き込みを debounce bypass で即時 Firestore write** (Chrome Background Tab Throttling で `setTimeout(800)` が背景タブで発火しない問題)
+  - **`loadSessionsFromFirestore` に 15 秒 timeout** (Chrome で Firestore get が永遠 pending → Sessions タブ「読み込み中」固まる問題)
+  - 失敗時 toast でユーザーに可視化 (「試打カードのクラウド同期に失敗」「クラウド読み込みエラー」)
+  - 詳細は DECISIONS_v4.md S15.5 セクション末尾参照
+
 ---
 
 ## 2. S15 で確立 / 再確認されたメタ運用
