@@ -17,7 +17,7 @@ const normalizeItems = (items) => (items || []).map(it => ({ ...it, date: normDa
 const loadSessionsFromFirestore = async (user) => {
   if (!user) return null;
   // S14: next も読込追加 (Home Current Context / Next Actions で使用)
-  const keys = ["tournaments", "practices", "trials", "rackets", "strings", "venues", "opponents", "next"];
+  const keys = ["tournaments", "practices", "trials", "rackets", "strings", "venues", "opponents", "next", "quickTrialCards"];
   const results = {};
   for (const k of keys) results[k] = []; // 既定値 (取得失敗時用)
   try {
@@ -87,6 +87,9 @@ function TennisDB() {
   const [opponents, setOpponents] = useState([]);
   // S14: next (Home の Current Context / Next Actions で使用)
   const [next, setNext] = useState([]);
+  // S15.5: quickTrialCards (試打カード式 QuickTrialMode で使用)
+  const [quickTrialCards, setQuickTrialCards] = useState([]);
+  const [quickTrial, setQuickTrial] = useState(false); // QuickTrialMode 表示
   const [loading, setLoading] = useState(false);
   const [detail, setDetail] = useState(null); // S10: { type, session, mode } | null
   const [weather, setWeather] = useState(null); // S13.5: Open-Meteo 当日気温 { temp, code } | null
@@ -104,6 +107,8 @@ function TennisDB() {
     setOpponents(lsLoad(KEYS.opponents) || []);
     // S14: next もローカルから初期ロード
     setNext(lsLoad(KEYS.next) || []);
+    // S15.5: quickTrialCards もローカルから
+    setQuickTrialCards(lsLoad(KEYS.quickTrialCards) || []);
   }, []);
 
   // S14: 天気取得 拡張 (Open-Meteo、key 不要、CORS 対応)
@@ -195,6 +200,8 @@ function TennisDB() {
             setOpponents(data.opponents || []);
             // S14: next も
             setNext(data.next || []);
+            // S15.5: quickTrialCards も
+            setQuickTrialCards(data.quickTrialCards || []);
             // localStorage には正規化前の原データを保存 (v3 互換のため)
             lsSave(KEYS.tournaments, data.tournaments);
             lsSave(KEYS.practices, data.practices);
@@ -204,6 +211,7 @@ function TennisDB() {
             lsSave(KEYS.venues, data.venues);
             lsSave(KEYS.opponents, data.opponents);
             lsSave(KEYS.next, data.next);
+            lsSave(KEYS.quickTrialCards, data.quickTrialCards);
             toast.show("クラウドから読み込みました", "success");
           }
           // 2) リアルタイム同期 (v3 と同じ collection レベル onSnapshot)
@@ -224,6 +232,7 @@ function TennisDB() {
               else if (key === "venues")   setVenues(val);
               else if (key === "opponents") setOpponents(val);
               else if (key === "next") setNext(val);
+              else if (key === "quickTrialCards") setQuickTrialCards(val);
               else return;
               lsSave(key, val);
             });
@@ -511,13 +520,118 @@ function TennisDB() {
       setQuickAddType(type);
     }
   };
-  // S14: Home Quick Add 3 ボタン用 (試打 trial を含む)
+  // S14: Home Quick Add 3 ボタン用
+  // S15.5 fix: 試打 (trial) の起動先を QuickAddModal → QuickTrialMode (カード式) に切り替え
+  //   フォーム入力経路は Home からは廃止 (DECISIONS S15.5、ユーザー判断)
   const handleHomeQuickAdd = (type) => {
-    if (type === "tournament" || type === "practice" || type === "trial") {
+    if (type === "trial") {
+      setQuickTrial(true);
+    } else if (type === "tournament" || type === "practice") {
       setQuickAddType(type);
     }
   };
   const handleQuickAddClose = () => setQuickAddType(null);
+  // S15.5: QuickTrialMode (試打カード式) のカード state 永続化 + 保存ハンドラ
+  //   - persistQuickTrialCards: state + lsSave + Firestore (debounced save)
+  //   - handleQuickTrialSave: ({card, eval}) → trial 生成 (auto-link) → trials 追加 → カード削除 → toast
+  //   - handleCreateCardFromTrial: TrialDetail から「試打カードに追加」 → 既存試打のラケット情報を新カードとして追加
+  // S15.5.2: 関数形式 (prev => newCards) と直接形式 (newCards) の両方に対応
+  //   QuickTrialMode の persistCurrentEval は stale closure 回避で関数形式を使う
+  const persistQuickTrialCards = (newCardsOrFn) => {
+    if (typeof newCardsOrFn === "function") {
+      setQuickTrialCards(prev => {
+        const newCards = newCardsOrFn(prev);
+        lsSave(KEYS.quickTrialCards, newCards);
+        save(KEYS.quickTrialCards, newCards);
+        return newCards;
+      });
+    } else {
+      setQuickTrialCards(newCardsOrFn);
+      lsSave(KEYS.quickTrialCards, newCardsOrFn);
+      save(KEYS.quickTrialCards, newCardsOrFn);
+    }
+  };
+
+  const handleQuickTrialSave = ({ card, eval: e }) => {
+    if (!card || !card.id || !e) return;
+    const todayDate = today();
+    // 同日 practice → linkedPracticeId + temp/venue/weather 自動コピー (V2 互換 + weather 拡張)
+    const matchingP = (practices || []).find(p => normDate(p.date) === todayDate);
+    // 同日 tournament の最後の match → linkedMatchId
+    let linkedMtchId = "";
+    (tournaments || []).forEach(trn => {
+      if (normDate(trn.date) === todayDate) {
+        const lastM = (trn.matches || []).slice(-1)[0];
+        if (lastM && lastM.id) linkedMtchId = lastM.id;
+      }
+    });
+    const trial = {
+      id: genId(),
+      date: todayDate,
+      racketName: card.racket || "",
+      stringMain: card.stringMain || "",
+      stringCross: card.stringCross || "",
+      tensionMain: card.tensionMain || "",
+      tensionCross: card.tensionCross || "",
+      temp: matchingP?.temp || "",
+      venue: matchingP?.venue || "",
+      weather: matchingP?.weather || "",
+      judgment: "保留",
+      spin: e.spin, power: e.power, control: e.control, info: e.info,
+      maneuver: e.maneuver, swingThrough: e.swingThrough,
+      trajectory: e.trajectory, stiffness: e.stiffness,
+      shotForeAtk: e.shotForeAtk, shotForeDef: e.shotForeDef,
+      shotBackAtk: e.shotBackAtk, shotBackDef: e.shotBackDef,
+      shotSlice: e.shotSlice, shotServe: e.shotServe,
+      shotVolley: e.shotVolley, shotReturn: e.shotReturn,
+      confidence: e.confidence,
+      strokeNote: "", serveNote: "", volleyNote: "",
+      generalNote: e.memo || "",
+      linkedPracticeId: matchingP?.id || "",
+      linkedMatchId: linkedMtchId,
+    };
+    const newTrials = [trial, ...(trials || [])];
+    setTrials(newTrials);
+    lsSave(KEYS.trials, newTrials);
+    save(KEYS.trials, newTrials);
+    // 使ったカードを削除
+    const newCards = (quickTrialCards || []).filter(c => c.id !== card.id);
+    persistQuickTrialCards(newCards);
+    // toast (連携状況をユーザーに通知)
+    const linked = !!matchingP || !!linkedMtchId;
+    const linkMsg = linkedMtchId && matchingP ? "練習＋試合と紐付け"
+                  : linkedMtchId ? "試合と紐付け"
+                  : matchingP   ? "練習と紐付け" : "";
+    toast.show(linked ? `試打を保存 → ${linkMsg}` : "試打を保存", "success");
+  };
+
+  // S15.5: 既存試打を試打カードに昇格 (TrialDetail から呼ぶ、毎回同じ設定の再利用に便利)
+  const handleCreateCardFromTrial = (trial) => {
+    if (!trial || !trial.racketName) return;
+    // 同じ racket+string+tension のカードが既にあればスキップ (重複追加防止)
+    const dupExists = (quickTrialCards || []).some(c =>
+      c.racket === (trial.racketName || "")
+      && (c.stringMain || "") === (trial.stringMain || "")
+      && (c.stringCross || "") === (trial.stringCross || "")
+      && (c.tensionMain || "") === (trial.tensionMain || "")
+      && (c.tensionCross || "") === (trial.tensionCross || "")
+    );
+    if (dupExists) {
+      toast.show("同じ設定のカードが既にあります", "info");
+      return;
+    }
+    const newCard = {
+      id: genId(),
+      racket: trial.racketName || "",
+      stringMain: trial.stringMain || "",
+      stringCross: trial.stringCross || "",
+      tensionMain: trial.tensionMain || "",
+      tensionCross: trial.tensionCross || "",
+    };
+    persistQuickTrialCards([newCard, ...(quickTrialCards || [])]);
+    toast.show("試打カードに追加しました", "success");
+  };
+
   // QuickAdd 保存: handleSave (新規/更新両対応) を再利用 + Detail 画面で開く (閲覧モード)
   // S15.1 fix: handleCardClick と同じく history.pushState を 1 個積む。
   //   これがないと、新規追加 → Detail → 戻る で Tennis DB の前のページ (Google 等) に飛んでしまう
@@ -634,6 +748,7 @@ function TennisDB() {
           onSave={handleSave}
           onDelete={handleDelete}
           onMerge={handleMergeStart}
+          onCreateCard={handleCreateCardFromTrial}
           onOpenLinkedSession={handleOpenLinkedSession}
           toast={toast}
           confirm={cfm}
@@ -668,6 +783,18 @@ function TennisDB() {
         open={weatherModalOpen}
         weather={weather}
         onClose={handleWeatherClose}
+      />
+      {/* S15.5: QuickTrialMode (試打カード式、Home 試打ボタン → これが起動) */}
+      <QuickTrialMode
+        open={quickTrial}
+        cards={quickTrialCards}
+        setCards={persistQuickTrialCards}
+        rackets={rackets}
+        stringNames={_extractNames(strings)}
+        onSaveTrial={handleQuickTrialSave}
+        onClose={() => setQuickTrial(false)}
+        confirm={cfm}
+        toast={toast}
       />
       {toast.el}
       {cfm.el}

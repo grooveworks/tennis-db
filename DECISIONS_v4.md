@@ -291,6 +291,52 @@ Practice Detail (S10、後続リファクタ):
 
 ---
 
+### S15.5 (試打カード式 QuickTrialMode — V2 移植) ✅
+
+**経緯**: S15 完了直後、ユーザーから「明後日 (2026-04-30) の大会で試打カード式を実戦投入したい」要望。S16 (Gear タブ) 全体を待たず、**試打カード単体だけを切り出して S15.5 として急ぐ** 判断。
+
+**実装範囲**:
+- **`src/ui/sessions/QuickTrialMode.jsx`** (新規): V2 移植 + v4 デザイン (Apple-flavored)。カード一覧 view + 評価入力 view (17 項目 × 1-5)。eval/touched は per-card 永続 (中断・再開可)
+- **`src/app.jsx`** (改修): Firestore `quickTrialCards` 読込追加 / state / Home 試打ボタンの routing を QuickAddModal → QuickTrialMode に切替 / `persistQuickTrialCards` (関数形式対応) / `handleQuickTrialSave` (auto-link + trial 生成 + カード削除 + toast) / `handleCreateCardFromTrial` (TrialDetail から既存試打を新カードに昇格)
+- **`src/ui/sessions/SessionDetailView.jsx`** (改修): `onCreateCard` prop を TrialDetail に橋渡し
+- **`src/ui/sessions/TrialDetail.jsx`** (改修): 機材セクション内に「試打カードに追加」アウトラインボタン (補助 CTA)
+
+**確定方針** (preview_s15.5_p1 → ChatGPT レビュー → preview_s15.5_p2 で承認):
+- **Home 試打 → カード式完全置き換え** (フォーム入力経路 = QuickAddModal trial は Home からは廃止)
+- **status 色と評価色を分離**: status (active/candidate/considering/support) はカード左帯と小チップだけ。評価選択色は **primary (青) 固定**
+- **タイトル文字 = 黒固定** (status 色の主張を引き算、ChatGPT 指摘)
+- **進捗カウンタ** (4 セクション分): 性能 6/touched / 特性 2/touched / ショット 8/touched / 総合 1/touched、完了で緑表示
+- **CTA 文言短縮**: 「保存して試打タブに転送」 → 「評価を保存」、「カード化」 → 「試打カードに追加」(自然な日本語)
+- **TrialDetail のカード追加 = アウトライン CTA** (面塗りなし、補助役、試打閲覧の主役を邪魔しない)
+- **アイコン絞る**: X / ArrowLeft / Plus / CheckCircle / PlusCircle / PencilSimpleLine / Trash + セクション見出しに 4 個 (Gauge / SlidersHorizontal / TennisBall / SealCheck)
+- **カード削除 (×) 追加** (V2 にはなかった、scope 「追加+削除のみ」 のため)
+
+**自動連携 (V2 互換 + 拡張)**:
+- 同日 practice → `linkedPracticeId` 自動設定 + `temp` / `venue` / **`weather`** 自動コピー (V2 では temp/venue だけ)
+- 同日 tournament の最後の match → `linkedMatchId` 自動設定
+- judgment デフォルト「保留」 → TrialDetail 編集で「採用候補/却下」へ
+- **使ったカードは保存後に削除** (V2 互換、使い切り設計)
+- **重複追加防止**: 同じ racket+string+tension のカードが既にあれば toast 通知
+
+**S15.5 検証中に発覚した bug 修正 (S15.5.2)**:
+- **QuickTrialMode の評価 view → 一覧 view 戻り**: `history.pushState` 抜けで iOS 左端スワイプ → Tennis DB の前のページ (Home) に飛ぶ問題
+- 修正: open=true で `history.pushState({tdb:"quickTrial-list"})` + selectCard で更に `pushState({tdb:"quickTrial-eval"})` + 「← 一覧に戻る」と X (閉じる) はどちらも `history.back()` 経由 + `popstate` listener で内部 state 制御 (selected あり → setSelected(null)、なし → onClose)
+- `eval_` / `touched` を `useRef` で tracking (popstate handler の stale closure 回避)
+- `persistQuickTrialCards` を関数形式 (`prev => newCards`) にも対応 (setCards `prev => ...` を使えるように)
+
+**スコープ外 (S16 以降に繰越)**:
+- ❌ Gear タブ全体 (S16 本体で実装) — ラケット status 編集 UI / セッティング組合せ管理 / 実測値ログ
+- ❌ カード編集 UI (V2 互換、追加+削除のみで運用)
+- ❌ 連携先からの個別フィールド転記「コピーボタン」 (Phase 2、需要に応じて検討)
+- ❌ 17 項目の折り畳み / セクションジャンプ (進捗カウンタで代替、明後日大会優先で MVP 維持)
+
+**過去データ救済との位置付け** (memory `project_data_quality_legacy.md`):
+- S15.5 は「これから (= 大会当日) 試打する時の効率化」が主眼
+- 過去データ (1 年以上前の AW 由来空練習) の救済は S15 マージ機能や TrialDetail 編集で対応
+- TrialDetail から「試打カードに追加」 → 過去のエース機 (例: EZONE100TOUR) の設定を 1 タップで再利用可能 (毎回同じセッティングで登録するケースの効率化)
+
+---
+
 ## このファイルの更新
 
 - Stage 完了時に該当節を追記

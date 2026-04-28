@@ -2,7 +2,7 @@
 // 統一レイアウト: 会場/気象 3 列 + 機材 2x2 (大会・練習と同じ)
 // 評価: 打感評価 6 項目 + 平均 / 特性 2 項目 / ショット別 8 項目 / 安心感 1 項目 (v3 踏襲)
 // 評価項目は Lucide マッピング未登録につきアイコンなし、ラベル+バー+数値で構成
-function TrialDetail({ session, linkedPractice, onLinkedPracticeClick }) {
+function TrialDetail({ session, linkedPractice, onLinkedPracticeClick, onCreateCard }) {
   const t = session || {};
   const judgmentBadge = _dvTrialJudgmentBadgeProps(t.judgment);
 
@@ -73,6 +73,22 @@ function TrialDetail({ session, linkedPractice, onLinkedPracticeClick }) {
           <_dvInfoCell label="縦糸" value={t.stringMain} />
           <_dvInfoCell label="横糸" value={t.stringCross} />
         </div>
+        {/* S15.5: この設定を試打カードに 1 タップ複製 (主役は試打閲覧、これは補助 CTA) */}
+        {onCreateCard && t.racketName && (
+          <button
+            onClick={onCreateCard}
+            style={{
+              width: "100%", marginTop: 12,
+              background: "transparent", border: `1px solid ${C.border}`,
+              borderRadius: 10, padding: "10px 14px",
+              fontSize: 13, fontWeight: 500, color: C.primary,
+              cursor: "pointer", fontFamily: "inherit", minHeight: 44,
+              display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
+            }}
+          >
+            <Icon name="plus-circle" size={16} color={C.primary} /> 試打カードに追加
+          </button>
+        )}
       </_dvSection>
 
       {/* 打感評価 6 項目 + 平均 */}
