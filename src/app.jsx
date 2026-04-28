@@ -190,7 +190,14 @@ function TennisDB() {
       if (u) {
         // 前回の snapshot があれば解除 (再ログイン時の二重購読防止)
         if (unsubSnapshot) { unsubSnapshot(); unsubSnapshot = null; }
-        setLoading(true);
+        // S15.5.6 fix: localStorage にデータがあれば「読み込み中」表示せず即表示
+        //   Chrome で Firestore 読み込みが遅い時 (15 秒待ち等) のユーザー体験改善
+        //   Firestore 取得完了後に state を静かに更新 (差分があれば反映)
+        //   初回ログイン (localStorage 空) のみ loading 表示 → 15 秒 timeout で諦め
+        const hasLocalData = (lsLoad(KEYS.tournaments) || []).length > 0
+                          || (lsLoad(KEYS.practices) || []).length > 0
+                          || (lsLoad(KEYS.trials) || []).length > 0;
+        if (!hasLocalData) setLoading(true);
         try {
           // 1) 初回読み込み
           const data = await loadSessionsFromFirestore(u);
@@ -531,6 +538,18 @@ function TennisDB() {
       setQuickAddType(type);
     }
   };
+  // S15.5+: Home の「現在の状況」 → 主力ラケット行タップ → Sessions タブをそのラケットでフィルタ
+  //   localStorage に Sessions タブの filters を書き込み + setTab("sessions") で遷移
+  //   SessionsTab は mount 時に _loadFilters で localStorage から filters 読み込むため、unmount → mount で反映
+  const handleMainRacketClick = (racketName) => {
+    if (!racketName) return;
+    try {
+      const filters = { type: [], racket: [racketName], opponent: [], result: [] };
+      localStorage.setItem("v4-sessions-filters", JSON.stringify(filters));
+    } catch (_) {}
+    setTab("sessions");
+  };
+
   // S14: Home Quick Add 3 ボタン用
   // S15.5 fix: 試打 (trial) の起動先を QuickAddModal → QuickTrialMode (カード式) に切り替え
   //   フォーム入力経路は Home からは廃止 (DECISIONS S15.5、ユーザー判断)
@@ -724,6 +743,7 @@ function TennisDB() {
         next={next}
         onQuickAdd={handleHomeQuickAdd}
         onCardClick={handleCardClick}
+        onMainRacketClick={handleMainRacketClick}
       />
     );
   } else if (tab === "gear") {

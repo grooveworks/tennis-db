@@ -45,18 +45,29 @@ const _ctxDayDiff = (iso, todayIso) => {
 //   - val (主行): line-height 1.4 で最大 2 行折り返し許容、それ以上は WebkitLineClamp で省略
 //   - sub (補助行): 1 行のみ、nowrap + ellipsis (横にはみ出さない)
 //   - 長い大会名 / ラケット名にも耐える
-function _CtxRow({ keyText, val, sub, status, statusKind }) {
+function _CtxRow({ keyText, val, sub, status, statusKind, onClick }) {
   const statusStyle =
     statusKind === "keep"   ? { background: "#E6F4EA", color: "#0a5b35" } :
     statusKind === "trial"  ? { background: "#F3E8FD", color: "#6a25a8" } :
     statusKind === "result" ? { background: "#FFE6BD", color: "#7E4F00" } :
                               { background: C.panel2, color: C.textSecondary };
+  // S15.5+: onClick あれば行全体を tappable に (cursor pointer + hover bg)
+  const clickable = !!onClick;
   return (
-    <div style={{
-      display: "flex", alignItems: "flex-start", gap: 10,
-      padding: "9px 0",
-      borderTop: `1px solid ${C.bg}`,
-    }}>
+    <div
+      onClick={onClick || undefined}
+      role={clickable ? "button" : undefined}
+      tabIndex={clickable ? 0 : undefined}
+      onKeyDown={clickable ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } } : undefined}
+      style={{
+        display: "flex", alignItems: "flex-start", gap: 10,
+        padding: "9px 6px",
+        margin: "0 -6px",
+        borderTop: `1px solid ${C.bg}`,
+        borderRadius: 8,
+        cursor: clickable ? "pointer" : "default",
+      }}
+    >
       <div style={{ fontSize: 11, color: C.textMuted, fontWeight: 600, minWidth: 62, paddingTop: 1, letterSpacing: 0.2 }}>
         {keyText}
       </div>
@@ -83,11 +94,14 @@ function _CtxRow({ keyText, val, sub, status, statusKind }) {
           }}>{sub}</div>
         )}
       </div>
+      {clickable && (
+        <Icon name="chevron-right" size={14} color={C.textMuted} style={{ alignSelf: "center", flexShrink: 0 }} />
+      )}
     </div>
   );
 }
 
-function CurrentContext({ tournaments = [], practices = [], trials = [], next = [] }) {
+function CurrentContext({ tournaments = [], practices = [], trials = [], next = [], onCardClick, onMainRacketClick }) {
   const todayIso = today();
 
   // 1. 次の大会
@@ -157,7 +171,7 @@ function CurrentContext({ tournaments = [], practices = [], trials = [], next = 
         }}>CURRENT</span>
       </div>
 
-      {/* 1. 次の大会 */}
+      {/* 1. 次の大会 → tournament Detail へリンク */}
       <_CtxRow
         keyText="次の大会"
         val={upcomingTournament
@@ -168,15 +182,16 @@ function CurrentContext({ tournaments = [], practices = [], trials = [], next = 
           ? `${_ctxDayDiff(normDate(upcomingTournament.date), todayIso)} · ${upcomingTournament.level || "—"} ${upcomingTournament.type === "doubles" ? "ダブルス" : upcomingTournament.type === "mixed" ? "ミックス" : "シングルス"}${upcomingTournament.startTime ? ` · ${upcomingTournament.startTime} 開始` : ""}`
           : null
         }
+        onClick={upcomingTournament && onCardClick ? () => onCardClick("tournament", upcomingTournament) : null}
       />
 
-      {/* 2. 課題 */}
+      {/* 2. 課題 (S17 Plan タブ未実装、リンクなし) */}
       <_CtxRow
         keyText="課題"
         val={topTask ? topTask.label || "(無題)" : "未設定"}
       />
 
-      {/* 3. 主力 */}
+      {/* 3. 主力 → Sessions タブをそのラケットでフィルタした一覧へ */}
       <_CtxRow
         keyText="主力"
         val={mainRacket ? mainRacket.name : "未設定"}
@@ -186,9 +201,10 @@ function CurrentContext({ tournaments = [], practices = [], trials = [], next = 
           ? `直近 30 日 ${mainRacket.count} 回`
           : null
         }
+        onClick={mainRacket && onMainRacketClick ? () => onMainRacketClick(mainRacket.name) : null}
       />
 
-      {/* 4. 検討中 (フォールバック: 行非表示) */}
+      {/* 4. 検討中 → trial Detail へリンク (フォールバック: 行非表示) */}
       {candidate && (
         <_CtxRow
           keyText="検討中"
@@ -196,16 +212,18 @@ function CurrentContext({ tournaments = [], practices = [], trials = [], next = 
           status="採用候補"
           statusKind="trial"
           sub={`${fmtDate(candidate.date)} 試打`}
+          onClick={onCardClick ? () => onCardClick("trial", candidate) : null}
         />
       )}
 
-      {/* 5. 直近結果 (フォールバック: 行非表示) */}
+      {/* 5. 直近結果 → tournament Detail へリンク (フォールバック: 行非表示) */}
       {recentResult && (
         <_CtxRow
           keyText="直近"
           val={<>{fmtDate(recentResult.date)} {recentResult.name || "(無題)"}</>}
           status={recentResult.overallResult}
           statusKind="result"
+          onClick={onCardClick ? () => onCardClick("tournament", recentResult) : null}
         />
       )}
     </div>

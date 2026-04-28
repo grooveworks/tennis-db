@@ -45,7 +45,7 @@ input,select,textarea,button{font-family:inherit}
 const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
 // ── 定数定義（色・キー・バージョン）─────────────
-const APP_VERSION="4.0.0-S15.5.4";
+const APP_VERSION="4.0.0-S15.5.6";
 const font="-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif";
 
 // 色設計（DESIGN_SYSTEM_v4.md §1 + §10 S13.5 改訂準拠）
@@ -2358,18 +2358,29 @@ const _ctxDayDiff = (iso, todayIso) => {
 //   - val (主行): line-height 1.4 で最大 2 行折り返し許容、それ以上は WebkitLineClamp で省略
 //   - sub (補助行): 1 行のみ、nowrap + ellipsis (横にはみ出さない)
 //   - 長い大会名 / ラケット名にも耐える
-function _CtxRow({ keyText, val, sub, status, statusKind }) {
+function _CtxRow({ keyText, val, sub, status, statusKind, onClick }) {
   const statusStyle =
     statusKind === "keep"   ? { background: "#E6F4EA", color: "#0a5b35" } :
     statusKind === "trial"  ? { background: "#F3E8FD", color: "#6a25a8" } :
     statusKind === "result" ? { background: "#FFE6BD", color: "#7E4F00" } :
                               { background: C.panel2, color: C.textSecondary };
+  // S15.5+: onClick あれば行全体を tappable に (cursor pointer + hover bg)
+  const clickable = !!onClick;
   return (
-    <div style={{
-      display: "flex", alignItems: "flex-start", gap: 10,
-      padding: "9px 0",
-      borderTop: `1px solid ${C.bg}`,
-    }}>
+    <div
+      onClick={onClick || undefined}
+      role={clickable ? "button" : undefined}
+      tabIndex={clickable ? 0 : undefined}
+      onKeyDown={clickable ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } } : undefined}
+      style={{
+        display: "flex", alignItems: "flex-start", gap: 10,
+        padding: "9px 6px",
+        margin: "0 -6px",
+        borderTop: `1px solid ${C.bg}`,
+        borderRadius: 8,
+        cursor: clickable ? "pointer" : "default",
+      }}
+    >
       <div style={{ fontSize: 11, color: C.textMuted, fontWeight: 600, minWidth: 62, paddingTop: 1, letterSpacing: 0.2 }}>
         {keyText}
       </div>
@@ -2396,11 +2407,14 @@ function _CtxRow({ keyText, val, sub, status, statusKind }) {
           }}>{sub}</div>
         )}
       </div>
+      {clickable && (
+        <Icon name="chevron-right" size={14} color={C.textMuted} style={{ alignSelf: "center", flexShrink: 0 }} />
+      )}
     </div>
   );
 }
 
-function CurrentContext({ tournaments = [], practices = [], trials = [], next = [] }) {
+function CurrentContext({ tournaments = [], practices = [], trials = [], next = [], onCardClick, onMainRacketClick }) {
   const todayIso = today();
 
   // 1. 次の大会
@@ -2470,7 +2484,7 @@ function CurrentContext({ tournaments = [], practices = [], trials = [], next = 
         }}>CURRENT</span>
       </div>
 
-      {/* 1. 次の大会 */}
+      {/* 1. 次の大会 → tournament Detail へリンク */}
       <_CtxRow
         keyText="次の大会"
         val={upcomingTournament
@@ -2481,15 +2495,16 @@ function CurrentContext({ tournaments = [], practices = [], trials = [], next = 
           ? `${_ctxDayDiff(normDate(upcomingTournament.date), todayIso)} · ${upcomingTournament.level || "—"} ${upcomingTournament.type === "doubles" ? "ダブルス" : upcomingTournament.type === "mixed" ? "ミックス" : "シングルス"}${upcomingTournament.startTime ? ` · ${upcomingTournament.startTime} 開始` : ""}`
           : null
         }
+        onClick={upcomingTournament && onCardClick ? () => onCardClick("tournament", upcomingTournament) : null}
       />
 
-      {/* 2. 課題 */}
+      {/* 2. 課題 (S17 Plan タブ未実装、リンクなし) */}
       <_CtxRow
         keyText="課題"
         val={topTask ? topTask.label || "(無題)" : "未設定"}
       />
 
-      {/* 3. 主力 */}
+      {/* 3. 主力 → Sessions タブをそのラケットでフィルタした一覧へ */}
       <_CtxRow
         keyText="主力"
         val={mainRacket ? mainRacket.name : "未設定"}
@@ -2499,9 +2514,10 @@ function CurrentContext({ tournaments = [], practices = [], trials = [], next = 
           ? `直近 30 日 ${mainRacket.count} 回`
           : null
         }
+        onClick={mainRacket && onMainRacketClick ? () => onMainRacketClick(mainRacket.name) : null}
       />
 
-      {/* 4. 検討中 (フォールバック: 行非表示) */}
+      {/* 4. 検討中 → trial Detail へリンク (フォールバック: 行非表示) */}
       {candidate && (
         <_CtxRow
           keyText="検討中"
@@ -2509,16 +2525,18 @@ function CurrentContext({ tournaments = [], practices = [], trials = [], next = 
           status="採用候補"
           statusKind="trial"
           sub={`${fmtDate(candidate.date)} 試打`}
+          onClick={onCardClick ? () => onCardClick("trial", candidate) : null}
         />
       )}
 
-      {/* 5. 直近結果 (フォールバック: 行非表示) */}
+      {/* 5. 直近結果 → tournament Detail へリンク (フォールバック: 行非表示) */}
       {recentResult && (
         <_CtxRow
           keyText="直近"
           val={<>{fmtDate(recentResult.date)} {recentResult.name || "(無題)"}</>}
           status={recentResult.overallResult}
           statusKind="result"
+          onClick={onCardClick ? () => onCardClick("tournament", recentResult) : null}
         />
       )}
     </div>
@@ -2817,6 +2835,7 @@ function HomeTab({
   next = [],
   onQuickAdd,
   onCardClick,
+  onMainRacketClick,
 }) {
   // DayPanel: 選択日 (iso) を内部 state で持つ。null なら閉
   const [dayPanelIso, setDayPanelIso] = useState(null);
@@ -2849,6 +2868,8 @@ function HomeTab({
         practices={practices}
         trials={trials}
         next={next}
+        onCardClick={onCardClick}
+        onMainRacketClick={onMainRacketClick}
       />
 
       {/* 2. 今週サマリー */}
@@ -10757,7 +10778,14 @@ function TennisDB() {
       if (u) {
         // 前回の snapshot があれば解除 (再ログイン時の二重購読防止)
         if (unsubSnapshot) { unsubSnapshot(); unsubSnapshot = null; }
-        setLoading(true);
+        // S15.5.6 fix: localStorage にデータがあれば「読み込み中」表示せず即表示
+        //   Chrome で Firestore 読み込みが遅い時 (15 秒待ち等) のユーザー体験改善
+        //   Firestore 取得完了後に state を静かに更新 (差分があれば反映)
+        //   初回ログイン (localStorage 空) のみ loading 表示 → 15 秒 timeout で諦め
+        const hasLocalData = (lsLoad(KEYS.tournaments) || []).length > 0
+                          || (lsLoad(KEYS.practices) || []).length > 0
+                          || (lsLoad(KEYS.trials) || []).length > 0;
+        if (!hasLocalData) setLoading(true);
         try {
           // 1) 初回読み込み
           const data = await loadSessionsFromFirestore(u);
@@ -11098,6 +11126,18 @@ function TennisDB() {
       setQuickAddType(type);
     }
   };
+  // S15.5+: Home の「現在の状況」 → 主力ラケット行タップ → Sessions タブをそのラケットでフィルタ
+  //   localStorage に Sessions タブの filters を書き込み + setTab("sessions") で遷移
+  //   SessionsTab は mount 時に _loadFilters で localStorage から filters 読み込むため、unmount → mount で反映
+  const handleMainRacketClick = (racketName) => {
+    if (!racketName) return;
+    try {
+      const filters = { type: [], racket: [racketName], opponent: [], result: [] };
+      localStorage.setItem("v4-sessions-filters", JSON.stringify(filters));
+    } catch (_) {}
+    setTab("sessions");
+  };
+
   // S14: Home Quick Add 3 ボタン用
   // S15.5 fix: 試打 (trial) の起動先を QuickAddModal → QuickTrialMode (カード式) に切り替え
   //   フォーム入力経路は Home からは廃止 (DECISIONS S15.5、ユーザー判断)
@@ -11291,6 +11331,7 @@ function TennisDB() {
         next={next}
         onQuickAdd={handleHomeQuickAdd}
         onCardClick={handleCardClick}
+        onMainRacketClick={handleMainRacketClick}
       />
     );
   } else if (tab === "gear") {
