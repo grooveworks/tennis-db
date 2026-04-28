@@ -181,6 +181,23 @@ function TennisDB() {
   const handleWeatherClick = () => { if (weather) setWeatherModalOpen(true); };
   const handleWeatherClose = () => setWeatherModalOpen(false);
 
+  // S15.5.7: 設定 Modal + 文字サイズ scale (メモ系のみ適用)
+  //   localStorage 永続化、CSS variable 経由で子コンポーネントに伝播
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [fontScale, setFontScale] = useState(() => {
+    try {
+      const v = parseFloat(localStorage.getItem(LS_PREFIX + "memo-font-scale-v1"));
+      if (v === 1.0 || v === 1.15 || v === 1.30) return v;
+    } catch (_) {}
+    return 1.0;
+  });
+  const handleSettingsClick = () => setSettingsOpen(true);
+  const handleSettingsClose = () => setSettingsOpen(false);
+  const handleFontScaleChange = (scale) => {
+    setFontScale(scale);
+    try { localStorage.setItem(LS_PREFIX + "memo-font-scale-v1", String(scale)); } catch (_) {}
+  };
+
   // 認証状態監視 + リアルタイム同期
   useEffect(() => {
     let unsubSnapshot = null;
@@ -763,6 +780,8 @@ function TennisDB() {
       // 100vh は iPhone Safari で URL バー込みの値を返すため、見える範囲より大きくなり検索欄等が画面外に押し出される。
       // 100dvh は見える範囲の高さなので、WeekPanel/DayPanel が glass overlay 化されて heatmap を押し縮めない今、再採用が安全。
       paddingBottom: "calc(56px + env(safe-area-inset-bottom, 0))",
+      // S15.5.7: メモ系文字サイズの scale を CSS variable で子コンポーネントへ伝播
+      "--memo-font-scale": String(fontScale),
     }}>
       {/* S13.5 共通 Header: Tennis*DB* + version + ☁️ + 🌤 + 👤 (§10.8 / DECISIONS S13.5) */}
       <Header
@@ -773,6 +792,7 @@ function TennisDB() {
         onLogout={handleLogout}
         weather={weather}
         onWeatherClick={handleWeatherClick}
+        onSettingsClick={handleSettingsClick}
       />
       {tabContent}
       <TabBar tab={tab} onTabChange={setTab} />
@@ -842,6 +862,13 @@ function TennisDB() {
         open={weatherModalOpen}
         weather={weather}
         onClose={handleWeatherClose}
+      />
+      {/* S15.5.7: 設定 Modal (Header ⚙️ タップで開く) — 文字サイズ + バージョン表示 */}
+      <SettingsModal
+        open={settingsOpen}
+        fontScale={fontScale}
+        onFontScaleChange={handleFontScaleChange}
+        onClose={handleSettingsClose}
       />
       {/* S15.5: QuickTrialMode (試打カード式、Home 試打ボタン → これが起動) */}
       <QuickTrialMode

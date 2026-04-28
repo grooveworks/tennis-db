@@ -105,6 +105,15 @@ function QuickTrialMode({ open, cards, setCards, rackets, stringNames, onSaveTri
   useEffect(() => { evalRef.current = eval_; }, [eval_]);
   useEffect(() => { touchedRef.current = touched; }, [touched]);
 
+  // S15.5.7: メモ textarea の auto-grow (内容に合わせて高さ自動拡張)
+  const memoRef = useRef(null);
+  useEffect(() => {
+    const ta = memoRef.current;
+    if (!ta) return;
+    ta.style.height = "auto";
+    ta.style.height = ta.scrollHeight + "px";
+  }, [eval_.memo, selected]);
+
   // open 切替で内部 state リセット
   useEffect(() => {
     if (!open) {
@@ -383,7 +392,7 @@ function QuickTrialMode({ open, cards, setCards, rackets, stringNames, onSaveTri
             </div>
           ))}
 
-          {/* メモ */}
+          {/* メモ (S15.5.7: auto-grow + 文字サイズ scale 対応) */}
           <div style={{ marginBottom: 16 }}>
             <div style={{
               fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 6,
@@ -393,15 +402,21 @@ function QuickTrialMode({ open, cards, setCards, rackets, stringNames, onSaveTri
               <span>メモ</span>
             </div>
             <textarea
+              ref={memoRef}
               value={eval_.memo}
               onChange={(e) => setEval(prev => ({ ...prev, memo: e.target.value }))}
               placeholder="気づいたことを一言..."
               rows={3}
               style={{
                 width: "100%", borderRadius: 10, border: `1px solid ${C.border}`,
-                padding: "10px 12px", fontSize: 13, fontFamily: font,
-                resize: "vertical", color: C.text, background: C.panel,
-                boxSizing: "border-box", minHeight: 70,
+                padding: "12px",
+                fontSize: "calc(16px * var(--memo-font-scale, 1))",
+                lineHeight: 1.55,
+                fontFamily: font,
+                resize: "none", overflow: "hidden",
+                color: C.text, background: C.panel,
+                boxSizing: "border-box",
+                minHeight: "calc(3 * 1.55em + 24px)",
                 WebkitAppearance: "none", appearance: "none", outline: "none",
               }}
             />

@@ -1,8 +1,9 @@
-// Header — アプリ全体共通のトップヘッダ (S13.5 で全面改訂、§10.8 共通 Header 復活)
+// Header — アプリ全体共通のトップヘッダ (S13.5 で全面改訂、§10.8 共通 Header 復活、S15.5.7 で version 削除 + ⚙️ 設定追加)
 // v2/v3 形式踏襲 + Apple-flavored Material 路線で再構築:
-//   - 左端: 🎾 (Tabler tennis SVG) + Tennis (細字 grey) + DB (太字 Apple Blue) + v{APP_VERSION}
+//   - 左端: 🎾 (Tabler tennis SVG) + Tennis (細字 grey) + DB (太字 Apple Blue)
+//     ※ S15.5.7: バージョン表記を Header から削除 → SettingsModal 内に常設表示 (右側アイコン増加分のスペース確保)
 //   - ロゴタップ → home タブに遷移
-//   - 右側 (3 要素): ☁️同期状態 + 🌤天気 + 👤user
+//   - 右側 (4 要素): ☁️同期状態 + 🌤天気 + ⚙️設定 + 👤user
 //   - 背景: rgba(255,255,255,0.94) + backdrop-filter blur(12px) (Glass-header)
 //   - サブ行: 現在タブ名 (小さい灰色テキスト、TabBar 見切れ時のフォールバック)
 // import/export ボタンは S13.5 では除外、後 Stage で Claude 直接連携 + GoogleDrive 強制バックアップを別設計
@@ -15,7 +16,8 @@
 //   onLogout: ログアウトコールバック
 //   onWeatherClick: 天気タップコールバック (S14 で Open-Meteo 詳細 Modal を開く)、null 時は無反応
 //   weather: { temp: number, code: number } | null (S14 で実装、S13.5 では null = "—°" placeholder)
-function Header({ tabTitle, onLogoClick, user, syncing, onLogout, onWeatherClick, weather }) {
+//   onSettingsClick: ⚙️ 設定アイコンタップ (S15.5.7 で SettingsModal を開く)
+function Header({ tabTitle, onLogoClick, user, syncing, onLogout, onWeatherClick, weather, onSettingsClick }) {
   const hasWeather = weather && typeof weather.temp === "number";
   const tempStr = hasWeather ? `${Math.round(weather.temp)}°` : "";
 
@@ -62,11 +64,7 @@ function Header({ tabTitle, onLogoClick, user, syncing, onLogout, onWeatherClick
             fontSize: 18, fontWeight: 800, color: C.primary,
             letterSpacing: "-0.02em", marginLeft: 1, alignSelf: "center",
           }}>DB</span>
-          <span style={{
-            fontSize: 9, color: C.textMuted, marginLeft: 5,
-            alignSelf: "flex-end", marginBottom: 2,
-            fontFeatureSettings: '"tnum"',
-          }}>v{APP_VERSION}</span>
+          {/* S15.5.7: バージョン表記は SettingsModal に移動 (右側アイコン 4 個のスペース確保) */}
         </div>
 
         {/* 右側メタ (3 要素まで、§10.8) */}
@@ -109,6 +107,24 @@ function Header({ tabTitle, onLogoClick, user, syncing, onLogout, onWeatherClick
               <Icon name="sun" size={14} color={C.applePeach} weight="fill" />
               <span style={{ fontFeatureSettings: '"tnum"' }}>{tempStr}</span>
             </div>
+          )}
+
+          {/* S15.5.7: ⚙️ 設定 (天気とユーザーアイコンの間) */}
+          {onSettingsClick && (
+            <button
+              onClick={onSettingsClick}
+              aria-label="設定"
+              style={{
+                width: 32, height: 32,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                color: C.textSecondary, cursor: "pointer",
+                border: "none", background: "transparent",
+                borderRadius: 8,
+                padding: 0,
+              }}
+            >
+              <Icon name="settings" size={20} color={C.textSecondary} weight="regular" />
+            </button>
           )}
 
           {/* ユーザー / ログアウト */}

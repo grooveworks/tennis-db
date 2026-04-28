@@ -180,10 +180,18 @@ function _dvWatchCell({ label, value, unit }) {
 }
 
 function _dvMemoItem({ label, text }) {
+  // S15.5.7: 老眼配慮で fontSize 13 → 16 + memo-font-scale CSS var で 1.0/1.15/1.30 倍率対応
+  //   全文表示 (line-clamp は元から無し、whiteSpace pre-wrap で改行保持)
   return (
-    <div style={{ marginBottom: 8 }}>
+    <div style={{ marginBottom: 10 }}>
       <div style={{ fontSize: 11, color: C.textSecondary, marginBottom: 4, fontWeight: 600 }}>{label}</div>
-      <div style={{ fontSize: 13, lineHeight: 1.6, color: C.text, whiteSpace: "pre-wrap", background: C.bg, borderRadius: 8, padding: "10px 12px" }}>{text}</div>
+      <div style={{
+        fontSize: "calc(16px * var(--memo-font-scale, 1))",
+        lineHeight: 1.65,
+        color: C.text, whiteSpace: "pre-wrap",
+        background: C.bg, borderRadius: 10,
+        padding: "12px 14px",
+      }}>{text}</div>
     </div>
   );
 }

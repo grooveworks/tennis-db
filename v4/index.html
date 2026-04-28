@@ -45,7 +45,7 @@ input,select,textarea,button{font-family:inherit}
 const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
 // ── 定数定義（色・キー・バージョン）─────────────
-const APP_VERSION="4.0.0-S15.5.6";
+const APP_VERSION="4.0.0-S15.5.7";
 const font="-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif";
 
 // 色設計（DESIGN_SYSTEM_v4.md §1 + §10 S13.5 改訂準拠）
@@ -1284,11 +1284,12 @@ function useConfirm() {
 }
 
 // === src/ui/common/Header.jsx ===
-// Header — アプリ全体共通のトップヘッダ (S13.5 で全面改訂、§10.8 共通 Header 復活)
+// Header — アプリ全体共通のトップヘッダ (S13.5 で全面改訂、§10.8 共通 Header 復活、S15.5.7 で version 削除 + ⚙️ 設定追加)
 // v2/v3 形式踏襲 + Apple-flavored Material 路線で再構築:
-//   - 左端: 🎾 (Tabler tennis SVG) + Tennis (細字 grey) + DB (太字 Apple Blue) + v{APP_VERSION}
+//   - 左端: 🎾 (Tabler tennis SVG) + Tennis (細字 grey) + DB (太字 Apple Blue)
+//     ※ S15.5.7: バージョン表記を Header から削除 → SettingsModal 内に常設表示 (右側アイコン増加分のスペース確保)
 //   - ロゴタップ → home タブに遷移
-//   - 右側 (3 要素): ☁️同期状態 + 🌤天気 + 👤user
+//   - 右側 (4 要素): ☁️同期状態 + 🌤天気 + ⚙️設定 + 👤user
 //   - 背景: rgba(255,255,255,0.94) + backdrop-filter blur(12px) (Glass-header)
 //   - サブ行: 現在タブ名 (小さい灰色テキスト、TabBar 見切れ時のフォールバック)
 // import/export ボタンは S13.5 では除外、後 Stage で Claude 直接連携 + GoogleDrive 強制バックアップを別設計
@@ -1301,7 +1302,8 @@ function useConfirm() {
 //   onLogout: ログアウトコールバック
 //   onWeatherClick: 天気タップコールバック (S14 で Open-Meteo 詳細 Modal を開く)、null 時は無反応
 //   weather: { temp: number, code: number } | null (S14 で実装、S13.5 では null = "—°" placeholder)
-function Header({ tabTitle, onLogoClick, user, syncing, onLogout, onWeatherClick, weather }) {
+//   onSettingsClick: ⚙️ 設定アイコンタップ (S15.5.7 で SettingsModal を開く)
+function Header({ tabTitle, onLogoClick, user, syncing, onLogout, onWeatherClick, weather, onSettingsClick }) {
   const hasWeather = weather && typeof weather.temp === "number";
   const tempStr = hasWeather ? `${Math.round(weather.temp)}°` : "";
 
@@ -1348,11 +1350,7 @@ function Header({ tabTitle, onLogoClick, user, syncing, onLogout, onWeatherClick
             fontSize: 18, fontWeight: 800, color: C.primary,
             letterSpacing: "-0.02em", marginLeft: 1, alignSelf: "center",
           }}>DB</span>
-          <span style={{
-            fontSize: 9, color: C.textMuted, marginLeft: 5,
-            alignSelf: "flex-end", marginBottom: 2,
-            fontFeatureSettings: '"tnum"',
-          }}>v{APP_VERSION}</span>
+          {/* S15.5.7: バージョン表記は SettingsModal に移動 (右側アイコン 4 個のスペース確保) */}
         </div>
 
         {/* 右側メタ (3 要素まで、§10.8) */}
@@ -1395,6 +1393,24 @@ function Header({ tabTitle, onLogoClick, user, syncing, onLogout, onWeatherClick
               <Icon name="sun" size={14} color={C.applePeach} weight="fill" />
               <span style={{ fontFeatureSettings: '"tnum"' }}>{tempStr}</span>
             </div>
+          )}
+
+          {/* S15.5.7: ⚙️ 設定 (天気とユーザーアイコンの間) */}
+          {onSettingsClick && (
+            <button
+              onClick={onSettingsClick}
+              aria-label="設定"
+              style={{
+                width: 32, height: 32,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                color: C.textSecondary, cursor: "pointer",
+                border: "none", background: "transparent",
+                borderRadius: 8,
+                padding: 0,
+              }}
+            >
+              <Icon name="settings" size={20} color={C.textSecondary} weight="regular" />
+            </button>
           )}
 
           {/* ユーザー / ログアウト */}
@@ -1831,6 +1847,169 @@ function Select({ label, value, onChange, options = [], required, error, style: 
   );
 }
 
+// === src/ui/common/SettingsModal.jsx ===
+// SettingsModal — アプリ設定 (S15.5.7、Header の ⚙️ から起動)
+//
+// 役割:
+//   - 文字サイズ調整 (標準 / 大 / 特大、メモ系テキストの拡大率を localStorage 永続化)
+//   - アプリバージョン表示 (Header からは削除、ここで常設表示)
+//   - 将来の設定追加用の入れ物 (通知 / 表示モード / バックアップ等)
+//
+// props:
+//   open:            boolean
+//   fontScale:       1.0 | 1.15 | 1.30
+//   onFontScaleChange: (scale) => void  state + lsSave
+//   onClose:         () => void
+//
+// 文字サイズ scale 適用範囲 (S15.5.7 時点):
+//   - メモ系のみ (Textarea / _dvMemoItem / QuickTrialMode メモ)
+//   - 本文 / ラベル / 数字は将来 Stage で段階拡張 (DESIGN_SYSTEM 全体改訂が必要なため)
+
+const _SCALE_OPTIONS = [
+  { value: 1.0,  label: "標準", desc: "16 px (現行)" },
+  { value: 1.15, label: "大",   desc: "18 px" },
+  { value: 1.30, label: "特大", desc: "21 px" },
+];
+
+function SettingsModal({ open, fontScale, onFontScaleChange, onClose }) {
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e) => { if (e.key === "Escape") onClose && onClose(); };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  const scale = typeof fontScale === "number" ? fontScale : 1.0;
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="アプリ設定"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose && onClose(); }}
+      style={{
+        position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        padding: 20, zIndex: 1000,
+      }}
+    >
+      <div style={{
+        background: C.panel,
+        borderRadius: RADIUS.card,
+        width: "100%", maxWidth: 420,
+        maxHeight: "90vh",
+        overflow: "auto",
+        position: "relative",
+        animation: "modalEnter 250ms ease-out",
+        padding: 20,
+      }}>
+        {/* 閉じる */}
+        <button
+          onClick={onClose}
+          aria-label="閉じる"
+          style={{
+            position: "absolute", top: 12, left: 12,
+            width: 40, height: 40,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            borderRadius: 8, border: "none", background: "transparent",
+            color: C.textSecondary, cursor: "pointer",
+          }}
+        >
+          <Icon name="x" size={24} />
+        </button>
+
+        {/* タイトル */}
+        <div style={{
+          fontSize: 16, fontWeight: 700, textAlign: "center",
+          marginTop: 16, marginBottom: 18, color: C.text,
+          display: "inline-flex", width: "100%",
+          alignItems: "center", justifyContent: "center", gap: 6,
+        }}>
+          <Icon name="settings" size={18} color={C.text} />
+          設定
+        </div>
+
+        {/* 文字サイズ (メモ系) */}
+        <div style={{ marginBottom: 22 }}>
+          <div style={{
+            fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 4,
+          }}>
+            メモ欄の文字サイズ
+          </div>
+          <div style={{
+            fontSize: 11, color: C.textMuted, marginBottom: 10, lineHeight: 1.5,
+          }}>
+            試打評価のメモ・編集画面のメモ・試打詳細のメモ表示に適用 (老眼配慮)。
+            本文やラベルは現行サイズ維持。
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            {_SCALE_OPTIONS.map(opt => {
+              const sel = Math.abs(scale - opt.value) < 0.01;
+              return (
+                <button
+                  key={opt.value}
+                  onClick={() => onFontScaleChange && onFontScaleChange(opt.value)}
+                  aria-pressed={sel}
+                  style={{
+                    flex: 1, minHeight: 60,
+                    border: `1.5px solid ${sel ? C.primary : C.border}`,
+                    background: sel ? C.primaryLight : C.panel,
+                    color: sel ? C.primary : C.textSecondary,
+                    borderRadius: 12, cursor: "pointer", padding: "8px 6px",
+                    fontFamily: font, fontWeight: 700,
+                    display: "flex", flexDirection: "column",
+                    alignItems: "center", justifyContent: "center", gap: 2,
+                  }}
+                >
+                  <span style={{ fontSize: 14 }}>{opt.label}</span>
+                  <span style={{ fontSize: 10, fontWeight: 500, color: sel ? C.primary : C.textMuted }}>
+                    {opt.desc}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* プレビュー */}
+        <div style={{ marginBottom: 22 }}>
+          <div style={{
+            fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 6,
+          }}>
+            プレビュー
+          </div>
+          <div style={{
+            fontSize: `${16 * scale}px`,
+            lineHeight: 1.55,
+            color: C.text,
+            background: C.bg,
+            borderRadius: 10,
+            padding: "12px 14px",
+            whiteSpace: "pre-wrap",
+          }}>
+            サーブの打感が良い、ストロークもブレない。フォアの攻撃時に握りが少し緩む。次は手の内側を意識する。
+          </div>
+        </div>
+
+        {/* バージョン情報 */}
+        <div style={{
+          borderTop: `1px solid ${C.divider}`,
+          paddingTop: 14, marginTop: 4,
+          fontSize: 12, color: C.textSecondary,
+          display: "flex", justifyContent: "space-between", alignItems: "center",
+        }}>
+          <span>アプリバージョン</span>
+          <span style={{ fontFeatureSettings: '"tnum"', color: C.text, fontWeight: 600 }}>
+            v{APP_VERSION}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // === src/ui/common/TabBar.jsx ===
 // TabBar — 最下部ナビゲーション (5タブ固定)
 // props:
@@ -1902,14 +2081,27 @@ function TabBar({ tab, onTabChange }) {
 }
 
 // === src/ui/common/Textarea.jsx ===
-// Textarea — 複数行入力
+// Textarea — 複数行入力 (S15.5.7: auto-grow + 文字サイズ scale 対応)
 // props:
-//   label, value, onChange, rows (default 3), placeholder, required, error
+//   label, value, onChange, rows (default 3 = 最小行数), placeholder, required, error
+//
+// auto-grow: 入力に合わせて textarea の高さが scrollHeight に追随、長文でも文末まで見える
+// 文字サイズ: CSS var --memo-font-scale を使い、Settings の選択 (1.0/1.15/1.30) で拡大
 function Textarea({ label, value, onChange, rows = 3, placeholder, required, error, style: ext = {} }) {
   const [focus, setFocus] = useState(false);
+  const ref = useRef(null);
   const hasError = !!error;
   const borderColor = hasError ? "#d93025" : (focus ? C.primary : C.border);
   const shadow = focus ? `0 0 0 2px ${hasError ? "rgba(217,48,37,0.2)" : C.primaryLight}` : "none";
+
+  // auto-grow: value 変化のたびに高さを scrollHeight に合わせる
+  useEffect(() => {
+    const ta = ref.current;
+    if (!ta) return;
+    ta.style.height = "auto";
+    ta.style.height = ta.scrollHeight + "px";
+  }, [value]);
+
   return (
     <div style={{ marginBottom: 10, ...ext }}>
       {label && (
@@ -1918,6 +2110,7 @@ function Textarea({ label, value, onChange, rows = 3, placeholder, required, err
         </label>
       )}
       <textarea
+        ref={ref}
         value={value ?? ""}
         onChange={(e) => onChange(e.target.value)}
         onFocus={() => setFocus(true)}
@@ -1928,19 +2121,25 @@ function Textarea({ label, value, onChange, rows = 3, placeholder, required, err
         aria-invalid={hasError}
         style={{
           width: "100%",
-          boxSizing: "border-box", // S14.4: padding 込みで grid track に収める (Input と揃える)
-          minHeight: 80,
-          padding: "10px 12px",    // v2 互換
+          boxSizing: "border-box",
+          // S15.5.7: minHeight は rows × line-height に応じて確保 (auto-grow と整合)
+          minHeight: `calc(${rows} * 1.55em + 24px)`,
+          padding: "12px",
           border: `1px solid ${borderColor}`,
           borderRadius: 8,
           fontFamily: font,
-          fontSize: 13,            // v2 互換
+          // S15.5.7: 13 → 16 ベース + scale 倍率 (老眼配慮、設定 Modal で 1.0/1.15/1.30 切替)
+          fontSize: "calc(16px * var(--memo-font-scale, 1))",
+          lineHeight: 1.55,
           color: C.text,
           background: C.panel,
           outline: "none",
           boxShadow: shadow,
-          resize: "vertical",
+          resize: "none",   // auto-grow なので手動 resize 不要
+          overflow: "hidden",
           transition: "border 150ms, box-shadow 150ms",
+          WebkitAppearance: "none",
+          appearance: "none",
         }}
       />
       {hasError && (
@@ -7032,6 +7231,15 @@ function QuickTrialMode({ open, cards, setCards, rackets, stringNames, onSaveTri
   useEffect(() => { evalRef.current = eval_; }, [eval_]);
   useEffect(() => { touchedRef.current = touched; }, [touched]);
 
+  // S15.5.7: メモ textarea の auto-grow (内容に合わせて高さ自動拡張)
+  const memoRef = useRef(null);
+  useEffect(() => {
+    const ta = memoRef.current;
+    if (!ta) return;
+    ta.style.height = "auto";
+    ta.style.height = ta.scrollHeight + "px";
+  }, [eval_.memo, selected]);
+
   // open 切替で内部 state リセット
   useEffect(() => {
     if (!open) {
@@ -7310,7 +7518,7 @@ function QuickTrialMode({ open, cards, setCards, rackets, stringNames, onSaveTri
             </div>
           ))}
 
-          {/* メモ */}
+          {/* メモ (S15.5.7: auto-grow + 文字サイズ scale 対応) */}
           <div style={{ marginBottom: 16 }}>
             <div style={{
               fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 6,
@@ -7320,15 +7528,21 @@ function QuickTrialMode({ open, cards, setCards, rackets, stringNames, onSaveTri
               <span>メモ</span>
             </div>
             <textarea
+              ref={memoRef}
               value={eval_.memo}
               onChange={(e) => setEval(prev => ({ ...prev, memo: e.target.value }))}
               placeholder="気づいたことを一言..."
               rows={3}
               style={{
                 width: "100%", borderRadius: 10, border: `1px solid ${C.border}`,
-                padding: "10px 12px", fontSize: 13, fontFamily: font,
-                resize: "vertical", color: C.text, background: C.panel,
-                boxSizing: "border-box", minHeight: 70,
+                padding: "12px",
+                fontSize: "calc(16px * var(--memo-font-scale, 1))",
+                lineHeight: 1.55,
+                fontFamily: font,
+                resize: "none", overflow: "hidden",
+                color: C.text, background: C.panel,
+                boxSizing: "border-box",
+                minHeight: "calc(3 * 1.55em + 24px)",
                 WebkitAppearance: "none", appearance: "none", outline: "none",
               }}
             />
@@ -7942,10 +8156,18 @@ function _dvWatchCell({ label, value, unit }) {
 }
 
 function _dvMemoItem({ label, text }) {
+  // S15.5.7: 老眼配慮で fontSize 13 → 16 + memo-font-scale CSS var で 1.0/1.15/1.30 倍率対応
+  //   全文表示 (line-clamp は元から無し、whiteSpace pre-wrap で改行保持)
   return (
-    <div style={{ marginBottom: 8 }}>
+    <div style={{ marginBottom: 10 }}>
       <div style={{ fontSize: 11, color: C.textSecondary, marginBottom: 4, fontWeight: 600 }}>{label}</div>
-      <div style={{ fontSize: 13, lineHeight: 1.6, color: C.text, whiteSpace: "pre-wrap", background: C.bg, borderRadius: 8, padding: "10px 12px" }}>{text}</div>
+      <div style={{
+        fontSize: "calc(16px * var(--memo-font-scale, 1))",
+        lineHeight: 1.65,
+        color: C.text, whiteSpace: "pre-wrap",
+        background: C.bg, borderRadius: 10,
+        padding: "12px 14px",
+      }}>{text}</div>
     </div>
   );
 }
@@ -10769,6 +10991,23 @@ function TennisDB() {
   const handleWeatherClick = () => { if (weather) setWeatherModalOpen(true); };
   const handleWeatherClose = () => setWeatherModalOpen(false);
 
+  // S15.5.7: 設定 Modal + 文字サイズ scale (メモ系のみ適用)
+  //   localStorage 永続化、CSS variable 経由で子コンポーネントに伝播
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [fontScale, setFontScale] = useState(() => {
+    try {
+      const v = parseFloat(localStorage.getItem(LS_PREFIX + "memo-font-scale-v1"));
+      if (v === 1.0 || v === 1.15 || v === 1.30) return v;
+    } catch (_) {}
+    return 1.0;
+  });
+  const handleSettingsClick = () => setSettingsOpen(true);
+  const handleSettingsClose = () => setSettingsOpen(false);
+  const handleFontScaleChange = (scale) => {
+    setFontScale(scale);
+    try { localStorage.setItem(LS_PREFIX + "memo-font-scale-v1", String(scale)); } catch (_) {}
+  };
+
   // 認証状態監視 + リアルタイム同期
   useEffect(() => {
     let unsubSnapshot = null;
@@ -11351,6 +11590,8 @@ function TennisDB() {
       // 100vh は iPhone Safari で URL バー込みの値を返すため、見える範囲より大きくなり検索欄等が画面外に押し出される。
       // 100dvh は見える範囲の高さなので、WeekPanel/DayPanel が glass overlay 化されて heatmap を押し縮めない今、再採用が安全。
       paddingBottom: "calc(56px + env(safe-area-inset-bottom, 0))",
+      // S15.5.7: メモ系文字サイズの scale を CSS variable で子コンポーネントへ伝播
+      "--memo-font-scale": String(fontScale),
     }}>
       {/* S13.5 共通 Header: Tennis*DB* + version + ☁️ + 🌤 + 👤 (§10.8 / DECISIONS S13.5) */}
       <Header
@@ -11361,6 +11602,7 @@ function TennisDB() {
         onLogout={handleLogout}
         weather={weather}
         onWeatherClick={handleWeatherClick}
+        onSettingsClick={handleSettingsClick}
       />
       {tabContent}
       <TabBar tab={tab} onTabChange={setTab} />
@@ -11430,6 +11672,13 @@ function TennisDB() {
         open={weatherModalOpen}
         weather={weather}
         onClose={handleWeatherClose}
+      />
+      {/* S15.5.7: 設定 Modal (Header ⚙️ タップで開く) — 文字サイズ + バージョン表示 */}
+      <SettingsModal
+        open={settingsOpen}
+        fontScale={fontScale}
+        onFontScaleChange={handleFontScaleChange}
+        onClose={handleSettingsClose}
       />
       {/* S15.5: QuickTrialMode (試打カード式、Home 試打ボタン → これが起動) */}
       <QuickTrialMode

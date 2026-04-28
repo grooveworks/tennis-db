@@ -1,11 +1,24 @@
-// Textarea — 複数行入力
+// Textarea — 複数行入力 (S15.5.7: auto-grow + 文字サイズ scale 対応)
 // props:
-//   label, value, onChange, rows (default 3), placeholder, required, error
+//   label, value, onChange, rows (default 3 = 最小行数), placeholder, required, error
+//
+// auto-grow: 入力に合わせて textarea の高さが scrollHeight に追随、長文でも文末まで見える
+// 文字サイズ: CSS var --memo-font-scale を使い、Settings の選択 (1.0/1.15/1.30) で拡大
 function Textarea({ label, value, onChange, rows = 3, placeholder, required, error, style: ext = {} }) {
   const [focus, setFocus] = useState(false);
+  const ref = useRef(null);
   const hasError = !!error;
   const borderColor = hasError ? "#d93025" : (focus ? C.primary : C.border);
   const shadow = focus ? `0 0 0 2px ${hasError ? "rgba(217,48,37,0.2)" : C.primaryLight}` : "none";
+
+  // auto-grow: value 変化のたびに高さを scrollHeight に合わせる
+  useEffect(() => {
+    const ta = ref.current;
+    if (!ta) return;
+    ta.style.height = "auto";
+    ta.style.height = ta.scrollHeight + "px";
+  }, [value]);
+
   return (
     <div style={{ marginBottom: 10, ...ext }}>
       {label && (
@@ -14,6 +27,7 @@ function Textarea({ label, value, onChange, rows = 3, placeholder, required, err
         </label>
       )}
       <textarea
+        ref={ref}
         value={value ?? ""}
         onChange={(e) => onChange(e.target.value)}
         onFocus={() => setFocus(true)}
@@ -24,19 +38,25 @@ function Textarea({ label, value, onChange, rows = 3, placeholder, required, err
         aria-invalid={hasError}
         style={{
           width: "100%",
-          boxSizing: "border-box", // S14.4: padding 込みで grid track に収める (Input と揃える)
-          minHeight: 80,
-          padding: "10px 12px",    // v2 互換
+          boxSizing: "border-box",
+          // S15.5.7: minHeight は rows × line-height に応じて確保 (auto-grow と整合)
+          minHeight: `calc(${rows} * 1.55em + 24px)`,
+          padding: "12px",
           border: `1px solid ${borderColor}`,
           borderRadius: 8,
           fontFamily: font,
-          fontSize: 13,            // v2 互換
+          // S15.5.7: 13 → 16 ベース + scale 倍率 (老眼配慮、設定 Modal で 1.0/1.15/1.30 切替)
+          fontSize: "calc(16px * var(--memo-font-scale, 1))",
+          lineHeight: 1.55,
           color: C.text,
           background: C.panel,
           outline: "none",
           boxShadow: shadow,
-          resize: "vertical",
+          resize: "none",   // auto-grow なので手動 resize 不要
+          overflow: "hidden",
           transition: "border 150ms, box-shadow 150ms",
+          WebkitAppearance: "none",
+          appearance: "none",
         }}
       />
       {hasError && (
