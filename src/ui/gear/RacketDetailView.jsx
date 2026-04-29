@@ -218,7 +218,7 @@ function RacketDetailView({
     <div style={{
       position: "fixed", inset: 0,
       background: C.bg,
-      zIndex: 50,
+      zIndex: 100, // TabBar (zIndex 60) より上に重ねる、SessionDetailView と統一
       display: "flex", flexDirection: "column",
       animation: "modalEnter 250ms ease-out",
     }}>

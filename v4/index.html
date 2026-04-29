@@ -45,7 +45,7 @@ input,select,textarea,button{font-family:inherit}
 const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
 // ── 定数定義（色・キー・バージョン）─────────────
-const APP_VERSION="4.0.0-S16.2";
+const APP_VERSION="4.0.0-S16.3";
 const font="-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif";
 
 // 色設計（DESIGN_SYSTEM_v4.md §1 + §10 S13.5 改訂準拠）
@@ -3352,7 +3352,7 @@ function RacketDetailView({
     <div style={{
       position: "fixed", inset: 0,
       background: C.bg,
-      zIndex: 50,
+      zIndex: 100, // TabBar (zIndex 60) より上に重ねる、SessionDetailView と統一
       display: "flex", flexDirection: "column",
       animation: "modalEnter 250ms ease-out",
     }}>
