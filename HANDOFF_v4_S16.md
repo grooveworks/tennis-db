@@ -1,15 +1,16 @@
 # HANDOFF v4 — Stage S16 (Gear タブ初実装) 開始用
 
-作成: 2026-04-28 / S15 完了 push 時に作成、2026-04-28 S15.5 完了で更新
+作成: 2026-04-28 / S15 完了 push 時に作成
+更新: 2026-04-28 S15.5 完了 / 2026-04-29 S15.5.9 まで反映 (試合中事故と auto-save 実装、複数 hotfix 同梱)
 
-参照ファイル: `CLAUDE.md` (5 ルール) / `DECISIONS_v4.md` (全 Stage、特に S15 / S15.5 セクション) / `MEMORY.md` 全索引
+参照ファイル: `CLAUDE.md` (5 ルール) / `DECISIONS_v4.md` (全 Stage、特に S15 / S15.5 セクション 末尾の S15.5.7-9 hotfix) / `MEMORY.md` 全索引
 
 ---
 
-## 1. 完了状態 (S15.5 まで)
+## 1. 完了状態 (S15.5.9 まで反映)
 
-- APP_VERSION: `4.0.0-S15.5`
-- GitHub Pages 反映予定 (push 後): `https://grooveworks.github.io/tennis-db/v4/`
+- APP_VERSION: `4.0.0-S15.5.9`
+- GitHub Pages 反映: `https://grooveworks.github.io/tennis-db/v4/`
 
 ### S15 主要追加 (2026-04-28):
 
@@ -54,6 +55,20 @@
   - **`loadSessionsFromFirestore` に 15 秒 timeout** (Chrome で Firestore get が永遠 pending → Sessions タブ「読み込み中」固まる問題)
   - 失敗時 toast でユーザーに可視化 (「試打カードのクラウド同期に失敗」「クラウド読み込みエラー」)
   - 詳細は DECISIONS_v4.md S15.5 セクション末尾参照
+
+### S15.5.5 - S15.5.9 追加修正 (2026-04-28 〜 2026-04-29):
+
+- **S15.5.5/.6**: Home「現在の状況」行クリック対応 + Chrome 読込高速化 (localStorage 即表示、Firestore は backgound 取得)
+- **S15.5.7**: ⚙️ Settings Modal 新設 (Header から version 削除 → Modal 内常設) / 文字サイズ「標準/大/特大」切替 (メモ系のみ scale 適用) / メモ全 textarea を auto-grow 化 / 表示メモ全文表示
+- **S15.5.8 hotfix**: GameTracker の MENTAL_LABELS / PHYSICAL_LABELS 定義漏れ (S11 から潜在、画面真っ白の致命バグ) を fix
+- **S15.5.9**: MatchEditModal + SessionEditView 全部に auto-save (localStorage 下書き) + 復元バナー (Safari 破棄 / 戻る誤操作 / クラッシュ後の救済)、GameTracker onChange を dirty 追跡型に修正
+
+### GitHub Pages deploy 方式の変更 (S15.5.9 期間中):
+
+- 自動 `pages-build-deployment` workflow が GitHub 障害で 30 分以上 Queued 固着
+- 対処: `.github/workflows/pages.yml` を追加し、Settings > Pages の Source を **「GitHub Actions」**に変更
+- 以降の deploy はこの workflow が処理 (公式テンプレート、actions/checkout + configure-pages + upload-pages-artifact + deploy-pages)
+- 通常 1-3 分で完了。再度詰まる場合は workflow を見直す
 
 ---
 

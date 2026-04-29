@@ -345,6 +345,48 @@ Practice Detail (S10、後続リファクタ):
 - v9 Modular SDK の `FirestoreSettings.cache` への移行で改善する可能性 (現状は v8 互換 SDK)
 - 通常編集の Firestore 書き込みも `save()` debounce 経由なので、Chrome Background Throttling の影響を受ける可能性 → 別 Stage で全 write を即時化検討
 
+**S15.5.5 / S15.5.6 (Home リンク + Chrome 読込高速化、2026-04-28 push)**:
+- **Home「現在の状況」行クリック対応**: 次の大会 / 検討中 / 直近 → 該当 Detail へ、主力 → Sessions タブをラケットフィルタ済み一覧で開く、課題 → S17 Plan 未実装で保留
+- **Chrome 読込高速化**: localStorage にデータがあれば「読み込み中」を表示せず即表示、Firestore 取得は backgound で進行 (15 秒 timeout)、初回ログイン (localStorage 空) のみ loading 表示
+
+**S15.5.7 (Settings Modal + メモ auto-grow + 文字サイズ scale、2026-04-29 push)**:
+- ユーザー指摘: 「メモ欄の文章が全部表示されない、加筆時に文末を選択しにくい / 老眼で文字が小さすぎる、コンタクトの夜は特に読めない」
+- **`src/ui/common/SettingsModal.jsx`** 新規: 文字サイズ「標準 / 大 / 特大」3 段階選択 (1.0 / 1.15 / 1.30 倍率)、プレビュー、アプリバージョン表示
+- **Header.jsx**: `v{APP_VERSION}` 表示削除 → SettingsModal 内に常設 / **⚙️ 設定アイコン** 追加 (天気とユーザーの間)
+- **app.jsx**: `fontScale` state + localStorage 永続化 (`yuke-memo-font-scale-v1`) + ルート div に CSS var `--memo-font-scale` 適用
+- **Textarea.jsx (共通)**: auto-grow (useRef + useEffect で scrollHeight 追随) + `fontSize: calc(16px * var(--memo-font-scale, 1))` で scale 適用、`resize: none` `overflow: hidden`
+- **QuickTrialMode メモ textarea**: 同様に auto-grow + scale 適用 (memoRef + useEffect)
+- **SessionDetailView の `_dvMemoItem`** (TrialDetail / PracticeDetail / TournamentDetail で使う表示メモ): scale 適用 + lineHeight 1.65、line-clamp なし全文表示
+- **アプリ全体の文字サイズ底上げは不採用**: ユーザー判断「全体だとレイアウト崩れて修正面倒、ユーザー設定で対応」
+
+**S15.5.8 (GameTracker MENTAL_LABELS 定義漏れ hotfix、2026-04-29 push)**:
+- **致命バグ発見**: 試合運用中、ユーザーがゲーム単位記録の「次のゲーム」をタップ → **画面真っ白 + 入力データ全消失**
+- 原因: S11 実装時に `MENTAL_LABELS` / `PHYSICAL_LABELS` 定数を **使用しているのに定義し忘れた** → CO モーダル表示時に ReferenceError → React render 失敗
+- 1 ゲーム後で奇数判定 → CO モーダル発動 → モーダル内の `_gtMPButtons` が `labels[n]` を参照 → undefined アクセスで TypeError → 真っ白
+- S11 完了時に「次のゲーム」を 1 度もテストしていなかった = 私のテスト不足、レビューで未発覚
+- 修正: GameTracker.jsx 冒頭に `MENTAL_LABELS = {1:"崩壊", 2:"焦り", 3:"普通", 4:"集中", 5:"完全"}` / `PHYSICAL_LABELS = {1:"限界", 2:"疲労", 3:"普通", 4:"余裕", 5:"万全"}` を追加
+- **教訓**: 単体テストでは `_gtCOModal` が表示されないため発覚しない。 完了テスト時は **「次のゲーム → CO モーダル → 保存」 の最低 1 サイクル** を必ず通すべき
+
+**S15.5.9 (MatchEditModal + SessionEditView auto-save、2026-04-29 push)**:
+- 動機: S15.5.8 のクラッシュでユーザー試合中の入力データが全消失 + 「保存ボタンを押し忘れる」ヒューマンエラーリスクへの対策
+- **MatchEditModal**: 試合編集中の form を `localStorage` の下書きに即時保存、Modal 起動時に下書きあれば自動復元、上部に黄色バナー「下書きを復元しました」表示、保存・破棄確定で下書きクリア
+- **SessionEditView (大会・練習・試打 全部)**: 同様の auto-save 実装、type と id でユニークな draft key (`yuke-session-draft-{type}-{id}-v1`)
+- **GameTracker `onChange`**: `setForm` 直接渡しを `handleGameTrackerChange` ラッパー (setForm + setDirty(true)) に変更、これで GameTracker 経由の変更も dirty 立ち + auto-save が走る (S11 から潜在の dirty 抜けバグ同梱 fix)
+- localStorage の下書きは Safari バックグラウンド破棄や React レンダリングエラーでも生き残る → 二度と試合データロストしない設計
+
+**S15.5 期間中の GitHub Pages deploy 障害 (2026-04-29)**:
+- 自動 `pages-build-deployment` workflow が GitHub Actions runner 取得失敗で 30 分以上 Queued 状態固着
+- 試合 5 時間前にユーザー報告、即対応必要
+- 対処: `.github/workflows/pages.yml` を新規作成 (公式テンプレート、actions/checkout + configure-pages + upload-pages-artifact + deploy-pages)、リポジトリ設定 Settings > Pages の Source を「Deploy from a branch」→「GitHub Actions」に変更してもらい、明示的な workflow で deploy 復旧
+- 自動 workflow は GitHub 側の障害が時々発生する旨、HANDOFF にも記録 → 次回からは Actions 方式が標準
+- **失敗パターン**: 私が最初「Safari キャッシュ」「deploy 反映待ち」など外部要因に責任を寄せたため、ユーザーから「自分を疑え」と指摘 (R5 違反)。再発防止: deploy 失敗時は最初から `raw.githubusercontent.com` でリポジトリ側を確認 + GitHub Actions 状態を gh / API で確認するフローを徹底
+
+**試合運用での教訓 (memory に追加検討)**:
+- 試合中の使用形態: ユーザーは iPhone で動画撮影しながら試合、Tennis DB は試合終了後に思い出して一気に入力
+- ミニタブレットでの試合中入力は将来予定だが、現状は iPhone 1 台で兼用 → 入力タイミングが事後にずれる
+- 編集系の auto-save がないと、入力中の Safari バックグラウンド破棄で全消失の致命的事故が起こる
+- v4 の編集系全画面 (大会 / 練習 / 試打 / 試合) で auto-save を標準とし、将来 Stage の新規編集画面でも踏襲
+
 **スコープ外 (S16 以降に繰越)**:
 - ❌ Gear タブ全体 (S16 本体で実装) — ラケット status 編集 UI / セッティング組合せ管理 / 実測値ログ
 - ❌ カード編集 UI (V2 互換、追加+削除のみで運用)
