@@ -30,6 +30,29 @@ const RESULT_OPTS = [
   { value: "棄権", label: "棄権" },
 ];
 
+// S15.5.9: Match 編集中の auto-save (localStorage 下書き)
+//   Safari バックグラウンド破棄や React レンダリングエラーで入力データロストする問題への対処。
+//   form の変化のたびに localStorage に下書き保存、Modal 開く時に下書きあれば復元。
+//   保存・破棄 (キャンセル) の確定操作で下書きクリア。
+const _matchDraftKey = (id) => `${LS_PREFIX}match-draft-${id}-v1`;
+const _loadMatchDraft = (id) => {
+  if (!id) return null;
+  try {
+    const v = localStorage.getItem(_matchDraftKey(id));
+    if (!v) return null;
+    return JSON.parse(v);
+  } catch (_) { return null; }
+};
+const _saveMatchDraft = (id, form) => {
+  if (!id) return;
+  try { localStorage.setItem(_matchDraftKey(id), JSON.stringify(form)); }
+  catch (_) {}
+};
+const _clearMatchDraft = (id) => {
+  if (!id) return;
+  try { localStorage.removeItem(_matchDraftKey(id)); } catch (_) {}
+};
+
 // rating row (5 ボタン) — 編集フォーム共通スタイル
 function _meRatingRow({ label, value, onChange }) {
   return (
@@ -60,21 +83,61 @@ function _meRatingRow({ label, value, onChange }) {
 }
 
 function MatchEditModal({ open, match, trnType, racketNames = [], stringNames = [], opponentNames = [], confirm, onSave, onClose }) {
-  const [form, setForm] = useState(match || null);
-  const [dirty, setDirty] = useState(false);
-  // open のたびに最新の match を反映 (別 match を編集する時の対応)
-  useEffect(() => { if (open) { setForm(match); setDirty(false); } }, [open, match?.id]);
+  // S15.5.9: 起動時に下書きがあればそちらを優先
+  const [form, setForm] = useState(() => {
+    if (!match || !match.id) return match;
+    const draft = _loadMatchDraft(match.id);
+    return draft || match;
+  });
+  const [dirty, setDirty] = useState(() => match?.id ? _loadMatchDraft(match.id) !== null : false);
+  const [restored, setRestored] = useState(() => match?.id ? _loadMatchDraft(match.id) !== null : false);
 
-  // 未保存変更がある時は閉じる前に確認
+  // open のたびに最新の match を反映 (別 match を編集する時の対応、S15.5.9 で下書き優先)
+  useEffect(() => {
+    if (!open) return;
+    const draft = match?.id ? _loadMatchDraft(match.id) : null;
+    if (draft) {
+      setForm(draft);
+      setDirty(true);     // 下書きあり = 未保存とみなす (キャンセル時 confirm 経由)
+      setRestored(true);
+    } else {
+      setForm(match);
+      setDirty(false);
+      setRestored(false);
+    }
+  }, [open, match?.id]);
+
+  // S15.5.9: form 変化のたびに localStorage に auto-save (dirty な間のみ)
+  //   debounce なし即時、Match の form は数 KB なので localStorage 書き込みは高速
+  useEffect(() => {
+    if (!open || !form || !form.id || !dirty) return;
+    _saveMatchDraft(form.id, form);
+  }, [open, form, dirty]);
+
+  // 未保存変更がある時は閉じる前に確認 (S15.5.9: 確定で下書きクリア)
   const handleClose = useCallback(() => {
-    if (!dirty) { onClose && onClose(); return; }
-    if (!confirm) { onClose && onClose(); return; }
+    const clearDraft = () => { if (form?.id) _clearMatchDraft(form.id); };
+    if (!dirty) { clearDraft(); onClose && onClose(); return; }
+    if (!confirm) { clearDraft(); onClose && onClose(); return; }
     confirm.ask(
       "編集内容が保存されていません。破棄してよろしいですか？",
-      () => onClose && onClose(),
+      () => { clearDraft(); onClose && onClose(); },
       { title: "未保存の変更があります", yesLabel: "破棄する", noLabel: "編集に戻る", yesVariant: "danger", icon: "triangle-alert" }
     );
-  }, [dirty, confirm, onClose]);
+  }, [dirty, confirm, onClose, form]);
+
+  // S15.5.9: 保存ボタン (下書きクリア + 親に渡す)
+  const handleSaveClick = useCallback(() => {
+    if (form?.id) _clearMatchDraft(form.id);
+    onSave && onSave(form);
+  }, [form, onSave]);
+
+  // S15.5.9: GameTracker からの onChange を dirty 追跡 + auto-save 連動
+  //   従来 onChange={setForm} で dirty が立たず auto-save も走らなかったバグの解消
+  const handleGameTrackerChange = useCallback((next) => {
+    setForm(next);
+    setDirty(true);
+  }, []);
 
   // Esc で閉じる (未保存確認経由)
   useEffect(() => {
@@ -115,6 +178,33 @@ function MatchEditModal({ open, match, trnType, racketNames = [], stringNames = 
             <Icon name="x" size={18} color={C.textSecondary} />
           </button>
         </div>
+
+        {/* S15.5.9: 下書き復元バナー (Safari 破棄/クラッシュ後の再開時) */}
+        {restored && (
+          <div style={{
+            background: C.warningLight, color: "#7e5d00",
+            border: `1px solid ${C.warning}`,
+            padding: "8px 10px", borderRadius: 8,
+            fontSize: 12, marginBottom: 12, lineHeight: 1.5,
+            display: "flex", alignItems: "flex-start", gap: 8,
+          }}>
+            <Icon name="info" size={14} color="#7e5d00" style={{ flexShrink: 0, marginTop: 2 }} />
+            <div style={{ flex: 1 }}>
+              <b>下書きを復元しました</b><br />
+              前回の編集が保存されずに中断された内容です。続けるか、不要なら「キャンセル」で破棄してください。
+            </div>
+            <button
+              onClick={() => setRestored(false)}
+              aria-label="この通知を閉じる"
+              style={{
+                background: "none", border: "none", color: "#7e5d00",
+                cursor: "pointer", padding: 2, flexShrink: 0,
+              }}
+            >
+              <Icon name="x" size={14} color="#7e5d00" />
+            </button>
+          </div>
+        )}
 
         {/* ① 基本 */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>
@@ -163,8 +253,8 @@ function MatchEditModal({ open, match, trnType, racketNames = [], stringNames = 
           <Input label="テンション横" value={form.tensionCross || ""} onChange={(v) => set("tensionCross", v)} placeholder="43" />
         </div>
 
-        {/* ④ ゲーム単位記録 (F1.4.1) */}
-        <GameTracker match={form} onChange={setForm} confirm={confirm} />
+        {/* ④ ゲーム単位記録 (F1.4.1)、S15.5.9 で onChange を dirty 追跡型に変更 */}
+        <GameTracker match={form} onChange={handleGameTrackerChange} confirm={confirm} />
 
         {/* ⑤ メモ */}
         <div style={{ fontSize: 11, color: C.textMuted, fontWeight: 600, letterSpacing: 0.5, textTransform: "uppercase", marginTop: 14, marginBottom: 4 }}>メモ</div>
@@ -186,7 +276,7 @@ function MatchEditModal({ open, match, trnType, racketNames = [], stringNames = 
           >キャンセル</button>
           <button
             type="button"
-            onClick={() => onSave && onSave(form)}
+            onClick={handleSaveClick}
             style={{
               minHeight: 44, padding: "10px 20px", borderRadius: 8,
               border: "none", background: C.primary, color: "#fff",
