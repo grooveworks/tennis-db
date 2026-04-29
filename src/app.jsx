@@ -97,10 +97,14 @@ function TennisDB() {
   // S15.5: quickTrialCards (試打カード式 QuickTrialMode で使用)
   const [quickTrialCards, setQuickTrialCards] = useState([]);
   const [quickTrial, setQuickTrial] = useState(false); // QuickTrialMode 表示
-  // S16 Phase 4-A: stringSetups (Manage Masters セッティング組合せ。Phase 4-A では読込のみ、UI は Phase 4-B)
+  // S16 Phase 4-A: stringSetups (Manage Masters セッティング組合せ。Phase 4-A では読込のみ、UI は Phase 4-D)
   const [stringSetups, setStringSetups] = useState([]);
   // S16 Phase 4-A: Gear タブ Strings 編集 Modal の対象 (null=閉じている、{}=新規追加、{id,...}=編集)
   const [stringEditTarget, setStringEditTarget] = useState(null);
+  // S16 Phase 4-B: Racket Detail (slide-in) と Racket / Measurement の編集 Modal
+  const [racketDetail, setRacketDetail] = useState(null);     // 開いている racket オブジェクト or null
+  const [racketEditTarget, setRacketEditTarget] = useState(null); // null=閉、{}=新規、{id,..}=編集
+  const [measurementEditTarget, setMeasurementEditTarget] = useState(null); // {racketId, item} or null
   const [loading, setLoading] = useState(false);
   const [detail, setDetail] = useState(null); // S10: { type, session, mode } | null
   const [weather, setWeather] = useState(null); // S13.5: Open-Meteo 当日気温 { temp, code } | null
@@ -782,6 +786,123 @@ function TennisDB() {
     toast.show("ストリングを削除しました", "info");
   };
 
+  // S16 Phase 4-B: Racket 永続化 (S15.5.3 と同パターン、debounce bypass 即時 Firestore write)
+  const persistRackets = (newList) => {
+    setRackets(newList);
+    lsSave(KEYS.rackets, newList);
+    queueMicrotask(() => {
+      const u = fbAuth.currentUser;
+      if (!u) return;
+      fbDb.collection("users").doc(u.uid).collection("data").doc(KEYS.rackets)
+        .set({ items: cleanForFirestore(newList), updatedAt: new Date().toISOString() })
+        .catch(err => {
+          console.error("rackets Firestore write error:", err);
+          toast.show("ラケットのクラウド同期に失敗 (ローカルは保存済み)", "warning");
+        });
+    });
+  };
+
+  // Racket Detail (slide-in)
+  const handleRacketRowClick = (racket) => setRacketDetail(racket);
+  const handleRacketDetailClose = () => setRacketDetail(null);
+  // popstate で Detail が閉じられた時、racketDetail を null にするのは RacketDetailView 内部の onClose で行う
+
+  // Racket 編集 Modal
+  const handleRacketEdit = (racket) => setRacketEditTarget(racket || {});
+  const handleRacketAdd = () => setRacketEditTarget({});
+  const handleRacketEditClose = () => setRacketEditTarget(null);
+
+  const handleRacketSave = (item, isNew) => {
+    if (isNew) {
+      const maxOrder = (rackets || []).reduce((m, r) => Math.max(m, typeof r.order === "number" ? r.order : -1), -1);
+      const next = { ...item, order: maxOrder + 1 };
+      persistRackets([...(rackets || []), next]);
+      toast.show("ラケットを追加しました", "success");
+    } else {
+      const existing = (rackets || []).find(r => r.id === item.id);
+      const next = { ...item, order: typeof existing?.order === "number" ? existing.order : item.order };
+      persistRackets((rackets || []).map(r => r.id === item.id ? next : r));
+      // 開いている Detail も更新
+      if (racketDetail && racketDetail.id === item.id) setRacketDetail(next);
+      toast.show("ラケットを更新しました", "success");
+    }
+    setRacketEditTarget(null);
+  };
+
+  const handleRacketDelete = (idOrItem) => {
+    const id = typeof idOrItem === "string" ? idOrItem : idOrItem?.id;
+    if (!id) return;
+    persistRackets((rackets || []).filter(r => r.id !== id));
+    setRacketEditTarget(null);
+    if (racketDetail && racketDetail.id === id) {
+      setRacketDetail(null);
+      try { window.history.back(); } catch (_) {}
+    }
+    toast.show("ラケットを削除しました", "info");
+  };
+
+  // 引退化 / 復帰 (Detail Action bar)
+  const handleRacketRetire = (racket) => {
+    if (!racket || !racket.id) return;
+    const isRetired = racket.status === "retired";
+    const next = { ...racket, status: isRetired ? "candidate" : "retired" };
+    persistRackets((rackets || []).map(r => r.id === racket.id ? next : r));
+    if (racketDetail && racketDetail.id === racket.id) setRacketDetail(next);
+    toast.show(isRetired ? "ラケットを復帰させました" : "ラケットを引退化しました", "info");
+  };
+
+  // Detail から「試打追加」 → QuickTrialMode を開く (既存試打カード経路を再利用)
+  const handleRacketAddTrial = (racket) => {
+    setRacketDetail(null);
+    try { window.history.back(); } catch (_) {}
+    // QuickTrialMode は既存カードから選ぶ前提なので、ここでは試打タブへの遷移ではなく
+    // 単純に QuickTrialMode を開く (S15.5 と同じく Home 試打ボタン経由の経路を使う)
+    setQuickTrial(true);
+  };
+
+  // Measurement (racket.measurements[] のネスト編集)
+  const handleMeasurementEdit = (racket, m) => setMeasurementEditTarget({ racketId: racket.id, item: m || null });
+  const handleMeasurementAdd = (racket) => setMeasurementEditTarget({ racketId: racket.id, item: null });
+  const handleMeasurementClose = () => setMeasurementEditTarget(null);
+
+  const handleMeasurementSave = (m, isNew) => {
+    const racketId = measurementEditTarget?.racketId;
+    if (!racketId) return;
+    const updated = (rackets || []).map(r => {
+      if (r.id !== racketId) return r;
+      const list = Array.isArray(r.measurements) ? [...r.measurements] : [];
+      // current=true は 1 件のみ → 他をすべて false に
+      const normalized = m.current
+        ? list.map(x => ({ ...x, current: false }))
+        : list;
+      const idx = normalized.findIndex(x => x.id === m.id);
+      if (idx >= 0) normalized[idx] = m;
+      else normalized.push(m);
+      return { ...r, measurements: normalized };
+    });
+    persistRackets(updated);
+    if (racketDetail && racketDetail.id === racketId) {
+      setRacketDetail(updated.find(r => r.id === racketId));
+    }
+    setMeasurementEditTarget(null);
+    toast.show(isNew ? "実測値を追加しました" : "実測値を更新しました", "success");
+  };
+
+  const handleMeasurementDelete = (mId) => {
+    const racketId = measurementEditTarget?.racketId;
+    if (!racketId || !mId) return;
+    const updated = (rackets || []).map(r => {
+      if (r.id !== racketId) return r;
+      return { ...r, measurements: (r.measurements || []).filter(x => x.id !== mId) };
+    });
+    persistRackets(updated);
+    if (racketDetail && racketDetail.id === racketId) {
+      setRacketDetail(updated.find(r => r.id === racketId));
+    }
+    setMeasurementEditTarget(null);
+    toast.show("実測値を削除しました", "info");
+  };
+
   // 認証状態判定完了前はスピナー
   if (!authReady) {
     return (
@@ -841,6 +962,8 @@ function TennisDB() {
         onStringsUpdate={handleStringsUpdate}
         onStringEdit={handleStringEdit}
         onStringAdd={handleStringAdd}
+        onRacketRowClick={handleRacketRowClick}
+        onRacketAdd={handleRacketAdd}
         toast={toast}
       />
     );
@@ -956,6 +1079,42 @@ function TennisDB() {
         onSave={handleStringSave}
         onDelete={handleStringDelete}
         onClose={handleStringEditClose}
+        confirm={cfm}
+      />
+      {/* S16 Phase 4-B: Racket Detail (slide-in、6 セクション) */}
+      <RacketDetailView
+        open={!!racketDetail}
+        racket={racketDetail}
+        rackets={rackets}
+        trials={trials}
+        tournaments={tournaments}
+        practices={practices}
+        onClose={handleRacketDetailClose}
+        onEdit={handleRacketEdit}
+        onDelete={handleRacketDelete}
+        onRetire={handleRacketRetire}
+        onAddTrial={handleRacketAddTrial}
+        onMeasurementEdit={handleMeasurementEdit}
+        onMeasurementAdd={handleMeasurementAdd}
+      />
+      {/* S16 Phase 4-B: Racket 編集 Modal (auto-save 付き V2 互換) */}
+      <RacketEditModal
+        open={!!racketEditTarget}
+        item={racketEditTarget}
+        onSave={handleRacketSave}
+        onDelete={handleRacketDelete}
+        onClose={handleRacketEditClose}
+        confirm={cfm}
+        toast={toast}
+      />
+      {/* S16 Phase 4-B: 実測値編集 Modal (ネスト) */}
+      <MeasurementEditModal
+        open={!!measurementEditTarget}
+        item={measurementEditTarget?.item}
+        racketName={(rackets || []).find(r => r.id === measurementEditTarget?.racketId)?.name}
+        onSave={handleMeasurementSave}
+        onDelete={handleMeasurementDelete}
+        onClose={handleMeasurementClose}
         confirm={cfm}
       />
       {/* S15.5: QuickTrialMode (試打カード式、Home 試打ボタン → これが起動) */}
