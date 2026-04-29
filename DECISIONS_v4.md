@@ -400,6 +400,68 @@ Practice Detail (S10、後続リファクタ):
 
 ---
 
+### S16 (Gear タブ初実装) 進行中
+
+**Phase 1 (UX preview)** ✅ 完了 (2026-04-29):
+
+- **方針確定**: Gear タブを「機材管理画面」ではなく「**Decision Hub**」として設計 (ChatGPT レビュー採用)
+  - 違反: F2.1-F2.4 を機械的に 4 同列で並べると、S14 で確立した「Home は要約・判断、探索は他タブ」原則を Gear タブで自分から壊す
+- **構成順序**: Current Setup → Racket Board → Recent Trials → Open Questions → Manage Masters (5 セクション、上=判断、下=管理)
+- **Racket Detail 順序**: Summary → Current Setting → Trial Summary → **Decision Notes** → **Usage** → Measurements (判断が主役、数値は後段、実測値は最後)
+  - p1 → p2 でユーザー承認、Decision Notes を Usage より上に変更
+- **status 6 種ラベル** (V2 互換 key 維持、UI ラベルは v4 で再設計):
+  - `active` = 主力 (Apple Peach `#FF9500`)
+  - `sub` = 予備 (Apple Mint `#00C7BE`)
+  - `candidate` = 候補 (Primary Blue)
+  - `considering` = 検討中 (Apple Gray 4)
+  - `support` = 用途別 (Apple Indigo `#5856D6`)
+  - `retired` = 引退 (textMuted、opacity 0.65)
+- **「次の確認」1 行**: 候補・検討中のラケットのみ。主力・予備・用途別・引退には付けない (Decision Hub のメリハリ)
+- **Decision Notes 構造化**: 継続理由 (緑) / 不安点 (黄) / 次回確認 (青) の 3 フィールド。機材関係.md / リサーチ MD の生情報を構造化吸収
+- **Open Questions vs Plan Next Actions** (S17 との切り分け): Open Questions = 機材判断の **未解決の問い**、Next Actions = 実際にやる **行動 TODO**。実装は共通 `next` state を `category="gear"` でフィルタ → S17 で完全分離も視野
+- **Manage Masters**: トップから 1 タップ折り畳み 3 行 (ストリング在庫 / セッティング組合せ / 引退ラケット) で下層画面へ。「Gear トップに管理機能を並べすぎない、でもアクセスは近い」
+- **試打との連動**: Recent Trials を Gear タブに集約 → Sessions 絞り込みの「種類=試打」時のみ独立カード暫定 (S6-S10) は **S16 後半で削除**
+
+**Phase 1.5 (新要望反映、p3 で追加)** ✅ (2026-04-29):
+
+- **ストリング並び順編集** (新要望): セクションヘッダー「並べ替え」リンク → モード ON で各行 ▲▼ ボタン → 「完了」で OFF。ドラッグ&ドロップは採用しない (モバイル誤操作リスク)
+  - ラケット (Racket Board) 側にも同じ仕組みを適用
+  - **データモデル**: 各 string / racket に `order: number` 追加、既存データは読込時 index で遅延付与
+  - **Select 表示順**: status 優先度 → order ASC の二段階 sort、rejected / archived は末尾
+  - **永続化**: ▲▼ タップで即 Firestore write (debounce bypass、S15.5.3 と同パターン)
+  - **純関数化**: `src/domain/reorder.js` (新設) の `reorderItems(list, fromIndex, toIndex)` に集約 (N3.3)、後続 Stage の Plan / Insights でも再利用
+  - DESIGN_SYSTEM §11 として汎用パターン化記録
+
+- **Header 修正 (S15.5.7 反映)**: preview_s16_p1/p2 の Header に `v4.0.0-S16` を出していたのは S15.5.7 の現状と齟齬。p3 で全画面 Header から version 削除、⚙️ 設定アイコンを天気と user の間に追加
+
+**Phase 2 (WIREFRAMES / DESIGN_SYSTEM 追記)** ✅ (2026-04-29):
+
+- **WIREFRAMES_v4.md §2.8 Gear タブ** 新設 (5 サブ節: トップ構成 / Racket Board / Racket Detail / Manage Masters / 試打との連動 / Open Questions vs Next Actions)
+- **DESIGN_SYSTEM_v4.md §8.6 Gear タブ専用コンポーネント** 新設 (10 コンポーネント仕様: CurrentSetupCard / RacketRow / DecisionNotes / OpenQuestionItem / SegmentRow / TrialRow / ManageRow / PrincipleCard / MasterRow / SetupRow)
+- **DESIGN_SYSTEM_v4.md §11 並び順編集パターン (Reorder Mode)** 新設 (S16 でストリング在庫に初適用、Phase 4 で Racket Board にも、後続 Stage で Plan / Insights にも再利用する汎用パターンとして文書化)
+
+**S15.5.7-9 hotfix の S16 への影響反映**:
+- S15.5.7 (Settings Modal): Header から version 削除、⚙️ 設定アイコン追加 → preview_s16_p3 で対応
+- S15.5.9 (auto-save 標準): Racket Edit Modal にも auto-save 実装、draft key = `yuke-racket-draft-{id}-v1`
+- S15.5.7 (--memo-font-scale): Decision Notes / note 系 textarea にも適用 (老眼配慮継承)
+- S15.5.8 (完了テスト規律): S16 完了時は「ラケット追加 → 編集 → 保存 → 並べ替え → 試打追加 → 削除」サイクルを必ず通す (R1 対処療法禁止 + R3 事前調査の延長)
+
+**Phase 3 (SCHEMA + state)** 着手前 (次フェーズ):
+- `src/core/05_schema.js` に Racket / String / StringSetup / Measurement (ネスト) 定義追加、`order` / `decisionNotes: { keep, worry, next }` / `nextCheck` フィールドを Racket に新設
+- `src/app.jsx` に stringSetups / measurements の state 復活
+- `src/domain/reorder.js` 新設
+
+**Phase 4 (実装)** 着手前:
+- `src/ui/gear/` 新設 + 子コンポーネント群
+
+**スコープ外 (S16 → S17 以降に繰越)**:
+- ❌ Plan タブ Next Actions の完全分離 (S17 で対応、S16 では `next` から `category="gear"` フィルタ)
+- ❌ 各ラケットの「マッチアップ別パフォーマンス」(S18 Insights)
+- ❌ ストリング張替日 / 寿命警告 (Phase 2、需要次第)
+- ❌ リサーチ MD (EZONE98 / TOUR100 / FX500 等) の機械取込 (危険、手動コピペで note フィールドへ)
+
+---
+
 ## このファイルの更新
 
 - Stage 完了時に該当節を追記

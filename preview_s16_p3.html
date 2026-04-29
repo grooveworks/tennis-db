@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>preview_s16_p3 — Header ⚙️設定 / ストリング並び順編集 (S15.5.7-9 反映 + 新要望)</title>
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css">
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/duotone/style.css">
+<style>
+  :root {
+    --bg: #f8f9fa;
+    --panel: #ffffff;
+    --panel2: #f1f3f4;
+    --border: #dadce0;
+    --divider: #e8eaed;
+    --text: #202124;
+    --textSec: #5f6368;
+    --textMuted: #80868b;
+    --primary: #007AFF;
+    --primaryLight: #E1F0FF;
+    --primaryHover: #0062CC;
+    --success: #0f9d58;
+    --successLight: #e6f4ea;
+    --warning: #fbbc04;
+    --warningLight: #fef7e0;
+    --warningDark: #7e5d00;
+    --error: #d93025;
+    --errorLight: #fce8e6;
+    --trialAccent: #9334e0;
+    --trialLight: #f3e8fd;
+    --tournamentAccent: #f9ab00;
+    --tournamentLight: #feefc3;
+    --practiceAccent: #0f9d58;
+    --practiceLight: #e6f4ea;
+    --applePeach: #FF9500;
+    --appleMint: #00C7BE;
+    --appleIndigo: #5856D6;
+    --appleGray4: #C7C7CC;
+    --appleGray6: #F2F2F7;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Helvetica Neue", Arial, sans-serif;
+    background: #e8eaed;
+    color: var(--text);
+    margin: 0;
+    padding: 24px;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  h1 + .lead { color: var(--textSec); font-size: 13px; margin-bottom: 24px; max-width: 1100px; }
+  h2 {
+    margin: 32px 0 8px;
+    font-size: 14px;
+    padding: 6px 12px;
+    background: #202124;
+    color: #fff;
+    display: inline-block;
+    border-radius: 4px;
+  }
+  .diff-list {
+    background: var(--primaryLight);
+    border: 1px solid #b8d8ff;
+    border-radius: 12px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    max-width: 1100px;
+    font-size: 13px;
+    color: var(--text);
+  }
+  .diff-list b { color: var(--primary); }
+  .diff-list ul { margin: 6px 0 0 18px; padding: 0; }
+  .diff-list li { margin-bottom: 4px; line-height: 1.5; }
+  .note {
+    font-size: 12px;
+    color: var(--textSec);
+    margin-bottom: 14px;
+    line-height: 1.6;
+    max-width: 1100px;
+  }
+  .note b { color: var(--text); }
+  .note code { background: var(--panel2); padding: 2px 6px; border-radius: 4px; font-size: 11px; }
+  .row { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; }
+
+  /* iPhone 模擬フレーム (375px) */
+  .phone {
+    width: 375px;
+    background: var(--bg);
+    border: 1px solid #b8babc;
+    border-radius: 24px;
+    overflow: hidden;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    height: 760px;
+  }
+  .phone .caption {
+    padding: 6px 12px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--divider);
+    font-size: 11px;
+    color: var(--textMuted);
+    font-weight: 600;
+  }
+  .phone .header {
+    background: rgba(255,255,255,0.94);
+    backdrop-filter: saturate(180%) blur(12px);
+    -webkit-backdrop-filter: saturate(180%) blur(12px);
+    border-bottom: 1px solid var(--divider);
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 44px;
+    flex-shrink: 0;
+  }
+  /* p3: version 表示削除、⚙️ 設定アイコン追加 (S15.5.7 反映) */
+  .phone .header .logo {
+    display: inline-flex; align-items: baseline; gap: 2px;
+    font-size: 14px;
+  }
+  .phone .header .logo .ph-tennis-ball { font-size: 18px; color: var(--practiceAccent); margin-right: 2px; }
+  .phone .header .logo .lTennis { color: var(--textSec); font-weight: 400; letter-spacing: -0.01em; }
+  .phone .header .logo .lDB     { color: var(--primary);   font-weight: 800; letter-spacing: -0.01em; }
+  .phone .header .icon-btn {
+    width: 30px; height: 30px;
+    display: inline-flex; align-items: center; justify-content: center;
+    color: var(--primary);
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 19px;
+  }
+  .phone .header .icon-btn.gear { color: var(--textSec); }
+  .phone .header .right { display: flex; align-items: center; gap: 2px; margin-left: auto; }
+  .phone .header .weather {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: var(--primaryLight); color: var(--primary);
+    padding: 4px 8px; border-radius: 12px;
+    font-size: 12px; font-weight: 600;
+  }
+  .phone .tabname { padding: 6px 16px; font-size: 11px; color: var(--textMuted); border-bottom: 1px solid var(--divider); background: var(--panel); }
+
+  .phone .body {
+    padding: 14px;
+    overflow-y: auto;
+    flex: 1;
+    background: var(--bg);
+  }
+
+  /* === セクションカード === */
+  .section-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 14px 16px 16px;
+    margin-bottom: 12px;
+  }
+  .section-card .sec-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .section-card .sec-head .title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .section-card .sec-head .title .ph { font-size: 16px; color: var(--textSec); }
+  .section-card .sec-head .actions {
+    display: inline-flex; gap: 10px;
+  }
+  .section-card .sec-head .more {
+    font-size: 11px;
+    color: var(--primary);
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .section-card .sec-head .reorder-btn {
+    font-size: 11px;
+    color: var(--textSec);
+    font-weight: 600;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    display: inline-flex; align-items: center; gap: 3px;
+  }
+  .section-card .sec-head .reorder-btn .ph { font-size: 13px; }
+  .section-card .sec-head .done-btn {
+    font-size: 11px;
+    color: #fff;
+    background: var(--primary);
+    border: none;
+    border-radius: 8px;
+    padding: 4px 12px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  /* === ストリング在庫行 === */
+  .master-row {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 11px 14px;
+    margin-bottom: 8px;
+    display: grid;
+    grid-template-columns: auto 1fr auto auto;
+    gap: 10px;
+    align-items: center;
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+  .master-row.reorder-mode {
+    cursor: default;
+    background: var(--panel2);
+    grid-template-columns: auto 1fr auto;
+  }
+  .master-row .stocking {
+    width: 6px; height: 28px; border-radius: 3px;
+  }
+  .master-row .info .name { font-size: 13px; font-weight: 600; color: var(--text); }
+  .master-row .info .meta { font-size: 11px; color: var(--textSec); margin-top: 1px; }
+  .master-row .qty { font-size: 11px; color: var(--textMuted); white-space: nowrap; }
+  .master-row .dots { color: var(--textMuted); font-size: 16px; }
+  .master-row.muted { opacity: 0.55; background: var(--panel2); }
+
+  /* 並び替えモード時の上下ボタン */
+  .reorder-controls {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-left: 4px;
+  }
+  .reorder-btn-mini {
+    width: 32px; height: 22px;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--primary);
+    font-size: 14px;
+    cursor: pointer;
+    padding: 0;
+  }
+  .reorder-btn-mini:disabled {
+    color: var(--appleGray4);
+    cursor: not-allowed;
+    background: var(--panel2);
+  }
+  /* 行を 1 つの塊として 44px tap 領域確保 */
+  .reorder-tap-area {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .stk-confirmed { background: var(--practiceAccent); }
+  .stk-good      { background: var(--primary); }
+  .stk-testing   { background: var(--warning); }
+  .stk-candidate { background: var(--trialAccent); }
+  .stk-hold      { background: var(--appleGray4); }
+  .stk-rejected  { background: var(--errorLight); }
+
+  .legend {
+    display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px;
+    font-size: 10px; color: var(--textMuted);
+  }
+  .legend .swatch {
+    display: inline-flex; align-items: center; gap: 3px;
+    padding: 2px 6px; background: var(--panel); border: 1px solid var(--border); border-radius: 999px;
+  }
+  .legend .dot { width: 8px; height: 8px; border-radius: 2px; }
+
+  /* TabBar */
+  .tabbar {
+    background: rgba(255,255,255,0.94);
+    backdrop-filter: saturate(180%) blur(12px);
+    border-top: 1px solid var(--divider);
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    flex-shrink: 0;
+  }
+  .tabbar button {
+    background: none; border: none;
+    padding: 8px 0;
+    min-height: 56px;
+    display: inline-flex; flex-direction: column; align-items: center; gap: 2px;
+    color: var(--textMuted);
+    font-size: 9px;
+    cursor: pointer;
+  }
+  .tabbar button.active { color: var(--primary); }
+  .tabbar button .ph { font-size: 22px; }
+
+  /* 並び替えモード時のヒント帯 */
+  .reorder-hint {
+    background: var(--primaryLight);
+    border: 1px solid #b8d8ff;
+    border-radius: 10px;
+    padding: 8px 12px;
+    margin-bottom: 10px;
+    font-size: 11px;
+    color: var(--primary);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* === Settings Modal mock (画面 ④) === */
+  .modal-backdrop {
+    position: relative;
+    height: 100%;
+    background: rgba(0,0,0,0.35);
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    overflow: hidden;
+  }
+  .modal-sheet {
+    width: 100%;
+    background: rgba(255,255,255,0.98);
+    backdrop-filter: blur(28px);
+    border-top-left-radius: 20px;
+    border-top-right-radius: 20px;
+    max-height: 80%;
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  .modal-sheet .m-head {
+    padding: 14px 16px 8px;
+    border-bottom: 1px solid var(--divider);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .modal-sheet .m-head .ttl {
+    font-size: 16px; font-weight: 700; color: var(--text);
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .modal-sheet .m-body { padding: 16px; overflow-y: auto; flex: 1; }
+  .settings-section {
+    margin-bottom: 18px;
+  }
+  .settings-section .sec-ttl {
+    font-size: 11px; font-weight: 700; color: var(--textMuted);
+    text-transform: uppercase; letter-spacing: 0.04em;
+    margin-bottom: 8px;
+  }
+  .font-scale-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+  .font-scale-btn {
+    padding: 10px 4px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    text-align: center;
+    cursor: pointer;
+  }
+  .font-scale-btn.selected {
+    background: var(--primaryLight);
+    border-color: var(--primary);
+  }
+  .font-scale-btn .lbl { font-size: 11px; color: var(--textSec); margin-bottom: 4px; }
+  .font-scale-btn.selected .lbl { color: var(--primary); font-weight: 700; }
+  .font-scale-btn .sample { font-weight: 700; color: var(--text); line-height: 1; }
+  .font-scale-btn:nth-child(1) .sample { font-size: 14px; }
+  .font-scale-btn:nth-child(2) .sample { font-size: 16.1px; }
+  .font-scale-btn:nth-child(3) .sample { font-size: 18.2px; }
+
+  .preview-area {
+    margin-top: 10px;
+    padding: 10px 12px;
+    background: var(--panel2);
+    border-radius: 10px;
+    font-size: 13px;
+    color: var(--text);
+    line-height: 1.55;
+  }
+
+  .info-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 0;
+    border-top: 1px solid var(--divider);
+  }
+  .info-row:first-child { border-top: none; padding-top: 0; }
+  .info-row .k { font-size: 12px; color: var(--textSec); }
+  .info-row .v { font-size: 12px; color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+  /* spec table */
+  .spec-table {
+    margin-top: 16px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    max-width: 1100px;
+  }
+  .spec-table table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .spec-table th, .spec-table td { padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--divider); vertical-align: top; }
+  .spec-table th { background: var(--panel2); font-weight: 600; color: var(--textSec); white-space: nowrap; }
+  .spec-table td code { background: var(--panel2); padding: 1px 5px; border-radius: 4px; font-size: 11px; }
+</style>
+</head>
+<body>
+
+<h1>preview_s16_p3 — Header 修正 ⚙️ + ストリング並び順編集 UX</h1>
+<div class="lead">
+  S15.5.7-9 hotfix を反映した Header 修正 (version 削除 + ⚙️ 設定アイコン) と、新要望「ストリング在庫の並び順を編集できるように」の UX プロトタイプ。
+  ラケット (rackets) 側にも同じ並び順編集の仕組みを Phase 2 で適用予定。
+</div>
+
+<div class="diff-list">
+  <b>p2 → p3 の差分:</b>
+  <ul>
+    <li><b>Header 修正 (S15.5.7 反映)</b>: 全画面の Header から <code>v4.0.0-S16</code> 表示削除、<b>⚙️ 設定アイコン</b>を天気と user の間に追加</li>
+    <li><b>ストリング在庫: 並べ替えモード新設</b>: セクション右上「並べ替え」リンク → タップで並び替えモード ON、各行が ▲▼ 上下移動ボタンに切替、右上「完了」で OFF</li>
+    <li><b>並び替えモード時のヒント帯</b>: 「上下ボタンで順序を変えると Select の表示順にも反映されます」</li>
+    <li><b>Settings Modal mock (画面 ④)</b>: ⚙️ タップで開く Modal の中身を視覚化 (文字サイズ 3 段階 / アプリ情報)</li>
+  </ul>
+</div>
+
+<div class="note">
+  <b>確認ポイント:</b>
+  ① 「並べ替え」リンクの位置 (現状はセクションヘッダー右上、「+ 追加」と並列) /
+  ② 並び替えモード時の ▲▼ ボタンが 44px tap 領域に近いか (現状 32×22 を縦並び 2 個 = 32×46 の領域、十分か) /
+  ③ モード切替の発見可能性 (「並べ替え」テキストリンクで気付くか、もっと目立たせるべきか) /
+  ④ ⚙️ Settings の中身 (S15.5.7 で実装済の内容を視覚確認、変更不要なら現状維持)。<br>
+  <b>OK なら次は実装フェーズ (Phase 2 = WIREFRAMES/DESIGN_SYSTEM 追記、Phase 3 = SCHEMA + state 拡張、Phase 4 = src/ui/gear/ 実装) に進みます。</b>
+</div>
+
+<h2>画面 ③' Manage Masters — 通常モード (Header に ⚙️、並べ替えリンクあり)</h2>
+<div class="row">
+
+<!-- ============= 画面 ③' 通常モード ============= -->
+<div class="phone">
+  <div class="caption">通常モード — 「並べ替え」リンクが見える</div>
+  <div class="header">
+    <button class="icon-btn"><i class="ph ph-arrow-left"></i></button>
+    <div class="logo" style="font-size:13px;">
+      <span class="lTennis" style="font-weight:600; color:var(--text);">Manage Masters</span>
+    </div>
+    <div class="right">
+      <button class="icon-btn" title="同期"><i class="ph ph-cloud-check"></i></button>
+      <span class="weather"><i class="ph ph-sun" style="font-size:14px;"></i>22°</span>
+      <button class="icon-btn gear" title="設定"><i class="ph ph-gear-six"></i></button>
+      <button class="icon-btn" title="user"><i class="ph ph-user-circle"></i></button>
+    </div>
+  </div>
+  <div class="tabname">機材 / 管理</div>
+  <div class="body">
+
+    <div class="section-card">
+      <div class="sec-head">
+        <div class="title"><i class="ph ph-line-segments"></i>ストリング在庫</div>
+        <div class="actions">
+          <button class="reorder-btn"><i class="ph ph-arrows-down-up"></i>並べ替え</button>
+          <a class="more">+ 追加</a>
+        </div>
+      </div>
+
+      <div class="master-row">
+        <div class="stocking stk-confirmed"></div>
+        <div class="info">
+          <div class="name">Polytour Pro (PTP) 1.25</div>
+          <div class="meta">横糸主力 · 大量在庫</div>
+        </div>
+        <div class="qty">大量</div>
+        <i class="ph ph-dots-three-vertical dots"></i>
+      </div>
+
+      <div class="master-row">
+        <div class="stocking stk-confirmed"></div>
+        <div class="info">
+          <div class="name">Babolat Blast 1.25</div>
+          <div class="meta">縦糸主力 · 大量在庫</div>
+        </div>
+        <div class="qty">大量</div>
+        <i class="ph ph-dots-three-vertical dots"></i>
+      </div>
+
+      <div class="master-row">
+        <div class="stocking stk-good"></div>
+        <div class="info">
+          <div class="name">Phantom Spin 17 (1.24)</div>
+          <div class="meta">候補機向け · 評価中</div>
+        </div>
+        <div class="qty">1 張り</div>
+        <i class="ph ph-dots-three-vertical dots"></i>
+      </div>
+
+      <div class="master-row">
+        <div class="stocking stk-testing"></div>
+        <div class="info">
+          <div class="name">Black Out 1.24</div>
+          <div class="meta">未評価</div>
+        </div>
+        <div class="qty">1 張り</div>
+        <i class="ph ph-dots-three-vertical dots"></i>
+      </div>
+
+      <div class="master-row muted">
+        <div class="stocking stk-rejected"></div>
+        <div class="info">
+          <div class="name">Babolat ALU Power</div>
+          <div class="meta">打感劣化が早すぎる</div>
+        </div>
+        <div class="qty">除外</div>
+        <i class="ph ph-dots-three-vertical dots"></i>
+      </div>
+
+      <div class="legend">
+        <span class="swatch"><span class="dot stk-confirmed"></span>確定</span>
+        <span class="swatch"><span class="dot stk-good"></span>好印象</span>
+        <span class="swatch"><span class="dot stk-testing"></span>検証中</span>
+        <span class="swatch"><span class="dot stk-rejected"></span>除外</span>
+      </div>
+    </div>
+
+  </div>
+  <div class="tabbar">
+    <button><i class="ph ph-house"></i><span>ホーム</span></button>
+    <button><i class="ph ph-list-bullets"></i><span>Sessions</span></button>
+    <button class="active"><i class="ph-fill ph-backpack"></i><span>機材</span></button>
+    <button><i class="ph ph-flag"></i><span>Plan</span></button>
+    <button><i class="ph ph-chart-bar"></i><span>Insights</span></button>
+  </div>
+</div>
+
+<!-- ============= 画面 ③'' 並び替えモード ============= -->
+<div class="phone">
+  <div class="caption">並び替えモード — ▲▼ で上下移動、右上「完了」</div>
+  <div class="header">
+    <button class="icon-btn"><i class="ph ph-arrow-left"></i></button>
+    <div class="logo" style="font-size:13px;">
+      <span class="lTennis" style="font-weight:600; color:var(--text);">Manage Masters</span>
+    </div>
+    <div class="right">
+      <button class="icon-btn" title="同期"><i class="ph ph-cloud-check"></i></button>
+      <span class="weather"><i class="ph ph-sun" style="font-size:14px;"></i>22°</span>
+      <button class="icon-btn gear" title="設定"><i class="ph ph-gear-six"></i></button>
+      <button class="icon-btn" title="user"><i class="ph ph-user-circle"></i></button>
+    </div>
+  </div>
+  <div class="tabname">機材 / 管理</div>
+  <div class="body">
+
+    <div class="section-card">
+      <div class="sec-head">
+        <div class="title"><i class="ph ph-line-segments"></i>ストリング在庫</div>
+        <div class="actions">
+          <button class="done-btn">完了</button>
+        </div>
+      </div>
+
+      <div class="reorder-hint">
+        <i class="ph ph-info"></i>
+        上下ボタンで順序を変えると Select の表示順にも反映されます
+      </div>
+
+      <!-- 並び替えモード: 各行が▲▼に変化、除外含む全件表示 -->
+      <div class="master-row reorder-mode">
+        <div class="stocking stk-confirmed"></div>
+        <div class="info">
+          <div class="name">Polytour Pro (PTP) 1.25</div>
+          <div class="meta">大量</div>
+        </div>
+        <div class="reorder-tap-area">
+          <button class="reorder-btn-mini" disabled title="一番上"><i class="ph ph-caret-up"></i></button>
+          <button class="reorder-btn-mini"><i class="ph ph-caret-down"></i></button>
+        </div>
+      </div>
+
+      <div class="master-row reorder-mode">
+        <div class="stocking stk-confirmed"></div>
+        <div class="info">
+          <div class="name">Babolat Blast 1.25</div>
+          <div class="meta">大量</div>
+        </div>
+        <div class="reorder-tap-area">
+          <button class="reorder-btn-mini"><i class="ph ph-caret-up"></i></button>
+          <button class="reorder-btn-mini"><i class="ph ph-caret-down"></i></button>
+        </div>
+      </div>
+
+      <div class="master-row reorder-mode">
+        <div class="stocking stk-good"></div>
+        <div class="info">
+          <div class="name">Phantom Spin 17 (1.24)</div>
+          <div class="meta">1 張り</div>
+        </div>
+        <div class="reorder-tap-area">
+          <button class="reorder-btn-mini"><i class="ph ph-caret-up"></i></button>
+          <button class="reorder-btn-mini"><i class="ph ph-caret-down"></i></button>
+        </div>
+      </div>
+
+      <div class="master-row reorder-mode">
+        <div class="stocking stk-testing"></div>
+        <div class="info">
+          <div class="name">Black Out 1.24</div>
+          <div class="meta">1 張り</div>
+        </div>
+        <div class="reorder-tap-area">
+          <button class="reorder-btn-mini"><i class="ph ph-caret-up"></i></button>
+          <button class="reorder-btn-mini"><i class="ph ph-caret-down"></i></button>
+        </div>
+      </div>
+
+      <div class="master-row reorder-mode" style="opacity:0.7;">
+        <div class="stocking stk-rejected"></div>
+        <div class="info">
+          <div class="name">Babolat ALU Power</div>
+          <div class="meta">除外</div>
+        </div>
+        <div class="reorder-tap-area">
+          <button class="reorder-btn-mini"><i class="ph ph-caret-up"></i></button>
+          <button class="reorder-btn-mini" disabled title="一番下"><i class="ph ph-caret-down"></i></button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+  <div class="tabbar">
+    <button><i class="ph ph-house"></i><span>ホーム</span></button>
+    <button><i class="ph ph-list-bullets"></i><span>Sessions</span></button>
+    <button class="active"><i class="ph-fill ph-backpack"></i><span>機材</span></button>
+    <button><i class="ph ph-flag"></i><span>Plan</span></button>
+    <button><i class="ph ph-chart-bar"></i><span>Insights</span></button>
+  </div>
+</div>
+
+<!-- ============= 画面 ④ Settings Modal (S15.5.7 確認用) ============= -->
+<div class="phone">
+  <div class="caption">画面 ④ Settings Modal (⚙️ から開く、S15.5.7 で実装済)</div>
+  <div class="header">
+    <div class="logo">
+      <i class="ph ph-tennis-ball"></i>
+      <span class="lTennis">Tennis</span><span class="lDB">DB</span>
+    </div>
+    <div class="right">
+      <button class="icon-btn" title="同期"><i class="ph ph-cloud-check"></i></button>
+      <span class="weather"><i class="ph ph-sun" style="font-size:14px;"></i>22°</span>
+      <button class="icon-btn gear" style="background:var(--primaryLight);"><i class="ph-fill ph-gear-six"></i></button>
+      <button class="icon-btn" title="user"><i class="ph ph-user-circle"></i></button>
+    </div>
+  </div>
+  <div class="modal-backdrop">
+    <div class="modal-sheet">
+      <div class="m-head">
+        <div class="ttl"><i class="ph ph-gear-six"></i>設定</div>
+        <button class="icon-btn"><i class="ph ph-x"></i></button>
+      </div>
+      <div class="m-body">
+        <div class="settings-section">
+          <div class="sec-ttl">文字サイズ (メモ系)</div>
+          <div class="font-scale-row">
+            <button class="font-scale-btn">
+              <div class="lbl">標準</div>
+              <div class="sample">あア</div>
+            </button>
+            <button class="font-scale-btn selected">
+              <div class="lbl">大 (1.15×)</div>
+              <div class="sample">あア</div>
+            </button>
+            <button class="font-scale-btn">
+              <div class="lbl">特大 (1.30×)</div>
+              <div class="sample">あア</div>
+            </button>
+          </div>
+          <div class="preview-area">
+            プレビュー: 試合序盤の動き出しが遅い時のリカバリ性能が高い。フォアの叩き込みが安定し、3 セット持つ。
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <div class="sec-ttl">アプリ情報</div>
+          <div class="info-row">
+            <span class="k">バージョン</span>
+            <span class="v">v4.0.0-S16</span>
+          </div>
+          <div class="info-row">
+            <span class="k">最終同期</span>
+            <span class="v">2026-04-29 14:32</span>
+          </div>
+          <div class="info-row">
+            <span class="k">データ件数</span>
+            <span class="v">957 件</span>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <div class="sec-ttl">ヘルプ</div>
+          <div class="info-row" style="cursor:pointer;">
+            <span class="k" style="color:var(--primary); font-weight:600;">ログアウト</span>
+            <i class="ph ph-caret-right" style="color:var(--textMuted);"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<h2>実装方針 (Phase 3 SCHEMA / Phase 4 実装で適用)</h2>
+<div class="spec-table">
+<table>
+  <thead>
+    <tr><th>領域</th><th>方針</th><th>備考</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>並び順データモデル</td>
+      <td>各 string / racket に <code>order: number</code> フィールド追加</td>
+      <td>既存データに無い場合、読込時に index で遅延付与 (<code>core/03_storage.js</code>)</td>
+    </tr>
+    <tr>
+      <td>Select 表示順</td>
+      <td>status 優先度 → order ASC の二段階 sort</td>
+      <td>rejected は order あっても末尾に来る。試打カード登録 / 大会・練習編集 / Sessions 全 Select に適用</td>
+    </tr>
+    <tr>
+      <td>並び替え UX</td>
+      <td>セクションヘッダー「並べ替え」リンク → モード ON で ▲▼ ボタン → 「完了」で OFF</td>
+      <td>ドラッグ&ドロップは採用しない (モバイル誤操作リスク)</td>
+    </tr>
+    <tr>
+      <td>並び替え永続化</td>
+      <td>▲▼ タップで即 Firestore write (debounce bypass、S15.5.3 と同パターン)</td>
+      <td>「完了」ボタンは UI モード切替のみ (データはタップ毎に保存済)</td>
+    </tr>
+    <tr>
+      <td>ラケット側にも適用</td>
+      <td>同じ仕組みを Racket Board にも (Manage Masters の引退ラケット欄ではない、Racket Board そのもの)</td>
+      <td>Phase 4 で <code>RacketBoard.jsx</code> 実装時に組み込む</td>
+    </tr>
+    <tr>
+      <td>tap 領域</td>
+      <td>▲▼ ボタンは縦並び 32×22 = 32×46 の塊で、左右の余白も含めると 44px 確保</td>
+      <td>必要なら 32×24 に拡大検討</td>
+    </tr>
+    <tr>
+      <td>Header 修正 (S15.5.7 反映)</td>
+      <td>全画面 Header から version 削除、⚙️ 設定アイコンを <code>weather</code> と <code>user-circle</code> の間に追加</td>
+      <td>preview_s16_p1/p2 の Header 表示は実装フェーズで p3 に合わせる</td>
+    </tr>
+    <tr>
+      <td>auto-save (S15.5.9 標準方針の継承)</td>
+      <td>Racket Edit Modal にも auto-save 実装、draft key = <code>yuke-racket-draft-{id}-v1</code></td>
+      <td>Decision Notes / note 系 textarea は auto-grow + <code>--memo-font-scale</code> 適用</td>
+    </tr>
+    <tr>
+      <td>完了テスト規律 (S15.5.8 教訓)</td>
+      <td>S16 完了時は「ラケット追加 → 編集 → 保存 → 並べ替え → 試打追加 → 削除」サイクルを必ず通す</td>
+      <td>S15.5.8 の MENTAL_LABELS 定義漏れ事故の再発防止</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<h2>反映済 / 残っている S16 確認事項</h2>
+<div class="note">
+  <b>反映済 (p1 → p2 → p3):</b><br>
+  ✅ Decision Hub 構成 (Current Setup → Racket Board → Recent Trials → Open Questions → Manage Masters)<br>
+  ✅ Racket Detail 順序 (Summary → Current Setting → Trial Summary → Decision Notes → Usage → Measurements)<br>
+  ✅ 候補・検討中カードに「次の確認」1 行<br>
+  ✅ Status 6 種ラベル (主力 / 予備 / 候補 / 検討中 / 用途別 / 引退)<br>
+  ✅ Header から version 削除、⚙️ 設定アイコン追加 (S15.5.7)<br>
+  ✅ ストリング並び順編集 UX (新要望、Phase 4 で本実装)<br>
+  <br>
+  <b>p3 で確認したい:</b><br>
+  ① 並び替えリンクの位置 / ② ▲▼ tap 領域の大きさ / ③ ⚙️ Settings の中身 (S15.5.7 で実装済の内容、想定通りか)<br>
+  <br>
+  <b>OK なら Phase 2 (WIREFRAMES/DESIGN_SYSTEM 追記) → Phase 3 (SCHEMA 拡張) → Phase 4 (実装) に進みます。</b>
+</div>
+
+</body>
+</html>

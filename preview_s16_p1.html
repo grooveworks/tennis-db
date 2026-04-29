@@ -1,0 +1,1190 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>preview_s16_p1 — Gear タブ Decision Hub (3 画面: トップ / Racket Detail / Manage Masters)</title>
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css">
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/duotone/style.css">
+<style>
+  :root {
+    --bg: #f8f9fa;
+    --panel: #ffffff;
+    --panel2: #f1f3f4;
+    --border: #dadce0;
+    --divider: #e8eaed;
+    --text: #202124;
+    --textSec: #5f6368;
+    --textMuted: #80868b;
+    --primary: #007AFF;
+    --primaryLight: #E1F0FF;
+    --primaryHover: #0062CC;
+    --success: #0f9d58;
+    --successLight: #e6f4ea;
+    --warning: #fbbc04;
+    --warningLight: #fef7e0;
+    --warningDark: #7e5d00;
+    --error: #d93025;
+    --errorLight: #fce8e6;
+    --trialAccent: #9334e0;
+    --trialLight: #f3e8fd;
+    --tournamentAccent: #f9ab00;
+    --tournamentLight: #feefc3;
+    --practiceAccent: #0f9d58;
+    --practiceLight: #e6f4ea;
+    --applePeach: #FF9500;
+    --appleMint: #00C7BE;
+    --appleIndigo: #5856D6;
+    --appleGray4: #C7C7CC;
+    --appleGray6: #F2F2F7;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Helvetica Neue", Arial, sans-serif;
+    background: #e8eaed;
+    color: var(--text);
+    margin: 0;
+    padding: 24px;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  h1 + .lead { color: var(--textSec); font-size: 13px; margin-bottom: 24px; max-width: 1100px; }
+  h2 {
+    margin: 32px 0 8px;
+    font-size: 14px;
+    padding: 6px 12px;
+    background: #202124;
+    color: #fff;
+    display: inline-block;
+    border-radius: 4px;
+  }
+  .note {
+    font-size: 12px;
+    color: var(--textSec);
+    margin-bottom: 14px;
+    line-height: 1.6;
+    max-width: 1100px;
+  }
+  .note b { color: var(--text); }
+  .note code { background: var(--panel2); padding: 2px 6px; border-radius: 4px; font-size: 11px; }
+  .row { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; }
+
+  /* iPhone 模擬フレーム (375px) */
+  .phone {
+    width: 375px;
+    background: var(--bg);
+    border: 1px solid #b8babc;
+    border-radius: 24px;
+    overflow: hidden;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    height: 760px;
+  }
+  .phone .caption {
+    padding: 6px 12px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--divider);
+    font-size: 11px;
+    color: var(--textMuted);
+    font-weight: 600;
+  }
+  .phone .header {
+    background: rgba(255,255,255,0.94);
+    backdrop-filter: saturate(180%) blur(12px);
+    -webkit-backdrop-filter: saturate(180%) blur(12px);
+    border-bottom: 1px solid var(--divider);
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    height: 44px;
+    flex-shrink: 0;
+  }
+  .phone .header .logo {
+    display: inline-flex; align-items: baseline; gap: 2px;
+    font-size: 14px;
+  }
+  .phone .header .logo .ph-tennis-ball { font-size: 18px; color: var(--practiceAccent); margin-right: 2px; }
+  .phone .header .logo .lTennis { color: var(--textSec); font-weight: 400; letter-spacing: -0.01em; }
+  .phone .header .logo .lDB     { color: var(--primary);   font-weight: 800; letter-spacing: -0.01em; }
+  .phone .header .logo .ver     { color: var(--textMuted); font-size: 9px; font-variant-numeric: tabular-nums; margin-left: 4px; }
+  .phone .header .icon-btn {
+    width: 32px; height: 32px;
+    display: inline-flex; align-items: center; justify-content: center;
+    color: var(--primary);
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 20px;
+  }
+  .phone .header .right { display: flex; align-items: center; gap: 4px; margin-left: auto; }
+  .phone .header .weather {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: var(--primaryLight); color: var(--primary);
+    padding: 4px 8px; border-radius: 12px;
+    font-size: 12px; font-weight: 600;
+  }
+  .phone .tabname { padding: 6px 16px; font-size: 11px; color: var(--textMuted); border-bottom: 1px solid var(--divider); background: var(--panel); }
+
+  .phone .body {
+    padding: 14px;
+    overflow-y: auto;
+    flex: 1;
+    background: var(--bg);
+  }
+
+  /* === セクションカード (大カード = 20px 角丸) === */
+  .section-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 14px 16px 16px;
+    margin-bottom: 12px;
+  }
+  .section-card .sec-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .section-card .sec-head .title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .section-card .sec-head .title .ph { font-size: 16px; color: var(--textSec); }
+  .section-card .sec-head .more {
+    font-size: 11px;
+    color: var(--primary);
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+  }
+
+  /* === Current Setup カード (Display tier 使用) === */
+  .current-setup {
+    background: linear-gradient(135deg, var(--primaryLight) 0%, #fff 60%);
+    border: 1px solid var(--primaryLight);
+  }
+  .current-setup .label {
+    font-size: 10px; font-weight: 700; letter-spacing: 0.04em;
+    color: var(--primary); text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .current-setup .racket-name {
+    font-size: 18px; font-weight: 800; color: var(--text);
+    line-height: 1.3; margin-bottom: 2px;
+  }
+  .current-setup .setup-line {
+    font-size: 12px; color: var(--textSec);
+    margin-bottom: 8px;
+  }
+  .current-setup .stats-row {
+    display: flex; gap: 14px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(0,122,255,0.18);
+  }
+  .current-setup .stat .num {
+    font-size: 24px; font-weight: 800; color: var(--text);
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+  .current-setup .stat .lbl {
+    font-size: 10px; color: var(--textMuted);
+    margin-top: 2px;
+  }
+
+  /* === Racket Board セグメント === */
+  .seg-row {
+    display: flex; gap: 6px;
+    overflow-x: auto;
+    margin: -2px -2px 10px;
+    padding: 2px;
+  }
+  .seg-row::-webkit-scrollbar { display: none; }
+  .seg {
+    flex-shrink: 0;
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: 11px; font-weight: 600;
+    background: var(--panel2);
+    color: var(--textSec);
+    border: 1px solid transparent;
+    cursor: pointer;
+  }
+  .seg.active {
+    background: var(--primary);
+    color: #fff;
+  }
+  .seg .count { opacity: 0.6; margin-left: 3px; font-weight: 500; }
+  .seg.active .count { opacity: 0.85; color: #fff; }
+
+  /* === ラケット行カード (中行 = 14px 角丸、border-left で status 色) === */
+  .racket-row {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-left-width: 4px;
+    border-radius: 14px;
+    padding: 12px 14px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+    align-items: center;
+  }
+  .racket-row .name {
+    font-size: 14px; font-weight: 700; color: var(--text);
+    margin-bottom: 3px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .racket-row .meta {
+    font-size: 11px; color: var(--textSec);
+    line-height: 1.4;
+  }
+  .racket-row .meta .dot { color: var(--textMuted); margin: 0 4px; }
+  .racket-row .right {
+    display: flex; align-items: center; gap: 6px;
+    color: var(--textMuted); font-size: 18px;
+  }
+  .status-chip {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 6px;
+    white-space: nowrap;
+  }
+
+  /* status 6 種 */
+  .st-active     { border-left-color: var(--applePeach); }
+  .st-active     .status-chip { background: rgba(255,149,0,0.12); color: #B26B00; }
+  .st-sub        { border-left-color: var(--appleMint); }
+  .st-sub        .status-chip { background: rgba(0,199,190,0.14); color: #006B66; }
+  .st-candidate  { border-left-color: var(--primary); }
+  .st-candidate  .status-chip { background: var(--primaryLight); color: var(--primary); }
+  .st-considering{ border-left-color: var(--appleGray4); }
+  .st-considering .status-chip { background: var(--panel2); color: var(--textSec); }
+  .st-support    { border-left-color: var(--appleIndigo); }
+  .st-support    .status-chip { background: rgba(88,86,214,0.10); color: var(--appleIndigo); }
+  .st-retired    { border-left-color: var(--textMuted); opacity: 0.65; }
+  .st-retired    .status-chip { background: var(--panel2); color: var(--textMuted); }
+
+  /* trial-row 試打サマリ */
+  .trial-row {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 11px 14px;
+    margin-bottom: 8px;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 10px;
+    align-items: center;
+    cursor: pointer;
+  }
+  .trial-row .date {
+    font-size: 11px; color: var(--textMuted);
+    font-variant-numeric: tabular-nums;
+    width: 40px;
+  }
+  .trial-row .info .name {
+    font-size: 13px; font-weight: 600; color: var(--text);
+    margin-bottom: 2px;
+  }
+  .trial-row .info .scores {
+    font-size: 11px; color: var(--textSec);
+    font-variant-numeric: tabular-nums;
+  }
+  .trial-row .judg {
+    font-size: 10px; font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 6px;
+  }
+  .judg-pending  { background: var(--panel2); color: var(--textSec); }
+  .judg-adopted  { background: var(--primaryLight); color: var(--primary); }
+  .judg-rejected { background: var(--errorLight); color: var(--error); }
+
+  /* Open Questions */
+  .open-q {
+    background: var(--warningLight);
+    border: 1px solid #f7d77a;
+    border-radius: 14px;
+    padding: 11px 14px;
+    margin-bottom: 8px;
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    cursor: pointer;
+  }
+  .open-q .ph { color: var(--warningDark); font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+  .open-q .q-text {
+    font-size: 12px; color: var(--text); line-height: 1.4; flex: 1;
+  }
+  .open-q .q-meta {
+    font-size: 10px; color: var(--warningDark);
+    margin-top: 2px;
+  }
+
+  /* Manage Masters folded */
+  .manage-row {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 10px;
+    align-items: center;
+    padding: 10px 0;
+    border-top: 1px solid var(--divider);
+    cursor: pointer;
+  }
+  .manage-row:first-child { border-top: none; padding-top: 4px; }
+  .manage-row .ph { font-size: 18px; color: var(--textSec); }
+  .manage-row .label { font-size: 13px; color: var(--text); font-weight: 500; }
+  .manage-row .count { font-size: 11px; color: var(--textMuted); }
+  .manage-row .arrow { color: var(--textMuted); }
+
+  /* TabBar */
+  .tabbar {
+    background: rgba(255,255,255,0.94);
+    backdrop-filter: saturate(180%) blur(12px);
+    border-top: 1px solid var(--divider);
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    flex-shrink: 0;
+  }
+  .tabbar button {
+    background: none; border: none;
+    padding: 8px 0;
+    min-height: 56px;
+    display: inline-flex; flex-direction: column; align-items: center; gap: 2px;
+    color: var(--textMuted);
+    font-size: 9px;
+    cursor: pointer;
+  }
+  .tabbar button.active { color: var(--primary); }
+  .tabbar button .ph { font-size: 22px; }
+
+  /* === 画面 ② Racket Detail (slide-in) === */
+  .detail-summary {
+    background: linear-gradient(135deg, rgba(255,149,0,0.10) 0%, #fff 60%);
+    border: 1px solid rgba(255,149,0,0.20);
+    border-radius: 20px;
+    padding: 14px 16px 14px;
+    margin-bottom: 12px;
+  }
+  .detail-summary .name {
+    font-size: 18px; font-weight: 800; color: var(--text);
+    margin-bottom: 4px; line-height: 1.3;
+  }
+  .detail-summary .tagline {
+    font-size: 12px; color: var(--textSec);
+    line-height: 1.5;
+  }
+  .detail-summary .chips {
+    display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap;
+  }
+  .kv-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 12px;
+    margin-top: 4px;
+  }
+  .kv .k { font-size: 10px; color: var(--textMuted); margin-bottom: 1px; }
+  .kv .v { font-size: 13px; color: var(--text); font-weight: 600; }
+  .stats-block {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-top: 4px;
+  }
+  .stats-block .stat {
+    text-align: left;
+  }
+  .stats-block .stat .num {
+    font-size: 22px; font-weight: 800; color: var(--text);
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+  .stats-block .stat .num .small {
+    font-size: 11px; color: var(--textMuted); font-weight: 500; margin-left: 2px;
+  }
+  .stats-block .stat .lbl {
+    font-size: 10px; color: var(--textMuted); margin-top: 3px;
+  }
+
+  /* trial avg bar */
+  .avg-bar {
+    display: grid;
+    grid-template-columns: 60px 1fr 30px;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 6px;
+  }
+  .avg-bar .lbl { font-size: 11px; color: var(--textSec); }
+  .avg-bar .bar { height: 6px; background: var(--panel2); border-radius: 3px; overflow: hidden; }
+  .avg-bar .bar > .fill { height: 100%; background: var(--primary); border-radius: 3px; }
+  .avg-bar .num { font-size: 11px; color: var(--text); font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
+
+  /* decision notes */
+  .deci-note {
+    border-left: 3px solid;
+    padding: 8px 10px 8px 12px;
+    border-radius: 0 10px 10px 0;
+    margin-bottom: 8px;
+    background: var(--panel2);
+  }
+  .deci-note .head {
+    font-size: 10px; font-weight: 700; color: var(--textSec);
+    margin-bottom: 3px;
+    display: inline-flex; align-items: center; gap: 4px;
+  }
+  .deci-note .body { font-size: 12px; color: var(--text); line-height: 1.45; }
+  .deci-keep   { border-left-color: var(--practiceAccent); }
+  .deci-keep   .head { color: var(--practiceAccent); }
+  .deci-worry  { border-left-color: var(--warning); }
+  .deci-worry  .head { color: var(--warningDark); }
+  .deci-next   { border-left-color: var(--primary); }
+  .deci-next   .head { color: var(--primary); }
+
+  /* measurement table inside detail */
+  .meas-row {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 8px;
+    padding: 8px 0;
+    border-top: 1px solid var(--divider);
+    align-items: center;
+  }
+  .meas-row:first-of-type { border-top: none; }
+  .meas-row.cur {
+    background: var(--successLight);
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin: 0 -10px;
+    border-top: none;
+  }
+  .meas-row .state { font-size: 12px; color: var(--text); font-weight: 500; }
+  .meas-row .state .cur-tag {
+    display: inline-block; margin-left: 4px;
+    font-size: 9px; font-weight: 700;
+    color: var(--success);
+    background: rgba(15,157,88,0.14);
+    padding: 1px 5px; border-radius: 4px;
+  }
+  .meas-row .nums { font-size: 11px; color: var(--textSec); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .meas-row .ph { color: var(--textMuted); font-size: 16px; }
+
+  /* Action bar at detail bottom */
+  .action-bar {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    padding: 10px 0 4px;
+  }
+  .action-btn {
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    padding: 10px 4px;
+    background: var(--panel2);
+    border: none;
+    border-radius: 12px;
+    color: var(--text);
+    font-size: 10px; font-weight: 600;
+    cursor: pointer;
+  }
+  .action-btn .ph { font-size: 18px; color: var(--textSec); }
+  .action-btn.danger { color: var(--error); }
+  .action-btn.danger .ph { color: var(--error); }
+
+  /* === 画面 ③ Manage Masters === */
+  .master-row {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 11px 14px;
+    margin-bottom: 8px;
+    display: grid;
+    grid-template-columns: auto 1fr auto auto;
+    gap: 10px;
+    align-items: center;
+    cursor: pointer;
+  }
+  .master-row .stocking {
+    width: 6px; height: 28px; border-radius: 3px;
+  }
+  .master-row .info .name { font-size: 13px; font-weight: 600; color: var(--text); }
+  .master-row .info .meta { font-size: 11px; color: var(--textSec); margin-top: 1px; }
+  .master-row .qty { font-size: 11px; color: var(--textMuted); white-space: nowrap; }
+  .master-row .dots { color: var(--textMuted); font-size: 16px; }
+  .master-row.muted { opacity: 0.55; background: var(--panel2); }
+
+  .stk-confirmed { background: var(--practiceAccent); }
+  .stk-good      { background: var(--primary); }
+  .stk-testing   { background: var(--warning); }
+  .stk-candidate { background: var(--trialAccent); }
+  .stk-hold      { background: var(--appleGray4); }
+  .stk-rejected  { background: var(--errorLight); }
+
+  .setup-row {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 11px 14px;
+    margin-bottom: 8px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+    align-items: center;
+  }
+  .setup-row .lbl { font-size: 13px; font-weight: 600; color: var(--text); }
+  .setup-row .meta { font-size: 11px; color: var(--textSec); margin-top: 2px; }
+  .setup-row .badge {
+    font-size: 10px; font-weight: 600;
+    padding: 2px 7px; border-radius: 6px;
+    background: var(--practiceLight); color: var(--practiceAccent);
+  }
+  .setup-row.archived .badge { background: var(--panel2); color: var(--textMuted); }
+  .setup-row.archived .lbl { color: var(--textMuted); }
+
+  /* utility */
+  .add-link {
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    background: transparent;
+    border: 1px dashed var(--border);
+    border-radius: 14px;
+    padding: 11px;
+    width: 100%;
+    color: var(--primary);
+    font-size: 13px; font-weight: 600;
+    cursor: pointer;
+    margin-top: 4px;
+  }
+  .principle-card {
+    background: var(--panel2);
+    border-radius: 12px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+  }
+  .principle-card .ttl { font-size: 11px; font-weight: 700; color: var(--textSec); margin-bottom: 4px; }
+  .principle-card ul { margin: 0; padding-left: 16px; font-size: 11px; color: var(--text); line-height: 1.55; }
+
+  .legend {
+    display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px;
+    font-size: 10px; color: var(--textMuted);
+  }
+  .legend .swatch {
+    display: inline-flex; align-items: center; gap: 3px;
+    padding: 2px 6px; background: var(--panel); border: 1px solid var(--border); border-radius: 999px;
+  }
+  .legend .dot { width: 8px; height: 8px; border-radius: 2px; }
+
+  /* spec table */
+  .spec-table {
+    margin-top: 16px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    max-width: 1100px;
+  }
+  .spec-table table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .spec-table th, .spec-table td { padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--divider); vertical-align: top; }
+  .spec-table th { background: var(--panel2); font-weight: 600; color: var(--textSec); white-space: nowrap; }
+  .spec-table td code { background: var(--panel2); padding: 1px 5px; border-radius: 4px; font-size: 11px; }
+</style>
+</head>
+<body>
+
+<h1>preview_s16_p1 — Gear タブ Decision Hub プロト (3 画面)</h1>
+<div class="lead">
+  S16 「Gear タブ初実装」の静的プロトタイプ。ChatGPT レビュー採用後の方針 = <b>管理画面ではなく Decision Hub</b>。
+  画面 ① Gear タブトップ (Current Setup / Racket Board / Recent Trials / Open Questions / Manage Masters)、
+  画面 ② Racket Detail slide-in (Summary / Current Setting / Trial Summary / Usage / Decision Notes / Measurements)、
+  画面 ③ Manage Masters 下層 (Strings / Setups / Retired)。<br>
+  実機材 (EZONE 100 TOUR / Boom Pro 2026 / TOUR 100 305g / XS / FX500 TOUR / EZONE 98) をモック値で配置。
+  Status 6 種ラベル提案 = <b>主力 / 予備 / 候補 / 検討中 / 用途別 / 引退</b> (V2 互換 key 維持: <code>active/sub/candidate/considering/support/retired</code>)。
+</div>
+
+<div class="note">
+  <b>確認ポイント:</b>
+  ① ラベル名 6 種が実機材に当てはめて違和感ないか / ② Decision Hub 構成 (上=判断、下=管理) の情報密度 /
+  ③ Racket Detail で「判断が主役、実測値は最後」の優先順位 / ④ Open Questions の置き方 (Plan タブ S17 と被らない) /
+  ⑤ Manage Masters の折り畳み深度 (Strings/Setups/Retired はトップから 1 タップで到達) /
+  ⑥ Display tier 大数字の使いどころ (Current Setup の使用回数 / Detail の Usage)。<br>
+  <b>3 画面横並びで情報密度を比較してください。違和感があれば preview_s16_p2.html で再調整します。</b>
+</div>
+
+<h2>画面 ① Gear タブトップ — Decision Hub</h2>
+<div class="row">
+
+<!-- ============= 画面 ① Gear タブトップ ============= -->
+<div class="phone">
+  <div class="caption">画面 ① Gear タブトップ (Decision Hub)</div>
+  <div class="header">
+    <div class="logo">
+      <i class="ph ph-tennis-ball"></i>
+      <span class="lTennis">Tennis</span><span class="lDB">DB</span>
+      <span class="ver">v4.0.0-S16</span>
+    </div>
+    <div class="right">
+      <button class="icon-btn" title="同期"><i class="ph ph-cloud-check"></i></button>
+      <span class="weather"><i class="ph ph-sun" style="font-size:14px;"></i>22°</span>
+      <button class="icon-btn" title="user"><i class="ph ph-user-circle"></i></button>
+    </div>
+  </div>
+  <div class="tabname">機材</div>
+  <div class="body">
+
+    <!-- Current Setup -->
+    <div class="section-card current-setup">
+      <div class="label">Current Setup</div>
+      <div class="racket-name">YONEX EZONE 100 TOUR</div>
+      <div class="setup-line">Blast 1.25 縦 / PTP 1.25 横 / 43p · KGL164+OG</div>
+      <div class="stats-row">
+        <div class="stat"><div class="num">6</div><div class="lbl">直近30日</div></div>
+        <div class="stat"><div class="num">47</div><div class="lbl">通算使用</div></div>
+        <div class="stat"><div class="num">67<span style="font-size:14px;">%</span></div><div class="lbl">試合勝率</div></div>
+      </div>
+    </div>
+
+    <!-- Racket Board -->
+    <div class="section-card">
+      <div class="sec-head">
+        <div class="title"><i class="ph ph-list-bullets"></i>Racket Board</div>
+      </div>
+      <div class="seg-row">
+        <div class="seg active">すべて<span class="count">6</span></div>
+        <div class="seg">主力<span class="count">1</span></div>
+        <div class="seg">候補<span class="count">2</span></div>
+        <div class="seg">検討中<span class="count">1</span></div>
+        <div class="seg">用途別<span class="count">1</span></div>
+        <div class="seg">引退<span class="count">1</span></div>
+      </div>
+
+      <div class="racket-row st-active">
+        <div>
+          <div class="name">EZONE 100 TOUR <span class="status-chip">主力</span></div>
+          <div class="meta">Blast 1.25 / PTP 1.25 · 43p<span class="dot">·</span>直近30日 6回</div>
+        </div>
+        <div class="right"><i class="ph ph-caret-right"></i></div>
+      </div>
+
+      <div class="racket-row st-candidate">
+        <div>
+          <div class="name">Boom Pro 2026 <span class="status-chip">候補</span></div>
+          <div class="meta">Phantom Spin 17 / 47p<span class="dot">·</span>試打 4回</div>
+        </div>
+        <div class="right"><i class="ph ph-caret-right"></i></div>
+      </div>
+
+      <div class="racket-row st-candidate">
+        <div>
+          <div class="name">TOUR 100 305g <span class="status-chip">候補</span></div>
+          <div class="meta">Phantom Spin 17 / 43p<span class="dot">·</span>試打 2回</div>
+        </div>
+        <div class="right"><i class="ph ph-caret-right"></i></div>
+      </div>
+
+      <div class="racket-row st-considering">
+        <div>
+          <div class="name">FX500 TOUR 2025 <span class="status-chip">検討中</span></div>
+          <div class="meta">PTP 1.25 / 43p<span class="dot">·</span>試打 1回</div>
+        </div>
+        <div class="right"><i class="ph ph-caret-right"></i></div>
+      </div>
+
+      <div class="racket-row st-support">
+        <div>
+          <div class="name">Phantom Graphite XS <span class="status-chip">用途別</span></div>
+          <div class="meta">フォーム習得<span class="dot">·</span>直近6ヶ月 0回</div>
+        </div>
+        <div class="right"><i class="ph ph-caret-right"></i></div>
+      </div>
+
+      <div class="racket-row st-retired">
+        <div>
+          <div class="name">EZONE 98 (2025) <span class="status-chip">引退</span></div>
+          <div class="meta">2024引退<span class="dot">·</span>通算 38回</div>
+        </div>
+        <div class="right"><i class="ph ph-caret-right"></i></div>
+      </div>
+
+      <button class="add-link"><i class="ph ph-plus"></i>ラケットを追加</button>
+    </div>
+
+    <!-- Recent Trials -->
+    <div class="section-card">
+      <div class="sec-head">
+        <div class="title"><i class="ph ph-tennis-ball"></i>Recent Trials</div>
+        <a class="more">すべて見る</a>
+      </div>
+      <div class="trial-row">
+        <div class="date">4/26</div>
+        <div class="info">
+          <div class="name">Boom Pro × Phantom Spin 17</div>
+          <div class="scores">安心 4 · スピン 4 · 推進 4</div>
+        </div>
+        <div class="judg judg-adopted">採用候補</div>
+      </div>
+      <div class="trial-row">
+        <div class="date">4/14</div>
+        <div class="info">
+          <div class="name">Pure Strike 16x19 × Blast 1.25</div>
+          <div class="scores">安心 5 · スピン 3 · 推進 3</div>
+        </div>
+        <div class="judg judg-pending">保留</div>
+      </div>
+      <div class="trial-row">
+        <div class="date">4/02</div>
+        <div class="info">
+          <div class="name">FX500 TOUR × PTP 1.25</div>
+          <div class="scores">安心 3 · スピン 3 · 推進 4</div>
+        </div>
+        <div class="judg judg-pending">保留</div>
+      </div>
+    </div>
+
+    <!-- Open Questions -->
+    <div class="section-card">
+      <div class="sec-head">
+        <div class="title"><i class="ph ph-question"></i>Open Questions</div>
+      </div>
+      <div class="open-q">
+        <i class="ph ph-warning-circle"></i>
+        <div>
+          <div class="q-text">Boom Pro を 5/12 大会で実戦投入するか</div>
+          <div class="q-meta">関連: Boom Pro × Phantom Spin 17 評価</div>
+        </div>
+      </div>
+      <div class="open-q">
+        <i class="ph ph-warning-circle"></i>
+        <div>
+          <div class="q-text">EZONE のテンションを 46p に上げて飛び抑制を試すか</div>
+          <div class="q-meta">関連: 18℃以上の試合で要検証</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Manage Masters (folded) -->
+    <div class="section-card">
+      <div class="sec-head">
+        <div class="title"><i class="ph ph-wrench"></i>Manage Masters</div>
+      </div>
+      <div class="manage-row">
+        <i class="ph ph-line-segments"></i>
+        <span class="label">ストリング在庫</span>
+        <span class="count">8 種 · 在庫 12 張</span>
+        <i class="ph ph-caret-right arrow"></i>
+      </div>
+      <div class="manage-row">
+        <i class="ph ph-stack"></i>
+        <span class="label">セッティング組合せ</span>
+        <span class="count">3 種 active</span>
+        <i class="ph ph-caret-right arrow"></i>
+      </div>
+      <div class="manage-row">
+        <i class="ph ph-archive"></i>
+        <span class="label">引退ラケット</span>
+        <span class="count">1 種</span>
+        <i class="ph ph-caret-right arrow"></i>
+      </div>
+    </div>
+
+  </div>
+  <div class="tabbar">
+    <button><i class="ph ph-house"></i><span>ホーム</span></button>
+    <button><i class="ph ph-list-bullets"></i><span>Sessions</span></button>
+    <button class="active"><i class="ph-fill ph-backpack"></i><span>機材</span></button>
+    <button><i class="ph ph-flag"></i><span>Plan</span></button>
+    <button><i class="ph ph-chart-bar"></i><span>Insights</span></button>
+  </div>
+</div>
+
+<!-- ============= 画面 ② Racket Detail (slide-in) ============= -->
+<div class="phone">
+  <div class="caption">画面 ② Racket Detail (slide-in)</div>
+  <div class="header">
+    <button class="icon-btn"><i class="ph ph-arrow-left"></i></button>
+    <div class="logo" style="font-size:13px;">
+      <span class="lTennis">EZONE</span>&nbsp;<span class="lDB" style="font-weight:700;">100 TOUR</span>
+    </div>
+    <div class="right">
+      <button class="icon-btn"><i class="ph ph-cloud-check"></i></button>
+    </div>
+  </div>
+  <div class="tabname">機材 / 詳細</div>
+  <div class="body">
+
+    <!-- Summary (status を視覚的に強調、判断が主役) -->
+    <div class="detail-summary">
+      <div class="name">YONEX EZONE 100 TOUR</div>
+      <div class="tagline">現エース機 (暫定)。フラットドライブで実戦投入中。中長期的に Boom Pro へ移行検討。</div>
+      <div class="chips">
+        <span class="status-chip" style="background:rgba(255,149,0,0.16); color:#B26B00;">主力</span>
+        <span class="status-chip" style="background:var(--panel2); color:var(--textSec);">100in² · 26mm</span>
+        <span class="status-chip" style="background:var(--panel2); color:var(--textSec);">2本所持 (主+予備)</span>
+      </div>
+    </div>
+
+    <!-- Current Setting -->
+    <div class="section-card">
+      <div class="sec-head">
+        <div class="title"><i class="ph ph-gear-six"></i>Current Setting</div>
+      </div>
+      <div class="kv-grid">
+        <div class="kv"><div class="k">縦糸</div><div class="v">Blast 1.25</div></div>
+        <div class="kv"><div class="k">横糸</div><div class="v">PTP 1.25</div></div>
+        <div class="kv"><div class="k">テンション</div><div class="v">43p / 43p</div></div>
+        <div class="kv"><div class="k">グリップ</div><div class="v">KGL164+OG</div></div>
+        <div class="kv"><div class="k">最終張替</div><div class="v">2026-04-12</div></div>
+        <div class="kv"><div class="k">張替後</div><div class="v">2 試合 / 4 練習</div></div>
+      </div>
+    </div>
+
+    <!-- Trial Summary -->
+    <div class="section-card">
+      <div class="sec-head">
+        <div class="title"><i class="ph ph-chart-bar"></i>Trial Summary</div>
+        <span class="more" style="color:var(--textMuted); font-weight:500;">n = 5</span>
+      </div>
+      <div class="avg-bar">
+        <div class="lbl">安心感</div>
+        <div class="bar"><div class="fill" style="width:80%;"></div></div>
+        <div class="num">4.0</div>
+      </div>
+      <div class="avg-bar">
+        <div class="lbl">推進力</div>
+        <div class="bar"><div class="fill" style="width:76%;"></div></div>
+        <div class="num">3.8</div>
+      </div>
+      <div class="avg-bar">
+        <div class="lbl">スピン</div>
+        <div class="bar"><div class="fill" style="width:72%;"></div></div>
+        <div class="num">3.6</div>
+      </div>
+      <div class="avg-bar">
+        <div class="lbl">操作性</div>
+        <div class="bar"><div class="fill" style="width:84%;"></div></div>
+        <div class="num">4.2</div>
+      </div>
+    </div>
+
+    <!-- Usage (Display tier 数字) -->
+    <div class="section-card">
+      <div class="sec-head">
+        <div class="title"><i class="ph ph-chart-line"></i>Usage</div>
+      </div>
+      <div class="stats-block">
+        <div class="stat">
+          <div class="num">6<span class="small">回</span></div>
+          <div class="lbl">直近30日</div>
+        </div>
+        <div class="stat">
+          <div class="num">47<span class="small">回</span></div>
+          <div class="lbl">通算</div>
+        </div>
+        <div class="stat">
+          <div class="num">67<span class="small">%</span></div>
+          <div class="lbl">試合勝率</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Decision Notes -->
+    <div class="section-card">
+      <div class="sec-head">
+        <div class="title"><i class="ph ph-note-pencil"></i>Decision Notes</div>
+        <a class="more">編集</a>
+      </div>
+      <div class="deci-note deci-keep">
+        <div class="head"><i class="ph-fill ph-check-circle"></i>継続理由</div>
+        <div class="body">フォアの叩き込みが安定 / 3 セット持つ / 使い込みによる安心感。試合序盤の動き出しが遅い時のリカバリ性能が高い</div>
+      </div>
+      <div class="deci-note deci-worry">
+        <div class="head"><i class="ph-fill ph-warning"></i>不安点</div>
+        <div class="body">100in² + 26mm ビームが「振り切り」の物理的妨げ (機材関係.md 4/01)。脳ブレーキが残る</div>
+      </div>
+      <div class="deci-note deci-next">
+        <div class="head"><i class="ph-fill ph-arrow-bend-up-right"></i>次回確認</div>
+        <div class="body">5/12 練習で Boom Pro と同条件で打感比較。テンション 46p の暑い日試打も並走</div>
+      </div>
+    </div>
+
+    <!-- Measurements (実測値 — 詳細画面の最後、判断より下) -->
+    <div class="section-card">
+      <div class="sec-head">
+        <div class="title"><i class="ph ph-ruler"></i>Measurements</div>
+        <a class="more">+ 追加</a>
+      </div>
+      <div class="meas-row cur">
+        <div class="state">KGL164 + OG (現行)<span class="cur-tag">CURRENT</span></div>
+        <div class="nums">330.6g / 320mm / 34.28×30.15mm</div>
+        <i class="ph ph-pencil-simple-line"></i>
+      </div>
+      <div class="meas-row">
+        <div class="state">KGL164 (OGなし)</div>
+        <div class="nums">— / — / 33.6×29.6mm</div>
+        <i class="ph ph-pencil-simple-line"></i>
+      </div>
+      <div class="meas-row">
+        <div class="state">元グリップ剥がし後</div>
+        <div class="nums">293.46g / 326.2mm / 32×28mm</div>
+        <i class="ph ph-pencil-simple-line"></i>
+      </div>
+    </div>
+
+    <!-- Action bar bottom -->
+    <div class="action-bar">
+      <button class="action-btn"><i class="ph ph-pencil-simple-line"></i>編集</button>
+      <button class="action-btn"><i class="ph ph-tennis-ball"></i>試打追加</button>
+      <button class="action-btn"><i class="ph ph-archive"></i>引退化</button>
+      <button class="action-btn danger"><i class="ph ph-trash"></i>削除</button>
+    </div>
+
+  </div>
+  <div class="tabbar">
+    <button><i class="ph ph-house"></i><span>ホーム</span></button>
+    <button><i class="ph ph-list-bullets"></i><span>Sessions</span></button>
+    <button class="active"><i class="ph-fill ph-backpack"></i><span>機材</span></button>
+    <button><i class="ph ph-flag"></i><span>Plan</span></button>
+    <button><i class="ph ph-chart-bar"></i><span>Insights</span></button>
+  </div>
+</div>
+
+<!-- ============= 画面 ③ Manage Masters ============= -->
+<div class="phone">
+  <div class="caption">画面 ③ Manage Masters (下層管理画面)</div>
+  <div class="header">
+    <button class="icon-btn"><i class="ph ph-arrow-left"></i></button>
+    <div class="logo" style="font-size:13px;">
+      <span class="lTennis" style="font-weight:600; color:var(--text);">Manage Masters</span>
+    </div>
+    <div class="right">
+      <button class="icon-btn"><i class="ph ph-cloud-check"></i></button>
+    </div>
+  </div>
+  <div class="tabname">機材 / 管理</div>
+  <div class="body">
+
+    <!-- Strings -->
+    <div class="section-card">
+      <div class="sec-head">
+        <div class="title"><i class="ph ph-line-segments"></i>ストリング在庫</div>
+        <a class="more">+ 追加</a>
+      </div>
+
+      <div class="master-row">
+        <div class="stocking stk-confirmed"></div>
+        <div class="info">
+          <div class="name">Babolat Blast 1.25</div>
+          <div class="meta">縦糸主力 · 大量在庫</div>
+        </div>
+        <div class="qty">大量</div>
+        <i class="ph ph-dots-three-vertical dots"></i>
+      </div>
+
+      <div class="master-row">
+        <div class="stocking stk-confirmed"></div>
+        <div class="info">
+          <div class="name">Polytour Pro (PTP) 1.25</div>
+          <div class="meta">横糸主力 · 大量在庫</div>
+        </div>
+        <div class="qty">大量</div>
+        <i class="ph ph-dots-three-vertical dots"></i>
+      </div>
+
+      <div class="master-row">
+        <div class="stocking stk-good"></div>
+        <div class="info">
+          <div class="name">Phantom Spin 17 (1.24)</div>
+          <div class="meta">候補機向け · 評価中</div>
+        </div>
+        <div class="qty">1 張り</div>
+        <i class="ph ph-dots-three-vertical dots"></i>
+      </div>
+
+      <div class="master-row">
+        <div class="stocking stk-testing"></div>
+        <div class="info">
+          <div class="name">Black Out 1.24</div>
+          <div class="meta">未評価</div>
+        </div>
+        <div class="qty">1 張り</div>
+        <i class="ph ph-dots-three-vertical dots"></i>
+      </div>
+
+      <div class="master-row muted">
+        <div class="stocking stk-rejected"></div>
+        <div class="info">
+          <div class="name">Babolat ALU Power</div>
+          <div class="meta">打感劣化が早すぎる</div>
+        </div>
+        <div class="qty">除外</div>
+        <i class="ph ph-dots-three-vertical dots"></i>
+      </div>
+
+      <div class="legend">
+        <span class="swatch"><span class="dot stk-confirmed"></span>確定</span>
+        <span class="swatch"><span class="dot stk-good"></span>好印象</span>
+        <span class="swatch"><span class="dot stk-testing"></span>検証中</span>
+        <span class="swatch"><span class="dot stk-candidate"></span>候補</span>
+        <span class="swatch"><span class="dot stk-hold"></span>保留</span>
+        <span class="swatch"><span class="dot stk-rejected"></span>除外</span>
+      </div>
+    </div>
+
+    <!-- Principles (V2 から継承の固定文言) -->
+    <div class="section-card">
+      <div class="sec-head">
+        <div class="title"><i class="ph ph-book-open"></i>原則 (固定)</div>
+      </div>
+      <div class="principle-card">
+        <div class="ttl">ストリング</div>
+        <ul>
+          <li>横糸 = 打感情報の主経路 → PTP 1.25 を原則維持</li>
+          <li>縦糸 = スピン性能必須 → Blast 採用理由</li>
+          <li>テンション: 縦 ≧ 横 (横 &gt; 縦 は NG)</li>
+        </ul>
+      </div>
+      <div class="principle-card">
+        <div class="ttl">テンション基準</div>
+        <ul>
+          <li>〜12℃ → 43p (確認済み)</li>
+          <li>〜18℃ → 46p (推定最適)</li>
+          <li>20℃×オープン → 49p+ (46p は制御不能)</li>
+          <li>強打者対戦 → −1〜2p (相手エネルギー加算)</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Setups -->
+    <div class="section-card">
+      <div class="sec-head">
+        <div class="title"><i class="ph ph-stack"></i>セッティング組合せ</div>
+        <a class="more">+ 追加</a>
+      </div>
+      <div class="setup-row">
+        <div>
+          <div class="lbl">Blast 1.25 + PTP 1.25</div>
+          <div class="meta">主力セッティング · 4 ラケットで使用中</div>
+        </div>
+        <span class="badge">active</span>
+      </div>
+      <div class="setup-row">
+        <div>
+          <div class="lbl">Phantom Spin 17 (単張り)</div>
+          <div class="meta">候補機検証用 · 2 ラケット</div>
+        </div>
+        <span class="badge">active</span>
+      </div>
+      <div class="setup-row archived">
+        <div>
+          <div class="lbl">Lynx Touch 46p (旧)</div>
+          <div class="meta">2025年春まで使用</div>
+        </div>
+        <span class="badge">archived</span>
+      </div>
+    </div>
+
+    <!-- Retired Rackets -->
+    <div class="section-card">
+      <div class="sec-head">
+        <div class="title"><i class="ph ph-archive"></i>引退ラケット</div>
+      </div>
+      <div class="racket-row st-retired">
+        <div>
+          <div class="name">EZONE 98 (2025) <span class="status-chip">引退</span></div>
+          <div class="meta">2024引退 · 通算 38 回 · 後継 = EZONE 100 TOUR</div>
+        </div>
+        <div class="right"><i class="ph ph-caret-right"></i></div>
+      </div>
+    </div>
+
+  </div>
+  <div class="tabbar">
+    <button><i class="ph ph-house"></i><span>ホーム</span></button>
+    <button><i class="ph ph-list-bullets"></i><span>Sessions</span></button>
+    <button class="active"><i class="ph-fill ph-backpack"></i><span>機材</span></button>
+    <button><i class="ph ph-flag"></i><span>Plan</span></button>
+    <button><i class="ph ph-chart-bar"></i><span>Insights</span></button>
+  </div>
+</div>
+
+</div>
+
+<!-- ============= 仕様サマリー (画面下) ============= -->
+<h2>S16 設計トークン整理 (preview と実装の橋渡し)</h2>
+<div class="spec-table">
+<table>
+  <thead>
+    <tr><th>領域</th><th>v4 設計トークン</th><th>S16 適用</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>角丸</td>
+      <td>大カード <code>20</code> / 中行 <code>14</code> / ボタン <code>12</code> / バッジ <code>6</code></td>
+      <td>section-card=20、racket-row/trial-row/master-row=14、ボタン=12、status-chip=6</td>
+    </tr>
+    <tr>
+      <td>Display tier</td>
+      <td><code>display1=40 / display2=32 / display3=28</code> weight 800 tnum</td>
+      <td>Current Setup の使用回数 (24px)、Detail Usage (22px) — H1 領域に合わせて 22-24px に抑え、display2 (32px) 級は使わない (Home サマリー優先)</td>
+    </tr>
+    <tr>
+      <td>Status 色</td>
+      <td>Apple Peach <code>#FF9500</code> / Mint <code>#00C7BE</code> / Indigo <code>#5856D6</code> / Gray4 <code>#C7C7CC</code></td>
+      <td>主力=Peach / 予備=Mint / 候補=Primary Blue / 検討中=Gray4 / 用途別=Indigo / 引退=textMuted</td>
+    </tr>
+    <tr>
+      <td>Status ラベル (UI 表示)</td>
+      <td>—</td>
+      <td>主力 / 予備 / 候補 / 検討中 / 用途別 / 引退 (内部 key は V2 互換 active/sub/candidate/considering/support/retired)</td>
+    </tr>
+    <tr>
+      <td>アイコン</td>
+      <td>Phosphor regular 主、fill は active タブ・ステータスのみ</td>
+      <td>セクション見出しに 1 個 (gear-six / chart-bar / chart-line / note-pencil / ruler / line-segments / stack / archive / question)</td>
+    </tr>
+    <tr>
+      <td>Header</td>
+      <td>Glass header + ロゴ + 同期 + 天気 + user</td>
+      <td>S14 と同形式維持。Detail / Manage Masters では戻る arrow-left に置き換え</td>
+    </tr>
+    <tr>
+      <td>SCHEMA 拡張 (実装 Phase 3)</td>
+      <td>—</td>
+      <td>Racket: id/name/role/status/weight/balance/face/beam/note/measurements[]<br>String: id/name/qty/status/note<br>StringSetup: id/label/stringMain/stringCross/status<br>Measurement (ネスト): id/state/weight/balance/gripW/gripT/current/note</td>
+    </tr>
+    <tr>
+      <td>Decision Notes (新規)</td>
+      <td>—</td>
+      <td>Racket に <code>decisionNotes: { keep, worry, next }</code> 追加。機材関係.md / リサーチ MD の生情報を構造化吸収する場</td>
+    </tr>
+    <tr>
+      <td>Open Questions</td>
+      <td>—</td>
+      <td>S17 Plan タブの Next Actions と区別: <b>Open Questions = 機材判断の未解決問い</b> / Next Actions = 行動 TODO。実装は <code>next</code> から category="gear" でフィルタ表示 (S14 既存 state を流用、S17 で完全分離)</td>
+    </tr>
+    <tr>
+      <td>暫定削除 (S16 後半)</td>
+      <td>—</td>
+      <td>Sessions 絞り込みの「種類=試打」時のみ独立カード暫定 (DECISIONS S5-S9) を削除。Recent Trials が Gear タブに集約されるため</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<h2>判断してほしいこと</h2>
+<div class="note">
+  <b>1. ラベル名 (status 6 種)</b> — 提案: 主力 / 予備 / 候補 / 検討中 / 用途別 / 引退。実機材を当てはめた感覚で違和感あれば言葉を直してください (用途別 → 練習用 / フォーム機 / 特化機 / 補助機 候補)。<br>
+  <b>2. Decision Hub の構成順序</b> — Current Setup → Racket Board → Recent Trials → Open Questions → Manage Masters。逆にしたい / 削りたいセクションあれば指示ください。<br>
+  <b>3. Racket Detail の優先順位</b> — Summary → Current Setting → Trial Summary → Usage → Decision Notes → Measurements。「実測値が下すぎる」「Decision Notes をもっと上に」等の感覚があれば修正します。<br>
+  <b>4. Open Questions の置き場</b> — Gear タブに置く案ですが、S17 Plan タブとの被りが気になる場合は Plan に集約する選択肢もあります。Gear に置くべきか、置かないか。<br>
+  <b>5. Manage Masters の階層</b> — トップに 1 タップ折り畳み 3 行で配置。「Strings 在庫はトップに展開して見せたい」等あれば指示を。<br>
+</div>
+
+</body>
+</html>
