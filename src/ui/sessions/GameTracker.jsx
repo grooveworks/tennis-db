@@ -22,6 +22,24 @@
 //   - サブコンポーネントは _gtXxx 命名でトップレベル定義 (CLAUDE.md §6.3)
 //   - SessionDetailView の _dvXxx と命名衝突なし
 
+// S15.5.8 hotfix: MENTAL_LABELS / PHYSICAL_LABELS が S11 から定義漏れで、
+//   「次のゲーム」タップ → CO モーダル表示時に ReferenceError → 画面真っ白の致命的バグ。
+//   ボタン下の小さい補助ラベル + 既存 CO 行の表示用 (5 段階の状態を一言で)。
+const MENTAL_LABELS = {
+  1: "崩壊",
+  2: "焦り",
+  3: "普通",
+  4: "集中",
+  5: "完全",
+};
+const PHYSICAL_LABELS = {
+  1: "限界",
+  2: "疲労",
+  3: "普通",
+  4: "余裕",
+  5: "万全",
+};
+
 // ── Lucide アイコンのみで色は CSS 制御
 function _gtSafeIcon({ name, size, color }) {
   return <Icon name={name} size={size} color={color} />;
