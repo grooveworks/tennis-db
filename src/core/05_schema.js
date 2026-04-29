@@ -119,6 +119,52 @@ const SCHEMA={
     {key:"opponentNote",label:"相手メモ",type:"textarea",combinable:true},
     {key:"note",label:"試合メモ",type:"textarea",combinable:true},
   ],
+  // ── S16 (Gear タブ) で追加 ──
+  // racket: 単体ラケット（status 6種、Decision Notes フラット展開、measurements ネスト）
+  // string: ストリング在庫マスター（status 6種、qty はテキスト「大量」「1張り」運用 V2 互換）
+  // stringSetup: 縦糸×横糸の組合せマスター（active/archived）
+  // measurement: ラケットの実測値（racket.measurements[] のネスト要素）
+  racket:[
+    {key:"name",label:"ラケット名",type:"text",required:true,combinable:true},
+    {key:"role",label:"役割",type:"text",combinable:true},
+    {key:"status",label:"ステータス",type:"select",required:true},
+    {key:"face",label:"フェイス",type:"text"},
+    {key:"beam",label:"ビーム",type:"text"},
+    {key:"weight",label:"フレーム重量",type:"text"},
+    {key:"balance",label:"フレームバランス",type:"text"},
+    {key:"currentString",label:"現在のストリング",type:"text"},
+    {key:"currentTension",label:"現在のテンション",type:"text"},
+    {key:"note",label:"メモ",type:"textarea",combinable:true},
+    {key:"decisionKeep",label:"継続理由",type:"textarea",combinable:true},
+    {key:"decisionWorry",label:"不安点",type:"textarea",combinable:true},
+    {key:"decisionNext",label:"次回確認",type:"textarea",combinable:true},
+    {key:"nextCheck",label:"次の確認(1行)",type:"text"},
+    {key:"order",label:"並び順",type:"number"},
+    {key:"measurements",label:"実測値履歴",type:"array",itemType:"measurement"},
+  ],
+  string:[
+    {key:"name",label:"ストリング名",type:"text",required:true,combinable:true},
+    {key:"qty",label:"在庫量",type:"text"},
+    {key:"status",label:"ステータス",type:"select",required:true},
+    {key:"note",label:"メモ",type:"textarea",combinable:true},
+    {key:"order",label:"並び順",type:"number"},
+  ],
+  stringSetup:[
+    {key:"label",label:"ラベル",type:"text",required:true,combinable:true},
+    {key:"stringMain",label:"縦糸",type:"text"},
+    {key:"stringCross",label:"横糸",type:"text"},
+    {key:"status",label:"ステータス",type:"select"},
+    {key:"order",label:"並び順",type:"number"},
+  ],
+  measurement:[
+    {key:"state",label:"状態",type:"text",combinable:true},
+    {key:"weight",label:"重量",type:"text"},
+    {key:"balance",label:"バランス",type:"text"},
+    {key:"gripW",label:"グリップ幅",type:"text"},
+    {key:"gripT",label:"グリップ厚",type:"text"},
+    {key:"current",label:"現行フラグ",type:"boolean"},
+    {key:"note",label:"メモ",type:"textarea",combinable:true},
+  ],
 };
 
 // ── 自動生成（SCHEMA から派生、手動管理禁止）─────

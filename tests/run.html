@@ -148,6 +148,48 @@ const SCHEMA={
     {key:"opponentNote",label:"相手メモ",type:"textarea",combinable:true},
     {key:"note",label:"試合メモ",type:"textarea",combinable:true},
   ],
+  // ── S16 (Gear タブ) で追加 ──
+  racket:[
+    {key:"name",label:"ラケット名",type:"text",required:true,combinable:true},
+    {key:"role",label:"役割",type:"text",combinable:true},
+    {key:"status",label:"ステータス",type:"select",required:true},
+    {key:"face",label:"フェイス",type:"text"},
+    {key:"beam",label:"ビーム",type:"text"},
+    {key:"weight",label:"フレーム重量",type:"text"},
+    {key:"balance",label:"フレームバランス",type:"text"},
+    {key:"currentString",label:"現在のストリング",type:"text"},
+    {key:"currentTension",label:"現在のテンション",type:"text"},
+    {key:"note",label:"メモ",type:"textarea",combinable:true},
+    {key:"decisionKeep",label:"継続理由",type:"textarea",combinable:true},
+    {key:"decisionWorry",label:"不安点",type:"textarea",combinable:true},
+    {key:"decisionNext",label:"次回確認",type:"textarea",combinable:true},
+    {key:"nextCheck",label:"次の確認(1行)",type:"text"},
+    {key:"order",label:"並び順",type:"number"},
+    {key:"measurements",label:"実測値履歴",type:"array",itemType:"measurement"},
+  ],
+  string:[
+    {key:"name",label:"ストリング名",type:"text",required:true,combinable:true},
+    {key:"qty",label:"在庫量",type:"text"},
+    {key:"status",label:"ステータス",type:"select",required:true},
+    {key:"note",label:"メモ",type:"textarea",combinable:true},
+    {key:"order",label:"並び順",type:"number"},
+  ],
+  stringSetup:[
+    {key:"label",label:"ラベル",type:"text",required:true,combinable:true},
+    {key:"stringMain",label:"縦糸",type:"text"},
+    {key:"stringCross",label:"横糸",type:"text"},
+    {key:"status",label:"ステータス",type:"select"},
+    {key:"order",label:"並び順",type:"number"},
+  ],
+  measurement:[
+    {key:"state",label:"状態",type:"text",combinable:true},
+    {key:"weight",label:"重量",type:"text"},
+    {key:"balance",label:"バランス",type:"text"},
+    {key:"gripW",label:"グリップ幅",type:"text"},
+    {key:"gripT",label:"グリップ厚",type:"text"},
+    {key:"current",label:"現行フラグ",type:"boolean"},
+    {key:"note",label:"メモ",type:"textarea",combinable:true},
+  ],
 };
 const COMBINABLE_FIELDS=new Set(
   Object.values(SCHEMA).flatMap(fields=>fields.filter(f=>f.combinable).map(f=>f.key))
@@ -761,6 +803,259 @@ test("統合: practice AW(B) を GCal(A) に統合 → cascade trial.linkedPract
   newTrials.forEach(function(t){ byId[t.id] = t; });
   assertEqual(byId.tr1.linkedPracticeId, "pA"); // 付け替え済
   assertEqual(byId.tr4.linkedPracticeId, "pA"); // 付け替え済
+});
+</script>
+
+<!-- ===== src/domain/reorder.js (inline copy) ===== -->
+<script>
+const reorderItems=(list,fromIndex,toIndex)=>{
+  if(!Array.isArray(list))return [];
+  const len=list.length;
+  if(fromIndex<0||fromIndex>=len)return [...list];
+  if(toIndex<0||toIndex>=len)return [...list];
+  if(fromIndex===toIndex)return list.map((item,i)=>({...item,order:i}));
+  const result=[...list];
+  const [moved]=result.splice(fromIndex,1);
+  result.splice(toIndex,0,moved);
+  return result.map((item,i)=>({...item,order:i}));
+};
+const moveItemUp=(list,fromIndex)=>{
+  if(!Array.isArray(list)||fromIndex<=0||fromIndex>=list.length)return Array.isArray(list)?[...list]:[];
+  return reorderItems(list,fromIndex,fromIndex-1);
+};
+const moveItemDown=(list,fromIndex)=>{
+  if(!Array.isArray(list)||fromIndex<0||fromIndex>=list.length-1)return Array.isArray(list)?[...list]:[];
+  return reorderItems(list,fromIndex,fromIndex+1);
+};
+const assignDefaultOrders=list=>{
+  if(!Array.isArray(list))return [];
+  return list.map((item,i)=>{
+    if(item==null||typeof item!=="object")return item;
+    if(typeof item.order==="number"&&!isNaN(item.order))return item;
+    return {...item,order:i};
+  });
+};
+const sortByStatusAndOrder=(list,statusPriority)=>{
+  if(!Array.isArray(list))return [];
+  const pri=statusPriority||{};
+  const fallback=Math.max(...Object.values(pri),-1)+1;
+  const getPri=s=>(s in pri)?pri[s]:fallback;
+  return [...list].sort((a,b)=>{
+    const pa=getPri(a&&a.status);
+    const pb=getPri(b&&b.status);
+    if(pa!==pb)return pa-pb;
+    const oa=(a&&typeof a.order==="number"&&!isNaN(a.order))?a.order:Number.POSITIVE_INFINITY;
+    const ob=(b&&typeof b.order==="number"&&!isNaN(b.order))?b.order:Number.POSITIVE_INFINITY;
+    return oa-ob;
+  });
+};
+const RACKET_STATUS_PRIORITY={active:0,sub:1,candidate:2,considering:3,support:4,retired:5};
+const STRING_STATUS_PRIORITY={confirmed:0,good:1,testing:2,candidate:3,hold:4,rejected:5};
+const SETUP_STATUS_PRIORITY={active:0,archived:1};
+</script>
+
+<!-- ── reorder.js の unit test (S16 / DESIGN_SYSTEM §11 / N3.5) ── -->
+<script>
+function _fxStrings() {
+  return [
+    { id: "s1", name: "Blast 1.25",   status: "confirmed", order: 0 },
+    { id: "s2", name: "PTP 1.25",     status: "confirmed", order: 1 },
+    { id: "s3", name: "Phantom Spin", status: "good",      order: 2 },
+    { id: "s4", name: "Black Out",    status: "testing",   order: 3 },
+    { id: "s5", name: "ALU Power",    status: "rejected",  order: 4 },
+  ];
+}
+
+// ── reorderItems
+test("reorderItems: 上から下へ移動 (1 → 3) で順序が入替+order 再採番", function() {
+  var r = reorderItems(_fxStrings(), 1, 3);
+  // 元: [s1, s2, s3, s4, s5] → s2 を index 3 へ → [s1, s3, s4, s2, s5]
+  assertEqual(r.map(function(x){return x.id;}), ["s1","s3","s4","s2","s5"]);
+  // order が 0,1,2,3,4 で再採番されている
+  assertEqual(r.map(function(x){return x.order;}), [0,1,2,3,4]);
+});
+
+test("reorderItems: 下から上へ移動 (4 → 0) で順序が入替", function() {
+  var r = reorderItems(_fxStrings(), 4, 0);
+  assertEqual(r.map(function(x){return x.id;}), ["s5","s1","s2","s3","s4"]);
+  assertEqual(r.map(function(x){return x.order;}), [0,1,2,3,4]);
+});
+
+test("reorderItems: fromIndex===toIndex で order のみ再採番、要素順は変わらない", function() {
+  var r = reorderItems(_fxStrings(), 2, 2);
+  assertEqual(r.map(function(x){return x.id;}), ["s1","s2","s3","s4","s5"]);
+  assertEqual(r.map(function(x){return x.order;}), [0,1,2,3,4]);
+});
+
+test("reorderItems: 不正な index で元のリストのコピーを返す", function() {
+  var r1 = reorderItems(_fxStrings(), -1, 2);
+  var r2 = reorderItems(_fxStrings(), 2, 99);
+  assertEqual(r1.length, 5);
+  assertEqual(r2.length, 5);
+});
+
+test("reorderItems: 非配列で空配列", function() {
+  assertEqual(reorderItems(null, 0, 1), []);
+  assertEqual(reorderItems(undefined, 0, 1), []);
+  assertEqual(reorderItems("not array", 0, 1), []);
+});
+
+test("reorderItems: 元配列を破壊しない (immutable)", function() {
+  var orig = _fxStrings();
+  var snap = orig.map(function(x){return x.id;});
+  reorderItems(orig, 0, 2);
+  assertEqual(orig.map(function(x){return x.id;}), snap);
+});
+
+// ── moveItemUp / moveItemDown
+test("moveItemUp: index 2 → index 1", function() {
+  var r = moveItemUp(_fxStrings(), 2);
+  assertEqual(r.map(function(x){return x.id;}), ["s1","s3","s2","s4","s5"]);
+});
+
+test("moveItemUp: 先頭 (index 0) は no-op (元のコピー)", function() {
+  var r = moveItemUp(_fxStrings(), 0);
+  assertEqual(r.map(function(x){return x.id;}), ["s1","s2","s3","s4","s5"]);
+  // order は再採番されない (no-op の場合)
+});
+
+test("moveItemDown: index 2 → index 3", function() {
+  var r = moveItemDown(_fxStrings(), 2);
+  assertEqual(r.map(function(x){return x.id;}), ["s1","s2","s4","s3","s5"]);
+});
+
+test("moveItemDown: 末尾は no-op", function() {
+  var r = moveItemDown(_fxStrings(), 4);
+  assertEqual(r.map(function(x){return x.id;}), ["s1","s2","s3","s4","s5"]);
+});
+
+test("moveItemUp: 非配列で空配列", function() {
+  assertEqual(moveItemUp(null, 1), []);
+});
+
+// ── assignDefaultOrders
+test("assignDefaultOrders: order が無い item に index を付与", function() {
+  var list = [{id:"a"}, {id:"b"}, {id:"c"}];
+  var r = assignDefaultOrders(list);
+  assertEqual(r.map(function(x){return x.order;}), [0,1,2]);
+});
+
+test("assignDefaultOrders: 既に order を持つ item は維持", function() {
+  var list = [{id:"a", order: 5}, {id:"b"}, {id:"c", order: 10}];
+  var r = assignDefaultOrders(list);
+  assertEqual(r.map(function(x){return x.order;}), [5,1,10]);
+});
+
+test("assignDefaultOrders: NaN な order は無視して付与", function() {
+  var list = [{id:"a", order: NaN}, {id:"b", order: 7}];
+  var r = assignDefaultOrders(list);
+  assertEqual(r[0].order, 0);
+  assertEqual(r[1].order, 7);
+});
+
+test("assignDefaultOrders: null / 非オブジェクト要素はそのまま", function() {
+  var list = [null, {id:"a"}, "str"];
+  var r = assignDefaultOrders(list);
+  assertEqual(r[0], null);
+  assertEqual(r[1].order, 1);
+  assertEqual(r[2], "str");
+});
+
+test("assignDefaultOrders: 元配列を破壊しない", function() {
+  var orig = [{id:"a"}, {id:"b"}];
+  assignDefaultOrders(orig);
+  assertEqual(orig[0].order, undefined);
+  assertEqual(orig[1].order, undefined);
+});
+
+// ── sortByStatusAndOrder
+test("sortByStatusAndOrder: status 優先度順 + 同 status 内は order 順", function() {
+  var list = [
+    {id:"a", status:"rejected",  order:0},
+    {id:"b", status:"confirmed", order:1},
+    {id:"c", status:"good",      order:0},
+    {id:"d", status:"confirmed", order:0},
+  ];
+  var r = sortByStatusAndOrder(list, STRING_STATUS_PRIORITY);
+  assertEqual(r.map(function(x){return x.id;}), ["d","b","c","a"]);
+});
+
+test("sortByStatusAndOrder: 不明 status は末尾", function() {
+  var list = [
+    {id:"a", status:"unknown", order:0},
+    {id:"b", status:"confirmed", order:0},
+  ];
+  var r = sortByStatusAndOrder(list, STRING_STATUS_PRIORITY);
+  assertEqual(r.map(function(x){return x.id;}), ["b","a"]);
+});
+
+test("sortByStatusAndOrder: order 無しは status 内末尾", function() {
+  var list = [
+    {id:"a", status:"confirmed"},
+    {id:"b", status:"confirmed", order:1},
+    {id:"c", status:"confirmed", order:0},
+  ];
+  var r = sortByStatusAndOrder(list, STRING_STATUS_PRIORITY);
+  assertEqual(r.map(function(x){return x.id;}), ["c","b","a"]);
+});
+
+test("sortByStatusAndOrder: RACKET_STATUS_PRIORITY で active → retired", function() {
+  var list = [
+    {id:"r1", status:"retired",     order:0},
+    {id:"r2", status:"active",      order:0},
+    {id:"r3", status:"candidate",   order:0},
+    {id:"r4", status:"sub",         order:0},
+    {id:"r5", status:"considering", order:0},
+    {id:"r6", status:"support",     order:0},
+  ];
+  var r = sortByStatusAndOrder(list, RACKET_STATUS_PRIORITY);
+  assertEqual(r.map(function(x){return x.id;}), ["r2","r4","r3","r5","r6","r1"]);
+});
+
+test("sortByStatusAndOrder: 元配列を破壊しない", function() {
+  var orig = [{id:"a", status:"rejected", order:0}, {id:"b", status:"confirmed", order:0}];
+  var snap = orig.map(function(x){return x.id;});
+  sortByStatusAndOrder(orig, STRING_STATUS_PRIORITY);
+  assertEqual(orig.map(function(x){return x.id;}), snap);
+});
+
+test("sortByStatusAndOrder: 非配列で空配列", function() {
+  assertEqual(sortByStatusAndOrder(null, STRING_STATUS_PRIORITY), []);
+});
+
+test("sortByStatusAndOrder: SETUP_STATUS_PRIORITY で active → archived", function() {
+  var list = [
+    {id:"x", status:"archived", order:0},
+    {id:"y", status:"active",   order:1},
+    {id:"z", status:"active",   order:0},
+  ];
+  var r = sortByStatusAndOrder(list, SETUP_STATUS_PRIORITY);
+  assertEqual(r.map(function(x){return x.id;}), ["z","y","x"]);
+});
+
+// ── 統合シナリオ
+test("統合: 並び替え後の Select 表示順を sortByStatusAndOrder で再現", function() {
+  // 初期: confirmed/confirmed/good/testing/rejected
+  var initial = _fxStrings();
+  // ユーザーが PTP (s2) を先頭に上げる: index 1 → 0
+  var afterReorder = reorderItems(initial, 1, 0);
+  assertEqual(afterReorder.map(function(x){return x.id;}), ["s2","s1","s3","s4","s5"]);
+  // Select 表示は status 優先度 → order ASC
+  var selectOrder = sortByStatusAndOrder(afterReorder, STRING_STATUS_PRIORITY);
+  // confirmed (s2 order:0, s1 order:1) → good (s3) → testing (s4) → rejected (s5)
+  assertEqual(selectOrder.map(function(x){return x.id;}), ["s2","s1","s3","s4","s5"]);
+});
+
+test("統合: assignDefaultOrders → sortByStatusAndOrder で初回データの並び確定", function() {
+  var raw = [
+    {id:"a", name:"A", status:"good"},      // order なし
+    {id:"b", name:"B", status:"confirmed"}, // order なし
+    {id:"c", name:"C", status:"confirmed"}, // order なし
+  ];
+  var withOrder = assignDefaultOrders(raw);
+  var sorted = sortByStatusAndOrder(withOrder, STRING_STATUS_PRIORITY);
+  // confirmed (b order:1, c order:2) → good (a order:0)
+  assertEqual(sorted.map(function(x){return x.id;}), ["b","c","a"]);
 });
 </script>
 
