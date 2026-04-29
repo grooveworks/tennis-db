@@ -17,7 +17,8 @@ const normalizeItems = (items) => (items || []).map(it => ({ ...it, date: normDa
 const loadSessionsFromFirestore = async (user) => {
   if (!user) return null;
   // S14: next も読込追加 (Home Current Context / Next Actions で使用)
-  const keys = ["tournaments", "practices", "trials", "rackets", "strings", "venues", "opponents", "next", "quickTrialCards"];
+  // S16 Phase 4-A: stringSetups を読込追加 (Manage Masters セッティング組合せ用、現状は読込のみ、UI は Phase 4-B)
+  const keys = ["tournaments", "practices", "trials", "rackets", "strings", "venues", "opponents", "next", "quickTrialCards", "stringSetups"];
   const results = {};
   for (const k of keys) results[k] = []; // 既定値 (取得失敗時用)
   try {
@@ -96,6 +97,10 @@ function TennisDB() {
   // S15.5: quickTrialCards (試打カード式 QuickTrialMode で使用)
   const [quickTrialCards, setQuickTrialCards] = useState([]);
   const [quickTrial, setQuickTrial] = useState(false); // QuickTrialMode 表示
+  // S16 Phase 4-A: stringSetups (Manage Masters セッティング組合せ。Phase 4-A では読込のみ、UI は Phase 4-B)
+  const [stringSetups, setStringSetups] = useState([]);
+  // S16 Phase 4-A: Gear タブ Strings 編集 Modal の対象 (null=閉じている、{}=新規追加、{id,...}=編集)
+  const [stringEditTarget, setStringEditTarget] = useState(null);
   const [loading, setLoading] = useState(false);
   const [detail, setDetail] = useState(null); // S10: { type, session, mode } | null
   const [weather, setWeather] = useState(null); // S13.5: Open-Meteo 当日気温 { temp, code } | null
@@ -115,6 +120,8 @@ function TennisDB() {
     setNext(lsLoad(KEYS.next) || []);
     // S15.5: quickTrialCards もローカルから
     setQuickTrialCards(lsLoad(KEYS.quickTrialCards) || []);
+    // S16 Phase 4-A: stringSetups もローカルから (assignDefaultOrders で order 遅延付与、in-memory 整形のみ、書き戻し無し)
+    setStringSetups(assignDefaultOrders(lsLoad(KEYS.stringSetups) || []));
   }, []);
 
   // S14: 天気取得 拡張 (Open-Meteo、key 不要、CORS 対応)
@@ -224,14 +231,17 @@ function TennisDB() {
             const tr = normalizeItems(data.trials);
             setTournaments(t); setPractices(p); setTrials(tr);
             // S11: master データもセット
-            setRackets(data.rackets || []);
-            setStringsList(data.strings || []);
+            // S16 Phase 4-A: rackets / strings に assignDefaultOrders を適用 (in-memory 整形、書き戻しは reorder UI 操作時のみ)
+            setRackets(assignDefaultOrders(data.rackets || []));
+            setStringsList(assignDefaultOrders(data.strings || []));
             setVenues(data.venues || []);
             setOpponents(data.opponents || []);
             // S14: next も
             setNext(data.next || []);
             // S15.5: quickTrialCards も
             setQuickTrialCards(data.quickTrialCards || []);
+            // S16 Phase 4-A: stringSetups (Phase 4-A 読込のみ、UI 編集は Phase 4-B)
+            setStringSetups(assignDefaultOrders(data.stringSetups || []));
             // localStorage には正規化前の原データを保存 (v3 互換のため)
             lsSave(KEYS.tournaments, data.tournaments);
             lsSave(KEYS.practices, data.practices);
@@ -242,6 +252,7 @@ function TennisDB() {
             lsSave(KEYS.opponents, data.opponents);
             lsSave(KEYS.next, data.next);
             lsSave(KEYS.quickTrialCards, data.quickTrialCards);
+            lsSave(KEYS.stringSetups, data.stringSetups);
             toast.show("クラウドから読み込みました", "success");
           } else {
             // S15.5.3 fix: data=null = Firestore get が timeout/error
@@ -262,8 +273,10 @@ function TennisDB() {
               if (key === "tournaments") setTournaments(normalized);
               else if (key === "practices") setPractices(normalized);
               else if (key === "trials") setTrials(normalized);
-              else if (key === "rackets")  setRackets(val);
-              else if (key === "strings")  setStringsList(val);
+              // S16 Phase 4-A: rackets / strings / stringSetups は assignDefaultOrders を通す (in-memory 整形)
+              else if (key === "rackets")  setRackets(assignDefaultOrders(val));
+              else if (key === "strings")  setStringsList(assignDefaultOrders(val));
+              else if (key === "stringSetups") setStringSetups(assignDefaultOrders(val));
               else if (key === "venues")   setVenues(val);
               else if (key === "opponents") setOpponents(val);
               else if (key === "next") setNext(val);
@@ -719,6 +732,56 @@ function TennisDB() {
     setQuickAddType(null);     // QuickAddModal を閉じる
   };
 
+  // S16 Phase 4-A: Gear タブ ストリング在庫の永続化 (S15.5.3 と同パターン、debounce bypass で即時 Firestore write)
+  // 並び順編集 (▲▼) も追加・編集・削除も全部この関数を経由 → 一貫した書き込み
+  const persistStrings = (newList) => {
+    setStringsList(newList);
+    lsSave(KEYS.strings, newList);
+    queueMicrotask(() => {
+      const u = fbAuth.currentUser;
+      if (!u) return;
+      fbDb.collection("users").doc(u.uid).collection("data").doc(KEYS.strings)
+        .set({ items: cleanForFirestore(newList), updatedAt: new Date().toISOString() })
+        .catch(err => {
+          console.error("strings Firestore write error:", err);
+          toast.show("ストリング在庫のクラウド同期に失敗 (ローカルは保存済み)", "warning");
+        });
+    });
+  };
+
+  // 並び順編集 ▲▼ タップ: reorder.js の reorderItems が返した新リストをそのまま永続化
+  const handleStringsUpdate = (newList) => {
+    persistStrings(assignDefaultOrders(newList));
+  };
+
+  // ストリング編集 Modal: 行タップで開く (item={id,name,...})、追加ボタンで item={} (新規)
+  const handleStringEdit = (item) => setStringEditTarget(item || {});
+  const handleStringAdd = () => setStringEditTarget({});
+  const handleStringEditClose = () => setStringEditTarget(null);
+
+  const handleStringSave = (item, isNew) => {
+    if (isNew) {
+      // 新規: 末尾に追加 (order = 既存最大 + 1)
+      const maxOrder = (strings || []).reduce((m, s) => Math.max(m, typeof s.order === "number" ? s.order : -1), -1);
+      const next = { ...item, order: maxOrder + 1 };
+      persistStrings([...(strings || []), next]);
+      toast.show("ストリングを追加しました", "success");
+    } else {
+      // 編集: id 一致を上書き (order は既存維持)
+      const existing = (strings || []).find(s => s.id === item.id);
+      const next = { ...item, order: typeof existing?.order === "number" ? existing.order : item.order };
+      persistStrings((strings || []).map(s => s.id === item.id ? next : s));
+      toast.show("ストリングを更新しました", "success");
+    }
+    setStringEditTarget(null);
+  };
+
+  const handleStringDelete = (id) => {
+    persistStrings((strings || []).filter(s => s.id !== id));
+    setStringEditTarget(null);
+    toast.show("ストリングを削除しました", "info");
+  };
+
   // 認証状態判定完了前はスピナー
   if (!authReady) {
     return (
@@ -764,7 +827,23 @@ function TennisDB() {
       />
     );
   } else if (tab === "gear") {
-    tabContent = <PlaceholderTab name="機材" stage="S16" />;
+    // S16 Phase 4-A: GearTab (Decision Hub 骨組 + StringsSection 完全動作)
+    // Phase 4-B/C/D で他セクション (Current Setup / Racket Board / Recent Trials / Open Questions / Setups / Retired) を埋める
+    tabContent = (
+      <GearTab
+        rackets={rackets}
+        strings={strings}
+        stringSetups={stringSetups}
+        trials={trials}
+        tournaments={tournaments}
+        practices={practices}
+        next={next}
+        onStringsUpdate={handleStringsUpdate}
+        onStringEdit={handleStringEdit}
+        onStringAdd={handleStringAdd}
+        toast={toast}
+      />
+    );
   } else if (tab === "plan") {
     tabContent = <PlaceholderTab name="計画" stage="S17" />;
   } else if (tab === "insights") {
@@ -869,6 +948,15 @@ function TennisDB() {
         fontScale={fontScale}
         onFontScaleChange={handleFontScaleChange}
         onClose={handleSettingsClose}
+      />
+      {/* S16 Phase 4-A: ストリング編集 Modal (Gear タブ Manage Masters → 行タップ / + 追加 で起動) */}
+      <StringEditModal
+        open={!!stringEditTarget}
+        item={stringEditTarget}
+        onSave={handleStringSave}
+        onDelete={handleStringDelete}
+        onClose={handleStringEditClose}
+        confirm={cfm}
       />
       {/* S15.5: QuickTrialMode (試打カード式、Home 試打ボタン → これが起動) */}
       <QuickTrialMode

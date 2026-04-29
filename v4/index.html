@@ -45,7 +45,7 @@ input,select,textarea,button{font-family:inherit}
 const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
 // ── 定数定義（色・キー・バージョン）─────────────
-const APP_VERSION="4.0.0-S15.5.9";
+const APP_VERSION="4.0.0-S16.1";
 const font="-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif";
 
 // 色設計（DESIGN_SYSTEM_v4.md §1 + §10 S13.5 改訂準拠）
@@ -337,6 +337,52 @@ const SCHEMA={
     {key:"techNote",label:"技術メモ",type:"textarea",combinable:true},
     {key:"opponentNote",label:"相手メモ",type:"textarea",combinable:true},
     {key:"note",label:"試合メモ",type:"textarea",combinable:true},
+  ],
+  // ── S16 (Gear タブ) で追加 ──
+  // racket: 単体ラケット（status 6種、Decision Notes フラット展開、measurements ネスト）
+  // string: ストリング在庫マスター（status 6種、qty はテキスト「大量」「1張り」運用 V2 互換）
+  // stringSetup: 縦糸×横糸の組合せマスター（active/archived）
+  // measurement: ラケットの実測値（racket.measurements[] のネスト要素）
+  racket:[
+    {key:"name",label:"ラケット名",type:"text",required:true,combinable:true},
+    {key:"role",label:"役割",type:"text",combinable:true},
+    {key:"status",label:"ステータス",type:"select",required:true},
+    {key:"face",label:"フェイス",type:"text"},
+    {key:"beam",label:"ビーム",type:"text"},
+    {key:"weight",label:"フレーム重量",type:"text"},
+    {key:"balance",label:"フレームバランス",type:"text"},
+    {key:"currentString",label:"現在のストリング",type:"text"},
+    {key:"currentTension",label:"現在のテンション",type:"text"},
+    {key:"note",label:"メモ",type:"textarea",combinable:true},
+    {key:"decisionKeep",label:"継続理由",type:"textarea",combinable:true},
+    {key:"decisionWorry",label:"不安点",type:"textarea",combinable:true},
+    {key:"decisionNext",label:"次回確認",type:"textarea",combinable:true},
+    {key:"nextCheck",label:"次の確認(1行)",type:"text"},
+    {key:"order",label:"並び順",type:"number"},
+    {key:"measurements",label:"実測値履歴",type:"array",itemType:"measurement"},
+  ],
+  string:[
+    {key:"name",label:"ストリング名",type:"text",required:true,combinable:true},
+    {key:"qty",label:"在庫量",type:"text"},
+    {key:"status",label:"ステータス",type:"select",required:true},
+    {key:"note",label:"メモ",type:"textarea",combinable:true},
+    {key:"order",label:"並び順",type:"number"},
+  ],
+  stringSetup:[
+    {key:"label",label:"ラベル",type:"text",required:true,combinable:true},
+    {key:"stringMain",label:"縦糸",type:"text"},
+    {key:"stringCross",label:"横糸",type:"text"},
+    {key:"status",label:"ステータス",type:"select"},
+    {key:"order",label:"並び順",type:"number"},
+  ],
+  measurement:[
+    {key:"state",label:"状態",type:"text",combinable:true},
+    {key:"weight",label:"重量",type:"text"},
+    {key:"balance",label:"バランス",type:"text"},
+    {key:"gripW",label:"グリップ幅",type:"text"},
+    {key:"gripT",label:"グリップ厚",type:"text"},
+    {key:"current",label:"現行フラグ",type:"boolean"},
+    {key:"note",label:"メモ",type:"textarea",combinable:true},
   ],
 };
 
@@ -1029,6 +1075,76 @@ function countRelinks(trials, removedItem, type) {
   }
   return 0;
 }
+
+// === src/domain/reorder.js ===
+// ── 並び順編集ヘルパ（S16 新設、汎用パターン）──────
+// DESIGN_SYSTEM_v4.md §11 / DECISIONS_v4.md S16 Phase 1.5 参照。
+//
+// 純関数のみ（副作用なし、React に依存しない）。
+// S16 で ストリング在庫 / Racket Board に最初に適用、後続 Stage の Plan / Insights でも再利用。
+
+// 配列の fromIndex の要素を toIndex 位置に移動した新しい配列を返す。
+// 移動後は order を 0,1,2,... で再採番（保存時に Firestore 側で sort key として使う）。
+// 不正な index / 同一 index は元のリストのコピーを返す。
+const reorderItems=(list,fromIndex,toIndex)=>{
+  if(!Array.isArray(list))return [];
+  const len=list.length;
+  if(fromIndex<0||fromIndex>=len)return [...list];
+  if(toIndex<0||toIndex>=len)return [...list];
+  if(fromIndex===toIndex)return list.map((item,i)=>({...item,order:i}));
+  const result=[...list];
+  const [moved]=result.splice(fromIndex,1);
+  result.splice(toIndex,0,moved);
+  return result.map((item,i)=>({...item,order:i}));
+};
+
+// 配列の fromIndex の要素を 1 つ上に移動（fromIndex===0 なら no-op）
+const moveItemUp=(list,fromIndex)=>{
+  if(!Array.isArray(list)||fromIndex<=0||fromIndex>=list.length)return Array.isArray(list)?[...list]:[];
+  return reorderItems(list,fromIndex,fromIndex-1);
+};
+
+// 配列の fromIndex の要素を 1 つ下に移動（末尾なら no-op）
+const moveItemDown=(list,fromIndex)=>{
+  if(!Array.isArray(list)||fromIndex<0||fromIndex>=list.length-1)return Array.isArray(list)?[...list]:[];
+  return reorderItems(list,fromIndex,fromIndex+1);
+};
+
+// order が無い item に配列 index を order として付与した新しい配列を返す。
+// 既に order を持つ item はそのまま（副作用なしの defensive add）。
+// 既存データの遅延マイグレーション用（Firestore に書き戻すかは呼び出し側判断）。
+const assignDefaultOrders=list=>{
+  if(!Array.isArray(list))return [];
+  return list.map((item,i)=>{
+    if(item==null||typeof item!=="object")return item;
+    if(typeof item.order==="number"&&!isNaN(item.order))return item;
+    return {...item,order:i};
+  });
+};
+
+// status 優先度 → order ASC で sort（status が statusPriority に無いものは末尾扱い）。
+// rejected / archived / retired は statusPriority で末尾値を与えると末尾に追いやられる。
+// statusPriority 例: { active:0, sub:1, candidate:2, considering:3, support:4, retired:5 }
+// list は破壊しない（[...list].sort で新しい配列を返す）。
+const sortByStatusAndOrder=(list,statusPriority)=>{
+  if(!Array.isArray(list))return [];
+  const pri=statusPriority||{};
+  const fallback=Math.max(...Object.values(pri),-1)+1;
+  const getPri=s=>(s in pri)?pri[s]:fallback;
+  return [...list].sort((a,b)=>{
+    const pa=getPri(a&&a.status);
+    const pb=getPri(b&&b.status);
+    if(pa!==pb)return pa-pb;
+    const oa=(a&&typeof a.order==="number"&&!isNaN(a.order))?a.order:Number.POSITIVE_INFINITY;
+    const ob=(b&&typeof b.order==="number"&&!isNaN(b.order))?b.order:Number.POSITIVE_INFINITY;
+    return oa-ob;
+  });
+};
+
+// status 優先度プリセット（S16 racket / string で使う）
+const RACKET_STATUS_PRIORITY={active:0,sub:1,candidate:2,considering:3,support:4,retired:5};
+const STRING_STATUS_PRIORITY={confirmed:0,good:1,testing:2,candidate:3,hold:4,rejected:5};
+const SETUP_STATUS_PRIORITY={active:0,archived:1};
 
 // === src/domain/validation.js ===
 // validation — SCHEMA REQUIRED_FIELDS 駆動の必須バリデーション (純関数)
@@ -2505,6 +2621,548 @@ function _WMStatCell({ iconName, iconColor, iconWeight, value, unit, label }) {
         <span style={{ fontSize: 10, fontWeight: 700, color: C.textMuted, marginLeft: 1 }}>{unit}</span>
       </div>
       <div style={{ fontSize: 9, color: C.textMuted, fontWeight: 600, marginTop: 1 }}>{label}</div>
+    </div>
+  );
+}
+
+// === src/ui/gear/GearTab.jsx ===
+// GearTab — 機材タブ (S16 新設)
+// WIREFRAMES_v4.md §2.8 / DECISIONS_v4.md S16 Phase 1 / S16 Phase 4-A
+//
+// Decision Hub 方針: 「機材管理画面」ではなく「機材判断 Hub」。
+// 5 セクション (上=判断、下=管理):
+//   1. Current Setup (Phase 4-B 実装予定)
+//   2. Racket Board (Phase 4-B 実装予定)
+//   3. Recent Trials (Phase 4-C 実装予定)
+//   4. Open Questions (Phase 4-C 実装予定)
+//   5. Manage Masters — Phase 4-A は ストリング在庫のみ実装、setups/retired は Phase 4-B/D 予定
+//
+// Phase 4-A スコープ: GearTab 骨組み + StringsSection (追加/編集/削除/並び順) のみ
+// 他 4 セクションは Placeholder で「Phase で実装予定」と表示
+
+function _GearPlaceholderCard({ icon, title, stage }) {
+  return (
+    <div style={{
+      background: C.panel,
+      border: `1px dashed ${C.border}`,
+      borderRadius: RADIUS.card,
+      padding: "16px 18px",
+      marginBottom: 12,
+      display: "flex",
+      alignItems: "center",
+      gap: 12,
+      color: C.textMuted,
+    }}>
+      <Icon name={icon} size={20} color={C.textMuted} />
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: C.textSecondary }}>{title}</div>
+        <div style={{ fontSize: 11, marginTop: 2 }}>{stage} で実装予定</div>
+      </div>
+    </div>
+  );
+}
+
+function GearTab({
+  rackets, strings, stringSetups, trials, tournaments, practices, next,
+  onStringsUpdate, onStringEdit, onStringAdd,
+  toast,
+}) {
+  return (
+    <div style={{
+      flex: 1,
+      overflow: "auto",
+      padding: 14,
+      background: C.bg,
+    }}>
+      {/* 1. Current Setup (Phase 4-B) */}
+      <_GearPlaceholderCard icon="crosshair" title="Current Setup" stage="Phase 4-B" />
+
+      {/* 2. Racket Board (Phase 4-B) */}
+      <_GearPlaceholderCard icon="list-bullets" title="Racket Board" stage="Phase 4-B" />
+
+      {/* 3. Recent Trials (Phase 4-C) */}
+      <_GearPlaceholderCard icon="tennis-ball" title="Recent Trials" stage="Phase 4-C" />
+
+      {/* 4. Open Questions (Phase 4-C) */}
+      <_GearPlaceholderCard icon="question" title="Open Questions" stage="Phase 4-C" />
+
+      {/* 5. Manage Masters - Phase 4-A は Strings のみ実装 */}
+      <div style={{
+        fontSize: 11, fontWeight: 600,
+        color: C.textMuted,
+        textTransform: "uppercase", letterSpacing: 0.04,
+        margin: "8px 4px 8px 4px",
+      }}>
+        Manage Masters
+      </div>
+
+      <StringsSection
+        strings={strings}
+        onUpdate={onStringsUpdate}
+        onEdit={onStringEdit}
+        onAdd={onStringAdd}
+        toast={toast}
+      />
+
+      {/* セッティング組合せ + 引退ラケット は Phase 4-B/D で実装 */}
+      <_GearPlaceholderCard icon="stack" title="セッティング組合せ" stage="Phase 4-B" />
+      <_GearPlaceholderCard icon="archive" title="引退ラケット" stage="Phase 4-D" />
+    </div>
+  );
+}
+
+// === src/ui/gear/ReorderControls.jsx ===
+// 並び順編集 UI (汎用)
+// DESIGN_SYSTEM_v4.md §11 / WIREFRAMES_v4.md §2.8 / DECISIONS_v4.md S16 Phase 1.5
+//
+// 各リスト行の右端に ▲▼ ミニボタンを配置。
+// fromIndex===0 で ▲ 無効、fromIndex===length-1 で ▼ 無効。
+// onMoveUp / onMoveDown は親の handler を呼ぶ (純関数 reorder.js を使う)。
+// 32×22 縦 2 個並び = 32×46、行 padding と合わせて 44px tap 領域確保 (iOS HIG)。
+function ReorderControls({ index, length, onMoveUp, onMoveDown }) {
+  const isFirst = index <= 0;
+  const isLast = index >= length - 1;
+  const btnStyle = (disabled) => ({
+    width: 32, height: 22,
+    display: "inline-flex", alignItems: "center", justifyContent: "center",
+    background: disabled ? C.panel2 : C.panel,
+    border: `1px solid ${C.border}`,
+    borderRadius: 6,
+    color: disabled ? C.appleGray4 : C.primary,
+    fontSize: 14,
+    cursor: disabled ? "not-allowed" : "pointer",
+    padding: 0,
+  });
+  return (
+    <div style={{ display: "inline-flex", flexDirection: "column", gap: 2 }}>
+      <button
+        type="button"
+        disabled={isFirst}
+        onClick={(e) => { e.stopPropagation(); if (!isFirst) onMoveUp(index); }}
+        style={btnStyle(isFirst)}
+        aria-label="上に移動"
+        title={isFirst ? "一番上" : "上に移動"}
+      >
+        <Icon name="caret-up" size={14} />
+      </button>
+      <button
+        type="button"
+        disabled={isLast}
+        onClick={(e) => { e.stopPropagation(); if (!isLast) onMoveDown(index); }}
+        style={btnStyle(isLast)}
+        aria-label="下に移動"
+        title={isLast ? "一番下" : "下に移動"}
+      >
+        <Icon name="caret-down" size={14} />
+      </button>
+    </div>
+  );
+}
+
+// 「並べ替え」テキストリンク (通常モード時、セクションヘッダー内に置く)
+// DESIGN_SYSTEM §11.6
+function ReorderToggleLink({ onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        display: "inline-flex", alignItems: "center", gap: 3,
+        background: "transparent", border: "none", padding: 0,
+        color: C.textSecondary, fontSize: 11, fontWeight: 600,
+        cursor: "pointer",
+      }}
+      aria-label="並べ替えモードへ"
+    >
+      <Icon name="arrows-down-up" size={13} />
+      並べ替え
+    </button>
+  );
+}
+
+// 「完了」ボタン (並び替えモード時、セクションヘッダー内に置く)
+// DESIGN_SYSTEM §11.5
+function ReorderDoneButton({ onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        background: C.primary, color: "#fff",
+        border: "none", borderRadius: 8,
+        padding: "4px 12px",
+        fontSize: 11, fontWeight: 700,
+        cursor: "pointer",
+      }}
+    >
+      完了
+    </button>
+  );
+}
+
+// ヒント帯 (並び替えモード時のみ表示、リスト直前)
+// DESIGN_SYSTEM §11.4
+function ReorderHintBar({ children }) {
+  return (
+    <div style={{
+      background: C.primaryLight,
+      border: "1px solid #b8d8ff",
+      borderRadius: 10,
+      padding: "8px 12px",
+      marginBottom: 10,
+      fontSize: 11,
+      color: C.primary,
+      display: "flex", alignItems: "center", gap: 6,
+    }}>
+      <Icon name="info" size={14} />
+      <span>{children}</span>
+    </div>
+  );
+}
+
+// === src/ui/gear/StringEditModal.jsx ===
+// StringEditModal — ストリング在庫の追加・編集 (V2 互換)
+// 編集対象: name / qty / status / note
+// V2 status 6 種: confirmed / good / testing / candidate / hold / rejected
+// SCHEMA: src/core/05_schema.js の string type
+const _STRING_STATUS_OPTIONS = [
+  { value: "confirmed", label: "✅ 確定" },
+  { value: "good",      label: "👍 好印象" },
+  { value: "testing",   label: "🔬 検証中" },
+  { value: "candidate", label: "💡 候補" },
+  { value: "hold",      label: "⏸ 保留" },
+  { value: "rejected",  label: "❌ 除外" },
+];
+
+function StringEditModal({ open, item, onSave, onClose, onDelete, confirm }) {
+  // open=true で初期化、null item は新規作成
+  const [name, setName] = useState("");
+  const [qty, setQty] = useState("");
+  const [status, setStatus] = useState("hold");
+  const [note, setNote] = useState("");
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (open) {
+      setName(item?.name || "");
+      setQty(item?.qty || "");
+      setStatus(item?.status || "hold");
+      setNote(item?.note || "");
+      setError("");
+    }
+  }, [open, item]);
+
+  const isNew = !item || !item.id;
+
+  const handleSave = () => {
+    const trimmed = (name || "").trim();
+    if (!trimmed) { setError("ストリング名は必須です"); return; }
+    const next = {
+      ...(item || {}),
+      id: item?.id || `s${Date.now()}`,
+      name: trimmed,
+      qty: (qty || "").trim(),
+      status,
+      note: (note || "").trim(),
+      // order は呼び出し側で維持 / 新規時は親が末尾に追加
+    };
+    onSave(next, isNew);
+  };
+
+  const handleDelete = () => {
+    if (!item || !item.id) return;
+    confirm.ask(
+      `「${item.name}」を削除します。よろしいですか?`,
+      () => onDelete(item.id),
+      { title: "ストリング削除", yesLabel: "削除", noLabel: "キャンセル", icon: "trash", yesVariant: "danger" }
+    );
+  };
+
+  return (
+    <Modal open={open} onClose={onClose} title={isNew ? "ストリング 追加" : "ストリング 編集"}>
+      <Input
+        label="ストリング名"
+        value={name}
+        onChange={setName}
+        placeholder="例: Babolat Blast 1.25"
+        required
+        error={error}
+      />
+      <Input
+        label="在庫量"
+        value={qty}
+        onChange={setQty}
+        placeholder="例: 大量 / 1張り / 200m"
+      />
+      <Select
+        label="ステータス"
+        value={status}
+        onChange={setStatus}
+        options={_STRING_STATUS_OPTIONS}
+      />
+      <Textarea
+        label="メモ"
+        value={note}
+        onChange={setNote}
+        placeholder="使用用途、評価など..."
+        rows={3}
+      />
+      <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+        {!isNew && (
+          <Button variant="danger" onClick={handleDelete}>
+            <Icon name="trash" size={14} /> 削除
+          </Button>
+        )}
+        <div style={{ flex: 1 }} />
+        <Button variant="ghost" onClick={onClose}>キャンセル</Button>
+        <Button variant="primary" onClick={handleSave}>保存</Button>
+      </div>
+    </Modal>
+  );
+}
+
+// === src/ui/gear/StringsSection.jsx ===
+// StringsSection — Manage Masters のストリング在庫セクション
+// WIREFRAMES_v4.md §2.8.4 / DESIGN_SYSTEM_v4.md §8.6.9 / §11
+//
+// 機能: 一覧表示 + 並び順編集モード + 追加ボタン + 行タップで編集 Modal
+// status 6 種で左 6px 帯を色分け、rejected は muted (opacity 0.55)
+// 並び替えモードは reorder.js の純関数 (moveItemUp/moveItemDown) を使う
+// 永続化: 親 (app.jsx) の handleStringsUpdate で localStorage + Firestore 即時 write
+
+const _STK_COLORS = {
+  confirmed: "var(--practiceAccent)",
+  good:      "var(--primary)",
+  testing:   "var(--warning)",
+  candidate: "var(--trialAccent)",
+  hold:      "var(--appleGray4)",
+  rejected:  "var(--errorLight)",
+};
+const _STK_LABELS = {
+  confirmed: "確定",
+  good:      "好印象",
+  testing:   "検証中",
+  candidate: "候補",
+  hold:      "保留",
+  rejected:  "除外",
+};
+
+function StringsSection({ strings, onUpdate, onEdit, onAdd, toast }) {
+  const [reorderMode, setReorderMode] = useState(false);
+  const [showAll, setShowAll] = useState(false);
+
+  // 並べ替えモードでは除外も全件表示 (順序の見通しのため)
+  const visible = reorderMode || showAll
+    ? sortByStatusAndOrder(strings || [], STRING_STATUS_PRIORITY)
+    : sortByStatusAndOrder((strings || []).filter(s => s.status !== "rejected"), STRING_STATUS_PRIORITY);
+
+  const rejectedCount = (strings || []).filter(s => s.status === "rejected").length;
+
+  const handleMove = (newList) => {
+    onUpdate(newList);
+  };
+
+  const stockingColor = (status) => {
+    return ({
+      confirmed: C.practiceAccent,
+      good: C.primary,
+      testing: C.warning,
+      candidate: C.trialAccent,
+      hold: C.appleGray4,
+      rejected: C.errorLight,
+    })[status] || C.appleGray4;
+  };
+
+  return (
+    <div style={{
+      background: C.panel,
+      border: `1px solid ${C.border}`,
+      borderRadius: RADIUS.card,
+      padding: "14px 16px 16px",
+      marginBottom: 12,
+    }}>
+      {/* セクションヘッダー */}
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        marginBottom: 10, gap: 8, flexWrap: "wrap",
+      }}>
+        <div style={{
+          fontSize: 13, fontWeight: 700, color: C.text,
+          display: "inline-flex", alignItems: "center", gap: 6,
+        }}>
+          <Icon name="line-segments" size={16} color={C.textSecondary} />
+          ストリング在庫
+        </div>
+        <div style={{ display: "inline-flex", gap: 10, alignItems: "center" }}>
+          {!reorderMode && (
+            <>
+              {!showAll && rejectedCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowAll(true)}
+                  style={{
+                    background: "transparent", border: "none", padding: 0,
+                    color: C.textMuted, fontSize: 11, fontWeight: 500,
+                    cursor: "pointer",
+                  }}
+                >
+                  除外 +{rejectedCount}
+                </button>
+              )}
+              {showAll && (
+                <button
+                  type="button"
+                  onClick={() => setShowAll(false)}
+                  style={{
+                    background: "transparent", border: "none", padding: 0,
+                    color: C.textMuted, fontSize: 11, fontWeight: 500,
+                    cursor: "pointer",
+                  }}
+                >
+                  除外を隠す
+                </button>
+              )}
+              <ReorderToggleLink onClick={() => setReorderMode(true)} />
+              <button
+                type="button"
+                onClick={onAdd}
+                style={{
+                  background: "transparent", border: "none", padding: 0,
+                  color: C.primary, fontSize: 11, fontWeight: 600,
+                  cursor: "pointer",
+                  display: "inline-flex", alignItems: "center", gap: 3,
+                }}
+              >
+                <Icon name="plus" size={13} /> 追加
+              </button>
+            </>
+          )}
+          {reorderMode && (
+            <ReorderDoneButton onClick={() => setReorderMode(false)} />
+          )}
+        </div>
+      </div>
+
+      {/* 並び替え時のヒント帯 */}
+      {reorderMode && (
+        <ReorderHintBar>
+          上下ボタンで順序を変えると Select の表示順にも反映されます
+        </ReorderHintBar>
+      )}
+
+      {/* リスト */}
+      {visible.length === 0 ? (
+        <div style={{
+          padding: "20px 0",
+          textAlign: "center",
+          color: C.textMuted,
+          fontSize: 12,
+        }}>
+          ストリングが登録されていません
+        </div>
+      ) : (
+        visible.map((s, i) => {
+          // visible 内の index と元 strings 配列の index は異なる場合があるので、id ベースで原 index を取得
+          const originalIdx = (strings || []).findIndex(x => x.id === s.id);
+          const isMuted = s.status === "rejected";
+          const handleRowClick = () => {
+            if (reorderMode) return;
+            onEdit(s);
+          };
+          const handleMoveUp = () => {
+            // visible リスト内の前の要素の元 index と入れ替え
+            if (i <= 0) return;
+            const prevId = visible[i - 1].id;
+            const prevOrig = (strings || []).findIndex(x => x.id === prevId);
+            if (originalIdx < 0 || prevOrig < 0) return;
+            handleMove(reorderItems(strings, originalIdx, prevOrig));
+          };
+          const handleMoveDown = () => {
+            if (i >= visible.length - 1) return;
+            const nextId = visible[i + 1].id;
+            const nextOrig = (strings || []).findIndex(x => x.id === nextId);
+            if (originalIdx < 0 || nextOrig < 0) return;
+            handleMove(reorderItems(strings, originalIdx, nextOrig));
+          };
+          return (
+            <div
+              key={s.id}
+              onClick={handleRowClick}
+              style={{
+                background: reorderMode ? C.panel2 : (isMuted ? C.panel2 : C.panel),
+                border: `1px solid ${C.border}`,
+                borderRadius: RADIUS.row,
+                padding: "11px 14px",
+                marginBottom: 8,
+                display: "grid",
+                gridTemplateColumns: reorderMode ? "auto 1fr auto" : "auto 1fr auto auto",
+                gap: 10,
+                alignItems: "center",
+                cursor: reorderMode ? "default" : "pointer",
+                opacity: isMuted && !reorderMode ? 0.55 : 1,
+              }}
+            >
+              {/* status 色帯 */}
+              <div style={{
+                width: 6, height: 28,
+                borderRadius: 3,
+                background: stockingColor(s.status),
+              }} />
+              {/* 名前 + メタ */}
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>
+                  {s.name || "(無名)"}
+                </div>
+                <div style={{ fontSize: 11, color: C.textSecondary, marginTop: 1 }}>
+                  {_STK_LABELS[s.status] || "—"}{s.note ? " · " + s.note : ""}
+                </div>
+              </div>
+              {/* 通常モード: 数量 + 編集アイコン */}
+              {!reorderMode && (
+                <>
+                  <div style={{ fontSize: 11, color: C.textMuted, whiteSpace: "nowrap" }}>
+                    {s.qty || "—"}
+                  </div>
+                  <Icon name="caret-right" size={16} color={C.textMuted} />
+                </>
+              )}
+              {/* 並び替えモード: ▲▼ */}
+              {reorderMode && (
+                <ReorderControls
+                  index={i}
+                  length={visible.length}
+                  onMoveUp={handleMoveUp}
+                  onMoveDown={handleMoveDown}
+                />
+              )}
+            </div>
+          );
+        })
+      )}
+
+      {/* 凡例 (並び替えモードでは非表示) */}
+      {!reorderMode && (
+        <div style={{
+          display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8,
+          fontSize: 10, color: C.textMuted,
+        }}>
+          {Object.entries(_STK_LABELS).map(([k, label]) => (
+            <span key={k} style={{
+              display: "inline-flex", alignItems: "center", gap: 3,
+              padding: "2px 6px",
+              background: C.panel, border: `1px solid ${C.border}`,
+              borderRadius: 999,
+            }}>
+              <span style={{
+                width: 8, height: 8, borderRadius: 2,
+                background: stockingColor(k),
+                display: "inline-block",
+              }} />
+              {label}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -11007,7 +11665,8 @@ const normalizeItems = (items) => (items || []).map(it => ({ ...it, date: normDa
 const loadSessionsFromFirestore = async (user) => {
   if (!user) return null;
   // S14: next も読込追加 (Home Current Context / Next Actions で使用)
-  const keys = ["tournaments", "practices", "trials", "rackets", "strings", "venues", "opponents", "next", "quickTrialCards"];
+  // S16 Phase 4-A: stringSetups を読込追加 (Manage Masters セッティング組合せ用、現状は読込のみ、UI は Phase 4-B)
+  const keys = ["tournaments", "practices", "trials", "rackets", "strings", "venues", "opponents", "next", "quickTrialCards", "stringSetups"];
   const results = {};
   for (const k of keys) results[k] = []; // 既定値 (取得失敗時用)
   try {
@@ -11086,6 +11745,10 @@ function TennisDB() {
   // S15.5: quickTrialCards (試打カード式 QuickTrialMode で使用)
   const [quickTrialCards, setQuickTrialCards] = useState([]);
   const [quickTrial, setQuickTrial] = useState(false); // QuickTrialMode 表示
+  // S16 Phase 4-A: stringSetups (Manage Masters セッティング組合せ。Phase 4-A では読込のみ、UI は Phase 4-B)
+  const [stringSetups, setStringSetups] = useState([]);
+  // S16 Phase 4-A: Gear タブ Strings 編集 Modal の対象 (null=閉じている、{}=新規追加、{id,...}=編集)
+  const [stringEditTarget, setStringEditTarget] = useState(null);
   const [loading, setLoading] = useState(false);
   const [detail, setDetail] = useState(null); // S10: { type, session, mode } | null
   const [weather, setWeather] = useState(null); // S13.5: Open-Meteo 当日気温 { temp, code } | null
@@ -11105,6 +11768,8 @@ function TennisDB() {
     setNext(lsLoad(KEYS.next) || []);
     // S15.5: quickTrialCards もローカルから
     setQuickTrialCards(lsLoad(KEYS.quickTrialCards) || []);
+    // S16 Phase 4-A: stringSetups もローカルから (assignDefaultOrders で order 遅延付与、in-memory 整形のみ、書き戻し無し)
+    setStringSetups(assignDefaultOrders(lsLoad(KEYS.stringSetups) || []));
   }, []);
 
   // S14: 天気取得 拡張 (Open-Meteo、key 不要、CORS 対応)
@@ -11214,14 +11879,17 @@ function TennisDB() {
             const tr = normalizeItems(data.trials);
             setTournaments(t); setPractices(p); setTrials(tr);
             // S11: master データもセット
-            setRackets(data.rackets || []);
-            setStringsList(data.strings || []);
+            // S16 Phase 4-A: rackets / strings に assignDefaultOrders を適用 (in-memory 整形、書き戻しは reorder UI 操作時のみ)
+            setRackets(assignDefaultOrders(data.rackets || []));
+            setStringsList(assignDefaultOrders(data.strings || []));
             setVenues(data.venues || []);
             setOpponents(data.opponents || []);
             // S14: next も
             setNext(data.next || []);
             // S15.5: quickTrialCards も
             setQuickTrialCards(data.quickTrialCards || []);
+            // S16 Phase 4-A: stringSetups (Phase 4-A 読込のみ、UI 編集は Phase 4-B)
+            setStringSetups(assignDefaultOrders(data.stringSetups || []));
             // localStorage には正規化前の原データを保存 (v3 互換のため)
             lsSave(KEYS.tournaments, data.tournaments);
             lsSave(KEYS.practices, data.practices);
@@ -11232,6 +11900,7 @@ function TennisDB() {
             lsSave(KEYS.opponents, data.opponents);
             lsSave(KEYS.next, data.next);
             lsSave(KEYS.quickTrialCards, data.quickTrialCards);
+            lsSave(KEYS.stringSetups, data.stringSetups);
             toast.show("クラウドから読み込みました", "success");
           } else {
             // S15.5.3 fix: data=null = Firestore get が timeout/error
@@ -11252,8 +11921,10 @@ function TennisDB() {
               if (key === "tournaments") setTournaments(normalized);
               else if (key === "practices") setPractices(normalized);
               else if (key === "trials") setTrials(normalized);
-              else if (key === "rackets")  setRackets(val);
-              else if (key === "strings")  setStringsList(val);
+              // S16 Phase 4-A: rackets / strings / stringSetups は assignDefaultOrders を通す (in-memory 整形)
+              else if (key === "rackets")  setRackets(assignDefaultOrders(val));
+              else if (key === "strings")  setStringsList(assignDefaultOrders(val));
+              else if (key === "stringSetups") setStringSetups(assignDefaultOrders(val));
               else if (key === "venues")   setVenues(val);
               else if (key === "opponents") setOpponents(val);
               else if (key === "next") setNext(val);
@@ -11709,6 +12380,56 @@ function TennisDB() {
     setQuickAddType(null);     // QuickAddModal を閉じる
   };
 
+  // S16 Phase 4-A: Gear タブ ストリング在庫の永続化 (S15.5.3 と同パターン、debounce bypass で即時 Firestore write)
+  // 並び順編集 (▲▼) も追加・編集・削除も全部この関数を経由 → 一貫した書き込み
+  const persistStrings = (newList) => {
+    setStringsList(newList);
+    lsSave(KEYS.strings, newList);
+    queueMicrotask(() => {
+      const u = fbAuth.currentUser;
+      if (!u) return;
+      fbDb.collection("users").doc(u.uid).collection("data").doc(KEYS.strings)
+        .set({ items: cleanForFirestore(newList), updatedAt: new Date().toISOString() })
+        .catch(err => {
+          console.error("strings Firestore write error:", err);
+          toast.show("ストリング在庫のクラウド同期に失敗 (ローカルは保存済み)", "warning");
+        });
+    });
+  };
+
+  // 並び順編集 ▲▼ タップ: reorder.js の reorderItems が返した新リストをそのまま永続化
+  const handleStringsUpdate = (newList) => {
+    persistStrings(assignDefaultOrders(newList));
+  };
+
+  // ストリング編集 Modal: 行タップで開く (item={id,name,...})、追加ボタンで item={} (新規)
+  const handleStringEdit = (item) => setStringEditTarget(item || {});
+  const handleStringAdd = () => setStringEditTarget({});
+  const handleStringEditClose = () => setStringEditTarget(null);
+
+  const handleStringSave = (item, isNew) => {
+    if (isNew) {
+      // 新規: 末尾に追加 (order = 既存最大 + 1)
+      const maxOrder = (strings || []).reduce((m, s) => Math.max(m, typeof s.order === "number" ? s.order : -1), -1);
+      const next = { ...item, order: maxOrder + 1 };
+      persistStrings([...(strings || []), next]);
+      toast.show("ストリングを追加しました", "success");
+    } else {
+      // 編集: id 一致を上書き (order は既存維持)
+      const existing = (strings || []).find(s => s.id === item.id);
+      const next = { ...item, order: typeof existing?.order === "number" ? existing.order : item.order };
+      persistStrings((strings || []).map(s => s.id === item.id ? next : s));
+      toast.show("ストリングを更新しました", "success");
+    }
+    setStringEditTarget(null);
+  };
+
+  const handleStringDelete = (id) => {
+    persistStrings((strings || []).filter(s => s.id !== id));
+    setStringEditTarget(null);
+    toast.show("ストリングを削除しました", "info");
+  };
+
   // 認証状態判定完了前はスピナー
   if (!authReady) {
     return (
@@ -11754,7 +12475,23 @@ function TennisDB() {
       />
     );
   } else if (tab === "gear") {
-    tabContent = <PlaceholderTab name="機材" stage="S16" />;
+    // S16 Phase 4-A: GearTab (Decision Hub 骨組 + StringsSection 完全動作)
+    // Phase 4-B/C/D で他セクション (Current Setup / Racket Board / Recent Trials / Open Questions / Setups / Retired) を埋める
+    tabContent = (
+      <GearTab
+        rackets={rackets}
+        strings={strings}
+        stringSetups={stringSetups}
+        trials={trials}
+        tournaments={tournaments}
+        practices={practices}
+        next={next}
+        onStringsUpdate={handleStringsUpdate}
+        onStringEdit={handleStringEdit}
+        onStringAdd={handleStringAdd}
+        toast={toast}
+      />
+    );
   } else if (tab === "plan") {
     tabContent = <PlaceholderTab name="計画" stage="S17" />;
   } else if (tab === "insights") {
@@ -11859,6 +12596,15 @@ function TennisDB() {
         fontScale={fontScale}
         onFontScaleChange={handleFontScaleChange}
         onClose={handleSettingsClose}
+      />
+      {/* S16 Phase 4-A: ストリング編集 Modal (Gear タブ Manage Masters → 行タップ / + 追加 で起動) */}
+      <StringEditModal
+        open={!!stringEditTarget}
+        item={stringEditTarget}
+        onSave={handleStringSave}
+        onDelete={handleStringDelete}
+        onClose={handleStringEditClose}
+        confirm={cfm}
       />
       {/* S15.5: QuickTrialMode (試打カード式、Home 試打ボタン → これが起動) */}
       <QuickTrialMode
