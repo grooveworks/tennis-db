@@ -183,6 +183,7 @@ function RacketDetailView({
   rackets, trials, tournaments, practices,
   onClose, onEdit, onDelete, onRetire, onAddTrial,
   onMeasurementEdit, onMeasurementAdd,
+  onPeriodClick,
 }) {
   // history.pushState 連動 (Sessions と同じ pattern)
   // open=true のときに pushState、popstate で onClose
@@ -341,6 +342,15 @@ function RacketDetailView({
           <_DeciNote kind="worry" label="不安点"   icon="warning"      value={racket.decisionWorry} />
           <_DeciNote kind="next"  label="次回確認" icon="arrow-bend-up-right" value={racket.decisionNext} />
         </_SecCard>
+
+        {/* Setting History (Decision Notes と Usage の間、履歴は判断材料 + 実数) */}
+        <SettingHistorySection
+          racket={racket}
+          tournaments={tournaments}
+          practices={practices}
+          trials={trials}
+          onPeriodClick={onPeriodClick}
+        />
 
         {/* 5. Usage */}
         <_SecCard icon="chart-line" title="Usage">

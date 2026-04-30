@@ -105,6 +105,8 @@ function TennisDB() {
   const [racketDetail, setRacketDetail] = useState(null);     // 開いている racket オブジェクト or null
   const [racketEditTarget, setRacketEditTarget] = useState(null); // null=閉、{}=新規、{id,..}=編集
   const [measurementEditTarget, setMeasurementEditTarget] = useState(null); // {racketId, item} or null
+  // S16 Phase 4-C-1: Setting History の期間タップ → Period Detail (slide-in)
+  const [periodDetail, setPeriodDetail] = useState(null); // { racket, period } or null
   const [loading, setLoading] = useState(false);
   const [detail, setDetail] = useState(null); // S10: { type, session, mode } | null
   const [weather, setWeather] = useState(null); // S13.5: Open-Meteo 当日気温 { temp, code } | null
@@ -865,6 +867,18 @@ function TennisDB() {
     setQuickTrial(true);
   };
 
+  // S16 Phase 4-C-1: Setting History の 1 期間タップで Period Detail を開く
+  const handlePeriodClick = (racket, period) => {
+    setPeriodDetail({ racket, period });
+  };
+  const handlePeriodDetailClose = () => setPeriodDetail(null);
+  // Period Detail 内の session カードタップで、そのセッションの SessionDetailView を開く
+  const handlePeriodSessionClick = (type, item) => {
+    setPeriodDetail(null);
+    setRacketDetail(null); // racket detail も閉じる (深いネストを避ける)
+    handleCardClick(type, item);
+  };
+
   // Measurement (racket.measurements[] のネスト編集)
   const handleMeasurementEdit = (racket, m) => setMeasurementEditTarget({ racketId: racket.id, item: m || null });
   const handleMeasurementAdd = (racket) => setMeasurementEditTarget({ racketId: racket.id, item: null });
@@ -1086,7 +1100,7 @@ function TennisDB() {
         onClose={handleStringEditClose}
         confirm={cfm}
       />
-      {/* S16 Phase 4-B: Racket Detail (slide-in、6 セクション) */}
+      {/* S16 Phase 4-B: Racket Detail (slide-in、6 セクション + 履歴) */}
       <RacketDetailView
         open={!!racketDetail}
         racket={racketDetail}
@@ -1101,6 +1115,18 @@ function TennisDB() {
         onAddTrial={handleRacketAddTrial}
         onMeasurementEdit={handleMeasurementEdit}
         onMeasurementAdd={handleMeasurementAdd}
+        onPeriodClick={handlePeriodClick}
+      />
+      {/* S16 Phase 4-C-1: Period Detail (履歴 1 期間の sessions 一覧 slide-in) */}
+      <PeriodDetailView
+        open={!!periodDetail}
+        period={periodDetail?.period}
+        racket={periodDetail?.racket}
+        tournaments={tournaments}
+        practices={practices}
+        trials={trials}
+        onClose={handlePeriodDetailClose}
+        onSessionClick={handlePeriodSessionClick}
       />
       {/* S16 Phase 4-B: Racket 編集 Modal (auto-save 付き V2 互換) */}
       <RacketEditModal
