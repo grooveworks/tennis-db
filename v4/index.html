@@ -45,7 +45,7 @@ input,select,textarea,button{font-family:inherit}
 const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
 // ── 定数定義（色・キー・バージョン）─────────────
-const APP_VERSION="4.0.0-S16.3";
+const APP_VERSION="4.0.0-S16.4";
 const font="-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif";
 
 // 色設計（DESIGN_SYSTEM_v4.md §1 + §10 S13.5 改訂準拠）
@@ -3352,7 +3352,9 @@ function RacketDetailView({
     <div style={{
       position: "fixed", inset: 0,
       background: C.bg,
-      zIndex: 100, // TabBar (zIndex 60) より上に重ねる、SessionDetailView と統一
+      // TabBar (zIndex 60) を表示したまま重ねるため zIndex 50 (SessionDetailView は 100 で TabBar を隠すが、
+      // Gear Detail はリファレンス的な見方をするので TabBar から他タブにも飛びやすい方が良い、と判断)
+      zIndex: 50,
       display: "flex", flexDirection: "column",
       animation: "modalEnter 250ms ease-out",
     }}>
@@ -3387,9 +3389,12 @@ function RacketDetailView({
         </div>
       </div>
 
-      {/* Body */}
+      {/* Body — TabBar (高さ 56px) と safe-area-inset-bottom を paddingBottom で確保
+          (zIndex 50 で TabBar の下に潜る分、最後までスクロールしても Action bar が TabBar 上に出る) */}
       <div style={{
-        flex: 1, overflow: "auto", padding: 14, background: C.bg,
+        flex: 1, overflow: "auto", padding: 14,
+        paddingBottom: "calc(14px + 56px + env(safe-area-inset-bottom, 0))",
+        background: C.bg,
       }}>
         {/* 1. Summary */}
         <div style={{
@@ -13570,12 +13575,17 @@ function TennisDB() {
     toast.show(isRetired ? "ラケットを復帰させました" : "ラケットを引退化しました", "info");
   };
 
-  // Detail から「試打追加」 → QuickTrialMode を開く (既存試打カード経路を再利用)
+  // Detail から「試打追加」 → QuickTrialMode を開く
+  // S16.4 fix: history.back() を削除。
+  //   原因: history.back() で popstate を非同期 queue した直後に setQuickTrial(true) で
+  //   QuickTrialMode が mount → 自身の popstate handler 登録 + history.pushState。
+  //   queue に残った popstate が QuickTrialMode の handler に発火し、selected=null かつ
+  //   open 直後なので onClose() が呼ばれて QuickTrialMode が即閉じる = 「画面が飛ぶ」。
+  //   修正: setRacketDetail(null) で Detail を閉じる + setQuickTrial(true) のみ。
+  //   gear-detail history entry は orphan として残るが、QuickTrialMode 終了時に back() で
+  //   一段消費されるので実害なし。
   const handleRacketAddTrial = (racket) => {
     setRacketDetail(null);
-    try { window.history.back(); } catch (_) {}
-    // QuickTrialMode は既存カードから選ぶ前提なので、ここでは試打タブへの遷移ではなく
-    // 単純に QuickTrialMode を開く (S15.5 と同じく Home 試打ボタン経由の経路を使う)
     setQuickTrial(true);
   };
 

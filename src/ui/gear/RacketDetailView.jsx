@@ -218,7 +218,9 @@ function RacketDetailView({
     <div style={{
       position: "fixed", inset: 0,
       background: C.bg,
-      zIndex: 100, // TabBar (zIndex 60) より上に重ねる、SessionDetailView と統一
+      // TabBar (zIndex 60) を表示したまま重ねるため zIndex 50 (SessionDetailView は 100 で TabBar を隠すが、
+      // Gear Detail はリファレンス的な見方をするので TabBar から他タブにも飛びやすい方が良い、と判断)
+      zIndex: 50,
       display: "flex", flexDirection: "column",
       animation: "modalEnter 250ms ease-out",
     }}>
@@ -253,9 +255,12 @@ function RacketDetailView({
         </div>
       </div>
 
-      {/* Body */}
+      {/* Body — TabBar (高さ 56px) と safe-area-inset-bottom を paddingBottom で確保
+          (zIndex 50 で TabBar の下に潜る分、最後までスクロールしても Action bar が TabBar 上に出る) */}
       <div style={{
-        flex: 1, overflow: "auto", padding: 14, background: C.bg,
+        flex: 1, overflow: "auto", padding: 14,
+        paddingBottom: "calc(14px + 56px + env(safe-area-inset-bottom, 0))",
+        background: C.bg,
       }}>
         {/* 1. Summary */}
         <div style={{

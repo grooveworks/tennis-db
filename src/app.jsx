@@ -851,12 +851,17 @@ function TennisDB() {
     toast.show(isRetired ? "ラケットを復帰させました" : "ラケットを引退化しました", "info");
   };
 
-  // Detail から「試打追加」 → QuickTrialMode を開く (既存試打カード経路を再利用)
+  // Detail から「試打追加」 → QuickTrialMode を開く
+  // S16.4 fix: history.back() を削除。
+  //   原因: history.back() で popstate を非同期 queue した直後に setQuickTrial(true) で
+  //   QuickTrialMode が mount → 自身の popstate handler 登録 + history.pushState。
+  //   queue に残った popstate が QuickTrialMode の handler に発火し、selected=null かつ
+  //   open 直後なので onClose() が呼ばれて QuickTrialMode が即閉じる = 「画面が飛ぶ」。
+  //   修正: setRacketDetail(null) で Detail を閉じる + setQuickTrial(true) のみ。
+  //   gear-detail history entry は orphan として残るが、QuickTrialMode 終了時に back() で
+  //   一段消費されるので実害なし。
   const handleRacketAddTrial = (racket) => {
     setRacketDetail(null);
-    try { window.history.back(); } catch (_) {}
-    // QuickTrialMode は既存カードから選ぶ前提なので、ここでは試打タブへの遷移ではなく
-    // 単純に QuickTrialMode を開く (S15.5 と同じく Home 試打ボタン経由の経路を使う)
     setQuickTrial(true);
   };
 
