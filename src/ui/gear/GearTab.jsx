@@ -249,10 +249,112 @@ function _RacketRow({ racket, onClick }) {
   );
 }
 
+// 試打サマリ行 (Recent Trials)
+function _RecentTrialRow({ trial, onClick }) {
+  const dateMD = (() => {
+    if (!trial?.date) return "";
+    const parts = trial.date.split("-");
+    if (parts.length < 3) return trial.date;
+    return `${parseInt(parts[1], 10)}/${parseInt(parts[2], 10)}`;
+  })();
+  const setting = [trial.stringMain, trial.stringCross].filter(Boolean).join(" / ");
+  const ttl = setting ? `${trial.racketName || ""} × ${setting}` : (trial.racketName || "(無名)");
+  // 4 指標
+  const metrics = [
+    { k: "confidence", label: "安心" },
+    { k: "spin",       label: "スピン" },
+    { k: "power",      label: "推進" },
+    { k: "maneuver",   label: "操作" },
+  ].filter(m => typeof trial[m.k] === "number" && !isNaN(trial[m.k]));
+  // 判定 chip
+  const judg = trial.judgment || "";
+  const judgStyle = judg === "採用候補" ? { bg: C.primaryLight, color: C.primary }
+                  : judg === "採用" ? { bg: C.successLight, color: "#0a5b35" }
+                  : judg === "却下" ? { bg: C.errorLight, color: C.error }
+                  : { bg: C.panel2, color: C.textSecondary };
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        background: C.panel,
+        border: `1px solid ${C.border}`,
+        borderRadius: RADIUS.row,
+        padding: "11px 14px",
+        marginBottom: 8,
+        display: "grid",
+        gridTemplateColumns: "auto 1fr auto",
+        gap: 10,
+        alignItems: "center",
+        cursor: "pointer",
+      }}
+    >
+      <div style={{ fontSize: 11, color: C.textMuted, fontVariantNumeric: "tabular-nums", width: 36, flexShrink: 0 }}>{dateMD}</div>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 3,
+          lineHeight: 1.35, wordBreak: "break-word" }}>
+          {ttl}
+        </div>
+        {metrics.length > 0 && (
+          <div style={{ fontSize: 11, color: C.textSecondary, fontVariantNumeric: "tabular-nums",
+            lineHeight: 1.5, wordBreak: "keep-all" }}>
+            {metrics.map((m, i) => (
+              <span key={m.k} style={{ whiteSpace: "nowrap" }}>
+                {m.label} <span style={{ color: C.text, fontWeight: 600 }}>{Math.round(trial[m.k] * 10) / 10}</span>
+                {i < metrics.length - 1 && <span style={{ color: C.textMuted }}> · </span>}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+      {judg && (
+        <span style={{
+          fontSize: 10, fontWeight: 600, padding: "2px 7px", borderRadius: 6,
+          background: judgStyle.bg, color: judgStyle.color, whiteSpace: "nowrap",
+        }}>{judg}</span>
+      )}
+    </div>
+  );
+}
+
+// 機材関連の Next 項目を判定
+//   - ラケット名 / ストリング名は **トークン分割で部分一致**
+//     (ユーザーは「HEAD Boom Pro 2026」のフルネームでなく「Boom Pro」のような短縮形で書く)
+//     全角スペース・半角スペース・「/」「+」「・」で分割、3 文字以上のトークンを比較対象
+//   - 機材キーワード (ラケット / テンション / 試打 / 張替 等) も拾う
+function _isGearRelatedNext(item, rackets, strings) {
+  if (!item) return false;
+  const text = `${item.label || ""} ${item.detail || ""} ${item.category || ""}`.toLowerCase();
+  if (!text.trim()) return false;
+
+  const tokenize = (s) => String(s || "")
+    .toLowerCase()
+    .split(/[\s\/\+・]+/)
+    .filter(t => t && t.length >= 3);
+
+  for (const r of (rackets || [])) {
+    if (!r?.name) continue;
+    for (const tok of tokenize(r.name)) {
+      if (text.includes(tok)) return true;
+    }
+  }
+  for (const s of (strings || [])) {
+    if (!s?.name) continue;
+    for (const tok of tokenize(s.name)) {
+      if (text.includes(tok)) return true;
+    }
+  }
+  if (text.includes("ラケット") || text.includes("テンション")
+   || text.includes("ストリング") || text.includes("ガット")
+   || text.includes("試打") || text.includes("張替")
+   || text.includes("実打") || text.includes("検証")) return true;
+  return false;
+}
+
 function GearTab({
   rackets, strings, stringSetups, trials, tournaments, practices, next,
   onStringsUpdate, onStringEdit, onStringAdd,
   onRacketRowClick, onRacketAdd,
+  onCardClick,
   toast,
 }) {
   const [statusFilter, setStatusFilter] = useState("all");
@@ -321,11 +423,87 @@ function GearTab({
         )}
       </div>
 
-      {/* 3. Recent Trials (Phase 4-C) */}
-      <_GearPlaceholderCard icon="tennis-ball" title="Recent Trials" stage="Phase 4-C" />
+      {/* 3. Recent Trials (最新 3 件、新しい順) */}
+      <div style={{
+        background: C.panel,
+        border: `1px solid ${C.border}`,
+        borderRadius: RADIUS.card,
+        padding: "14px 16px 16px",
+        marginBottom: 12,
+      }}>
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          marginBottom: 10,
+        }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: C.text, display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <Icon name="tennis-ball" size={16} color={C.textSecondary} />
+            Recent Trials
+          </div>
+        </div>
+        {(() => {
+          const sorted = (trials || []).filter(t => t && t.date)
+            .slice()
+            .sort((a, b) => (a.date < b.date ? 1 : (a.date > b.date ? -1 : 0)))
+            .slice(0, 3);
+          if (sorted.length === 0) {
+            return <div style={{ fontSize: 12, color: C.textMuted, padding: "8px 0", textAlign: "center" }}>試打の記録はまだありません</div>;
+          }
+          return sorted.map(tr => (
+            <_RecentTrialRow key={tr.id} trial={tr} onClick={() => onCardClick && onCardClick("trial", tr)} />
+          ));
+        })()}
+      </div>
 
-      {/* 4. Open Questions (Phase 4-C) */}
-      <_GearPlaceholderCard icon="question" title="Open Questions" stage="Phase 4-C" />
+      {/* 4. Open Questions (next state を機材関連でフィルタ、未完了のみ) */}
+      <div style={{
+        background: C.panel,
+        border: `1px solid ${C.border}`,
+        borderRadius: RADIUS.card,
+        padding: "14px 16px 16px",
+        marginBottom: 12,
+      }}>
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          marginBottom: 10,
+        }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: C.text, display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <Icon name="question" size={16} color={C.textSecondary} />
+            Open Questions
+          </div>
+        </div>
+        {(() => {
+          const open = (next || []).filter(n => n && !n.done && _isGearRelatedNext(n, rackets, strings));
+          if (open.length === 0) {
+            return <div style={{ fontSize: 12, color: C.textMuted, padding: "8px 0", textAlign: "center" }}>未解決の機材判断はありません</div>;
+          }
+          return open.map(n => (
+            <div key={n.id} style={{
+              background: C.warningLight,
+              border: "1px solid #f7d77a",
+              borderRadius: RADIUS.row,
+              padding: "11px 14px",
+              marginBottom: 8,
+              display: "flex",
+              gap: 10,
+              alignItems: "flex-start",
+            }}>
+              <Icon name="warning-circle" size={16} color="#7e5d00" />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12, color: C.text, lineHeight: 1.4 }}>
+                  {n.label || "(タイトル未設定)"}
+                </div>
+                {(n.detail || n.category) && (
+                  <div style={{ fontSize: 10, color: "#7e5d00", marginTop: 2, lineHeight: 1.4,
+                    overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box",
+                    WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
+                    {n.detail || n.category}
+                  </div>
+                )}
+              </div>
+            </div>
+          ));
+        })()}
+      </div>
 
       {/* 5. Manage Masters - Phase 4-A: Strings 動作 / Phase 4-D: Setups + Retired */}
       <div style={{

@@ -45,7 +45,7 @@ input,select,textarea,button{font-family:inherit}
 const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
 // ── 定数定義（色・キー・バージョン）─────────────
-const APP_VERSION="4.0.0-S16.5";
+const APP_VERSION="4.0.0-S16.6";
 const font="-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif";
 
 // 色設計（DESIGN_SYSTEM_v4.md §1 + §10 S13.5 改訂準拠）
@@ -3039,10 +3039,112 @@ function _RacketRow({ racket, onClick }) {
   );
 }
 
+// 試打サマリ行 (Recent Trials)
+function _RecentTrialRow({ trial, onClick }) {
+  const dateMD = (() => {
+    if (!trial?.date) return "";
+    const parts = trial.date.split("-");
+    if (parts.length < 3) return trial.date;
+    return `${parseInt(parts[1], 10)}/${parseInt(parts[2], 10)}`;
+  })();
+  const setting = [trial.stringMain, trial.stringCross].filter(Boolean).join(" / ");
+  const ttl = setting ? `${trial.racketName || ""} × ${setting}` : (trial.racketName || "(無名)");
+  // 4 指標
+  const metrics = [
+    { k: "confidence", label: "安心" },
+    { k: "spin",       label: "スピン" },
+    { k: "power",      label: "推進" },
+    { k: "maneuver",   label: "操作" },
+  ].filter(m => typeof trial[m.k] === "number" && !isNaN(trial[m.k]));
+  // 判定 chip
+  const judg = trial.judgment || "";
+  const judgStyle = judg === "採用候補" ? { bg: C.primaryLight, color: C.primary }
+                  : judg === "採用" ? { bg: C.successLight, color: "#0a5b35" }
+                  : judg === "却下" ? { bg: C.errorLight, color: C.error }
+                  : { bg: C.panel2, color: C.textSecondary };
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        background: C.panel,
+        border: `1px solid ${C.border}`,
+        borderRadius: RADIUS.row,
+        padding: "11px 14px",
+        marginBottom: 8,
+        display: "grid",
+        gridTemplateColumns: "auto 1fr auto",
+        gap: 10,
+        alignItems: "center",
+        cursor: "pointer",
+      }}
+    >
+      <div style={{ fontSize: 11, color: C.textMuted, fontVariantNumeric: "tabular-nums", width: 36, flexShrink: 0 }}>{dateMD}</div>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 3,
+          lineHeight: 1.35, wordBreak: "break-word" }}>
+          {ttl}
+        </div>
+        {metrics.length > 0 && (
+          <div style={{ fontSize: 11, color: C.textSecondary, fontVariantNumeric: "tabular-nums",
+            lineHeight: 1.5, wordBreak: "keep-all" }}>
+            {metrics.map((m, i) => (
+              <span key={m.k} style={{ whiteSpace: "nowrap" }}>
+                {m.label} <span style={{ color: C.text, fontWeight: 600 }}>{Math.round(trial[m.k] * 10) / 10}</span>
+                {i < metrics.length - 1 && <span style={{ color: C.textMuted }}> · </span>}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+      {judg && (
+        <span style={{
+          fontSize: 10, fontWeight: 600, padding: "2px 7px", borderRadius: 6,
+          background: judgStyle.bg, color: judgStyle.color, whiteSpace: "nowrap",
+        }}>{judg}</span>
+      )}
+    </div>
+  );
+}
+
+// 機材関連の Next 項目を判定
+//   - ラケット名 / ストリング名は **トークン分割で部分一致**
+//     (ユーザーは「HEAD Boom Pro 2026」のフルネームでなく「Boom Pro」のような短縮形で書く)
+//     全角スペース・半角スペース・「/」「+」「・」で分割、3 文字以上のトークンを比較対象
+//   - 機材キーワード (ラケット / テンション / 試打 / 張替 等) も拾う
+function _isGearRelatedNext(item, rackets, strings) {
+  if (!item) return false;
+  const text = `${item.label || ""} ${item.detail || ""} ${item.category || ""}`.toLowerCase();
+  if (!text.trim()) return false;
+
+  const tokenize = (s) => String(s || "")
+    .toLowerCase()
+    .split(/[\s\/\+・]+/)
+    .filter(t => t && t.length >= 3);
+
+  for (const r of (rackets || [])) {
+    if (!r?.name) continue;
+    for (const tok of tokenize(r.name)) {
+      if (text.includes(tok)) return true;
+    }
+  }
+  for (const s of (strings || [])) {
+    if (!s?.name) continue;
+    for (const tok of tokenize(s.name)) {
+      if (text.includes(tok)) return true;
+    }
+  }
+  if (text.includes("ラケット") || text.includes("テンション")
+   || text.includes("ストリング") || text.includes("ガット")
+   || text.includes("試打") || text.includes("張替")
+   || text.includes("実打") || text.includes("検証")) return true;
+  return false;
+}
+
 function GearTab({
   rackets, strings, stringSetups, trials, tournaments, practices, next,
   onStringsUpdate, onStringEdit, onStringAdd,
   onRacketRowClick, onRacketAdd,
+  onCardClick,
   toast,
 }) {
   const [statusFilter, setStatusFilter] = useState("all");
@@ -3111,11 +3213,87 @@ function GearTab({
         )}
       </div>
 
-      {/* 3. Recent Trials (Phase 4-C) */}
-      <_GearPlaceholderCard icon="tennis-ball" title="Recent Trials" stage="Phase 4-C" />
+      {/* 3. Recent Trials (最新 3 件、新しい順) */}
+      <div style={{
+        background: C.panel,
+        border: `1px solid ${C.border}`,
+        borderRadius: RADIUS.card,
+        padding: "14px 16px 16px",
+        marginBottom: 12,
+      }}>
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          marginBottom: 10,
+        }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: C.text, display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <Icon name="tennis-ball" size={16} color={C.textSecondary} />
+            Recent Trials
+          </div>
+        </div>
+        {(() => {
+          const sorted = (trials || []).filter(t => t && t.date)
+            .slice()
+            .sort((a, b) => (a.date < b.date ? 1 : (a.date > b.date ? -1 : 0)))
+            .slice(0, 3);
+          if (sorted.length === 0) {
+            return <div style={{ fontSize: 12, color: C.textMuted, padding: "8px 0", textAlign: "center" }}>試打の記録はまだありません</div>;
+          }
+          return sorted.map(tr => (
+            <_RecentTrialRow key={tr.id} trial={tr} onClick={() => onCardClick && onCardClick("trial", tr)} />
+          ));
+        })()}
+      </div>
 
-      {/* 4. Open Questions (Phase 4-C) */}
-      <_GearPlaceholderCard icon="question" title="Open Questions" stage="Phase 4-C" />
+      {/* 4. Open Questions (next state を機材関連でフィルタ、未完了のみ) */}
+      <div style={{
+        background: C.panel,
+        border: `1px solid ${C.border}`,
+        borderRadius: RADIUS.card,
+        padding: "14px 16px 16px",
+        marginBottom: 12,
+      }}>
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          marginBottom: 10,
+        }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: C.text, display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <Icon name="question" size={16} color={C.textSecondary} />
+            Open Questions
+          </div>
+        </div>
+        {(() => {
+          const open = (next || []).filter(n => n && !n.done && _isGearRelatedNext(n, rackets, strings));
+          if (open.length === 0) {
+            return <div style={{ fontSize: 12, color: C.textMuted, padding: "8px 0", textAlign: "center" }}>未解決の機材判断はありません</div>;
+          }
+          return open.map(n => (
+            <div key={n.id} style={{
+              background: C.warningLight,
+              border: "1px solid #f7d77a",
+              borderRadius: RADIUS.row,
+              padding: "11px 14px",
+              marginBottom: 8,
+              display: "flex",
+              gap: 10,
+              alignItems: "flex-start",
+            }}>
+              <Icon name="warning-circle" size={16} color="#7e5d00" />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12, color: C.text, lineHeight: 1.4 }}>
+                  {n.label || "(タイトル未設定)"}
+                </div>
+                {(n.detail || n.category) && (
+                  <div style={{ fontSize: 10, color: "#7e5d00", marginTop: 2, lineHeight: 1.4,
+                    overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box",
+                    WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
+                    {n.detail || n.category}
+                  </div>
+                )}
+              </div>
+            </div>
+          ));
+        })()}
+      </div>
 
       {/* 5. Manage Masters - Phase 4-A: Strings 動作 / Phase 4-D: Setups + Retired */}
       <div style={{
@@ -11415,10 +11593,8 @@ const _loadViewMode = () => {
 };
 const FILTER_AXES = ["type", "racket", "opponent", "result"];
 const RESULT_OPTIONS = ["優勝","準優勝","3位","ベスト8","ベスト16","予選突破","敗退","予選敗退"];
-// S11 暫定 (S16 で削除): 「試打」を種類フィルタに追加。
-//   既定では試打を独立カードに出さない (WIREFRAMES §2.2.1) が、種類フィルタで「試打」を
-//   選択した時のみ表示する。Gear タブ (S16) 完成で試打集約画面ができたら削除。
-const TYPE_OPTIONS   = ["大会", "練習", "試打"];
+// S16 完了 (Phase 4-C): 試打は機材タブ Recent Trials に集約済。記録タブの絞り込みからも削除。
+const TYPE_OPTIONS   = ["大会", "練習"];
 const FILTER_CHIP_LABEL    = { type: "種類",        racket: "ラケット",        opponent: "対戦相手",        result: "結果" };
 const FILTER_DRAWER_TITLE  = { type: "種類で絞り込む", racket: "ラケットで絞り込む", opponent: "対戦相手で絞り込む", result: "結果で絞り込む" };
 
@@ -11513,17 +11689,13 @@ const _matchesSearch = (entry, q) => {
 
 // 各絞り込み軸の判定 (全て AND、同一軸の複数値は OR)
 const _matchesFilters = (entry, filters) => {
+  // S16 完了 (Phase 4-C): 試打は記録タブに独立カードとして出さない (機材タブ Recent Trials に集約)
+  if (entry.type === "trial") return false;
   if (filters.type.length > 0) {
     const label = entry.type === "tournament" ? "大会"
                 : entry.type === "practice"   ? "練習"
-                : entry.type === "trial"      ? "試打"
                 : "";
     if (!filters.type.includes(label)) return false;
-  } else {
-    // S11 暫定 (S16 で削除): 既定 (type フィルタ未指定) では試打は独立カードとして出さない。
-    // 「試打」を選択した時のみ表示する。WIREFRAMES §2.2.1 の方針を保ちつつ、
-    // S16 (Gear タブ) 完成までの動線として暫定許可。
-    if (entry.type === "trial") return false;
   }
   if (filters.racket.length > 0) {
     const rs = _entryRackets(entry);
@@ -14465,6 +14637,7 @@ function TennisDB() {
         onStringAdd={handleStringAdd}
         onRacketRowClick={handleRacketRowClick}
         onRacketAdd={handleRacketAdd}
+        onCardClick={handleCardClick}
         toast={toast}
       />
     );

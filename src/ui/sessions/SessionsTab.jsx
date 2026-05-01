@@ -208,10 +208,8 @@ const _loadViewMode = () => {
 };
 const FILTER_AXES = ["type", "racket", "opponent", "result"];
 const RESULT_OPTIONS = ["優勝","準優勝","3位","ベスト8","ベスト16","予選突破","敗退","予選敗退"];
-// S11 暫定 (S16 で削除): 「試打」を種類フィルタに追加。
-//   既定では試打を独立カードに出さない (WIREFRAMES §2.2.1) が、種類フィルタで「試打」を
-//   選択した時のみ表示する。Gear タブ (S16) 完成で試打集約画面ができたら削除。
-const TYPE_OPTIONS   = ["大会", "練習", "試打"];
+// S16 完了 (Phase 4-C): 試打は機材タブ Recent Trials に集約済。記録タブの絞り込みからも削除。
+const TYPE_OPTIONS   = ["大会", "練習"];
 const FILTER_CHIP_LABEL    = { type: "種類",        racket: "ラケット",        opponent: "対戦相手",        result: "結果" };
 const FILTER_DRAWER_TITLE  = { type: "種類で絞り込む", racket: "ラケットで絞り込む", opponent: "対戦相手で絞り込む", result: "結果で絞り込む" };
 
@@ -306,17 +304,13 @@ const _matchesSearch = (entry, q) => {
 
 // 各絞り込み軸の判定 (全て AND、同一軸の複数値は OR)
 const _matchesFilters = (entry, filters) => {
+  // S16 完了 (Phase 4-C): 試打は記録タブに独立カードとして出さない (機材タブ Recent Trials に集約)
+  if (entry.type === "trial") return false;
   if (filters.type.length > 0) {
     const label = entry.type === "tournament" ? "大会"
                 : entry.type === "practice"   ? "練習"
-                : entry.type === "trial"      ? "試打"
                 : "";
     if (!filters.type.includes(label)) return false;
-  } else {
-    // S11 暫定 (S16 で削除): 既定 (type フィルタ未指定) では試打は独立カードとして出さない。
-    // 「試打」を選択した時のみ表示する。WIREFRAMES §2.2.1 の方針を保ちつつ、
-    // S16 (Gear タブ) 完成までの動線として暫定許可。
-    if (entry.type === "trial") return false;
   }
   if (filters.racket.length > 0) {
     const rs = _entryRackets(entry);

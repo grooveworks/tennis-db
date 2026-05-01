@@ -983,6 +983,7 @@ function TennisDB() {
         onStringAdd={handleStringAdd}
         onRacketRowClick={handleRacketRowClick}
         onRacketAdd={handleRacketAdd}
+        onCardClick={handleCardClick}
         toast={toast}
       />
     );
