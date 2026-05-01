@@ -221,11 +221,11 @@ function PracticeDetail({ session, linkedTrials, onLinkedTrialClick }) {
       {/* メモ (focus はテキスト = v2/v3 と同形式、文字列以外は表示しない = legacy 数値の防御) */}
       {((typeof p.focus === "string" && p.focus) || p.coachNote || p.goodNote || p.improveNote || p.generalNote) && (
         <_dvSection title="メモ">
-          {typeof p.focus === "string" && p.focus && <_dvMemoItem label="フォーカス"  text={p.focus} />}
-          {p.coachNote   && <_dvMemoItem label="コーチメモ"  text={p.coachNote} />}
-          {p.goodNote    && <_dvMemoItem label="良かった点"  text={p.goodNote} />}
-          {p.improveNote && <_dvMemoItem label="改善点"      text={p.improveNote} />}
-          {p.generalNote && <_dvMemoItem label="メモ"        text={p.generalNote} />}
+          {typeof p.focus === "string" && p.focus && <_dvMemoItem label="フォーカス"  text={p.focus}       summary={p.memoSummaries?.focus} />}
+          {p.coachNote   && <_dvMemoItem label="コーチメモ"  text={p.coachNote}   summary={p.memoSummaries?.coachNote} />}
+          {p.goodNote    && <_dvMemoItem label="良かった点"  text={p.goodNote}    summary={p.memoSummaries?.goodNote} />}
+          {p.improveNote && <_dvMemoItem label="改善点"      text={p.improveNote} summary={p.memoSummaries?.improveNote} />}
+          {p.generalNote && <_dvMemoItem label="メモ"        text={p.generalNote} summary={p.memoSummaries?.generalNote} />}
         </_dvSection>
       )}
     </>

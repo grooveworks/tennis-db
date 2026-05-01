@@ -412,9 +412,28 @@ function TennisDB() {
     lsSave(KEYS[key], newItems);
     if (cascadeCount > 0) lsSave(KEYS.trials, newTrials);
 
-    // Firestore は core/03_storage.js の save() で 800ms デバウンス書き込み
-    save(KEYS[key], newItems);
-    if (cascadeCount > 0) save(KEYS.trials, newTrials);
+    // S16.10d: handleQuickTrialSave 同様、即時 Firestore write + 失敗 toast
+    //   旧: save() の 800ms debounce → Chrome Background Throttling で書き込み消失リスク
+    //   新: 試合中の memo 経路で確実に書き込む
+    if (user) {
+      try {
+        const writes = [
+          fbDb.collection("users").doc(user.uid).collection("data").doc(KEYS[key])
+            .set({ items: cleanForFirestore(newItems), updatedAt: new Date().toISOString() }),
+        ];
+        if (cascadeCount > 0) {
+          writes.push(
+            fbDb.collection("users").doc(user.uid).collection("data").doc(KEYS.trials)
+              .set({ items: cleanForFirestore(newTrials), updatedAt: new Date().toISOString() })
+          );
+        }
+        await Promise.all(writes);
+      } catch (err) {
+        console.error("Firestore handleSave error:", err);
+        toast.show("クラウド同期失敗 (ローカルは保存済み、再起動で再試行)", "warning");
+        // Detail に戻すのは継続 (ローカル保存は済んでいるため)
+      }
+    }
 
     // Detail に戻る、最新データで再描画
     setDetail({ type, session: updated, mode: "detail" });

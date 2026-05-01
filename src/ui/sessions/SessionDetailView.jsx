@@ -179,12 +179,26 @@ function _dvWatchCell({ label, value, unit }) {
   );
 }
 
-function _dvMemoItem({ label, text }) {
+function _dvMemoItem({ label, text, summary }) {
   // S15.5.7: 老眼配慮で fontSize 13 → 16 + memo-font-scale CSS var で 1.0/1.15/1.30 倍率対応
   //   全文表示 (line-clamp は元から無し、whiteSpace pre-wrap で改行保持)
+  // S16.10d: AI 要約があれば本文の上に ✨ 付きで先頭表示 (本文も省略せず下に出す)
+  const hasSummary = summary && String(summary).trim();
   return (
     <div style={{ marginBottom: 10 }}>
       <div style={{ fontSize: 11, color: C.textSecondary, marginBottom: 4, fontWeight: 600 }}>{label}</div>
+      {hasSummary && (
+        <div style={{
+          fontSize: "calc(13px * var(--memo-font-scale, 1))",
+          lineHeight: 1.5,
+          color: C.primary, fontWeight: 600,
+          background: C.primaryLight, borderRadius: 10,
+          padding: "10px 14px",
+          marginBottom: 6,
+        }}>
+          ✨ {String(summary).trim()}
+        </div>
+      )}
       <div style={{
         fontSize: "calc(16px * var(--memo-font-scale, 1))",
         lineHeight: 1.65,

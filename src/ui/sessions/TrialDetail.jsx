@@ -138,10 +138,10 @@ function TrialDetail({ session, linkedPractice, onLinkedPracticeClick, onCreateC
       {/* メモ */}
       {(t.strokeNote || t.serveNote || t.volleyNote || t.generalNote) && (
         <_dvSection title="メモ">
-          {t.strokeNote  && <_dvMemoItem label="ストローク" text={t.strokeNote} />}
-          {t.serveNote   && <_dvMemoItem label="サーブ"     text={t.serveNote} />}
-          {t.volleyNote  && <_dvMemoItem label="ボレー"     text={t.volleyNote} />}
-          {t.generalNote && <_dvMemoItem label="総括"       text={t.generalNote} />}
+          {t.strokeNote  && <_dvMemoItem label="ストローク" text={t.strokeNote}  summary={t.memoSummaries?.strokeNote} />}
+          {t.serveNote   && <_dvMemoItem label="サーブ"     text={t.serveNote}   summary={t.memoSummaries?.serveNote} />}
+          {t.volleyNote  && <_dvMemoItem label="ボレー"     text={t.volleyNote}  summary={t.memoSummaries?.volleyNote} />}
+          {t.generalNote && <_dvMemoItem label="総括"       text={t.generalNote} summary={t.memoSummaries?.generalNote} />}
         </_dvSection>
       )}
 

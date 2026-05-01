@@ -46,7 +46,7 @@ input,select,textarea,button{font-family:inherit}
 const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
 // ── 定数定義（色・キー・バージョン）─────────────
-const APP_VERSION="4.0.0-S16.10c";
+const APP_VERSION="4.0.0-S16.10d";
 const font="-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif";
 
 // 色設計（DESIGN_SYSTEM_v4.md §1 + §10 S13.5 改訂準拠）
@@ -9353,11 +9353,11 @@ function PracticeDetail({ session, linkedTrials, onLinkedTrialClick }) {
       {/* メモ (focus はテキスト = v2/v3 と同形式、文字列以外は表示しない = legacy 数値の防御) */}
       {((typeof p.focus === "string" && p.focus) || p.coachNote || p.goodNote || p.improveNote || p.generalNote) && (
         <_dvSection title="メモ">
-          {typeof p.focus === "string" && p.focus && <_dvMemoItem label="フォーカス"  text={p.focus} />}
-          {p.coachNote   && <_dvMemoItem label="コーチメモ"  text={p.coachNote} />}
-          {p.goodNote    && <_dvMemoItem label="良かった点"  text={p.goodNote} />}
-          {p.improveNote && <_dvMemoItem label="改善点"      text={p.improveNote} />}
-          {p.generalNote && <_dvMemoItem label="メモ"        text={p.generalNote} />}
+          {typeof p.focus === "string" && p.focus && <_dvMemoItem label="フォーカス"  text={p.focus}       summary={p.memoSummaries?.focus} />}
+          {p.coachNote   && <_dvMemoItem label="コーチメモ"  text={p.coachNote}   summary={p.memoSummaries?.coachNote} />}
+          {p.goodNote    && <_dvMemoItem label="良かった点"  text={p.goodNote}    summary={p.memoSummaries?.goodNote} />}
+          {p.improveNote && <_dvMemoItem label="改善点"      text={p.improveNote} summary={p.memoSummaries?.improveNote} />}
+          {p.generalNote && <_dvMemoItem label="メモ"        text={p.generalNote} summary={p.memoSummaries?.generalNote} />}
         </_dvSection>
       )}
     </>
@@ -11055,12 +11055,26 @@ function _dvWatchCell({ label, value, unit }) {
   );
 }
 
-function _dvMemoItem({ label, text }) {
+function _dvMemoItem({ label, text, summary }) {
   // S15.5.7: 老眼配慮で fontSize 13 → 16 + memo-font-scale CSS var で 1.0/1.15/1.30 倍率対応
   //   全文表示 (line-clamp は元から無し、whiteSpace pre-wrap で改行保持)
+  // S16.10d: AI 要約があれば本文の上に ✨ 付きで先頭表示 (本文も省略せず下に出す)
+  const hasSummary = summary && String(summary).trim();
   return (
     <div style={{ marginBottom: 10 }}>
       <div style={{ fontSize: 11, color: C.textSecondary, marginBottom: 4, fontWeight: 600 }}>{label}</div>
+      {hasSummary && (
+        <div style={{
+          fontSize: "calc(13px * var(--memo-font-scale, 1))",
+          lineHeight: 1.5,
+          color: C.primary, fontWeight: 600,
+          background: C.primaryLight, borderRadius: 10,
+          padding: "10px 14px",
+          marginBottom: 6,
+        }}>
+          ✨ {String(summary).trim()}
+        </div>
+      )}
       <div style={{
         fontSize: "calc(16px * var(--memo-font-scale, 1))",
         lineHeight: 1.65,
@@ -12492,9 +12506,7 @@ function TournamentDetail({ session, onMatchClick }) {
       {/* 総括メモ */}
       {t.generalNote && (
         <_dvSection title="総括メモ">
-          <div style={{ fontSize: 13, lineHeight: 1.6, color: C.text, whiteSpace: "pre-wrap", background: C.bg, borderRadius: 8, padding: "10px 12px" }}>
-            {t.generalNote}
-          </div>
+          <_dvMemoItem label="大会総括" text={t.generalNote} summary={t.memoSummaries?.generalNote} />
         </_dvSection>
       )}
     </>
@@ -12890,10 +12902,10 @@ function TrialDetail({ session, linkedPractice, onLinkedPracticeClick, onCreateC
       {/* メモ */}
       {(t.strokeNote || t.serveNote || t.volleyNote || t.generalNote) && (
         <_dvSection title="メモ">
-          {t.strokeNote  && <_dvMemoItem label="ストローク" text={t.strokeNote} />}
-          {t.serveNote   && <_dvMemoItem label="サーブ"     text={t.serveNote} />}
-          {t.volleyNote  && <_dvMemoItem label="ボレー"     text={t.volleyNote} />}
-          {t.generalNote && <_dvMemoItem label="総括"       text={t.generalNote} />}
+          {t.strokeNote  && <_dvMemoItem label="ストローク" text={t.strokeNote}  summary={t.memoSummaries?.strokeNote} />}
+          {t.serveNote   && <_dvMemoItem label="サーブ"     text={t.serveNote}   summary={t.memoSummaries?.serveNote} />}
+          {t.volleyNote  && <_dvMemoItem label="ボレー"     text={t.volleyNote}  summary={t.memoSummaries?.volleyNote} />}
+          {t.generalNote && <_dvMemoItem label="総括"       text={t.generalNote} summary={t.memoSummaries?.generalNote} />}
         </_dvSection>
       )}
 
@@ -14188,9 +14200,28 @@ function TennisDB() {
     lsSave(KEYS[key], newItems);
     if (cascadeCount > 0) lsSave(KEYS.trials, newTrials);
 
-    // Firestore は core/03_storage.js の save() で 800ms デバウンス書き込み
-    save(KEYS[key], newItems);
-    if (cascadeCount > 0) save(KEYS.trials, newTrials);
+    // S16.10d: handleQuickTrialSave 同様、即時 Firestore write + 失敗 toast
+    //   旧: save() の 800ms debounce → Chrome Background Throttling で書き込み消失リスク
+    //   新: 試合中の memo 経路で確実に書き込む
+    if (user) {
+      try {
+        const writes = [
+          fbDb.collection("users").doc(user.uid).collection("data").doc(KEYS[key])
+            .set({ items: cleanForFirestore(newItems), updatedAt: new Date().toISOString() }),
+        ];
+        if (cascadeCount > 0) {
+          writes.push(
+            fbDb.collection("users").doc(user.uid).collection("data").doc(KEYS.trials)
+              .set({ items: cleanForFirestore(newTrials), updatedAt: new Date().toISOString() })
+          );
+        }
+        await Promise.all(writes);
+      } catch (err) {
+        console.error("Firestore handleSave error:", err);
+        toast.show("クラウド同期失敗 (ローカルは保存済み、再起動で再試行)", "warning");
+        // Detail に戻すのは継続 (ローカル保存は済んでいるため)
+      }
+    }
 
     // Detail に戻る、最新データで再描画
     setDetail({ type, session: updated, mode: "detail" });

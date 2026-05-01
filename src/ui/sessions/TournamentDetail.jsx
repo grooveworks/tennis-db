@@ -97,9 +97,7 @@ function TournamentDetail({ session, onMatchClick }) {
       {/* 総括メモ */}
       {t.generalNote && (
         <_dvSection title="総括メモ">
-          <div style={{ fontSize: 13, lineHeight: 1.6, color: C.text, whiteSpace: "pre-wrap", background: C.bg, borderRadius: 8, padding: "10px 12px" }}>
-            {t.generalNote}
-          </div>
+          <_dvMemoItem label="大会総括" text={t.generalNote} summary={t.memoSummaries?.generalNote} />
         </_dvSection>
       )}
     </>
