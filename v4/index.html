@@ -46,7 +46,7 @@ input,select,textarea,button{font-family:inherit}
 const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
 // ── 定数定義（色・キー・バージョン）─────────────
-const APP_VERSION="4.0.0-S16.8";
+const APP_VERSION="4.0.0-S16.10";
 const font="-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif";
 
 // 色設計（DESIGN_SYSTEM_v4.md §1 + §10 S13.5 改訂準拠）
@@ -3229,14 +3229,35 @@ function GearTab({
   toast,
 }) {
   const [statusFilter, setStatusFilter] = useState("all");
-  const mainRacket = _findMainRacket(rackets);
-  const mainUsage = mainRacket ? _computeUsage(mainRacket.name, tournaments, practices) : { past30: 0, total: 0, winRate: null };
 
-  // 表示用にソート (status 優先度 → order ASC) + status filter
-  const sortedRackets = sortByStatusAndOrder(rackets || [], RACKET_STATUS_PRIORITY);
-  const filteredRackets = statusFilter === "all"
-    ? sortedRackets
-    : sortedRackets.filter(r => r && r.status === statusFilter);
+  // S16.9 perf: 重い計算 (全 session 走査) を useMemo でキャッシュ。
+  //   依存変数が変わった時だけ再計算、毎レンダーでの再走査を防ぐ。
+  const mainRacket = useMemo(() => _findMainRacket(rackets), [rackets]);
+  const mainUsage = useMemo(
+    () => mainRacket ? _computeUsage(mainRacket.name, tournaments, practices) : { past30: 0, total: 0, winRate: null },
+    [mainRacket?.name, tournaments, practices]
+  );
+  const sortedRackets = useMemo(
+    () => sortByStatusAndOrder(rackets || [], RACKET_STATUS_PRIORITY),
+    [rackets]
+  );
+  const filteredRackets = useMemo(
+    () => statusFilter === "all" ? sortedRackets : sortedRackets.filter(r => r && r.status === statusFilter),
+    [sortedRackets, statusFilter]
+  );
+
+  // Recent Trials: 最新 3 件 (date 降順)
+  const recentTrials = useMemo(() => {
+    return (trials || []).filter(t => t && t.date)
+      .slice()
+      .sort((a, b) => (a.date < b.date ? 1 : (a.date > b.date ? -1 : 0)))
+      .slice(0, 3);
+  }, [trials]);
+
+  // Open Questions: 機材関連の next 項目 (未完了)
+  const openQuestions = useMemo(() => {
+    return (next || []).filter(n => n && !n.done && _isGearRelatedNext(n, rackets, strings));
+  }, [next, rackets, strings]);
 
   return (
     <div style={{
@@ -3311,18 +3332,13 @@ function GearTab({
             Recent Trials
           </div>
         </div>
-        {(() => {
-          const sorted = (trials || []).filter(t => t && t.date)
-            .slice()
-            .sort((a, b) => (a.date < b.date ? 1 : (a.date > b.date ? -1 : 0)))
-            .slice(0, 3);
-          if (sorted.length === 0) {
-            return <div style={{ fontSize: 12, color: C.textMuted, padding: "8px 0", textAlign: "center" }}>試打の記録はまだありません</div>;
-          }
-          return sorted.map(tr => (
+        {recentTrials.length === 0 ? (
+          <div style={{ fontSize: 12, color: C.textMuted, padding: "8px 0", textAlign: "center" }}>試打の記録はまだありません</div>
+        ) : (
+          recentTrials.map(tr => (
             <_RecentTrialRow key={tr.id} trial={tr} onClick={() => onCardClick && onCardClick("trial", tr)} />
-          ));
-        })()}
+          ))
+        )}
       </div>
 
       {/* 4. Open Questions (next state を機材関連でフィルタ、未完了のみ) */}
@@ -3342,12 +3358,10 @@ function GearTab({
             Open Questions
           </div>
         </div>
-        {(() => {
-          const open = (next || []).filter(n => n && !n.done && _isGearRelatedNext(n, rackets, strings));
-          if (open.length === 0) {
-            return <div style={{ fontSize: 12, color: C.textMuted, padding: "8px 0", textAlign: "center" }}>未解決の機材判断はありません</div>;
-          }
-          return open.map(n => (
+        {openQuestions.length === 0 ? (
+          <div style={{ fontSize: 12, color: C.textMuted, padding: "8px 0", textAlign: "center" }}>未解決の機材判断はありません</div>
+        ) : (
+          openQuestions.map(n => (
             <div key={n.id} style={{
               background: C.warningLight,
               border: "1px solid #f7d77a",
@@ -3372,8 +3386,8 @@ function GearTab({
                 )}
               </div>
             </div>
-          ));
-        })()}
+          ))
+        )}
       </div>
 
       {/* 5. Manage Masters - Phase 4-A: Strings 動作 / Phase 4-D: Setups + Retired */}
@@ -4220,18 +4234,26 @@ function RacketDetailView({
     try { window.history.back(); } catch (_) { onClose && onClose(); }
   };
 
+  // S16.9 perf: 重い計算を useMemo でキャッシュ (毎レンダー再走査を防止)
+  // Hooks は早期 return より前で呼ぶ必要があるため、null guard も内部で対応
+  const status = racket?.status || "candidate";
+  const trialAvgs = useMemo(
+    () => _computeTrialAvgs(trials, racket?.name),
+    [trials, racket?.name]
+  );
+  const usage = useMemo(
+    () => _computeRacketUsage(racket?.name, tournaments, practices),
+    [racket?.name, tournaments, practices]
+  );
+  const sortedMeas = useMemo(() => {
+    const measurements = Array.isArray(racket?.measurements) ? racket.measurements : [];
+    return [
+      ...measurements.filter(m => m && m.current),
+      ...measurements.filter(m => !m || !m.current),
+    ];
+  }, [racket?.measurements]);
+
   if (!open || !racket) return null;
-
-  const status = racket.status || "candidate";
-  const trialAvgs = _computeTrialAvgs(trials, racket.name);
-  const usage = _computeRacketUsage(racket.name, tournaments, practices);
-
-  // Measurements: current=true を最上段に、その他は配列順で
-  const measurements = Array.isArray(racket.measurements) ? racket.measurements : [];
-  const sortedMeas = [
-    ...measurements.filter(m => m && m.current),
-    ...measurements.filter(m => !m || !m.current),
-  ];
 
   // 「次の確認」1 行は候補 / 検討中 のみ
   const showNextCheck = (status === "candidate" || status === "considering") && (racket.nextCheck || "").trim();
@@ -4799,7 +4821,12 @@ function ReorderHintBar({ children }) {
 // 行タップで Period Detail (slide-in) が開く
 
 function SettingHistorySection({ racket, tournaments, practices, trials, onPeriodClick }) {
-  const history = computeSettingHistory(racket?.name, tournaments, practices, trials);
+  // S16.9 perf: computeSettingHistory は全 session 走査 + ソート + グループ化で重い。
+  //   毎レンダーで再計算しないよう useMemo でキャッシュ。
+  const history = useMemo(
+    () => computeSettingHistory(racket?.name, tournaments, practices, trials),
+    [racket?.name, tournaments, practices, trials]
+  );
 
   if (history.length === 0) {
     return (
@@ -14463,6 +14490,25 @@ function TennisDB() {
                   : linkedMtchId ? "試合と紐付け"
                   : matchingP   ? "練習と紐付け" : "";
     toast.show(linked ? `試打を保存 → ${linkMsg}` : "試打を保存", "success");
+
+    // S16.9: 試打カード経由でも AI 要約を裏で実行 (handleSave と同じ pattern)
+    summarizeSessionMemos("trial", trial).then(summaries => {
+      if (!summaries || Object.keys(summaries).length === 0) return;
+      setTrials(prev => {
+        const live = (prev || []).find(x => x.id === trial.id);
+        if (!live) return prev;
+        const merged = { ...live, memoSummaries: { ...(live.memoSummaries || {}), ...summaries } };
+        const newList = prev.map(x => x.id === trial.id ? merged : x);
+        lsSave(KEYS.trials, newList);
+        save(KEYS.trials, newList);
+        return newList;
+      });
+    }).catch(err => { console.error("trial summarize background error:", err); });
+
+    // S16.9: 試打カード保存後、保存した試打の Detail を自動で開く (編集経路を浅く)
+    //   QuickTrialMode は閉じる + 試打詳細を slide-in で開く
+    setQuickTrial(false);
+    handleCardClick("trial", trial);
   };
 
   // S15.5: 既存試打を試打カードに昇格 (TrialDetail から呼ぶ、毎回同じ設定の再利用に便利)
@@ -14795,7 +14841,8 @@ function TennisDB() {
         onSave={handleQuickAddSave}
         onClose={handleQuickAddClose}
       />
-      {detail && (
+      {/* S16.10: タブが切り替わったら、そのタブ専用の slide-in は描画しない (state は保持) */}
+      {tab === "sessions" && detail && (
         <SessionDetailView
           key={detail.session.id}
           type={detail.type}
@@ -14868,8 +14915,9 @@ function TennisDB() {
         confirm={cfm}
       />
       {/* S16 Phase 4-B: Racket Detail (slide-in、6 セクション + 履歴) */}
+      {/* S16.10: 機材タブ以外では描画しない (他タブを覆ったままにしない) */}
       <RacketDetailView
-        open={!!racketDetail}
+        open={tab === "gear" && !!racketDetail}
         racket={racketDetail}
         rackets={rackets}
         trials={trials}
@@ -14885,8 +14933,9 @@ function TennisDB() {
         onPeriodClick={handlePeriodClick}
       />
       {/* S16 Phase 4-C-1: Period Detail (履歴 1 期間の sessions 一覧 slide-in) */}
+      {/* S16.10: 機材タブ以外では描画しない */}
       <PeriodDetailView
-        open={!!periodDetail}
+        open={tab === "gear" && !!periodDetail}
         period={periodDetail?.period}
         racket={periodDetail?.racket}
         tournaments={tournaments}

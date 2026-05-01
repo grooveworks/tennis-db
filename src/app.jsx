@@ -714,6 +714,25 @@ function TennisDB() {
                   : linkedMtchId ? "試合と紐付け"
                   : matchingP   ? "練習と紐付け" : "";
     toast.show(linked ? `試打を保存 → ${linkMsg}` : "試打を保存", "success");
+
+    // S16.9: 試打カード経由でも AI 要約を裏で実行 (handleSave と同じ pattern)
+    summarizeSessionMemos("trial", trial).then(summaries => {
+      if (!summaries || Object.keys(summaries).length === 0) return;
+      setTrials(prev => {
+        const live = (prev || []).find(x => x.id === trial.id);
+        if (!live) return prev;
+        const merged = { ...live, memoSummaries: { ...(live.memoSummaries || {}), ...summaries } };
+        const newList = prev.map(x => x.id === trial.id ? merged : x);
+        lsSave(KEYS.trials, newList);
+        save(KEYS.trials, newList);
+        return newList;
+      });
+    }).catch(err => { console.error("trial summarize background error:", err); });
+
+    // S16.9: 試打カード保存後、保存した試打の Detail を自動で開く (編集経路を浅く)
+    //   QuickTrialMode は閉じる + 試打詳細を slide-in で開く
+    setQuickTrial(false);
+    handleCardClick("trial", trial);
   };
 
   // S15.5: 既存試打を試打カードに昇格 (TrialDetail から呼ぶ、毎回同じ設定の再利用に便利)
@@ -1046,7 +1065,8 @@ function TennisDB() {
         onSave={handleQuickAddSave}
         onClose={handleQuickAddClose}
       />
-      {detail && (
+      {/* S16.10: タブが切り替わったら、そのタブ専用の slide-in は描画しない (state は保持) */}
+      {tab === "sessions" && detail && (
         <SessionDetailView
           key={detail.session.id}
           type={detail.type}
@@ -1119,8 +1139,9 @@ function TennisDB() {
         confirm={cfm}
       />
       {/* S16 Phase 4-B: Racket Detail (slide-in、6 セクション + 履歴) */}
+      {/* S16.10: 機材タブ以外では描画しない (他タブを覆ったままにしない) */}
       <RacketDetailView
-        open={!!racketDetail}
+        open={tab === "gear" && !!racketDetail}
         racket={racketDetail}
         rackets={rackets}
         trials={trials}
@@ -1136,8 +1157,9 @@ function TennisDB() {
         onPeriodClick={handlePeriodClick}
       />
       {/* S16 Phase 4-C-1: Period Detail (履歴 1 期間の sessions 一覧 slide-in) */}
+      {/* S16.10: 機材タブ以外では描画しない */}
       <PeriodDetailView
-        open={!!periodDetail}
+        open={tab === "gear" && !!periodDetail}
         period={periodDetail?.period}
         racket={periodDetail?.racket}
         tournaments={tournaments}
