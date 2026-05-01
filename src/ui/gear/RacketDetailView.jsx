@@ -199,18 +199,26 @@ function RacketDetailView({
     try { window.history.back(); } catch (_) { onClose && onClose(); }
   };
 
+  // S16.9 perf: 重い計算を useMemo でキャッシュ (毎レンダー再走査を防止)
+  // Hooks は早期 return より前で呼ぶ必要があるため、null guard も内部で対応
+  const status = racket?.status || "candidate";
+  const trialAvgs = useMemo(
+    () => _computeTrialAvgs(trials, racket?.name),
+    [trials, racket?.name]
+  );
+  const usage = useMemo(
+    () => _computeRacketUsage(racket?.name, tournaments, practices),
+    [racket?.name, tournaments, practices]
+  );
+  const sortedMeas = useMemo(() => {
+    const measurements = Array.isArray(racket?.measurements) ? racket.measurements : [];
+    return [
+      ...measurements.filter(m => m && m.current),
+      ...measurements.filter(m => !m || !m.current),
+    ];
+  }, [racket?.measurements]);
+
   if (!open || !racket) return null;
-
-  const status = racket.status || "candidate";
-  const trialAvgs = _computeTrialAvgs(trials, racket.name);
-  const usage = _computeRacketUsage(racket.name, tournaments, practices);
-
-  // Measurements: current=true を最上段に、その他は配列順で
-  const measurements = Array.isArray(racket.measurements) ? racket.measurements : [];
-  const sortedMeas = [
-    ...measurements.filter(m => m && m.current),
-    ...measurements.filter(m => !m || !m.current),
-  ];
 
   // 「次の確認」1 行は候補 / 検討中 のみ
   const showNextCheck = (status === "candidate" || status === "considering") && (racket.nextCheck || "").trim();
@@ -309,7 +317,7 @@ function RacketDetailView({
         </div>
 
         {/* 2. Current Setting */}
-        <_SecCard icon="gear-six" title="Current Setting">
+        <_SecCard icon="gear-six" title="現在のセッティング">
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 12px" }}>
             <_KV k="ストリング" v={racket.currentString} />
             <_KV k="テンション" v={racket.currentTension} />
@@ -321,7 +329,7 @@ function RacketDetailView({
         </_SecCard>
 
         {/* 3. Trial Summary */}
-        <_SecCard icon="chart-bar" title="Trial Summary" more={trialAvgs.n ? `n = ${trialAvgs.n}` : null}>
+        <_SecCard icon="chart-bar" title="試打まとめ" more={trialAvgs.n ? `n = ${trialAvgs.n}` : null}>
           {trialAvgs.n === 0 ? (
             <div style={{ fontSize: 12, color: C.textMuted, textAlign: "center", padding: "8px 0" }}>
               このラケットの試打評価はまだありません
@@ -337,7 +345,7 @@ function RacketDetailView({
         </_SecCard>
 
         {/* 4. Decision Notes (Usage より上、判断主役) */}
-        <_SecCard icon="note-pencil" title="Decision Notes" more="編集" onMore={() => onEdit(racket)}>
+        <_SecCard icon="note-pencil" title="判断メモ" more="編集" onMore={() => onEdit(racket)}>
           <_DeciNote kind="keep"  label="継続理由" icon="check-circle" value={racket.decisionKeep} />
           <_DeciNote kind="worry" label="不安点"   icon="warning"      value={racket.decisionWorry} />
           <_DeciNote kind="next"  label="次回確認" icon="arrow-bend-up-right" value={racket.decisionNext} />
@@ -353,7 +361,7 @@ function RacketDetailView({
         />
 
         {/* 5. Usage */}
-        <_SecCard icon="chart-line" title="Usage">
+        <_SecCard icon="chart-line" title="使用状況">
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
             <_StatBlock num={usage.past30} unit="回" lbl="直近30日" />
             <_StatBlock num={usage.total} unit="回" lbl="通算" />
@@ -362,7 +370,7 @@ function RacketDetailView({
         </_SecCard>
 
         {/* 6. Measurements */}
-        <_SecCard icon="ruler" title="Measurements" more="+ 追加" onMore={() => onMeasurementAdd(racket)}>
+        <_SecCard icon="ruler" title="実測値" more="+ 追加" onMore={() => onMeasurementAdd(racket)}>
           {sortedMeas.length === 0 ? (
             <div style={{ fontSize: 12, color: C.textMuted, textAlign: "center", padding: "8px 0" }}>
               実測値の記録はまだありません

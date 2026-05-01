@@ -355,6 +355,16 @@ function TennisDB() {
     return () => window.removeEventListener("popstate", onPop);
   }, []);
 
+  // S16.10c: TabBar でタブを切り替えたら開いている詳細を閉じる
+  //   ただし「編集中」(detail.mode === "edit") の試合・練習・試打詳細は閉じない
+  //   = 試合中のメモ書きかけがタブ誤タップで消えないようにする
+  //   ラケット詳細・期間詳細は中身を編集する画面ではないので無条件で閉じる
+  useEffect(() => {
+    setDetail(prev => prev?.mode === "edit" ? prev : null);
+    setRacketDetail(null);
+    setPeriodDetail(null);
+  }, [tab]);
+
   // S11: 編集モードに切替 (再 mount せず、SessionDetailView 内で SessionEditView 表示)
   const handleEdit = (type, item) => {
     if (!item) return;
@@ -1065,8 +1075,7 @@ function TennisDB() {
         onSave={handleQuickAddSave}
         onClose={handleQuickAddClose}
       />
-      {/* S16.10: タブが切り替わったら、そのタブ専用の slide-in は描画しない (state は保持) */}
-      {tab === "sessions" && detail && (
+      {detail && (
         <SessionDetailView
           key={detail.session.id}
           type={detail.type}
@@ -1139,9 +1148,8 @@ function TennisDB() {
         confirm={cfm}
       />
       {/* S16 Phase 4-B: Racket Detail (slide-in、6 セクション + 履歴) */}
-      {/* S16.10: 機材タブ以外では描画しない (他タブを覆ったままにしない) */}
       <RacketDetailView
-        open={tab === "gear" && !!racketDetail}
+        open={!!racketDetail}
         racket={racketDetail}
         rackets={rackets}
         trials={trials}
@@ -1157,9 +1165,8 @@ function TennisDB() {
         onPeriodClick={handlePeriodClick}
       />
       {/* S16 Phase 4-C-1: Period Detail (履歴 1 期間の sessions 一覧 slide-in) */}
-      {/* S16.10: 機材タブ以外では描画しない */}
       <PeriodDetailView
-        open={tab === "gear" && !!periodDetail}
+        open={!!periodDetail}
         period={periodDetail?.period}
         racket={periodDetail?.racket}
         tournaments={tournaments}

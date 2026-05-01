@@ -174,7 +174,7 @@ function RacketEditModal({ open, item, onSave, onClose, onDelete, confirm, toast
       </div>
       <Textarea label="メモ" value={form.note} onChange={update("note")} placeholder="フレーム特性、試打履歴など..." rows={3} />
       <div style={{ marginTop: 14, marginBottom: 6, fontSize: 11, fontWeight: 700, color: C.textSecondary, textTransform: "uppercase", letterSpacing: 0.04 }}>
-        Decision Notes
+        判断メモ
       </div>
       <Textarea label="継続理由" value={form.decisionKeep} onChange={update("decisionKeep")} placeholder="このラケットを使い続ける理由..." rows={2} />
       <Textarea label="不安点" value={form.decisionWorry} onChange={update("decisionWorry")} placeholder="気になる構造的弱点 / 移行検討理由..." rows={2} />

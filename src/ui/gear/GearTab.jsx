@@ -99,7 +99,7 @@ function _CurrentSetupCard({ racket, usage }) {
       }}>
         <Icon name="tennis-ball" size={20} color={C.textMuted} />
         <div style={{ fontSize: 12, marginTop: 6 }}>主力ラケットが未設定です</div>
-        <div style={{ fontSize: 11, marginTop: 2 }}>下の Racket Board でステータスを「主力」に設定してください</div>
+        <div style={{ fontSize: 11, marginTop: 2 }}>下の「ラケット一覧」でステータスを「主力」に設定してください</div>
       </div>
     );
   }
@@ -116,7 +116,7 @@ function _CurrentSetupCard({ racket, usage }) {
         color: C.primary, textTransform: "uppercase",
         marginBottom: 4,
       }}>
-        Current Setup
+        現在の主力
       </div>
       <div style={{ fontSize: 18, fontWeight: 800, color: C.text, lineHeight: 1.3, marginBottom: 2 }}>
         {racket.name || "(無名)"}
@@ -358,14 +358,35 @@ function GearTab({
   toast,
 }) {
   const [statusFilter, setStatusFilter] = useState("all");
-  const mainRacket = _findMainRacket(rackets);
-  const mainUsage = mainRacket ? _computeUsage(mainRacket.name, tournaments, practices) : { past30: 0, total: 0, winRate: null };
 
-  // 表示用にソート (status 優先度 → order ASC) + status filter
-  const sortedRackets = sortByStatusAndOrder(rackets || [], RACKET_STATUS_PRIORITY);
-  const filteredRackets = statusFilter === "all"
-    ? sortedRackets
-    : sortedRackets.filter(r => r && r.status === statusFilter);
+  // S16.9 perf: 重い計算 (全 session 走査) を useMemo でキャッシュ。
+  //   依存変数が変わった時だけ再計算、毎レンダーでの再走査を防ぐ。
+  const mainRacket = useMemo(() => _findMainRacket(rackets), [rackets]);
+  const mainUsage = useMemo(
+    () => mainRacket ? _computeUsage(mainRacket.name, tournaments, practices) : { past30: 0, total: 0, winRate: null },
+    [mainRacket?.name, tournaments, practices]
+  );
+  const sortedRackets = useMemo(
+    () => sortByStatusAndOrder(rackets || [], RACKET_STATUS_PRIORITY),
+    [rackets]
+  );
+  const filteredRackets = useMemo(
+    () => statusFilter === "all" ? sortedRackets : sortedRackets.filter(r => r && r.status === statusFilter),
+    [sortedRackets, statusFilter]
+  );
+
+  // Recent Trials: 最新 3 件 (date 降順)
+  const recentTrials = useMemo(() => {
+    return (trials || []).filter(t => t && t.date)
+      .slice()
+      .sort((a, b) => (a.date < b.date ? 1 : (a.date > b.date ? -1 : 0)))
+      .slice(0, 3);
+  }, [trials]);
+
+  // Open Questions: 機材関連の next 項目 (未完了)
+  const openQuestions = useMemo(() => {
+    return (next || []).filter(n => n && !n.done && _isGearRelatedNext(n, rackets, strings));
+  }, [next, rackets, strings]);
 
   return (
     <div style={{
@@ -391,7 +412,7 @@ function GearTab({
         }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: C.text, display: "inline-flex", alignItems: "center", gap: 6 }}>
             <Icon name="list-bullets" size={16} color={C.textSecondary} />
-            Racket Board
+            ラケット一覧
           </div>
           <button
             type="button"
@@ -437,21 +458,16 @@ function GearTab({
         }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: C.text, display: "inline-flex", alignItems: "center", gap: 6 }}>
             <Icon name="tennis-ball" size={16} color={C.textSecondary} />
-            Recent Trials
+            最近の試打
           </div>
         </div>
-        {(() => {
-          const sorted = (trials || []).filter(t => t && t.date)
-            .slice()
-            .sort((a, b) => (a.date < b.date ? 1 : (a.date > b.date ? -1 : 0)))
-            .slice(0, 3);
-          if (sorted.length === 0) {
-            return <div style={{ fontSize: 12, color: C.textMuted, padding: "8px 0", textAlign: "center" }}>試打の記録はまだありません</div>;
-          }
-          return sorted.map(tr => (
+        {recentTrials.length === 0 ? (
+          <div style={{ fontSize: 12, color: C.textMuted, padding: "8px 0", textAlign: "center" }}>試打の記録はまだありません</div>
+        ) : (
+          recentTrials.map(tr => (
             <_RecentTrialRow key={tr.id} trial={tr} onClick={() => onCardClick && onCardClick("trial", tr)} />
-          ));
-        })()}
+          ))
+        )}
       </div>
 
       {/* 4. Open Questions (next state を機材関連でフィルタ、未完了のみ) */}
@@ -468,15 +484,13 @@ function GearTab({
         }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: C.text, display: "inline-flex", alignItems: "center", gap: 6 }}>
             <Icon name="question" size={16} color={C.textSecondary} />
-            Open Questions
+            未解決の課題
           </div>
         </div>
-        {(() => {
-          const open = (next || []).filter(n => n && !n.done && _isGearRelatedNext(n, rackets, strings));
-          if (open.length === 0) {
-            return <div style={{ fontSize: 12, color: C.textMuted, padding: "8px 0", textAlign: "center" }}>未解決の機材判断はありません</div>;
-          }
-          return open.map(n => (
+        {openQuestions.length === 0 ? (
+          <div style={{ fontSize: 12, color: C.textMuted, padding: "8px 0", textAlign: "center" }}>未解決の機材判断はありません</div>
+        ) : (
+          openQuestions.map(n => (
             <div key={n.id} style={{
               background: C.warningLight,
               border: "1px solid #f7d77a",
@@ -501,8 +515,8 @@ function GearTab({
                 )}
               </div>
             </div>
-          ));
-        })()}
+          ))
+        )}
       </div>
 
       {/* 5. Manage Masters - Phase 4-A: Strings 動作 / Phase 4-D: Setups + Retired */}
@@ -512,7 +526,7 @@ function GearTab({
         textTransform: "uppercase", letterSpacing: 0.04,
         margin: "8px 4px 8px 4px",
       }}>
-        Manage Masters
+        マスタ管理
       </div>
 
       <StringsSection
