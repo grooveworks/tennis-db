@@ -412,6 +412,23 @@ function TennisDB() {
       ? `保存しました (試合削除に伴い試打 ${cascadeCount} 件の連携を外しました)`
       : "保存しました";
     toast.show(msg, "success");
+
+    // S16 Phase 4-C-3: 裏で AI 要約 (Claude Haiku) を呼ぶ
+    //   保存自体は既に完了済 (UI ブロックしない)、要約完了次第 memoSummaries フィールドを更新
+    //   失敗しても黙って無視 (line-clamp フォールバックで表示できる)
+    summarizeSessionMemos(type, updated).then(summaries => {
+      if (!summaries || Object.keys(summaries).length === 0) return;
+      const setter = type === "tournament" ? setTournaments : type === "practice" ? setPractices : setTrials;
+      setter(prev => {
+        const live = (prev || []).find(x => x.id === updated.id);
+        if (!live) return prev;
+        const merged = { ...live, memoSummaries: { ...(live.memoSummaries || {}), ...summaries } };
+        const newList = prev.map(x => x.id === updated.id ? merged : x);
+        lsSave(KEYS[key], newList);
+        save(KEYS[key], newList);
+        return newList;
+      });
+    }).catch(err => { console.error("summarize background error:", err); });
   };
 
   // S13: 削除 + cascade (REQUIREMENTS N2.2)

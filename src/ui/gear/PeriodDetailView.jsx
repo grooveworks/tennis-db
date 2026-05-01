@@ -333,20 +333,34 @@ function _SessionCard({ type, item, racketName, onClick }) {
   }
 
   // メモ (type 別の memo フィールドを順に拾う、空でないもの)
+  // S16 Phase 4-C-3: AI 要約 (memoSummaries.{fieldKey}) があれば本文の代わりにそれを表示
+  //   要約は元の長い文を 1-2 行に圧縮したもの。なければ元の文を line-clamp 2 行で表示。
   const memos = [];
+  const itemSummaries = item?.memoSummaries || {};
   const fields = _MEMO_FIELDS[type === "tournament-match" ? "tournament" : type] || [];
   fields.forEach(f => {
     const v = item[f.key];
-    if (v && String(v).trim()) memos.push({ label: f.label, text: String(v).trim() });
+    if (v && String(v).trim()) {
+      const summary = itemSummaries[f.key];
+      const display = summary && summary.trim() ? summary.trim() : String(v).trim();
+      memos.push({ label: f.label, text: display, isSummary: !!(summary && summary.trim()) });
+    }
   });
   // tournament の matches[] のメンタルメモなど (このラケットで打った match 由来のみ)
   if (type === "tournament" || type === "tournament-match") {
     (item.matches || []).forEach(m => {
       if (!m || (racketName && m.racketName !== racketName)) return;
+      const matchSummaries = m?.memoSummaries || {};
       _MEMO_FIELDS.match.forEach(f => {
         const v = m[f.key];
         if (v && String(v).trim()) {
-          memos.push({ label: `試合・${f.label}${m.round ? ` (${m.round})` : ""}`, text: String(v).trim() });
+          const summary = matchSummaries[f.key];
+          const display = summary && summary.trim() ? summary.trim() : String(v).trim();
+          memos.push({
+            label: `試合・${f.label}${m.round ? ` (${m.round})` : ""}`,
+            text: display,
+            isSummary: !!(summary && summary.trim()),
+          });
         }
       });
     });
@@ -436,11 +450,11 @@ function _SessionCard({ type, item, racketName, onClick }) {
             display: "inline-block",
             fontSize: "calc(9px * var(--memo-font-scale, 1))",
             fontWeight: 700,
-            color: C.textSecondary,
+            color: m.isSummary ? C.primary : C.textSecondary,
             marginRight: 5,
             letterSpacing: 0.04,
           }}>
-            {m.label}
+            {m.isSummary ? "✨ " : ""}{m.label}
           </span>
           {m.text}
         </div>

@@ -30,6 +30,7 @@ const SCHEMA={
     {key:"generalNote",label:"メモ",type:"textarea",combinable:true},
     {key:"matches",label:"試合記録",type:"array",itemType:"match"},
     {key:"visibility",label:"公開",type:"select"},
+    {key:"memoSummaries",label:"メモ要約",type:"object"},
   ],
   practice:[
     {key:"date",label:"日付",type:"date",required:true},
@@ -64,6 +65,7 @@ const SCHEMA={
     {key:"hrZone4",label:"HR Z4",type:"text"},
     {key:"hrZone5",label:"HR Z5",type:"text"},
     {key:"visibility",label:"公開",type:"select"},
+    {key:"memoSummaries",label:"メモ要約",type:"object"},
   ],
   trial:[
     {key:"date",label:"日付",type:"date",required:true},
@@ -100,6 +102,7 @@ const SCHEMA={
     {key:"generalNote",label:"総合メモ",type:"textarea",combinable:true},
     {key:"linkedPracticeId",label:"連携練習ID",type:"text"},
     {key:"linkedMatchId",label:"連携試合ID",type:"text"},
+    {key:"memoSummaries",label:"メモ要約",type:"object"},
   ],
   match:[
     {key:"round",label:"ラウンド",type:"text"},
@@ -118,6 +121,7 @@ const SCHEMA={
     {key:"techNote",label:"技術メモ",type:"textarea",combinable:true},
     {key:"opponentNote",label:"相手メモ",type:"textarea",combinable:true},
     {key:"note",label:"試合メモ",type:"textarea",combinable:true},
+    {key:"memoSummaries",label:"メモ要約",type:"object"},
   ],
   // ── S16 (Gear タブ) で追加 ──
   // racket: 単体ラケット（status 6種、Decision Notes フラット展開、measurements ネスト）

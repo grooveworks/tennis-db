@@ -11,5 +11,7 @@ const firebaseConfig={
 const fbApp=firebase.initializeApp(firebaseConfig);
 const fbAuth=fbApp.auth();
 const fbDb=fbApp.firestore();
+// S16 Phase 4-C-3: Cloud Functions (asia-northeast1 にデプロイ済の summarizeMemo を呼ぶため)
+const fbFunctions=fbApp.functions("asia-northeast1");
 // オフライン永続化（タブ間同期対応）— v2/v3 と同じ挙動
 try{fbDb.enablePersistence({synchronizeTabs:true}).catch(()=>{});}catch(_){}

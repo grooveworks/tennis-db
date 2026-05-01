@@ -12,6 +12,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-functions-compat.js"></script>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone@7.23.9/babel.min.js"></script>
@@ -45,7 +46,7 @@ input,select,textarea,button{font-family:inherit}
 const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
 // ── 定数定義（色・キー・バージョン）─────────────
-const APP_VERSION="4.0.0-S16.6";
+const APP_VERSION="4.0.0-S16.7";
 const font="-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif";
 
 // 色設計（DESIGN_SYSTEM_v4.md §1 + §10 S13.5 改訂準拠）
@@ -101,6 +102,8 @@ const firebaseConfig={
 const fbApp=firebase.initializeApp(firebaseConfig);
 const fbAuth=fbApp.auth();
 const fbDb=fbApp.firestore();
+// S16 Phase 4-C-3: Cloud Functions (asia-northeast1 にデプロイ済の summarizeMemo を呼ぶため)
+const fbFunctions=fbApp.functions("asia-northeast1");
 // オフライン永続化（タブ間同期対応）— v2/v3 と同じ挙動
 try{fbDb.enablePersistence({synchronizeTabs:true}).catch(()=>{});}catch(_){}
 
@@ -249,6 +252,7 @@ const SCHEMA={
     {key:"generalNote",label:"メモ",type:"textarea",combinable:true},
     {key:"matches",label:"試合記録",type:"array",itemType:"match"},
     {key:"visibility",label:"公開",type:"select"},
+    {key:"memoSummaries",label:"メモ要約",type:"object"},
   ],
   practice:[
     {key:"date",label:"日付",type:"date",required:true},
@@ -283,6 +287,7 @@ const SCHEMA={
     {key:"hrZone4",label:"HR Z4",type:"text"},
     {key:"hrZone5",label:"HR Z5",type:"text"},
     {key:"visibility",label:"公開",type:"select"},
+    {key:"memoSummaries",label:"メモ要約",type:"object"},
   ],
   trial:[
     {key:"date",label:"日付",type:"date",required:true},
@@ -319,6 +324,7 @@ const SCHEMA={
     {key:"generalNote",label:"総合メモ",type:"textarea",combinable:true},
     {key:"linkedPracticeId",label:"連携練習ID",type:"text"},
     {key:"linkedMatchId",label:"連携試合ID",type:"text"},
+    {key:"memoSummaries",label:"メモ要約",type:"object"},
   ],
   match:[
     {key:"round",label:"ラウンド",type:"text"},
@@ -337,6 +343,7 @@ const SCHEMA={
     {key:"techNote",label:"技術メモ",type:"textarea",combinable:true},
     {key:"opponentNote",label:"相手メモ",type:"textarea",combinable:true},
     {key:"note",label:"試合メモ",type:"textarea",combinable:true},
+    {key:"memoSummaries",label:"メモ要約",type:"object"},
   ],
   // ── S16 (Gear タブ) で追加 ──
   // racket: 単体ラケット（status 6種、Decision Notes フラット展開、measurements ネスト）
@@ -1306,6 +1313,73 @@ function computeSettingHistory(racketName, tournaments, practices, trials) {
     trialCount: g.trialCount,
     sessions: g.sessions, // [{type, date, sessionId, item}]
   }));
+}
+
+// === src/domain/summarize.js ===
+// summarize.js — Cloud Functions の summarizeMemo を呼ぶクライアント側ヘルパー
+//
+// 呼び出し方:
+//   const result = await summarizeMemoText(text, fieldType);
+//   result.summary が要約結果。失敗時は null を返す (呼び出し側で line-clamp フォールバック)
+//
+// 設計:
+//   - メモが短い (60 文字未満) なら要約せず元の文をそのまま返す (Cloud Functions 側で同じ判定、ただし
+//     ネットワーク往復を避けるためクライアント側でも先に判定)
+//   - エラー時は null を返す。例外は呼び出し側に流さない (UX を止めない)
+//   - 1 セッションに同一メモを重複呼びしないよう、簡易キャッシュ (in-memory Map) を持つ
+//
+// メモのフィールドタイプ別の要約スタイルは Cloud Functions 側で対応 (fieldType を渡すだけ)
+
+const _summaryCache = new Map(); // key = `${fieldType}|${text}`, value = summary string
+
+async function summarizeMemoText(text, fieldType) {
+  const trimmed = (text || "").trim();
+  if (!trimmed) return null;
+  // 短いメモはそのまま (要約不要)
+  if (trimmed.length < 60) return trimmed;
+
+  const cacheKey = `${fieldType || ""}|${trimmed}`;
+  if (_summaryCache.has(cacheKey)) return _summaryCache.get(cacheKey);
+
+  try {
+    const callable = fbFunctions.httpsCallable("summarizeMemo");
+    const result = await callable({ memo: trimmed, fieldType: fieldType || "" });
+    const summary = result?.data?.summary || null;
+    if (summary) _summaryCache.set(cacheKey, summary);
+    return summary;
+  } catch (err) {
+    console.error("summarizeMemo failed:", err?.message || err);
+    return null;
+  }
+}
+
+// セッション (tournament / practice / trial / match) の memo フィールドを一括要約
+// 戻り値: { fieldKey: summaryString, ... } 失敗フィールドは含めない
+//
+// MEMO_FIELD_KEYS は type 別に「要約対象のフィールド名」を定義
+const MEMO_FIELD_KEYS = {
+  tournament: ["generalNote"],
+  practice:   ["generalNote", "focus", "coachNote", "goodNote", "improveNote"],
+  trial:      ["generalNote", "strokeNote", "serveNote", "volleyNote"],
+  match:      ["mentalNote", "techNote", "opponentNote", "note"],
+};
+
+async function summarizeSessionMemos(type, item) {
+  const keys = MEMO_FIELD_KEYS[type] || [];
+  if (keys.length === 0) return {};
+
+  const out = {};
+  // 並列実行 (Promise.all)、各フィールド独立
+  const tasks = keys.map(async (k) => {
+    const text = item?.[k];
+    if (!text || typeof text !== "string" || text.trim().length < 60) return;
+    const summary = await summarizeMemoText(text, k);
+    if (summary && summary !== text.trim()) {
+      out[k] = summary;
+    }
+  });
+  await Promise.all(tasks);
+  return out;
 }
 
 // === src/domain/validation.js ===
@@ -3807,20 +3881,34 @@ function _SessionCard({ type, item, racketName, onClick }) {
   }
 
   // メモ (type 別の memo フィールドを順に拾う、空でないもの)
+  // S16 Phase 4-C-3: AI 要約 (memoSummaries.{fieldKey}) があれば本文の代わりにそれを表示
+  //   要約は元の長い文を 1-2 行に圧縮したもの。なければ元の文を line-clamp 2 行で表示。
   const memos = [];
+  const itemSummaries = item?.memoSummaries || {};
   const fields = _MEMO_FIELDS[type === "tournament-match" ? "tournament" : type] || [];
   fields.forEach(f => {
     const v = item[f.key];
-    if (v && String(v).trim()) memos.push({ label: f.label, text: String(v).trim() });
+    if (v && String(v).trim()) {
+      const summary = itemSummaries[f.key];
+      const display = summary && summary.trim() ? summary.trim() : String(v).trim();
+      memos.push({ label: f.label, text: display, isSummary: !!(summary && summary.trim()) });
+    }
   });
   // tournament の matches[] のメンタルメモなど (このラケットで打った match 由来のみ)
   if (type === "tournament" || type === "tournament-match") {
     (item.matches || []).forEach(m => {
       if (!m || (racketName && m.racketName !== racketName)) return;
+      const matchSummaries = m?.memoSummaries || {};
       _MEMO_FIELDS.match.forEach(f => {
         const v = m[f.key];
         if (v && String(v).trim()) {
-          memos.push({ label: `試合・${f.label}${m.round ? ` (${m.round})` : ""}`, text: String(v).trim() });
+          const summary = matchSummaries[f.key];
+          const display = summary && summary.trim() ? summary.trim() : String(v).trim();
+          memos.push({
+            label: `試合・${f.label}${m.round ? ` (${m.round})` : ""}`,
+            text: display,
+            isSummary: !!(summary && summary.trim()),
+          });
         }
       });
     });
@@ -3910,11 +3998,11 @@ function _SessionCard({ type, item, racketName, onClick }) {
             display: "inline-block",
             fontSize: "calc(9px * var(--memo-font-scale, 1))",
             fontWeight: 700,
-            color: C.textSecondary,
+            color: m.isSummary ? C.primary : C.textSecondary,
             marginRight: 5,
             letterSpacing: 0.04,
           }}>
-            {m.label}
+            {m.isSummary ? "✨ " : ""}{m.label}
           </span>
           {m.text}
         </div>
@@ -14066,6 +14154,23 @@ function TennisDB() {
       ? `保存しました (試合削除に伴い試打 ${cascadeCount} 件の連携を外しました)`
       : "保存しました";
     toast.show(msg, "success");
+
+    // S16 Phase 4-C-3: 裏で AI 要約 (Claude Haiku) を呼ぶ
+    //   保存自体は既に完了済 (UI ブロックしない)、要約完了次第 memoSummaries フィールドを更新
+    //   失敗しても黙って無視 (line-clamp フォールバックで表示できる)
+    summarizeSessionMemos(type, updated).then(summaries => {
+      if (!summaries || Object.keys(summaries).length === 0) return;
+      const setter = type === "tournament" ? setTournaments : type === "practice" ? setPractices : setTrials;
+      setter(prev => {
+        const live = (prev || []).find(x => x.id === updated.id);
+        if (!live) return prev;
+        const merged = { ...live, memoSummaries: { ...(live.memoSummaries || {}), ...summaries } };
+        const newList = prev.map(x => x.id === updated.id ? merged : x);
+        lsSave(KEYS[key], newList);
+        save(KEYS[key], newList);
+        return newList;
+      });
+    }).catch(err => { console.error("summarize background error:", err); });
   };
 
   // S13: 削除 + cascade (REQUIREMENTS N2.2)
