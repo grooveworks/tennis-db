@@ -46,7 +46,7 @@ input,select,textarea,button{font-family:inherit}
 const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
 // ── 定数定義（色・キー・バージョン）─────────────
-const APP_VERSION="4.0.0-S16.7";
+const APP_VERSION="4.0.0-S16.8";
 const font="-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif";
 
 // 色設計（DESIGN_SYSTEM_v4.md §1 + §10 S13.5 改訂準拠）
@@ -103,7 +103,11 @@ const fbApp=firebase.initializeApp(firebaseConfig);
 const fbAuth=fbApp.auth();
 const fbDb=fbApp.firestore();
 // S16 Phase 4-C-3: Cloud Functions (asia-northeast1 にデプロイ済の summarizeMemo を呼ぶため)
-const fbFunctions=fbApp.functions("asia-northeast1");
+//   functions-compat の CDN 読込が失敗してもアプリ全体が落ちないよう try/catch で隔離。
+//   未初期化時は summarize.js 側の try/catch で null fallback、line-clamp 表示に切り替わる。
+let fbFunctions=null;
+try{ if(typeof fbApp.functions==="function") fbFunctions=fbApp.functions("asia-northeast1"); }
+catch(e){ console.warn("Functions init failed (AI summary will be disabled):", e?.message||e); }
 // オフライン永続化（タブ間同期対応）— v2/v3 と同じ挙動
 try{fbDb.enablePersistence({synchronizeTabs:true}).catch(()=>{});}catch(_){}
 
@@ -1368,9 +1372,12 @@ async function summarizeSessionMemos(type, item) {
   const keys = MEMO_FIELD_KEYS[type] || [];
   if (keys.length === 0) return {};
 
+  const existing = item?.memoSummaries || {};
   const out = {};
   // 並列実行 (Promise.all)、各フィールド独立
+  // 既に要約済 (existing[k] あり) のフィールドはスキップ (バックフィル時の API コスト節約)
   const tasks = keys.map(async (k) => {
+    if (existing[k] && existing[k].trim()) return; // 既に要約済
     const text = item?.[k];
     if (!text || typeof text !== "string" || text.trim().length < 60) return;
     const summary = await summarizeMemoText(text, k);

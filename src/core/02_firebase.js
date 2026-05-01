@@ -12,6 +12,10 @@ const fbApp=firebase.initializeApp(firebaseConfig);
 const fbAuth=fbApp.auth();
 const fbDb=fbApp.firestore();
 // S16 Phase 4-C-3: Cloud Functions (asia-northeast1 にデプロイ済の summarizeMemo を呼ぶため)
-const fbFunctions=fbApp.functions("asia-northeast1");
+//   functions-compat の CDN 読込が失敗してもアプリ全体が落ちないよう try/catch で隔離。
+//   未初期化時は summarize.js 側の try/catch で null fallback、line-clamp 表示に切り替わる。
+let fbFunctions=null;
+try{ if(typeof fbApp.functions==="function") fbFunctions=fbApp.functions("asia-northeast1"); }
+catch(e){ console.warn("Functions init failed (AI summary will be disabled):", e?.message||e); }
 // オフライン永続化（タブ間同期対応）— v2/v3 と同じ挙動
 try{fbDb.enablePersistence({synchronizeTabs:true}).catch(()=>{});}catch(_){}

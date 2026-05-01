@@ -50,9 +50,12 @@ async function summarizeSessionMemos(type, item) {
   const keys = MEMO_FIELD_KEYS[type] || [];
   if (keys.length === 0) return {};
 
+  const existing = item?.memoSummaries || {};
   const out = {};
   // 並列実行 (Promise.all)、各フィールド独立
+  // 既に要約済 (existing[k] あり) のフィールドはスキップ (バックフィル時の API コスト節約)
   const tasks = keys.map(async (k) => {
+    if (existing[k] && existing[k].trim()) return; // 既に要約済
     const text = item?.[k];
     if (!text || typeof text !== "string" || text.trim().length < 60) return;
     const summary = await summarizeMemoText(text, k);
