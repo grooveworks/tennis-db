@@ -14053,24 +14053,25 @@ function TennisDB() {
       const mm = String(today.getMonth() + 1).padStart(2, "0");
       const dd = String(today.getDate()).padStart(2, "0");
       const todayKey = `${LS_PREFIX}snapshot-${yyyy}-${mm}-${dd}-v1`;
-      // 既に今日の snapshot があればスキップ
-      if (localStorage.getItem(todayKey)) return;
-      // 全 KEYS の内容を集めて保存
-      const snapshot = {
-        snapshotAt: today.toISOString(),
-        tournaments:     lsLoad(KEYS.tournaments)     || [],
-        practices:       lsLoad(KEYS.practices)       || [],
-        trials:          lsLoad(KEYS.trials)          || [],
-        rackets:         lsLoad(KEYS.rackets)         || [],
-        strings:         lsLoad(KEYS.strings)         || [],
-        venues:          lsLoad(KEYS.venues)          || [],
-        opponents:       lsLoad(KEYS.opponents)       || [],
-        next:            lsLoad(KEYS.next)            || [],
-        quickTrialCards: lsLoad(KEYS.quickTrialCards) || [],
-        stringSetups:    lsLoad(KEYS.stringSetups)    || [],
-      };
-      localStorage.setItem(todayKey, JSON.stringify(snapshot));
-      // 7 日より古い snapshot を削除
+      // S16.11.1 fix: 今日の snapshot 既存時もクリーンアップは実行する (snapshot 作成と分離)
+      // 1) 今日の snapshot がなければ作成
+      if (!localStorage.getItem(todayKey)) {
+        const snapshot = {
+          snapshotAt: today.toISOString(),
+          tournaments:     lsLoad(KEYS.tournaments)     || [],
+          practices:       lsLoad(KEYS.practices)       || [],
+          trials:          lsLoad(KEYS.trials)          || [],
+          rackets:         lsLoad(KEYS.rackets)         || [],
+          strings:         lsLoad(KEYS.strings)         || [],
+          venues:          lsLoad(KEYS.venues)          || [],
+          opponents:       lsLoad(KEYS.opponents)       || [],
+          next:            lsLoad(KEYS.next)            || [],
+          quickTrialCards: lsLoad(KEYS.quickTrialCards) || [],
+          stringSetups:    lsLoad(KEYS.stringSetups)    || [],
+        };
+        localStorage.setItem(todayKey, JSON.stringify(snapshot));
+      }
+      // 2) 7 日より古い snapshot を削除 (毎起動で実行、新規作成有無に関わらず)
       const cutoff = new Date();
       cutoff.setDate(cutoff.getDate() - 7);
       const keysToRemove = [];
