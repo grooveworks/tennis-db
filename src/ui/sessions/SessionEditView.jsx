@@ -174,7 +174,7 @@ function SessionEditView({ type, session, practices, tournaments, trials, racket
           <TournamentEditForm
             form={form} errors={errors} onChange={handleChange}
             racketNames={racketNames} stringNames={stringNames} venueNames={venueNames} opponentNames={opponentNames} levelNames={levelNames}
-            trials={trials}
+            trials={trials} tournaments={tournaments} practices={practices}
             confirm={confirm} toast={toast}
           />
         )}
@@ -182,12 +182,13 @@ function SessionEditView({ type, session, practices, tournaments, trials, racket
           <PracticeEditForm
             form={form} errors={errors} onChange={handleChange}
             racketNames={racketNames} stringNames={stringNames} venueNames={venueNames}
+            tournaments={tournaments} practices={practices} trials={trials}
           />
         )}
         {type === "trial" && (
           <TrialEditForm
             form={form} errors={errors} onChange={handleChange}
-            practices={practices} tournaments={tournaments}
+            practices={practices} tournaments={tournaments} trials={trials}
             racketNames={racketNames} stringNames={stringNames} venueNames={venueNames}
           />
         )}

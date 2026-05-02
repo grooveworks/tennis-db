@@ -77,17 +77,36 @@ function _visibilityToggle({ value, onChange }) {
   );
 }
 
-function TournamentEditForm({ form, errors = {}, onChange, confirm, toast, racketNames = [], stringNames = [], venueNames = [], opponentNames = [], levelNames = [], trials = [] }) {
+function TournamentEditForm({ form, errors = {}, onChange, confirm, toast, racketNames = [], stringNames = [], venueNames = [], opponentNames = [], levelNames = [], trials = [], tournaments = [], practices = [] }) {
   const set = (k, v) => onChange({ ...form, [k]: v });
   const matches = Array.isArray(form.matches) ? form.matches : [];
   const wins = matches.filter(m => m.result === "勝利").length;
   const losses = matches.filter(m => m.result === "敗北" || m.result === "棄権").length;
 
+  // S16.11 UX5: 履歴セット picker 用に直近 setup を計算
+  const recentSetups = useMemo(
+    () => _computeRecentSetups(tournaments, practices, trials),
+    [tournaments, practices, trials]
+  );
+  const applySetup = (s) => {
+    if (!s) return;
+    onChange({
+      ...form,
+      racketName:   s.racketName   || "",
+      stringMain:   s.stringMain   || "",
+      stringCross:  s.stringCross  || "",
+      tensionMain:  s.tensionMain  || "",
+      tensionCross: s.tensionCross || "",
+    });
+  };
+
   // Match Modal state (新規 / 編集)
   const [matchModalState, setMatchModalState] = useState(null); // { match, isNew }
 
+  // S16.11 UX5: 試合追加時のデフォルト機材を「直前の試合」優先 (大会レベル form フォールバック)
   const handleAddMatch = () => {
-    setMatchModalState({ match: blankMatch(matches.length, form), isNew: true });
+    const lastMatch = matches.length > 0 ? matches[matches.length - 1] : null;
+    setMatchModalState({ match: blankMatch(matches.length, lastMatch || form), isNew: true });
   };
   const handleEditMatch = (m) => {
     setMatchModalState({ match: m, isNew: false });
@@ -160,6 +179,8 @@ function TournamentEditForm({ form, errors = {}, onChange, confirm, toast, racke
           <Input label="テンション縦" value={form.tensionMain || ""} onChange={(v) => set("tensionMain", v)} placeholder="46" />
           <Input label="テンション横" value={form.tensionCross || ""} onChange={(v) => set("tensionCross", v)} placeholder="43" />
         </div>
+        {/* S16.11 UX5: 履歴セット picker (5 フィールド一括入力) */}
+        <_SetupPickerButton recent={recentSetups} current={form} onApply={applySetup} />
       </div>
 
       {/* ④ 試合記録 */}
@@ -237,6 +258,7 @@ function TournamentEditForm({ form, errors = {}, onChange, confirm, toast, racke
         racketNames={racketNames}
         stringNames={stringNames}
         opponentNames={opponentNames}
+        recentSetups={recentSetups}
         confirm={confirm}
         onSave={handleSaveMatch}
         onClose={() => setMatchModalState(null)}

@@ -89,8 +89,25 @@ function _teJudgmentRow({ value, onChange }) {
   );
 }
 
-function TrialEditForm({ form, errors = {}, onChange, practices, tournaments, racketNames = [], stringNames = [], venueNames = [] }) {
+function TrialEditForm({ form, errors = {}, onChange, practices, tournaments, trials = [], racketNames = [], stringNames = [], venueNames = [] }) {
   const set = (k, v) => onChange({ ...form, [k]: v });
+
+  // S16.11 UX5: 履歴セット picker
+  const recentSetups = useMemo(
+    () => _computeRecentSetups(tournaments, practices, trials),
+    [tournaments, practices, trials]
+  );
+  const applySetup = (s) => {
+    if (!s) return;
+    onChange({
+      ...form,
+      racketName: s.racketName || "",
+      stringMain: s.stringMain || "",
+      stringCross: s.stringCross || "",
+      tensionMain: s.tensionMain || "",
+      tensionCross: s.tensionCross || "",
+    });
+  };
 
   // 打感評価 6 項目
   const ratings = [
@@ -154,6 +171,8 @@ function TrialEditForm({ form, errors = {}, onChange, practices, tournaments, ra
           <Input label="テンション縦" value={form.tensionMain || ""} onChange={(v) => set("tensionMain", v)} placeholder="46" />
           <Input label="テンション横" value={form.tensionCross || ""} onChange={(v) => set("tensionCross", v)} placeholder="43" />
         </div>
+        {/* S16.11 UX5: 履歴セット picker */}
+        <_SetupPickerButton recent={recentSetups} current={form} onApply={applySetup} />
       </div>
 
       {/* ④a 打感評価 */}

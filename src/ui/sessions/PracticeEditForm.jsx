@@ -124,7 +124,23 @@ function _peVisibility({ value, onChange }) {
   );
 }
 
-function PracticeEditForm({ form, errors = {}, onChange, racketNames = [], stringNames = [], venueNames = [] }) {
+function PracticeEditForm({ form, errors = {}, onChange, racketNames = [], stringNames = [], venueNames = [], tournaments = [], practices = [], trials = [] }) {
+  // S16.11 UX5: 履歴セット picker
+  const recentSetups = useMemo(
+    () => _computeRecentSetups(tournaments, practices, trials),
+    [tournaments, practices, trials]
+  );
+  const applySetup = (s) => {
+    if (!s) return;
+    onChange({
+      ...form,
+      racketName: s.racketName || "",
+      stringMain: s.stringMain || "",
+      stringCross: s.stringCross || "",
+      tensionMain: s.tensionMain || "",
+      tensionCross: s.tensionCross || "",
+    });
+  };
   // 開始/終了時刻入力時に duration を自動計算 (v3:2471-2481 移植)
   // S16.11 F2 ガード: Apple Watch 取込み済 duration を時刻編集で上書きしない
   //   - form.duration が存在し、かつ form.heartRateAvg / calories 等の Watch 由来フィールドがあれば
@@ -188,6 +204,8 @@ function PracticeEditForm({ form, errors = {}, onChange, racketNames = [], strin
           <Input label="テンション縦" value={form.tensionMain || ""} onChange={(v) => set("tensionMain", v)} placeholder="46" />
           <Input label="テンション横" value={form.tensionCross || ""} onChange={(v) => set("tensionCross", v)} placeholder="43" />
         </div>
+        {/* S16.11 UX5: 履歴セット picker */}
+        <_SetupPickerButton recent={recentSetups} current={form} onApply={applySetup} />
       </div>
 
       {/* ④ 体調 + Apple Watch */}

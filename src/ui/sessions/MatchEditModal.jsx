@@ -82,7 +82,7 @@ function _meRatingRow({ label, value, onChange }) {
   );
 }
 
-function MatchEditModal({ open, match, trnType, racketNames = [], stringNames = [], opponentNames = [], confirm, onSave, onClose }) {
+function MatchEditModal({ open, match, trnType, racketNames = [], stringNames = [], opponentNames = [], recentSetups = [], confirm, onSave, onClose }) {
   // S15.5.9: 起動時に下書きがあればそちらを優先
   const [form, setForm] = useState(() => {
     if (!match || !match.id) return match;
@@ -276,6 +276,23 @@ function MatchEditModal({ open, match, trnType, racketNames = [], stringNames = 
           <Input label="テンション縦" value={form.tensionMain || ""} onChange={(v) => set("tensionMain", v)} placeholder="46" />
           <Input label="テンション横" value={form.tensionCross || ""} onChange={(v) => set("tensionCross", v)} placeholder="43" />
         </div>
+        {/* S16.11 UX5: 履歴セット picker (5 フィールド一括入力で 90 秒チェンジオーバー対応) */}
+        <_SetupPickerButton
+          recent={recentSetups}
+          current={form}
+          onApply={(s) => {
+            if (!s) return;
+            setForm(prev => ({
+              ...prev,
+              racketName: s.racketName || "",
+              stringMain: s.stringMain || "",
+              stringCross: s.stringCross || "",
+              tensionMain: s.tensionMain || "",
+              tensionCross: s.tensionCross || "",
+            }));
+            setDirty(true);
+          }}
+        />
 
         {/* ④ ゲーム単位記録 (F1.4.1)、S15.5.9 で onChange を dirty 追跡型に変更 */}
         <GameTracker match={form} onChange={handleGameTrackerChange} confirm={confirm} />
