@@ -1,0 +1,27 @@
+// Firestore セキュリティルール (Tennis DB v4)
+// S16.11 C1: 他人のデータを書き換え不能にする最低限のルール
+//
+// 構造: users/{uid}/data/{collection}
+//   - 認証必須 (request.auth.uid != null)
+//   - 自分の uid 配下のみ R/W 可
+//
+// 適用方法:
+//   firebase deploy --only firestore:rules
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ユーザーごとのデータツリー
+    // users/{uid}/data/{anything}
+    match /users/{uid}/{document=**} {
+      // 認証 + 自分の uid 配下のみ
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // それ以外は全拒否 (デフォルト deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

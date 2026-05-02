@@ -765,13 +765,19 @@ function TennisDB() {
     // 同日 practice → linkedPracticeId + temp/venue/weather 自動コピー (V2 互換 + weather 拡張)
     const matchingP = (practices || []).find(p => normDate(p.date) === todayDate);
     // 同日 tournament の最後の match → linkedMatchId
+    // S16.11 C7: 候補が複数 (大会複数 OR match 複数) ある場合は誤紐付け防止のため自動推定しない
+    //   = ユーザーが TrialDetail から手動で選び直す経路へ誘導 (linkedMatchId は空のまま保存)
     let linkedMtchId = "";
-    (tournaments || []).forEach(trn => {
-      if (normDate(trn.date) === todayDate) {
-        const lastM = (trn.matches || []).slice(-1)[0];
-        if (lastM && lastM.id) linkedMtchId = lastM.id;
+    const sameDayTournaments = (tournaments || []).filter(trn => normDate(trn.date) === todayDate);
+    if (sameDayTournaments.length === 1) {
+      const onlyTrn = sameDayTournaments[0];
+      const matches = Array.isArray(onlyTrn.matches) ? onlyTrn.matches : [];
+      if (matches.length === 1 && matches[0]?.id) {
+        linkedMtchId = matches[0].id;
       }
-    });
+      // matches.length が 2 以上 or 0 のときは未紐付け (ユーザーが手動でリンクする)
+    }
+    // sameDayTournaments.length === 0 or >= 2 のとき: linkedMtchId は "" のまま
     const trial = {
       id: genId(),
       date: todayDate,

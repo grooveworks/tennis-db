@@ -14,6 +14,14 @@
 
 const _summaryCache = new Map(); // key = `${fieldType}|${text}`, value = summary string
 
+// S16.11 C5: auth 切替で cache を必ずクリア (前ユーザーの要約が後ユーザーに漏れる経路を遮断)
+//   onAuthStateChanged を購読、別ユーザーのセッションに切替時即座に Map.clear()
+if (typeof fbAuth !== "undefined" && fbAuth?.onAuthStateChanged) {
+  fbAuth.onAuthStateChanged(() => {
+    _summaryCache.clear();
+  });
+}
+
 async function summarizeMemoText(text, fieldType) {
   const trimmed = (text || "").trim();
   if (!trimmed) return null;
