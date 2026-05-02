@@ -101,7 +101,8 @@ const SCHEMA={
     {key:"volleyNote",label:"ボレーメモ",type:"textarea",combinable:true},
     {key:"generalNote",label:"総合メモ",type:"textarea",combinable:true},
     {key:"linkedPracticeId",label:"連携練習ID",type:"text"},
-    {key:"linkedMatchId",label:"連携試合ID",type:"text"},
+    {key:"linkedMatchId",label:"連携試合ID",type:"text"}, // S16.11 UX4: 後方互換、新コードは linkedMatchIds を優先
+    {key:"linkedMatchIds",label:"連携試合ID群",type:"array"}, // S16.11 UX4: 1 試打→複数試合 連携対応
     {key:"memoSummaries",label:"メモ要約",type:"object"},
   ],
   match:[

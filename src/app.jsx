@@ -768,13 +768,16 @@ function TennisDB() {
     // 同日 tournament の最後の match → linkedMatchId
     // S16.11 C7: 候補が複数 (大会複数 OR match 複数) ある場合は誤紐付け防止のため自動推定しない
     //   = ユーザーが TrialDetail から手動で選び直す経路へ誘導 (linkedMatchId は空のまま保存)
+    // S16.11 UX4: 後方互換として linkedMatchId も書く、新コードは linkedMatchIds 優先で読む
     let linkedMtchId = "";
+    let linkedMtchIds = [];
     const sameDayTournaments = (tournaments || []).filter(trn => normDate(trn.date) === todayDate);
     if (sameDayTournaments.length === 1) {
       const onlyTrn = sameDayTournaments[0];
       const matches = Array.isArray(onlyTrn.matches) ? onlyTrn.matches : [];
       if (matches.length === 1 && matches[0]?.id) {
         linkedMtchId = matches[0].id;
+        linkedMtchIds = [matches[0].id];
       }
       // matches.length が 2 以上 or 0 のときは未紐付け (ユーザーが手動でリンクする)
     }
@@ -802,7 +805,8 @@ function TennisDB() {
       strokeNote: "", serveNote: "", volleyNote: "",
       generalNote: e.memo || "",
       linkedPracticeId: matchingP?.id || "",
-      linkedMatchId: linkedMtchId,
+      linkedMatchId: linkedMtchId,        // 後方互換、旧コードはこちらを読む
+      linkedMatchIds: linkedMtchIds,      // S16.11 UX4 新、配列で複数連携対応
     };
     const newTrials = [trial, ...(trials || [])];
     const newCards = (quickTrialCards || []).filter(c => c.id !== card.id);

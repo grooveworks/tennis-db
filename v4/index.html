@@ -342,7 +342,8 @@ const SCHEMA={
     {key:"volleyNote",label:"ボレーメモ",type:"textarea",combinable:true},
     {key:"generalNote",label:"総合メモ",type:"textarea",combinable:true},
     {key:"linkedPracticeId",label:"連携練習ID",type:"text"},
-    {key:"linkedMatchId",label:"連携試合ID",type:"text"},
+    {key:"linkedMatchId",label:"連携試合ID",type:"text"}, // S16.11 UX4: 後方互換、新コードは linkedMatchIds を優先
+    {key:"linkedMatchIds",label:"連携試合ID群",type:"array"}, // S16.11 UX4: 1 試打→複数試合 連携対応
     {key:"memoSummaries",label:"メモ要約",type:"object"},
   ],
   match:[
@@ -587,13 +588,22 @@ function computeCascade({ type, item, trials }) {
   const _trials = Array.isArray(trials) ? trials : [];
   if (!item || !item.id || !type) return { affectedTrials: [], count: 0 };
 
-  // tournament 削除 → matches[] の全 id を集めて、linkedMatchId が含まれる trial を抽出
+  // S16.11 UX4: linkedMatchId (旧、単一) と linkedMatchIds (新、配列) 両対応
+  //   trial.linkedMatchIds が match.id を含む場合、または linkedMatchId === match.id の場合に hit
+  const _trialMatchesId = (tr, mId) => {
+    if (!tr || !mId) return false;
+    if (tr.linkedMatchId === mId) return true;
+    if (Array.isArray(tr.linkedMatchIds) && tr.linkedMatchIds.includes(mId)) return true;
+    return false;
+  };
+
+  // tournament 削除 → matches[] の全 id を集めて、いずれかにリンクしている trial を抽出
   if (type === "tournament") {
     const matchIds = new Set((Array.isArray(item.matches) ? item.matches : []).map(m => m && m.id).filter(Boolean));
     if (matchIds.size === 0) return { affectedTrials: [], count: 0 };
     const affected = _trials
-      .filter(tr => tr && tr.linkedMatchId && matchIds.has(tr.linkedMatchId))
-      .map(tr => ({ trial: tr, clearField: "linkedMatchId" }));
+      .filter(tr => tr && [...matchIds].some(mId => _trialMatchesId(tr, mId)))
+      .map(tr => ({ trial: tr, clearField: "linkedMatchId", removeMatchIds: [...matchIds].filter(mId => _trialMatchesId(tr, mId)) }));
     return { affectedTrials: affected, count: affected.length };
   }
 
@@ -605,11 +615,11 @@ function computeCascade({ type, item, trials }) {
     return { affectedTrials: affected, count: affected.length };
   }
 
-  // match 削除 (大会編集画面内) → linkedMatchId === match.id の trial を抽出
+  // match 削除 (大会編集画面内) → linkedMatchId === match.id または linkedMatchIds に含まれる trial を抽出
   if (type === "match") {
     const affected = _trials
-      .filter(tr => tr && tr.linkedMatchId === item.id)
-      .map(tr => ({ trial: tr, clearField: "linkedMatchId" }));
+      .filter(tr => tr && _trialMatchesId(tr, item.id))
+      .map(tr => ({ trial: tr, clearField: "linkedMatchId", removeMatchIds: [item.id] }));
     return { affectedTrials: affected, count: affected.length };
   }
 
@@ -620,24 +630,39 @@ function computeCascade({ type, item, trials }) {
 // ── 影響を受ける試打配列に対して、対象フィールドを空文字にした新配列を返す
 //
 // 元配列は変更しない。affectedTrials が空ならそのまま元配列を返す。
+// S16.11 UX4: removeMatchIds が指定された場合、linkedMatchIds[] からその id を filter する
+//   (旧 linkedMatchId は clearField で空文字化、新 linkedMatchIds[] は対象 id のみ削除)
 function applyCascadeToTrials(trials, affectedTrials) {
   const _trials = Array.isArray(trials) ? trials : [];
   const _affected = Array.isArray(affectedTrials) ? affectedTrials : [];
   if (_affected.length === 0) return _trials;
 
-  // trial.id → clearField のマップを作る (1 削除につき 1 trial 1 field、重複しない前提)
-  const clearMap = new Map();
+  // trial.id → { clearField, removeMatchIds } のマップを作る
+  const updateMap = new Map();
   for (const a of _affected) {
-    if (a && a.trial && a.trial.id && a.clearField) {
-      clearMap.set(a.trial.id, a.clearField);
+    if (a && a.trial && a.trial.id) {
+      updateMap.set(a.trial.id, { clearField: a.clearField, removeMatchIds: a.removeMatchIds });
     }
   }
-  if (clearMap.size === 0) return _trials;
+  if (updateMap.size === 0) return _trials;
 
   return _trials.map(tr => {
-    if (!tr || !tr.id || !clearMap.has(tr.id)) return tr;
-    const field = clearMap.get(tr.id);
-    return { ...tr, [field]: "" };
+    if (!tr || !tr.id || !updateMap.has(tr.id)) return tr;
+    const { clearField, removeMatchIds } = updateMap.get(tr.id);
+    let updated = { ...tr };
+    // 旧 single field をクリア (該当する id のみ消す、無関係な linkedMatchId は触らない)
+    if (clearField === "linkedMatchId" && Array.isArray(removeMatchIds)) {
+      if (removeMatchIds.includes(updated.linkedMatchId)) {
+        updated.linkedMatchId = "";
+      }
+    } else if (clearField) {
+      updated[clearField] = "";
+    }
+    // 新 linkedMatchIds[] から対象 id を filter
+    if (Array.isArray(removeMatchIds) && Array.isArray(updated.linkedMatchIds)) {
+      updated.linkedMatchIds = updated.linkedMatchIds.filter(id => !removeMatchIds.includes(id));
+    }
+    return updated;
   });
 }
 
@@ -14761,13 +14786,16 @@ function TennisDB() {
     // 同日 tournament の最後の match → linkedMatchId
     // S16.11 C7: 候補が複数 (大会複数 OR match 複数) ある場合は誤紐付け防止のため自動推定しない
     //   = ユーザーが TrialDetail から手動で選び直す経路へ誘導 (linkedMatchId は空のまま保存)
+    // S16.11 UX4: 後方互換として linkedMatchId も書く、新コードは linkedMatchIds 優先で読む
     let linkedMtchId = "";
+    let linkedMtchIds = [];
     const sameDayTournaments = (tournaments || []).filter(trn => normDate(trn.date) === todayDate);
     if (sameDayTournaments.length === 1) {
       const onlyTrn = sameDayTournaments[0];
       const matches = Array.isArray(onlyTrn.matches) ? onlyTrn.matches : [];
       if (matches.length === 1 && matches[0]?.id) {
         linkedMtchId = matches[0].id;
+        linkedMtchIds = [matches[0].id];
       }
       // matches.length が 2 以上 or 0 のときは未紐付け (ユーザーが手動でリンクする)
     }
@@ -14795,7 +14823,8 @@ function TennisDB() {
       strokeNote: "", serveNote: "", volleyNote: "",
       generalNote: e.memo || "",
       linkedPracticeId: matchingP?.id || "",
-      linkedMatchId: linkedMtchId,
+      linkedMatchId: linkedMtchId,        // 後方互換、旧コードはこちらを読む
+      linkedMatchIds: linkedMtchIds,      // S16.11 UX4 新、配列で複数連携対応
     };
     const newTrials = [trial, ...(trials || [])];
     const newCards = (quickTrialCards || []).filter(c => c.id !== card.id);
