@@ -146,8 +146,20 @@ function MatchEditModal({ open, match, trnType, racketNames = [], stringNames = 
 
   // S15.5.9: GameTracker からの onChange を dirty 追跡 + auto-save 連動
   //   従来 onChange={setForm} で dirty が立たず auto-save も走らなかったバグの解消
+  // S16.11 UX2/UX3: games[] 変化時に setScores と result を自動計算して反映
+  //   - games から計算したセットスコアを setScores に同期 (重複入力撤廃)
+  //   - 2 セット先取で result を自動 "勝利" / "敗北" 設定
+  //   - ユーザーが result を手動変更した後は上書きしない (manualResultLock フラグ)
   const handleGameTrackerChange = useCallback((next) => {
-    setForm(next);
+    const games = Array.isArray(next.games) ? next.games : [];
+    const autoSetScores = computeSetScoresFromGames(games);
+    const autoResult = computeAutoMatchResult(games);
+    const merged = { ...next, setScores: autoSetScores };
+    // result の自動上書きは「未設定」または「同じ自動値」の時のみ (ユーザー手動変更を尊重)
+    if (autoResult && (!next.result || next.result === autoResult)) {
+      merged.result = autoResult;
+    }
+    setForm(merged);
     setDirty(true);
   }, []);
 

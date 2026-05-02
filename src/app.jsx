@@ -848,10 +848,13 @@ function TennisDB() {
       });
     }).catch(err => { console.error("trial summarize background error:", err); });
 
-    // S16.9: 試打カード保存後、保存した試打の Detail を自動で開く (編集経路を浅く)
-    //   QuickTrialMode は閉じる + 試打詳細を slide-in で開く
+    // S16.11 UX1: 試打カード保存後、保存した試打を **編集モードで直接開く** (階層浅化)
+    //   旧: QuickTrial → 詳細表示 → 編集ボタンタップ → 編集 (3 タップ)
+    //   新: QuickTrial → 編集モード (0 タップ、保存直後に編集開始可能)
+    //   ユーザーの「試打を保存した後すぐにメモ追加したい」フローを直接化
     setQuickTrial(false);
-    handleCardClick("trial", trial);
+    setDetail({ type: "trial", session: trial, mode: "edit" });
+    try { window.history.pushState({ tdb: "detail" }, ""); } catch(_) {}
   };
 
   // S15.5: 既存試打を試打カードに昇格 (TrialDetail から呼ぶ、毎回同じ設定の再利用に便利)
