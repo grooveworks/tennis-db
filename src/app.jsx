@@ -966,6 +966,36 @@ function TennisDB() {
     });
   };
 
+  // S17: Plan タブ用永続化 (persistStrings と同パターン、即時 Firestore write)
+  const persistNext = (newList) => {
+    setNext(newList);
+    lsSave(KEYS.next, newList);
+    queueMicrotask(() => {
+      const u = fbAuth.currentUser;
+      if (!u) return;
+      fbDb.collection("users").doc(u.uid).collection("data").doc(KEYS.next)
+        .set({ items: cleanForFirestore(newList), updatedAt: new Date().toISOString() })
+        .catch(err => {
+          console.error("next Firestore write error:", err);
+          toast.show("アクションのクラウド同期に失敗 (ローカルは保存済み)", "warning");
+        });
+    });
+  };
+  const persistOpponents = (newList) => {
+    setOpponents(newList);
+    lsSave(KEYS.opponents, newList);
+    queueMicrotask(() => {
+      const u = fbAuth.currentUser;
+      if (!u) return;
+      fbDb.collection("users").doc(u.uid).collection("data").doc(KEYS.opponents)
+        .set({ items: cleanForFirestore(newList), updatedAt: new Date().toISOString() })
+        .catch(err => {
+          console.error("opponents Firestore write error:", err);
+          toast.show("対戦相手のクラウド同期に失敗 (ローカルは保存済み)", "warning");
+        });
+    });
+  };
+
   // Racket Detail (slide-in)
   const handleRacketRowClick = (racket) => setRacketDetail(racket);
   const handleRacketDetailClose = () => setRacketDetail(null);
@@ -1161,7 +1191,17 @@ function TennisDB() {
       />
     );
   } else if (tab === "plan") {
-    tabContent = <PlaceholderTab name="計画" stage="S17" />;
+    tabContent = (
+      <PlanTab
+        next={next}
+        opponents={opponents}
+        tournaments={tournaments}
+        onNextUpdate={persistNext}
+        onOpponentsUpdate={persistOpponents}
+        toast={toast}
+        confirm={cfm}
+      />
+    );
   } else if (tab === "insights") {
     tabContent = <PlaceholderTab name="分析" stage="S18" />;
   }
