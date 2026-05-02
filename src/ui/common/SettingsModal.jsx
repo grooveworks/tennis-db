@@ -3,17 +3,14 @@
 // 役割:
 //   - 文字サイズ調整 (標準 / 大 / 特大、メモ系テキストの拡大率を localStorage 永続化)
 //   - アプリバージョン表示 (Header からは削除、ここで常設表示)
-//   - 将来の設定追加用の入れ物 (通知 / 表示モード / バックアップ等)
+//   - データバックアップ (S16.11 追加、JSON エクスポート、tennis_db_*.json 互換)
 //
 // props:
 //   open:            boolean
 //   fontScale:       1.0 | 1.15 | 1.30
 //   onFontScaleChange: (scale) => void  state + lsSave
 //   onClose:         () => void
-//
-// 文字サイズ scale 適用範囲 (S15.5.7 時点):
-//   - メモ系のみ (Textarea / _dvMemoItem / QuickTrialMode メモ)
-//   - 本文 / ラベル / 数字は将来 Stage で段階拡張 (DESIGN_SYSTEM 全体改訂が必要なため)
+//   toast:           useToast() ({ show })
 
 const _SCALE_OPTIONS = [
   { value: 1.0,  label: "標準", desc: "16 px (現行)" },
@@ -21,7 +18,52 @@ const _SCALE_OPTIONS = [
   { value: 1.30, label: "特大", desc: "21 px" },
 ];
 
-function SettingsModal({ open, fontScale, onFontScaleChange, onClose }) {
+// S16.11 データバックアップ: localStorage の全 KEYS を JSON 化して file download
+//   既存 tennis_db_*.json (v3 export) と同じトップレベル構造で出力
+//   → 後の復元時に v3/v4 両方のツールで読める
+//   - データ変換ロジック禁止 (raw のままコピー)
+//   - 失敗時は toast で通知 (silent fail 禁止)
+const _exportAllData = (toast) => {
+  try {
+    const data = {
+      version: 4,
+      exportedAt: new Date().toISOString(),
+      tournaments:     lsLoad(KEYS.tournaments)     || [],
+      practices:       lsLoad(KEYS.practices)       || [],
+      trials:          lsLoad(KEYS.trials)          || [],
+      rackets:         lsLoad(KEYS.rackets)         || [],
+      strings:         lsLoad(KEYS.strings)         || [],
+      venues:          lsLoad(KEYS.venues)          || [],
+      opponents:       lsLoad(KEYS.opponents)       || [],
+      next:            lsLoad(KEYS.next)            || [],
+      quickTrialCards: lsLoad(KEYS.quickTrialCards) || [],
+      stringSetups:    lsLoad(KEYS.stringSetups)    || [],
+    };
+    const json = JSON.stringify(data, null, 2);
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth() + 1).padStart(2, "0");
+    const dd = String(now.getDate()).padStart(2, "0");
+    const hh = String(now.getHours()).padStart(2, "0");
+    const mi = String(now.getMinutes()).padStart(2, "0");
+    const filename = `tennis_db_v4_${yyyy}${mm}${dd}_${hh}${mi}.json`;
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 100);
+    if (toast) toast.show(`バックアップを保存しました: ${filename}`, "success");
+  } catch (err) {
+    console.error("Export failed:", err);
+    if (toast) toast.show(`バックアップに失敗しました: ${err?.message || err}`, "error");
+  }
+};
+
+function SettingsModal({ open, fontScale, onFontScaleChange, onClose, toast }) {
   useEffect(() => {
     if (!open) return;
     const handler = (e) => { if (e.key === "Escape") onClose && onClose(); };
@@ -141,6 +183,36 @@ function SettingsModal({ open, fontScale, onFontScaleChange, onClose }) {
           }}>
             サーブの打感が良い、ストロークもブレない。フォアの攻撃時に握りが少し緩む。次は手の内側を意識する。
           </div>
+        </div>
+
+        {/* S16.11: データバックアップ */}
+        <div style={{ marginBottom: 22 }}>
+          <div style={{
+            fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 4,
+          }}>
+            データのバックアップ
+          </div>
+          <div style={{
+            fontSize: 11, color: C.textMuted, marginBottom: 10, lineHeight: 1.5,
+          }}>
+            全データを JSON ファイルとして保存。試合前 / 重要な編集前に実行を推奨。
+            v3 / v4 互換フォーマット。
+          </div>
+          <button
+            type="button"
+            onClick={() => _exportAllData(toast)}
+            style={{
+              width: "100%", minHeight: 44, padding: "8px 16px",
+              border: `1px solid ${C.primary}`, borderRadius: 8,
+              background: C.panel, color: C.primary,
+              fontSize: 14, fontWeight: 600, cursor: "pointer",
+              fontFamily: font,
+              display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
+            }}
+          >
+            <Icon name="download-simple" size={16} color={C.primary} />
+            全データを JSON で保存
+          </button>
         </div>
 
         {/* バージョン情報 */}

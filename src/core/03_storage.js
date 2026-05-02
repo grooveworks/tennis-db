@@ -12,7 +12,12 @@ const lsLoad=k=>{
 const lsSave=(k,d)=>{
   try{
     localStorage.setItem(LS_PREFIX+k+"-v1",JSON.stringify(d));
-  }catch(_){}
+  }catch(err){
+    // S16.11 F8: silent fail 廃止、Quota / SecurityError 等を notifySaveError 経由で通知
+    //   onSaveError listener (Header / app 起動時に登録) で toast 表示 → ユーザーは「保存できていない」を即認識
+    console.error("lsSave failed:",k,err);
+    try{notifySaveError(k,err);}catch(_){}
+  }
 };
 
 // Firestore 互換変換: undefined 除去 + matchStats.raw/points をサイズ削減のため除外

@@ -126,6 +126,10 @@ function _peVisibility({ value, onChange }) {
 
 function PracticeEditForm({ form, errors = {}, onChange, racketNames = [], stringNames = [], venueNames = [] }) {
   // 開始/終了時刻入力時に duration を自動計算 (v3:2471-2481 移植)
+  // S16.11 F2 ガード: Apple Watch 取込み済 duration を時刻編集で上書きしない
+  //   - form.duration が存在し、かつ form.heartRateAvg / calories 等の Watch 由来フィールドがあれば
+  //     duration は Watch 実測値として保護、時刻計算で上書きしない
+  //   - Watch 由来でない (手動入力) duration の場合は従来通り計算結果で更新
   const set = (k, v) => {
     const n = { ...form, [k]: v };
     if ((k === "startTime" || k === "endTime") && n.startTime && n.endTime) {
@@ -133,7 +137,13 @@ function PracticeEditForm({ form, errors = {}, onChange, racketNames = [], strin
       const eParts = n.endTime.split(":").map(Number);
       if (!isNaN(sParts[0]) && !isNaN(eParts[0])) {
         const mins = (eParts[0] * 60 + (eParts[1] || 0)) - (sParts[0] * 60 + (sParts[1] || 0));
-        if (mins > 0) n.duration = String(mins);
+        if (mins > 0) {
+          const isWatchDuration = !!(form.heartRateAvg || form.calories || form.totalCalories || form.hrZone1);
+          if (!isWatchDuration) {
+            n.duration = String(mins);
+          }
+          // Watch 由来 duration は保護、上書きしない
+        }
       }
     }
     onChange(n);

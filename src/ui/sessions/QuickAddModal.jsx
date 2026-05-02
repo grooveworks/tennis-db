@@ -145,6 +145,7 @@ function QuickAddModal({ open, type, racketNames = [], stringNames = [], venueNa
   if (!open || !form || !type) return null;
 
   // setter (練習の時刻入力で duration 自動計算 - v3:2471-2481 移植)
+  // S16.11 F2 ガード: Apple Watch 取込み済 duration は時刻編集で上書きしない
   const set = (k, v) => {
     setForm((p) => {
       const n = { ...p, [k]: v };
@@ -153,7 +154,12 @@ function QuickAddModal({ open, type, racketNames = [], stringNames = [], venueNa
         const eParts = n.endTime.split(":").map(Number);
         if (!isNaN(sParts[0]) && !isNaN(eParts[0])) {
           const mins = (eParts[0] * 60 + (eParts[1] || 0)) - (sParts[0] * 60 + (sParts[1] || 0));
-          if (mins > 0) n.duration = String(mins);
+          if (mins > 0) {
+            const isWatchDuration = !!(p.heartRateAvg || p.calories || p.totalCalories || p.hrZone1);
+            if (!isWatchDuration) {
+              n.duration = String(mins);
+            }
+          }
         }
       }
       return n;

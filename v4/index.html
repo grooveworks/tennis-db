@@ -46,7 +46,7 @@ input,select,textarea,button{font-family:inherit}
 const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
 // ── 定数定義（色・キー・バージョン）─────────────
-const APP_VERSION="4.0.0-S16.10d";
+const APP_VERSION="4.0.0-S16.11";
 const font="-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif";
 
 // 色設計（DESIGN_SYSTEM_v4.md §1 + §10 S13.5 改訂準拠）
@@ -126,7 +126,12 @@ const lsLoad=k=>{
 const lsSave=(k,d)=>{
   try{
     localStorage.setItem(LS_PREFIX+k+"-v1",JSON.stringify(d));
-  }catch(_){}
+  }catch(err){
+    // S16.11 F8: silent fail 廃止、Quota / SecurityError 等を notifySaveError 経由で通知
+    //   onSaveError listener (Header / app 起動時に登録) で toast 表示 → ユーザーは「保存できていない」を即認識
+    console.error("lsSave failed:",k,err);
+    try{notifySaveError(k,err);}catch(_){}
+  }
 };
 
 // Firestore 互換変換: undefined 除去 + matchStats.raw/points をサイズ削減のため除外
@@ -2212,17 +2217,14 @@ function Select({ label, value, onChange, options = [], required, error, style: 
 // 役割:
 //   - 文字サイズ調整 (標準 / 大 / 特大、メモ系テキストの拡大率を localStorage 永続化)
 //   - アプリバージョン表示 (Header からは削除、ここで常設表示)
-//   - 将来の設定追加用の入れ物 (通知 / 表示モード / バックアップ等)
+//   - データバックアップ (S16.11 追加、JSON エクスポート、tennis_db_*.json 互換)
 //
 // props:
 //   open:            boolean
 //   fontScale:       1.0 | 1.15 | 1.30
 //   onFontScaleChange: (scale) => void  state + lsSave
 //   onClose:         () => void
-//
-// 文字サイズ scale 適用範囲 (S15.5.7 時点):
-//   - メモ系のみ (Textarea / _dvMemoItem / QuickTrialMode メモ)
-//   - 本文 / ラベル / 数字は将来 Stage で段階拡張 (DESIGN_SYSTEM 全体改訂が必要なため)
+//   toast:           useToast() ({ show })
 
 const _SCALE_OPTIONS = [
   { value: 1.0,  label: "標準", desc: "16 px (現行)" },
@@ -2230,7 +2232,52 @@ const _SCALE_OPTIONS = [
   { value: 1.30, label: "特大", desc: "21 px" },
 ];
 
-function SettingsModal({ open, fontScale, onFontScaleChange, onClose }) {
+// S16.11 データバックアップ: localStorage の全 KEYS を JSON 化して file download
+//   既存 tennis_db_*.json (v3 export) と同じトップレベル構造で出力
+//   → 後の復元時に v3/v4 両方のツールで読める
+//   - データ変換ロジック禁止 (raw のままコピー)
+//   - 失敗時は toast で通知 (silent fail 禁止)
+const _exportAllData = (toast) => {
+  try {
+    const data = {
+      version: 4,
+      exportedAt: new Date().toISOString(),
+      tournaments:     lsLoad(KEYS.tournaments)     || [],
+      practices:       lsLoad(KEYS.practices)       || [],
+      trials:          lsLoad(KEYS.trials)          || [],
+      rackets:         lsLoad(KEYS.rackets)         || [],
+      strings:         lsLoad(KEYS.strings)         || [],
+      venues:          lsLoad(KEYS.venues)          || [],
+      opponents:       lsLoad(KEYS.opponents)       || [],
+      next:            lsLoad(KEYS.next)            || [],
+      quickTrialCards: lsLoad(KEYS.quickTrialCards) || [],
+      stringSetups:    lsLoad(KEYS.stringSetups)    || [],
+    };
+    const json = JSON.stringify(data, null, 2);
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth() + 1).padStart(2, "0");
+    const dd = String(now.getDate()).padStart(2, "0");
+    const hh = String(now.getHours()).padStart(2, "0");
+    const mi = String(now.getMinutes()).padStart(2, "0");
+    const filename = `tennis_db_v4_${yyyy}${mm}${dd}_${hh}${mi}.json`;
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 100);
+    if (toast) toast.show(`バックアップを保存しました: ${filename}`, "success");
+  } catch (err) {
+    console.error("Export failed:", err);
+    if (toast) toast.show(`バックアップに失敗しました: ${err?.message || err}`, "error");
+  }
+};
+
+function SettingsModal({ open, fontScale, onFontScaleChange, onClose, toast }) {
   useEffect(() => {
     if (!open) return;
     const handler = (e) => { if (e.key === "Escape") onClose && onClose(); };
@@ -2350,6 +2397,36 @@ function SettingsModal({ open, fontScale, onFontScaleChange, onClose }) {
           }}>
             サーブの打感が良い、ストロークもブレない。フォアの攻撃時に握りが少し緩む。次は手の内側を意識する。
           </div>
+        </div>
+
+        {/* S16.11: データバックアップ */}
+        <div style={{ marginBottom: 22 }}>
+          <div style={{
+            fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 4,
+          }}>
+            データのバックアップ
+          </div>
+          <div style={{
+            fontSize: 11, color: C.textMuted, marginBottom: 10, lineHeight: 1.5,
+          }}>
+            全データを JSON ファイルとして保存。試合前 / 重要な編集前に実行を推奨。
+            v3 / v4 互換フォーマット。
+          </div>
+          <button
+            type="button"
+            onClick={() => _exportAllData(toast)}
+            style={{
+              width: "100%", minHeight: 44, padding: "8px 16px",
+              border: `1px solid ${C.primary}`, borderRadius: 8,
+              background: C.panel, color: C.primary,
+              fontSize: 14, fontWeight: 600, cursor: "pointer",
+              fontFamily: font,
+              display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
+            }}
+          >
+            <Icon name="download-simple" size={16} color={C.primary} />
+            全データを JSON で保存
+          </button>
         </div>
 
         {/* バージョン情報 */}
@@ -4821,12 +4898,7 @@ function ReorderHintBar({ children }) {
 // 行タップで Period Detail (slide-in) が開く
 
 function SettingHistorySection({ racket, tournaments, practices, trials, onPeriodClick }) {
-  // S16.9 perf: computeSettingHistory は全 session 走査 + ソート + グループ化で重い。
-  //   毎レンダーで再計算しないよう useMemo でキャッシュ。
-  const history = useMemo(
-    () => computeSettingHistory(racket?.name, tournaments, practices, trials),
-    [racket?.name, tournaments, practices, trials]
-  );
+  const history = computeSettingHistory(racket?.name, tournaments, practices, trials);
 
   if (history.length === 0) {
     return (
@@ -9493,6 +9565,10 @@ function _peVisibility({ value, onChange }) {
 
 function PracticeEditForm({ form, errors = {}, onChange, racketNames = [], stringNames = [], venueNames = [] }) {
   // 開始/終了時刻入力時に duration を自動計算 (v3:2471-2481 移植)
+  // S16.11 F2 ガード: Apple Watch 取込み済 duration を時刻編集で上書きしない
+  //   - form.duration が存在し、かつ form.heartRateAvg / calories 等の Watch 由来フィールドがあれば
+  //     duration は Watch 実測値として保護、時刻計算で上書きしない
+  //   - Watch 由来でない (手動入力) duration の場合は従来通り計算結果で更新
   const set = (k, v) => {
     const n = { ...form, [k]: v };
     if ((k === "startTime" || k === "endTime") && n.startTime && n.endTime) {
@@ -9500,7 +9576,13 @@ function PracticeEditForm({ form, errors = {}, onChange, racketNames = [], strin
       const eParts = n.endTime.split(":").map(Number);
       if (!isNaN(sParts[0]) && !isNaN(eParts[0])) {
         const mins = (eParts[0] * 60 + (eParts[1] || 0)) - (sParts[0] * 60 + (sParts[1] || 0));
-        if (mins > 0) n.duration = String(mins);
+        if (mins > 0) {
+          const isWatchDuration = !!(form.heartRateAvg || form.calories || form.totalCalories || form.hrZone1);
+          if (!isWatchDuration) {
+            n.duration = String(mins);
+          }
+          // Watch 由来 duration は保護、上書きしない
+        }
       }
     }
     onChange(n);
@@ -9861,6 +9943,7 @@ function QuickAddModal({ open, type, racketNames = [], stringNames = [], venueNa
   if (!open || !form || !type) return null;
 
   // setter (練習の時刻入力で duration 自動計算 - v3:2471-2481 移植)
+  // S16.11 F2 ガード: Apple Watch 取込み済 duration は時刻編集で上書きしない
   const set = (k, v) => {
     setForm((p) => {
       const n = { ...p, [k]: v };
@@ -9869,7 +9952,12 @@ function QuickAddModal({ open, type, racketNames = [], stringNames = [], venueNa
         const eParts = n.endTime.split(":").map(Number);
         if (!isNaN(sParts[0]) && !isNaN(eParts[0])) {
           const mins = (eParts[0] * 60 + (eParts[1] || 0)) - (sParts[0] * 60 + (sParts[1] || 0));
-          if (mins > 0) n.duration = String(mins);
+          if (mins > 0) {
+            const isWatchDuration = !!(p.heartRateAvg || p.calories || p.totalCalories || p.hrZone1);
+            if (!isWatchDuration) {
+              n.duration = String(mins);
+            }
+          }
         }
       }
       return n;
@@ -13918,6 +14006,67 @@ function TennisDB() {
     setStringSetups(assignDefaultOrders(lsLoad(KEYS.stringSetups) || []));
   }, []);
 
+  // S16.11: 起動時 localStorage 自動 snapshot
+  //   - 1 日 1 回、`${LS_PREFIX}snapshot-${YYYY-MM-DD}` キーで保存
+  //   - 7 日より古い snapshot は削除
+  //   - データ消失時の復旧経路 (export と組み合わせて 7 日以内なら復元可能)
+  //   - 既存データを変更しない (新キーへの書き込みのみ)
+  useEffect(() => {
+    try {
+      const today = new Date();
+      const yyyy = today.getFullYear();
+      const mm = String(today.getMonth() + 1).padStart(2, "0");
+      const dd = String(today.getDate()).padStart(2, "0");
+      const todayKey = `${LS_PREFIX}snapshot-${yyyy}-${mm}-${dd}-v1`;
+      // 既に今日の snapshot があればスキップ
+      if (localStorage.getItem(todayKey)) return;
+      // 全 KEYS の内容を集めて保存
+      const snapshot = {
+        snapshotAt: today.toISOString(),
+        tournaments:     lsLoad(KEYS.tournaments)     || [],
+        practices:       lsLoad(KEYS.practices)       || [],
+        trials:          lsLoad(KEYS.trials)          || [],
+        rackets:         lsLoad(KEYS.rackets)         || [],
+        strings:         lsLoad(KEYS.strings)         || [],
+        venues:          lsLoad(KEYS.venues)          || [],
+        opponents:       lsLoad(KEYS.opponents)       || [],
+        next:            lsLoad(KEYS.next)            || [],
+        quickTrialCards: lsLoad(KEYS.quickTrialCards) || [],
+        stringSetups:    lsLoad(KEYS.stringSetups)    || [],
+      };
+      localStorage.setItem(todayKey, JSON.stringify(snapshot));
+      // 7 日より古い snapshot を削除
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - 7);
+      const keysToRemove = [];
+      const prefix = `${LS_PREFIX}snapshot-`;
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (!k || !k.startsWith(prefix)) continue;
+        // キー形式: yuke-snapshot-YYYY-MM-DD-v1
+        const m = k.match(/snapshot-(\d{4})-(\d{2})-(\d{2})-v1$/);
+        if (!m) continue;
+        const d = new Date(`${m[1]}-${m[2]}-${m[3]}T00:00:00`);
+        if (d < cutoff) keysToRemove.push(k);
+      }
+      keysToRemove.forEach(k => localStorage.removeItem(k));
+    } catch (err) {
+      // localStorage Quota 超過などは silent では NG だが、起動時なので toast 未初期化
+      console.error("Auto snapshot failed:", err);
+    }
+  }, []);
+
+  // S16.11 F8: lsSave / Firestore save エラーを toast で通知 (silent fail 廃止)
+  //   storage.js の notifySaveError から listener 経由で受信 → 即時 toast
+  useEffect(() => {
+    const unsubscribe = onSaveError((errInfo) => {
+      const msg = `保存エラー (${errInfo.key}): ${errInfo.message}`;
+      console.error(msg);
+      toast.show(msg, "error");
+    });
+    return unsubscribe;
+  }, [toast]);
+
   // S14: 天気取得 拡張 (Open-Meteo、key 不要、CORS 対応)
   //   current: 気温 / 天気コード / 降水確率 / 風速 / 体感気温
   //   hourly:  気温 / 天気コード / 降水確率 (24 時間分)
@@ -14063,20 +14212,42 @@ function TennisDB() {
               const docData = change.doc.data() || {};
               const val = docData.items;
               if (!Array.isArray(val)) return;
-              const normalized = normalizeItems(val);
-              if (key === "tournaments") setTournaments(normalized);
-              else if (key === "practices") setPractices(normalized);
-              else if (key === "trials") setTrials(normalized);
-              // S16 Phase 4-A: rackets / strings / stringSetups は assignDefaultOrders を通す (in-memory 整形)
-              else if (key === "rackets")  setRackets(assignDefaultOrders(val));
-              else if (key === "strings")  setStringsList(assignDefaultOrders(val));
-              else if (key === "stringSetups") setStringSetups(assignDefaultOrders(val));
-              else if (key === "venues")   setVenues(val);
-              else if (key === "opponents") setOpponents(val);
-              else if (key === "next") setNext(val);
-              else if (key === "quickTrialCards") setQuickTrialCards(val);
-              else return;
-              lsSave(key, val);
+
+              // S16.11 F1 ガード: hasPendingWrites の自 echo は無視
+              //   (closure stale 回避のため、ローカル件数比較は setX(prev=>...) 内で行う)
+              if (change.doc.metadata?.hasPendingWrites === true) return;
+
+              // F1 ガード本体: prev (現 state) と val (server) を比較して、空上書き / 急減を拒否
+              //   - 拒否時は prev をそのまま返す (state 変更なし、lsSave も skip)
+              //   - 拒否を toast で通知
+              //   - 受け入れる時のみ lsSave 実行
+              const guardAndApply = (prev, transform) => {
+                const prevArr = Array.isArray(prev) ? prev : [];
+                if (prevArr.length >= 5 && val.length === 0) {
+                  console.error(`F1 GUARD: Refused empty array overwrite for ${key} (local=${prevArr.length}, server=0)`);
+                  if (toast) toast.show(`同期異常検知: ${key} がサーバ側で空のため保護`, "warning");
+                  return prev;
+                }
+                if (prevArr.length >= 10 && val.length < prevArr.length * 0.5) {
+                  console.error(`F1 GUARD: Refused 50% reduction for ${key} (local=${prevArr.length}, server=${val.length})`);
+                  if (toast) toast.show(`同期異常検知: ${key} が ${prevArr.length}→${val.length} 件に急減、保護`, "warning");
+                  return prev;
+                }
+                lsSave(key, val);
+                return transform(val);
+              };
+
+              if (key === "tournaments") setTournaments(prev => guardAndApply(prev, normalizeItems));
+              else if (key === "practices") setPractices(prev => guardAndApply(prev, normalizeItems));
+              else if (key === "trials") setTrials(prev => guardAndApply(prev, normalizeItems));
+              // S16 Phase 4-A: rackets / strings / stringSetups は assignDefaultOrders を通す
+              else if (key === "rackets")  setRackets(prev => guardAndApply(prev, assignDefaultOrders));
+              else if (key === "strings")  setStringsList(prev => guardAndApply(prev, assignDefaultOrders));
+              else if (key === "stringSetups") setStringSetups(prev => guardAndApply(prev, assignDefaultOrders));
+              else if (key === "venues")   setVenues(prev => guardAndApply(prev, v => v));
+              else if (key === "opponents") setOpponents(prev => guardAndApply(prev, v => v));
+              else if (key === "next") setNext(prev => guardAndApply(prev, v => v));
+              else if (key === "quickTrialCards") setQuickTrialCards(prev => guardAndApply(prev, v => v));
             });
           }, (err) => {
             console.error("Firestore snapshot error:", err);
@@ -14944,6 +15115,7 @@ function TennisDB() {
         fontScale={fontScale}
         onFontScaleChange={handleFontScaleChange}
         onClose={handleSettingsClose}
+        toast={toast}
       />
       {/* S16 Phase 4-A: ストリング編集 Modal (Gear タブ Manage Masters → 行タップ / + 追加 で起動) */}
       <StringEditModal

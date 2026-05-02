@@ -130,6 +130,67 @@ function TennisDB() {
     setStringSetups(assignDefaultOrders(lsLoad(KEYS.stringSetups) || []));
   }, []);
 
+  // S16.11: 起動時 localStorage 自動 snapshot
+  //   - 1 日 1 回、`${LS_PREFIX}snapshot-${YYYY-MM-DD}` キーで保存
+  //   - 7 日より古い snapshot は削除
+  //   - データ消失時の復旧経路 (export と組み合わせて 7 日以内なら復元可能)
+  //   - 既存データを変更しない (新キーへの書き込みのみ)
+  useEffect(() => {
+    try {
+      const today = new Date();
+      const yyyy = today.getFullYear();
+      const mm = String(today.getMonth() + 1).padStart(2, "0");
+      const dd = String(today.getDate()).padStart(2, "0");
+      const todayKey = `${LS_PREFIX}snapshot-${yyyy}-${mm}-${dd}-v1`;
+      // 既に今日の snapshot があればスキップ
+      if (localStorage.getItem(todayKey)) return;
+      // 全 KEYS の内容を集めて保存
+      const snapshot = {
+        snapshotAt: today.toISOString(),
+        tournaments:     lsLoad(KEYS.tournaments)     || [],
+        practices:       lsLoad(KEYS.practices)       || [],
+        trials:          lsLoad(KEYS.trials)          || [],
+        rackets:         lsLoad(KEYS.rackets)         || [],
+        strings:         lsLoad(KEYS.strings)         || [],
+        venues:          lsLoad(KEYS.venues)          || [],
+        opponents:       lsLoad(KEYS.opponents)       || [],
+        next:            lsLoad(KEYS.next)            || [],
+        quickTrialCards: lsLoad(KEYS.quickTrialCards) || [],
+        stringSetups:    lsLoad(KEYS.stringSetups)    || [],
+      };
+      localStorage.setItem(todayKey, JSON.stringify(snapshot));
+      // 7 日より古い snapshot を削除
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - 7);
+      const keysToRemove = [];
+      const prefix = `${LS_PREFIX}snapshot-`;
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (!k || !k.startsWith(prefix)) continue;
+        // キー形式: yuke-snapshot-YYYY-MM-DD-v1
+        const m = k.match(/snapshot-(\d{4})-(\d{2})-(\d{2})-v1$/);
+        if (!m) continue;
+        const d = new Date(`${m[1]}-${m[2]}-${m[3]}T00:00:00`);
+        if (d < cutoff) keysToRemove.push(k);
+      }
+      keysToRemove.forEach(k => localStorage.removeItem(k));
+    } catch (err) {
+      // localStorage Quota 超過などは silent では NG だが、起動時なので toast 未初期化
+      console.error("Auto snapshot failed:", err);
+    }
+  }, []);
+
+  // S16.11 F8: lsSave / Firestore save エラーを toast で通知 (silent fail 廃止)
+  //   storage.js の notifySaveError から listener 経由で受信 → 即時 toast
+  useEffect(() => {
+    const unsubscribe = onSaveError((errInfo) => {
+      const msg = `保存エラー (${errInfo.key}): ${errInfo.message}`;
+      console.error(msg);
+      toast.show(msg, "error");
+    });
+    return unsubscribe;
+  }, [toast]);
+
   // S14: 天気取得 拡張 (Open-Meteo、key 不要、CORS 対応)
   //   current: 気温 / 天気コード / 降水確率 / 風速 / 体感気温
   //   hourly:  気温 / 天気コード / 降水確率 (24 時間分)
@@ -275,20 +336,42 @@ function TennisDB() {
               const docData = change.doc.data() || {};
               const val = docData.items;
               if (!Array.isArray(val)) return;
-              const normalized = normalizeItems(val);
-              if (key === "tournaments") setTournaments(normalized);
-              else if (key === "practices") setPractices(normalized);
-              else if (key === "trials") setTrials(normalized);
-              // S16 Phase 4-A: rackets / strings / stringSetups は assignDefaultOrders を通す (in-memory 整形)
-              else if (key === "rackets")  setRackets(assignDefaultOrders(val));
-              else if (key === "strings")  setStringsList(assignDefaultOrders(val));
-              else if (key === "stringSetups") setStringSetups(assignDefaultOrders(val));
-              else if (key === "venues")   setVenues(val);
-              else if (key === "opponents") setOpponents(val);
-              else if (key === "next") setNext(val);
-              else if (key === "quickTrialCards") setQuickTrialCards(val);
-              else return;
-              lsSave(key, val);
+
+              // S16.11 F1 ガード: hasPendingWrites の自 echo は無視
+              //   (closure stale 回避のため、ローカル件数比較は setX(prev=>...) 内で行う)
+              if (change.doc.metadata?.hasPendingWrites === true) return;
+
+              // F1 ガード本体: prev (現 state) と val (server) を比較して、空上書き / 急減を拒否
+              //   - 拒否時は prev をそのまま返す (state 変更なし、lsSave も skip)
+              //   - 拒否を toast で通知
+              //   - 受け入れる時のみ lsSave 実行
+              const guardAndApply = (prev, transform) => {
+                const prevArr = Array.isArray(prev) ? prev : [];
+                if (prevArr.length >= 5 && val.length === 0) {
+                  console.error(`F1 GUARD: Refused empty array overwrite for ${key} (local=${prevArr.length}, server=0)`);
+                  if (toast) toast.show(`同期異常検知: ${key} がサーバ側で空のため保護`, "warning");
+                  return prev;
+                }
+                if (prevArr.length >= 10 && val.length < prevArr.length * 0.5) {
+                  console.error(`F1 GUARD: Refused 50% reduction for ${key} (local=${prevArr.length}, server=${val.length})`);
+                  if (toast) toast.show(`同期異常検知: ${key} が ${prevArr.length}→${val.length} 件に急減、保護`, "warning");
+                  return prev;
+                }
+                lsSave(key, val);
+                return transform(val);
+              };
+
+              if (key === "tournaments") setTournaments(prev => guardAndApply(prev, normalizeItems));
+              else if (key === "practices") setPractices(prev => guardAndApply(prev, normalizeItems));
+              else if (key === "trials") setTrials(prev => guardAndApply(prev, normalizeItems));
+              // S16 Phase 4-A: rackets / strings / stringSetups は assignDefaultOrders を通す
+              else if (key === "rackets")  setRackets(prev => guardAndApply(prev, assignDefaultOrders));
+              else if (key === "strings")  setStringsList(prev => guardAndApply(prev, assignDefaultOrders));
+              else if (key === "stringSetups") setStringSetups(prev => guardAndApply(prev, assignDefaultOrders));
+              else if (key === "venues")   setVenues(prev => guardAndApply(prev, v => v));
+              else if (key === "opponents") setOpponents(prev => guardAndApply(prev, v => v));
+              else if (key === "next") setNext(prev => guardAndApply(prev, v => v));
+              else if (key === "quickTrialCards") setQuickTrialCards(prev => guardAndApply(prev, v => v));
             });
           }, (err) => {
             console.error("Firestore snapshot error:", err);
@@ -1156,6 +1239,7 @@ function TennisDB() {
         fontScale={fontScale}
         onFontScaleChange={handleFontScaleChange}
         onClose={handleSettingsClose}
+        toast={toast}
       />
       {/* S16 Phase 4-A: ストリング編集 Modal (Gear タブ Manage Masters → 行タップ / + 追加 で起動) */}
       <StringEditModal
