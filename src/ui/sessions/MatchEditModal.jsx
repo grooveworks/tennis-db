@@ -127,7 +127,19 @@ function MatchEditModal({ open, match, trnType, racketNames = [], stringNames = 
   }, [dirty, confirm, onClose, form]);
 
   // S15.5.9: 保存ボタン (下書きクリア + 親に渡す)
+  // S16.11 F5: 必須項目 validation (空 form 保存防止) — opponent と result が必須
+  //   - 空の場合は保存ボタン無効化 + toast 警告
+  const _isMatchValid = (f) => {
+    if (!f) return false;
+    if (!(f.opponent || "").trim()) return false;
+    if (!(f.result || "").trim()) return false;
+    return true;
+  };
   const handleSaveClick = useCallback(() => {
+    if (!_isMatchValid(form)) {
+      // toast がない場合は handleSaveClick を caller 側 (onSave 内) で警告するが、ここで disabled にしているので通常は到達しない
+      return;
+    }
     if (form?.id) _clearMatchDraft(form.id);
     onSave && onSave(form);
   }, [form, onSave]);
@@ -277,10 +289,15 @@ function MatchEditModal({ open, match, trnType, racketNames = [], stringNames = 
           <button
             type="button"
             onClick={handleSaveClick}
+            disabled={!_isMatchValid(form)}
+            title={_isMatchValid(form) ? "保存" : "対戦相手と結果は必須です"}
             style={{
               minHeight: 44, padding: "10px 20px", borderRadius: 8,
-              border: "none", background: C.primary, color: "#fff",
-              fontSize: 13, fontWeight: 700, cursor: "pointer",
+              border: "none",
+              background: _isMatchValid(form) ? C.primary : C.textMuted,
+              color: "#fff",
+              fontSize: 13, fontWeight: 700,
+              cursor: _isMatchValid(form) ? "pointer" : "not-allowed",
               display: "inline-flex", alignItems: "center", gap: 6, fontFamily: font,
             }}
           >

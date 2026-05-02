@@ -1035,13 +1035,20 @@ function TennisDB() {
   const handleMeasurementSave = (m, isNew) => {
     const racketId = measurementEditTarget?.racketId;
     if (!racketId) return;
+    // S16.11 F-01: m.current=true を保存する時、既存の current フラグが外される件数を数えて toast 通知
+    //   暗黙の上書きを silent にしない (ユーザーが「他の current が消えた」と気付ける)
+    let droppedCurrentCount = 0;
     const updated = (rackets || []).map(r => {
       if (r.id !== racketId) return r;
       const list = Array.isArray(r.measurements) ? [...r.measurements] : [];
       // current=true は 1 件のみ → 他をすべて false に
-      const normalized = m.current
-        ? list.map(x => ({ ...x, current: false }))
-        : list;
+      let normalized;
+      if (m.current) {
+        droppedCurrentCount = list.filter(x => x.id !== m.id && x.current).length;
+        normalized = list.map(x => ({ ...x, current: false }));
+      } else {
+        normalized = list;
+      }
       const idx = normalized.findIndex(x => x.id === m.id);
       if (idx >= 0) normalized[idx] = m;
       else normalized.push(m);
@@ -1052,7 +1059,11 @@ function TennisDB() {
       setRacketDetail(updated.find(r => r.id === racketId));
     }
     setMeasurementEditTarget(null);
-    toast.show(isNew ? "実測値を追加しました" : "実測値を更新しました", "success");
+    if (droppedCurrentCount > 0) {
+      toast.show(`実測値を${isNew ? "追加" : "更新"}しました (他の現行 ${droppedCurrentCount} 件を非現行に変更)`, "success");
+    } else {
+      toast.show(isNew ? "実測値を追加しました" : "実測値を更新しました", "success");
+    }
   };
 
   const handleMeasurementDelete = (mId) => {

@@ -36,7 +36,7 @@ function StringEditModal({ open, item, onSave, onClose, onDelete, confirm }) {
     if (!trimmed) { setError("ストリング名は必須です"); return; }
     const next = {
       ...(item || {}),
-      id: item?.id || `s${Date.now()}`,
+      id: item?.id || `s${genId()}`,
       name: trimmed,
       qty: (qty || "").trim(),
       status,

@@ -22,11 +22,20 @@ const lsSave=(k,d)=>{
 
 // Firestore 互換変換: undefined 除去 + matchStats.raw/points をサイズ削減のため除外
 // raw/points は localStorage には残るが、Firestore には送らない
+// S16.11 F6: id=undefined のオブジェクトは silent に id を消さず、warn してから除去 (識別子が消える致命を可視化)
 const cleanForFirestore=obj=>{
   if(obj===undefined)return null;
   if(obj===null||typeof obj!=="object")return obj;
   if(obj instanceof Date)return obj;
   if(Array.isArray(obj))return obj.map(cleanForFirestore);
+  // F6: トップレベルが id を持つべき (session / racket / string / measurement 等) のに id=undefined は致命
+  //   notifySaveError 経由で toast、ただし保存自体は継続 (silent strip だけ防ぐ)
+  if("id" in obj && obj.id===undefined){
+    try{
+      console.error("cleanForFirestore: object with id=undefined detected, this may cause sync issues",obj);
+      notifySaveError("(unknown)",new Error("id 未設定のオブジェクトが Firestore へ送られました。識別不能でデータ整合性が壊れる可能性があります"));
+    }catch(_){}
+  }
   const r={};
   for(const k in obj){
     if(!Object.prototype.hasOwnProperty.call(obj,k))continue;
@@ -52,14 +61,15 @@ const notifySaveError=(key,err)=>{
   _saveErrorListeners.forEach(fn=>fn(_lastSaveError));
 };
 
-// save: localStorage 即時 + Firestore デバウンス書き込み（800ms）
-const _saveTimers={};
+// save: localStorage 即時 + Firestore 即時 (S16.11 で 800ms debounce 全廃)
+//   - 旧: setTimeout(800ms) で debounce → Chrome Background Throttling で書き込み消失
+//   - 新: queueMicrotask で即時 set → 背景タブでも確実に書き込む
+//   - 失敗時は notifySaveError 経由 toast
 const save=(k,d)=>{
   lsSave(k,d);
   const user=fbAuth.currentUser;
   if(!user)return;
-  if(_saveTimers[k])clearTimeout(_saveTimers[k]);
-  _saveTimers[k]=setTimeout(async()=>{
+  queueMicrotask(async()=>{
     try{
       const ref=fbDb.collection("users").doc(user.uid).collection("data").doc(k);
       const payload=Array.isArray(d)
@@ -69,5 +79,5 @@ const save=(k,d)=>{
     }catch(err){
       notifySaveError(k,err);
     }
-  },800);
+  });
 };

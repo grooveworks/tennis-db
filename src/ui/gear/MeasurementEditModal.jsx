@@ -29,7 +29,7 @@ function MeasurementEditModal({ open, item, racketName, onSave, onClose, onDelet
   const handleSave = () => {
     const next = {
       ...(item || {}),
-      id: item?.id || `ms${Date.now()}`,
+      id: item?.id || `ms${genId()}`,
       state: (state || "").trim(),
       weight: (weight || "").trim(),
       balance: (balance || "").trim(),
