@@ -741,25 +741,15 @@ function TennisDB() {
   //   背景タブで発火されない問題に対応 → debounce を bypass して即時 Firestore write。
   //   handleDelete / handleMergeConfirm と同じ Promise.all/直接 set パターンに統一。
   //   (試打カード操作は頻繁ではないので debounce 最適化は不要)
+  // F-A3 (Phase A 監査): save() を使用してシリアライズ + エラー通知を統一
+  //   旧: 各 persistX が独自 queueMicrotask で fire-and-forget → 連続 save の到達順非保証
+  //   新: save() の _pendingWrites chain で key 単位直列化、エラーは global onSaveError listener で toast
   const persistQuickTrialCards = (newCardsOrFn) => {
     setQuickTrialCards(prev => {
       const newCards = typeof newCardsOrFn === "function"
         ? newCardsOrFn(prev)
         : newCardsOrFn;
-      // localStorage は冪等同期書き込み
-      lsSave(KEYS.quickTrialCards, newCards);
-      // Firestore は次 microtask で即時 set (debounce bypass)
-      // 失敗時は toast でユーザーに通知 (届いていないことが分かる)
-      queueMicrotask(() => {
-        const u = fbAuth.currentUser;
-        if (!u) return;
-        fbDb.collection("users").doc(u.uid).collection("data").doc(KEYS.quickTrialCards)
-          .set({ items: cleanForFirestore(newCards), updatedAt: new Date().toISOString() })
-          .catch(err => {
-            console.error("quickTrialCards Firestore write error:", err);
-            toast.show("試打カードのクラウド同期に失敗 (ローカルは保存済み)", "warning");
-          });
-      });
+      save(KEYS.quickTrialCards, newCards);
       return newCards;
     });
   };
@@ -904,21 +894,11 @@ function TennisDB() {
     setQuickAddType(null);     // QuickAddModal を閉じる
   };
 
-  // S16 Phase 4-A: Gear タブ ストリング在庫の永続化 (S15.5.3 と同パターン、debounce bypass で即時 Firestore write)
-  // 並び順編集 (▲▼) も追加・編集・削除も全部この関数を経由 → 一貫した書き込み
+  // S16 Phase 4-A: Gear タブ ストリング在庫の永続化
+  // F-A3: save() に統一して直列化 + エラー通知を一元化
   const persistStrings = (newList) => {
     setStringsList(newList);
-    lsSave(KEYS.strings, newList);
-    queueMicrotask(() => {
-      const u = fbAuth.currentUser;
-      if (!u) return;
-      fbDb.collection("users").doc(u.uid).collection("data").doc(KEYS.strings)
-        .set({ items: cleanForFirestore(newList), updatedAt: new Date().toISOString() })
-        .catch(err => {
-          console.error("strings Firestore write error:", err);
-          toast.show("ストリング在庫のクラウド同期に失敗 (ローカルは保存済み)", "warning");
-        });
-    });
+    save(KEYS.strings, newList);
   };
 
   // 並び順編集 ▲▼ タップ: reorder.js の reorderItems が返した新リストをそのまま永続化
@@ -954,50 +934,20 @@ function TennisDB() {
     toast.show("ストリングを削除しました", "info");
   };
 
-  // S16 Phase 4-B: Racket 永続化 (S15.5.3 と同パターン、debounce bypass 即時 Firestore write)
+  // S16 Phase 4-B: Racket 永続化 (F-A3 で save() に統一、直列化済)
   const persistRackets = (newList) => {
     setRackets(newList);
-    lsSave(KEYS.rackets, newList);
-    queueMicrotask(() => {
-      const u = fbAuth.currentUser;
-      if (!u) return;
-      fbDb.collection("users").doc(u.uid).collection("data").doc(KEYS.rackets)
-        .set({ items: cleanForFirestore(newList), updatedAt: new Date().toISOString() })
-        .catch(err => {
-          console.error("rackets Firestore write error:", err);
-          toast.show("ラケットのクラウド同期に失敗 (ローカルは保存済み)", "warning");
-        });
-    });
+    save(KEYS.rackets, newList);
   };
 
-  // S17: Plan タブ用永続化 (persistStrings と同パターン、即時 Firestore write)
+  // S17: Plan タブ用永続化 (F-A3 で save() に統一、直列化済)
   const persistNext = (newList) => {
     setNext(newList);
-    lsSave(KEYS.next, newList);
-    queueMicrotask(() => {
-      const u = fbAuth.currentUser;
-      if (!u) return;
-      fbDb.collection("users").doc(u.uid).collection("data").doc(KEYS.next)
-        .set({ items: cleanForFirestore(newList), updatedAt: new Date().toISOString() })
-        .catch(err => {
-          console.error("next Firestore write error:", err);
-          toast.show("アクションのクラウド同期に失敗 (ローカルは保存済み)", "warning");
-        });
-    });
+    save(KEYS.next, newList);
   };
   const persistOpponents = (newList) => {
     setOpponents(newList);
-    lsSave(KEYS.opponents, newList);
-    queueMicrotask(() => {
-      const u = fbAuth.currentUser;
-      if (!u) return;
-      fbDb.collection("users").doc(u.uid).collection("data").doc(KEYS.opponents)
-        .set({ items: cleanForFirestore(newList), updatedAt: new Date().toISOString() })
-        .catch(err => {
-          console.error("opponents Firestore write error:", err);
-          toast.show("対戦相手のクラウド同期に失敗 (ローカルは保存済み)", "warning");
-        });
-    });
+    save(KEYS.opponents, newList);
   };
 
   // Racket Detail (slide-in)

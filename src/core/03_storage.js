@@ -65,19 +65,32 @@ const notifySaveError=(key,err)=>{
 //   - 旧: setTimeout(800ms) で debounce → Chrome Background Throttling で書き込み消失
 //   - 新: queueMicrotask で即時 set → 背景タブでも確実に書き込む
 //   - 失敗時は notifySaveError 経由 toast
+//
+// F-A3 (Phase A 監査): key 単位で Promise chain により直列化。
+//   旧: queueMicrotask で fire-and-forget → save(k,A); save(k,B) の到達順がサーバ側で逆転しうる
+//   新: _pendingWrites[k] に直前の Promise を保持し、次の write はその完了を await してから発射
+//   uid もクロージャに束縛 (signOut 中の race を排除)
+const _pendingWrites = {};
 const save=(k,d)=>{
   lsSave(k,d);
   const user=fbAuth.currentUser;
   if(!user)return;
-  queueMicrotask(async()=>{
+  const uid=user.uid;
+  const payload=Array.isArray(d)
+    ?{items:cleanForFirestore(d),obj:null,updatedAt:new Date().toISOString()}
+    :{items:null,obj:cleanForFirestore(d),updatedAt:new Date().toISOString()};
+  const prev=_pendingWrites[k]||Promise.resolve();
+  const next=prev.then(async()=>{
     try{
-      const ref=fbDb.collection("users").doc(user.uid).collection("data").doc(k);
-      const payload=Array.isArray(d)
-        ?{items:cleanForFirestore(d),obj:null,updatedAt:new Date().toISOString()}
-        :{items:null,obj:cleanForFirestore(d),updatedAt:new Date().toISOString()};
+      const ref=fbDb.collection("users").doc(uid).collection("data").doc(k);
       await ref.set(payload);
     }catch(err){
       notifySaveError(k,err);
     }
+  });
+  _pendingWrites[k]=next;
+  // chain が無限に伸びないよう完了したら参照を解放
+  next.finally(()=>{
+    if(_pendingWrites[k]===next)delete _pendingWrites[k];
   });
 };
