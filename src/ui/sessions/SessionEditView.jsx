@@ -77,7 +77,8 @@ function SessionEditView({ type, session, practices, tournaments, trials, racket
   const valid = Object.keys(errors).length === 0;
 
   // 戻るタップ: 未保存変更があれば確認 (S15.5.9: 確定で下書きクリア)
-  const handleBack = () => {
+  // H-16 (Phase A 監査): useCallback で安定化、deps を完全宣言
+  const handleBack = useCallback(() => {
     const clearDraft = () => { if (form?.id) _clearSessionDraft(type, form.id); };
     if (!dirty) { clearDraft(); onCancel && onCancel(); return; }
     confirm.ask(
@@ -85,14 +86,15 @@ function SessionEditView({ type, session, practices, tournaments, trials, racket
       () => { clearDraft(); onCancel && onCancel(); },
       { title: "未保存の変更があります", yesLabel: "破棄する", noLabel: "編集に戻る", yesVariant: "danger", icon: "triangle-alert" }
     );
-  };
+  }, [dirty, form?.id, type, onCancel, confirm]);
 
   // Esc で戻る (CLAUDE.md §N1a.4)
+  // H-16: deps に handleBack を入れて lint exhaustive-deps 違反を解消
   useEffect(() => {
     const handler = (e) => { if (e.key === "Escape") handleBack(); };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [dirty, form]);
+  }, [handleBack]);
 
   const handleSaveClick = () => {
     if (!valid) {
