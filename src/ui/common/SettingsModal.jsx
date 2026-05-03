@@ -63,7 +63,15 @@ const _exportAllData = (toast) => {
   }
 };
 
-function SettingsModal({ open, fontScale, onFontScaleChange, onClose, toast, onBulkSummarize, bulkSummarizeProgress }) {
+function SettingsModal({ open, fontScale, onFontScaleChange, onClose, toast, onBulkSummarize, bulkSummarizeProgress, onImportCalendarJson }) {
+  // インポート用 hidden file input ref
+  const importFileRef = useRef(null);
+  const handleImportFileChange = (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (file && onImportCalendarJson) onImportCalendarJson(file);
+    // 同じファイルを再選択できるようリセット
+    if (e.target) e.target.value = "";
+  };
   useEffect(() => {
     if (!open) return;
     const handler = (e) => { if (e.key === "Escape") onClose && onClose(); };
@@ -209,11 +217,41 @@ function SettingsModal({ open, fontScale, onFontScaleChange, onClose, toast, onB
               fontSize: 14, fontWeight: 600, cursor: "pointer",
               fontFamily: font,
               display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
+              marginBottom: 8,
             }}
           >
             <Icon name="download-simple" size={16} color={C.primary} />
             全データを JSON で保存
           </button>
+
+          {/* JSON インポート (Google カレンダー由来 等) */}
+          <input
+            ref={importFileRef}
+            type="file"
+            accept=".json,application/json"
+            onChange={handleImportFileChange}
+            style={{ display: "none" }}
+          />
+          <button
+            type="button"
+            onClick={() => importFileRef.current && importFileRef.current.click()}
+            disabled={!onImportCalendarJson}
+            style={{
+              width: "100%", minHeight: 44, padding: "8px 16px",
+              border: `1px solid ${C.border}`, borderRadius: 8,
+              background: C.panel, color: C.text,
+              fontSize: 14, fontWeight: 600,
+              cursor: onImportCalendarJson ? "pointer" : "not-allowed",
+              fontFamily: font,
+              display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
+            }}
+          >
+            <Icon name="calendar" size={16} color={C.textSecondary} />
+            JSON ファイルからインポート (大会・練習)
+          </button>
+          <div style={{ fontSize: 11, color: C.textMuted, marginTop: 4, lineHeight: 1.4 }}>
+            既存の id と一致するものは skip。新規のみ追加。
+          </div>
         </div>
 
         {/* 31-2: 既存データの AI 一括要約 */}

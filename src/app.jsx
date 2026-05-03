@@ -333,6 +333,51 @@ function TennisDB() {
     try { localStorage.setItem(LS_PREFIX + "memo-font-scale-v1", String(scale)); } catch (_) {}
   };
 
+  // Google カレンダーインポート: JSON ファイルから tournaments[] / practices[] を id ベースで dedupe マージ
+  //   既存と同じ id があれば skip (上書きしない、ユーザー編集を保護)
+  //   新規 id のみ追加、save() 経由で Firestore + localStorage に反映
+  const handleImportCalendarJson = useCallback(async (file) => {
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      const importedTour = Array.isArray(data.tournaments) ? data.tournaments : [];
+      const importedPrac = Array.isArray(data.practices) ? data.practices : [];
+
+      const existingTourIds = new Set((tournaments || []).map(t => t && t.id).filter(Boolean));
+      const existingPracIds = new Set((practices || []).map(p => p && p.id).filter(Boolean));
+
+      const newTour = importedTour.filter(t => t && t.id && !existingTourIds.has(t.id));
+      const newPrac = importedPrac.filter(p => p && p.id && !existingPracIds.has(p.id));
+      const skipTour = importedTour.length - newTour.length;
+      const skipPrac = importedPrac.length - newPrac.length;
+
+      if (newTour.length === 0 && newPrac.length === 0) {
+        toast.show(`インポートする新規データなし (重複 ${skipTour + skipPrac} 件は skip)`, "info");
+        return;
+      }
+
+      if (newTour.length > 0) {
+        const merged = [...newTour, ...(tournaments || [])];
+        setTournaments(merged);
+        save(KEYS.tournaments, merged);
+      }
+      if (newPrac.length > 0) {
+        const merged = [...newPrac, ...(practices || [])];
+        setPractices(merged);
+        save(KEYS.practices, merged);
+      }
+
+      toast.show(
+        `インポート完了: 大会 +${newTour.length} / 練習 +${newPrac.length} (重複 skip ${skipTour + skipPrac} 件)`,
+        "success"
+      );
+    } catch (err) {
+      console.error("Import failed:", err);
+      toast.show(`インポート失敗: ${err?.message || err}`, "error");
+    }
+  }, [tournaments, practices, toast]);
+
   // 31-2: 既存セッションのメモを一括 AI 要約
   //   全 tournaments / practices / trials を走査、memoSummaries 未保存の field を summarizeSessionMemos で要約
   //   Cloud Functions 呼出は逐次 (rate limit 配慮)、進捗は state で UI に伝播
@@ -1470,6 +1515,7 @@ function TennisDB() {
         toast={toast}
         onBulkSummarize={handleBulkSummarize}
         bulkSummarizeProgress={bulkSummarizeProgress}
+        onImportCalendarJson={handleImportCalendarJson}
       />
       {/* S16 Phase 4-A: ストリング編集 Modal (Gear タブ Manage Masters → 行タップ / + 追加 で起動) */}
       <StringEditModal

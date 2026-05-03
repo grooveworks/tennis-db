@@ -2482,7 +2482,15 @@ const _exportAllData = (toast) => {
   }
 };
 
-function SettingsModal({ open, fontScale, onFontScaleChange, onClose, toast, onBulkSummarize, bulkSummarizeProgress }) {
+function SettingsModal({ open, fontScale, onFontScaleChange, onClose, toast, onBulkSummarize, bulkSummarizeProgress, onImportCalendarJson }) {
+  // インポート用 hidden file input ref
+  const importFileRef = useRef(null);
+  const handleImportFileChange = (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (file && onImportCalendarJson) onImportCalendarJson(file);
+    // 同じファイルを再選択できるようリセット
+    if (e.target) e.target.value = "";
+  };
   useEffect(() => {
     if (!open) return;
     const handler = (e) => { if (e.key === "Escape") onClose && onClose(); };
@@ -2628,11 +2636,41 @@ function SettingsModal({ open, fontScale, onFontScaleChange, onClose, toast, onB
               fontSize: 14, fontWeight: 600, cursor: "pointer",
               fontFamily: font,
               display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
+              marginBottom: 8,
             }}
           >
             <Icon name="download-simple" size={16} color={C.primary} />
             全データを JSON で保存
           </button>
+
+          {/* JSON インポート (Google カレンダー由来 等) */}
+          <input
+            ref={importFileRef}
+            type="file"
+            accept=".json,application/json"
+            onChange={handleImportFileChange}
+            style={{ display: "none" }}
+          />
+          <button
+            type="button"
+            onClick={() => importFileRef.current && importFileRef.current.click()}
+            disabled={!onImportCalendarJson}
+            style={{
+              width: "100%", minHeight: 44, padding: "8px 16px",
+              border: `1px solid ${C.border}`, borderRadius: 8,
+              background: C.panel, color: C.text,
+              fontSize: 14, fontWeight: 600,
+              cursor: onImportCalendarJson ? "pointer" : "not-allowed",
+              fontFamily: font,
+              display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
+            }}
+          >
+            <Icon name="calendar" size={16} color={C.textSecondary} />
+            JSON ファイルからインポート (大会・練習)
+          </button>
+          <div style={{ fontSize: 11, color: C.textMuted, marginTop: 4, lineHeight: 1.4 }}>
+            既存の id と一致するものは skip。新規のみ追加。
+          </div>
         </div>
 
         {/* 31-2: 既存データの AI 一括要約 */}
@@ -15998,6 +16036,51 @@ function TennisDB() {
     try { localStorage.setItem(LS_PREFIX + "memo-font-scale-v1", String(scale)); } catch (_) {}
   };
 
+  // Google カレンダーインポート: JSON ファイルから tournaments[] / practices[] を id ベースで dedupe マージ
+  //   既存と同じ id があれば skip (上書きしない、ユーザー編集を保護)
+  //   新規 id のみ追加、save() 経由で Firestore + localStorage に反映
+  const handleImportCalendarJson = useCallback(async (file) => {
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      const importedTour = Array.isArray(data.tournaments) ? data.tournaments : [];
+      const importedPrac = Array.isArray(data.practices) ? data.practices : [];
+
+      const existingTourIds = new Set((tournaments || []).map(t => t && t.id).filter(Boolean));
+      const existingPracIds = new Set((practices || []).map(p => p && p.id).filter(Boolean));
+
+      const newTour = importedTour.filter(t => t && t.id && !existingTourIds.has(t.id));
+      const newPrac = importedPrac.filter(p => p && p.id && !existingPracIds.has(p.id));
+      const skipTour = importedTour.length - newTour.length;
+      const skipPrac = importedPrac.length - newPrac.length;
+
+      if (newTour.length === 0 && newPrac.length === 0) {
+        toast.show(`インポートする新規データなし (重複 ${skipTour + skipPrac} 件は skip)`, "info");
+        return;
+      }
+
+      if (newTour.length > 0) {
+        const merged = [...newTour, ...(tournaments || [])];
+        setTournaments(merged);
+        save(KEYS.tournaments, merged);
+      }
+      if (newPrac.length > 0) {
+        const merged = [...newPrac, ...(practices || [])];
+        setPractices(merged);
+        save(KEYS.practices, merged);
+      }
+
+      toast.show(
+        `インポート完了: 大会 +${newTour.length} / 練習 +${newPrac.length} (重複 skip ${skipTour + skipPrac} 件)`,
+        "success"
+      );
+    } catch (err) {
+      console.error("Import failed:", err);
+      toast.show(`インポート失敗: ${err?.message || err}`, "error");
+    }
+  }, [tournaments, practices, toast]);
+
   // 31-2: 既存セッションのメモを一括 AI 要約
   //   全 tournaments / practices / trials を走査、memoSummaries 未保存の field を summarizeSessionMemos で要約
   //   Cloud Functions 呼出は逐次 (rate limit 配慮)、進捗は state で UI に伝播
@@ -17135,6 +17218,7 @@ function TennisDB() {
         toast={toast}
         onBulkSummarize={handleBulkSummarize}
         bulkSummarizeProgress={bulkSummarizeProgress}
+        onImportCalendarJson={handleImportCalendarJson}
       />
       {/* S16 Phase 4-A: ストリング編集 Modal (Gear タブ Manage Masters → 行タップ / + 追加 で起動) */}
       <StringEditModal
