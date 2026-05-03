@@ -706,7 +706,8 @@ function TennisDB() {
     if (!racketName) return;
     try {
       const filters = { type: [], racket: [racketName], opponent: [], result: [] };
-      localStorage.setItem("v4-sessions-filters", JSON.stringify(filters));
+      // H-24 (Phase A 監査): キーを LS_UI_KEYS から参照、SessionsTab.jsx と単一の真実に統一
+      localStorage.setItem(LS_UI_KEYS.sessionsFilters, JSON.stringify(filters));
     } catch (_) {}
     setTab("sessions");
   };

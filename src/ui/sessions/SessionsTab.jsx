@@ -196,13 +196,15 @@ const _buildTrialLinkedSets = (tournaments, practices, trials) => {
 const TRIAL_BADGE = { variant: "trial", icon: "badge-check", label: "試打" };
 
 // ── S7: 検索・絞り込み / S8: 表示モード ─────────────────────────────────
-const LS_SEARCH       = "v4-sessions-search";
-const LS_FILTERS      = "v4-sessions-filters";
-const LS_VIEWMODE     = "v4-sessions-viewmode";
+// H-24 (Phase A 監査): キー文字列を core/01_constants.js LS_UI_KEYS に集約。
+//   ローカル const の文字列直書きを止め、app.jsx 等の他参照と単一の真実に統一。
+const LS_SEARCH       = LS_UI_KEYS.sessionsSearch;
+const LS_FILTERS      = LS_UI_KEYS.sessionsFilters;
+const LS_VIEWMODE     = LS_UI_KEYS.sessionsViewMode;
 // S13.5 (2026-04-27): 検索欄の展開状態を localStorage に永続化。
 //   フリーワード検索は使用頻度が低いため、デフォルトは閉じた状態 (アイコンのみ表示) で
 //   メイン領域を約 60px 広げる。検索語が入っている時は強制展開で結果状態が見える。
-const LS_SEARCH_OPEN  = "v4-sessions-search-open";
+const LS_SEARCH_OPEN  = LS_UI_KEYS.sessionsSearchOpen;
 const _loadViewMode = () => {
   try {
     const v = localStorage.getItem(LS_VIEWMODE);

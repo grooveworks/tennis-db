@@ -43,3 +43,13 @@ const KEYS={
   venues:"venues",stringSetups:"stringSetups",
   quickTrialCards:"quickTrialCards",opponents:"opponents",
 };
+
+// H-24 (Phase A 監査): UI 永続化用 LS キーを集約 (旧: SessionsTab.jsx 内 const、
+//   app.jsx 内ハードコード文字列で重複定義されていた)
+//   キー文字列は既存ユーザー値の互換のため変更なし (v4-sessions-* のまま)
+const LS_UI_KEYS={
+  sessionsSearch:"v4-sessions-search",
+  sessionsFilters:"v4-sessions-filters",
+  sessionsViewMode:"v4-sessions-viewmode",
+  sessionsSearchOpen:"v4-sessions-search-open",
+};
