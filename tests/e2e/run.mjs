@@ -234,6 +234,48 @@ test("H-19: TournamentEditForm の試合行ボタンが 44×44 + gap 4", async (
   if (result.delSize !== "44×44") throw new Error(`削除ボタンサイズ: expected 44×44, got ${result.delSize}`);
 });
 
+test("リクエスト 7-f: Racket Board に並べ替えモード + ▲ swap が動作", async (page) => {
+  await page.goto(`${BASE}?dev=1&reset=1`);
+  await page.waitForSelector('[role="tab"]', { timeout: 5000 });
+  await page.locator('[role="tab"]').filter({ hasText: "機材" }).click();
+  await page.waitForTimeout(800);
+  // 並べ替えリンクを探す
+  const reorderLinkFound = await page.evaluate(() => {
+    const link = [...document.querySelectorAll('button')].find(b => b.textContent.includes('並べ替え'));
+    if (link) link.click();
+    return !!link;
+  });
+  if (!reorderLinkFound) throw new Error("並べ替えリンクが見つからない");
+  await page.waitForTimeout(400);
+  // ヒント帯と完了ボタンの確認
+  const ui = await page.evaluate(() => {
+    const hint = [...document.querySelectorAll('div')].some(d => (d.textContent || '').includes('上下ボタンで並び順'));
+    const moveUps = document.querySelectorAll('button[aria-label="上に移動"]').length;
+    const done = [...document.querySelectorAll('button')].some(b => b.textContent.trim() === '完了');
+    return { hint, moveUps, done };
+  });
+  if (!ui.hint) throw new Error("ヒント帯が見えない");
+  if (ui.moveUps < 2) throw new Error(`▲ ボタンが少ない (${ui.moveUps})`);
+  if (!ui.done) throw new Error("完了ボタンが見えない");
+  // 2 番目の ▲ クリック → 1 番目との swap が起きる
+  const swapResult = await page.evaluate(() => {
+    const before = JSON.parse(localStorage.getItem('yuke-rackets-v1') || '[]')
+      .slice(0, 2).map(r => r.name);
+    const moveUps = document.querySelectorAll('button[aria-label="上に移動"]');
+    if (moveUps[1]) moveUps[1].click();
+    return new Promise(r => setTimeout(() => {
+      const after = JSON.parse(localStorage.getItem('yuke-rackets-v1') || '[]');
+      // 並び順は order field でソート
+      const sorted = after.slice().sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
+      r({ before, afterSortedTop2: sorted.slice(0, 2).map(rk => rk.name) });
+    }, 400));
+  });
+  // swap の結果: 元の [A, B] → [B, A]
+  if (swapResult.before[0] === swapResult.afterSortedTop2[0]) {
+    throw new Error(`swap が反映されていない: before=${swapResult.before}, after=${swapResult.afterSortedTop2}`);
+  }
+});
+
 test("Home タブの主力ラケットが fixture data から計算される", async (page) => {
   await page.goto(`${BASE}?dev=1`);
   await page.waitForSelector('[role="tab"]', { timeout: 5000 });

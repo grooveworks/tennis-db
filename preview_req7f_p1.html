@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="ja"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=375, initial-scale=1">
+<title>リクエスト 7-f: ラケット並び替え機能</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.0.3/src/regular/style.css">
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", sans-serif; background: #f2f2f7; color: #202124; margin: 0; padding: 16px; max-width: 375px; margin: 0 auto; }
+  h1 { font-size: 16px; margin: 0 0 4px; }
+  .sub { font-size: 12px; color: #5f6368; margin-bottom: 12px; line-height: 1.5; }
+  .label { font-size: 11px; font-weight: 700; color: #80868b; letter-spacing: 0.04em; text-transform: uppercase; margin: 18px 0 6px; }
+  .desc { font-size: 11px; color: #5f6368; margin-bottom: 8px; line-height: 1.5; }
+
+  /* Card panel */
+  .panel { background: #fff; border: 1px solid #e8eaed; border-radius: 20px; padding: 14px 16px 16px; margin-bottom: 12px; }
+  .panel-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; gap: 8px; flex-wrap: wrap; }
+  .panel-title { font-size: 13px; font-weight: 700; color: #202124; display: inline-flex; align-items: center; gap: 6px; }
+  .panel-title i { color: #5f6368; font-size: 16px; }
+  .actions { display: inline-flex; gap: 10px; align-items: center; }
+  .link-btn { background: transparent; border: none; padding: 0; font-size: 11px; font-weight: 500; cursor: pointer; }
+  .link-btn.muted { color: #80868b; }
+  .link-btn.primary { color: #007AFF; font-weight: 600; display: inline-flex; align-items: center; gap: 3px; }
+  .link-btn.primary i { font-size: 13px; }
+
+  /* Hint bar (reorder mode) */
+  .hint-bar {
+    background: rgba(0, 122, 255, 0.06); border: 1px solid rgba(0, 122, 255, 0.18);
+    border-radius: 8px; padding: 8px 12px; font-size: 11px; color: #007AFF;
+    margin-bottom: 10px; display: flex; align-items: center; gap: 6px;
+  }
+  .hint-bar i { font-size: 14px; }
+  .done-btn {
+    background: #007AFF; border: none; color: #fff; padding: 6px 14px;
+    border-radius: 16px; font-size: 11px; font-weight: 600; cursor: pointer;
+  }
+
+  /* Status filter chips */
+  .filter-chips { display: flex; gap: 6px; margin-bottom: 10px; overflow-x: auto; }
+  .filter-chips button { background: transparent; border: 1px solid #dadce0; padding: 5px 10px; border-radius: 14px; font-size: 11px; color: #5f6368; cursor: pointer; flex-shrink: 0; }
+  .filter-chips button.active { background: #007AFF; color: #fff; border-color: #007AFF; }
+
+  /* Racket row */
+  .racket-row {
+    background: #fff; border: 1px solid #e8eaed; border-radius: 14px;
+    padding: 12px 14px; margin-bottom: 8px;
+    display: grid; gap: 8px; align-items: center;
+  }
+  .racket-row.normal { grid-template-columns: 1fr auto; cursor: pointer; }
+  .racket-row.reorder { grid-template-columns: 1fr auto auto; background: #f8f9fb; cursor: default; }
+  .racket-row.candidate { border-left: 4px solid #9334e0; }
+  .racket-row.active { border-left: 4px solid #0f9d58; }
+  .racket-row.sub { border-left: 4px solid #007AFF; }
+  .racket-row.retired { border-left: 4px solid #80868b; opacity: 0.65; }
+
+  .racket-name { font-size: 14px; font-weight: 700; color: #202124; margin-bottom: 3px; display: flex; align-items: center; gap: 6px; }
+  .status-chip { font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 6px; }
+  .status-chip.active { background: rgba(15,157,88,0.14); color: #0a5b35; }
+  .status-chip.sub { background: rgba(0,122,255,0.14); color: #0050b3; }
+  .status-chip.candidate { background: rgba(147,52,224,0.14); color: #6a23a3; }
+  .status-chip.retired { background: rgba(128,134,139,0.14); color: #5f6368; }
+  .racket-meta { font-size: 11px; color: #5f6368; line-height: 1.4; }
+  .next-check { font-size: 11px; font-weight: 600; color: #007AFF; margin-top: 5px; display: inline-flex; align-items: center; gap: 4px; }
+  .next-check i { font-size: 13px; }
+
+  /* Reorder controls (▲▼) */
+  .reorder-ctrl { display: flex; flex-direction: column; gap: 0; flex-shrink: 0; }
+  .reorder-ctrl button {
+    width: 32px; height: 22px; padding: 0;
+    background: #fff; border: 1px solid #dadce0;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    color: #5f6368; font-size: 12px;
+  }
+  .reorder-ctrl button:disabled { opacity: 0.3; cursor: not-allowed; }
+  .reorder-ctrl button:first-child { border-radius: 6px 6px 0 0; border-bottom: none; }
+  .reorder-ctrl button:last-child { border-radius: 0 0 6px 6px; }
+  .caret-right { color: #80868b; font-size: 18px; }
+</style>
+</head>
+<body>
+
+<h1>リクエスト 7-f: ラケット並び替え機能</h1>
+<p class="sub">
+  Strings (ストリング在庫) と同じ並び替えパターンを Racket Board に追加。<br>
+  既存の H-22 修正 (order swap) と統一実装。
+</p>
+
+<div class="label">A 現状 (Before): 並び替え不可</div>
+<div class="desc">ラケット一覧は「ラケット名」を編集する以外、並び順を変えられない</div>
+<div class="panel">
+  <div class="panel-head">
+    <div class="panel-title"><i class="ph ph-list-bullets"></i>ラケット一覧</div>
+    <div class="actions">
+      <button class="link-btn primary"><i class="ph ph-plus"></i>追加</button>
+    </div>
+  </div>
+  <div class="filter-chips">
+    <button class="active">全て</button>
+    <button>主力</button>
+    <button>サブ</button>
+    <button>候補</button>
+    <button>引退</button>
+  </div>
+  <div class="racket-row normal active">
+    <div>
+      <div class="racket-name">YONEX EZONE 100 TOUR <span class="status-chip active">主力</span></div>
+      <div class="racket-meta">Hyper-G 1.25 / 50p</div>
+    </div>
+    <i class="ph ph-caret-right caret-right"></i>
+  </div>
+  <div class="racket-row normal candidate">
+    <div>
+      <div class="racket-name">HEAD Boom Pro 2026 <span class="status-chip candidate">候補</span></div>
+      <div class="racket-meta">Phantom Spin 17 / 47p</div>
+      <div class="next-check"><i class="ph ph-target"></i>次: 5/8 練習で実打</div>
+    </div>
+    <i class="ph ph-caret-right caret-right"></i>
+  </div>
+  <div class="racket-row normal sub">
+    <div>
+      <div class="racket-name">YONEX EZONE 98 <span class="status-chip sub">サブ</span></div>
+      <div class="racket-meta">Black Out / 48p</div>
+    </div>
+    <i class="ph ph-caret-right caret-right"></i>
+  </div>
+</div>
+
+<div class="label">B 提案 (After): 並び替えモード追加</div>
+<div class="desc">「並び替え」リンクで reorder mode 起動 → ▲▼ ボタンで順序変更 → 「完了」で抜ける</div>
+<div class="panel">
+  <div class="panel-head">
+    <div class="panel-title"><i class="ph ph-list-bullets"></i>ラケット一覧</div>
+    <div class="actions">
+      <button class="link-btn muted">並び替え</button>
+      <button class="link-btn primary"><i class="ph ph-plus"></i>追加</button>
+    </div>
+  </div>
+  <div class="filter-chips">
+    <button class="active">全て</button>
+    <button>主力</button>
+    <button>サブ</button>
+    <button>候補</button>
+    <button>引退</button>
+  </div>
+  <div class="racket-row normal active">
+    <div>
+      <div class="racket-name">YONEX EZONE 100 TOUR <span class="status-chip active">主力</span></div>
+      <div class="racket-meta">Hyper-G 1.25 / 50p</div>
+    </div>
+    <i class="ph ph-caret-right caret-right"></i>
+  </div>
+  <div class="racket-row normal candidate">
+    <div>
+      <div class="racket-name">HEAD Boom Pro 2026 <span class="status-chip candidate">候補</span></div>
+      <div class="racket-meta">Phantom Spin 17 / 47p</div>
+    </div>
+    <i class="ph ph-caret-right caret-right"></i>
+  </div>
+  <div class="racket-row normal sub">
+    <div>
+      <div class="racket-name">YONEX EZONE 98 <span class="status-chip sub">サブ</span></div>
+      <div class="racket-meta">Black Out / 48p</div>
+    </div>
+    <i class="ph ph-caret-right caret-right"></i>
+  </div>
+</div>
+
+<div class="label">B-2 並び替えモード ON 状態</div>
+<div class="desc">▲▼ ボタンで順序変更、ヒント帯で操作説明、「完了」で normal モードへ戻る</div>
+<div class="panel">
+  <div class="panel-head">
+    <div class="panel-title"><i class="ph ph-list-bullets"></i>ラケット一覧</div>
+    <div class="actions">
+      <button class="done-btn">完了</button>
+    </div>
+  </div>
+  <div class="hint-bar">
+    <i class="ph ph-info"></i>上下ボタンで並び順を変えます (status 内のみで並び順保持)
+  </div>
+  <div class="racket-row reorder active">
+    <div>
+      <div class="racket-name">YONEX EZONE 100 TOUR <span class="status-chip active">主力</span></div>
+      <div class="racket-meta">Hyper-G 1.25 / 50p</div>
+    </div>
+    <div class="reorder-ctrl">
+      <button disabled aria-label="上に移動">▲</button>
+      <button aria-label="下に移動">▼</button>
+    </div>
+  </div>
+  <div class="racket-row reorder candidate">
+    <div>
+      <div class="racket-name">HEAD Boom Pro 2026 <span class="status-chip candidate">候補</span></div>
+      <div class="racket-meta">Phantom Spin 17 / 47p</div>
+    </div>
+    <div class="reorder-ctrl">
+      <button aria-label="上に移動">▲</button>
+      <button aria-label="下に移動">▼</button>
+    </div>
+  </div>
+  <div class="racket-row reorder sub">
+    <div>
+      <div class="racket-name">YONEX EZONE 98 <span class="status-chip sub">サブ</span></div>
+      <div class="racket-meta">Black Out / 48p</div>
+    </div>
+    <div class="reorder-ctrl">
+      <button aria-label="上に移動">▲</button>
+      <button disabled aria-label="下に移動">▼</button>
+    </div>
+  </div>
+</div>
+
+<div class="label">仕様</div>
+<div class="desc" style="line-height: 1.7;">
+  <b>UI 動作</b>:<br>
+  • 「並び替え」リンク → reorderMode=true → ▲▼ 表示、ヒント帯表示、「完了」ボタン<br>
+  • ▲▼ で順序変更 → 即時反映 (Strings と同じ visible[i] と visible[i±1] の order swap)<br>
+  • 「完了」で reorderMode=false → 元の caret-right 表示に戻る<br>
+  • 並び替え中は status filter (主力/サブ/候補/引退) は維持 (ただし内部ロジックは status priority → order の二段ソート)<br>
+  • 「並び替え」リンクは追加ボタンの左側、Strings と並び順位置を揃える<br><br>
+  <b>影響範囲</b>:<br>
+  • <code>src/ui/gear/GearTab.jsx</code> Racket Board セクション (行 370-414 あたり) のみ変更<br>
+  • <code>src/ui/gear/StringsSection.jsx</code> から <code>ReorderToggleLink</code>, <code>ReorderDoneButton</code>, <code>ReorderHintBar</code>, <code>swapWithVisible</code> パターンを再利用 (新規 helper 不要)<br>
+  • <code>app.jsx</code> persistRackets は既存のまま、引数 newList でそのまま動く<br>
+  • 機能・データ層変更なし、純粋に UI 追加
+</div>
+</body></html>

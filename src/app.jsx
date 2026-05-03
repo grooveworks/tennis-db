@@ -1214,6 +1214,7 @@ function TennisDB() {
         onStringAdd={handleStringAdd}
         onRacketRowClick={handleRacketRowClick}
         onRacketAdd={handleRacketAdd}
+        onRacketsReorder={persistRackets}
         onCardClick={handleCardClick}
         toast={toast}
       />

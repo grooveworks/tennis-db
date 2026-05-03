@@ -161,22 +161,23 @@ function _StatusSegment({ rackets, current, onChange }) {
 }
 
 // RacketRow (中行カード、border-left status 色)
-function _RacketRow({ racket, onClick }) {
+// リクエスト 7-f: reorderMode=true 時は ▲▼ コントロールを表示
+function _RacketRow({ racket, onClick, reorderMode, onMoveUp, onMoveDown, isFirst, isLast }) {
   const status = racket.status || "candidate";
   const isMuted = status === "retired";
   const showNextCheck = (status === "candidate" || status === "considering") && (racket.nextCheck || "").trim();
 
   return (
     <div
-      onClick={onClick}
+      onClick={reorderMode ? undefined : onClick}
       style={{
-        background: C.panel,
+        background: reorderMode ? C.panel2 : C.panel,
         border: `1px solid ${C.border}`,
         borderLeft: `4px solid ${_RACKET_STATUS_BORDER[status]}`,
         borderRadius: RADIUS.row,
         padding: "12px 14px",
         marginBottom: 8,
-        cursor: "pointer",
+        cursor: reorderMode ? "default" : "pointer",
         display: "grid",
         gridTemplateColumns: "1fr auto",
         gap: 8,
@@ -202,7 +203,7 @@ function _RacketRow({ racket, onClick }) {
         <div style={{ fontSize: 11, color: C.textSecondary, lineHeight: 1.4 }}>
           {[racket.currentString, racket.currentTension].filter(Boolean).join(" / ") || (racket.role || "")}
         </div>
-        {showNextCheck && (
+        {showNextCheck && !reorderMode && (
           <div style={{
             fontSize: 11, fontWeight: 600, color: C.primary,
             marginTop: 5, display: "inline-flex", alignItems: "center", gap: 4,
@@ -213,7 +214,46 @@ function _RacketRow({ racket, onClick }) {
           </div>
         )}
       </div>
-      <Icon name="caret-right" size={18} color={C.textMuted} />
+      {reorderMode ? (
+        <div style={{ display: "inline-flex", flexDirection: "column", gap: 2 }}>
+          <button
+            type="button"
+            disabled={isFirst}
+            onClick={(e) => { e.stopPropagation(); if (!isFirst) onMoveUp && onMoveUp(); }}
+            aria-label="上に移動"
+            title={isFirst ? "一番上" : "上に移動"}
+            style={{
+              width: 32, height: 22,
+              display: "inline-flex", alignItems: "center", justifyContent: "center",
+              background: isFirst ? C.panel2 : C.panel,
+              border: `1px solid ${C.border}`, borderRadius: 6,
+              color: isFirst ? C.appleGray4 : C.primary,
+              cursor: isFirst ? "not-allowed" : "pointer", padding: 0,
+            }}
+          >
+            <Icon name="caret-up" size={14} />
+          </button>
+          <button
+            type="button"
+            disabled={isLast}
+            onClick={(e) => { e.stopPropagation(); if (!isLast) onMoveDown && onMoveDown(); }}
+            aria-label="下に移動"
+            title={isLast ? "一番下" : "下に移動"}
+            style={{
+              width: 32, height: 22,
+              display: "inline-flex", alignItems: "center", justifyContent: "center",
+              background: isLast ? C.panel2 : C.panel,
+              border: `1px solid ${C.border}`, borderRadius: 6,
+              color: isLast ? C.appleGray4 : C.primary,
+              cursor: isLast ? "not-allowed" : "pointer", padding: 0,
+            }}
+          >
+            <Icon name="caret-down" size={14} />
+          </button>
+        </div>
+      ) : (
+        <Icon name="caret-right" size={18} color={C.textMuted} />
+      )}
     </div>
   );
 }
@@ -322,11 +362,14 @@ function _isGearRelatedNext(item, rackets, strings) {
 function GearTab({
   rackets, strings, stringSetups, trials, tournaments, practices, next,
   onStringsUpdate, onStringEdit, onStringAdd,
-  onRacketRowClick, onRacketAdd,
+  onRacketRowClick, onRacketAdd, onRacketsReorder,
   onCardClick,
   toast,
 }) {
   const [statusFilter, setStatusFilter] = useState("all");
+  // リクエスト 7-f (Phase B): Racket Board の並び替えモード
+  //   Strings と同じパターン (reorder.jsx の helpers + H-22 の order swap pattern)
+  const [racketReorderMode, setRacketReorderMode] = useState(false);
 
   // S16.9 perf: 重い計算 (全 session 走査) を useMemo でキャッシュ。
   //   依存変数が変わった時だけ再計算、毎レンダーでの再走査を防ぐ。
@@ -383,19 +426,35 @@ function GearTab({
             <Icon name="list-bullets" size={16} color={C.textSecondary} />
             ラケット一覧
           </div>
-          <button
-            type="button"
-            onClick={onRacketAdd}
-            style={{
-              background: "transparent", border: "none", padding: 0,
-              color: C.primary, fontSize: 11, fontWeight: 600,
-              cursor: "pointer",
-              display: "inline-flex", alignItems: "center", gap: 3,
-            }}
-          >
-            <Icon name="plus" size={13} /> 追加
-          </button>
+          <div style={{ display: "inline-flex", gap: 10, alignItems: "center" }}>
+            {!racketReorderMode && (
+              <>
+                {/* リクエスト 7-f: 「並び替え」リンク (Strings と同位置・同パターン) */}
+                <ReorderToggleLink onClick={() => setRacketReorderMode(true)} />
+                <button
+                  type="button"
+                  onClick={onRacketAdd}
+                  style={{
+                    background: "transparent", border: "none", padding: 0,
+                    color: C.primary, fontSize: 11, fontWeight: 600,
+                    cursor: "pointer",
+                    display: "inline-flex", alignItems: "center", gap: 3,
+                  }}
+                >
+                  <Icon name="plus" size={13} /> 追加
+                </button>
+              </>
+            )}
+            {racketReorderMode && (
+              <ReorderDoneButton onClick={() => setRacketReorderMode(false)} />
+            )}
+          </div>
         </div>
+        {racketReorderMode && (
+          <ReorderHintBar>
+            上下ボタンで並び順を変えます (status 内のみで並び順保持)
+          </ReorderHintBar>
+        )}
         <_StatusSegment rackets={rackets} current={statusFilter} onChange={setStatusFilter} />
         {filteredRackets.length === 0 ? (
           <div style={{
@@ -407,9 +466,31 @@ function GearTab({
               : `「${_RACKET_STATUS_OPTIONS_FILTER.find(o => o.key === statusFilter)?.label || statusFilter}」 のラケットはありません`}
           </div>
         ) : (
-          filteredRackets.map(r => (
-            <_RacketRow key={r.id} racket={r} onClick={() => onRacketRowClick(r)} />
-          ))
+          filteredRackets.map((r, i) => {
+            // リクエスト 7-f: H-22 と同じ order swap パターン (visible[i] と visible[i±1] の order 値交換)
+            const swapWithVisible = (otherIdx) => {
+              const other = filteredRackets[otherIdx];
+              if (!other || r.id === other.id) return;
+              const newList = (rackets || []).map(x => {
+                if (x.id === r.id) return { ...x, order: other.order };
+                if (x.id === other.id) return { ...x, order: r.order };
+                return x;
+              });
+              if (onRacketsReorder) onRacketsReorder(newList);
+            };
+            return (
+              <_RacketRow
+                key={r.id}
+                racket={r}
+                onClick={racketReorderMode ? null : () => onRacketRowClick(r)}
+                reorderMode={racketReorderMode}
+                onMoveUp={() => { if (i > 0) swapWithVisible(i - 1); }}
+                onMoveDown={() => { if (i < filteredRackets.length - 1) swapWithVisible(i + 1); }}
+                isFirst={i === 0}
+                isLast={i === filteredRackets.length - 1}
+              />
+            );
+          })
         )}
       </div>
 
