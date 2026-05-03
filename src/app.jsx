@@ -333,13 +333,21 @@ function TennisDB() {
     try { localStorage.setItem(LS_PREFIX + "memo-font-scale-v1", String(scale)); } catch (_) {}
   };
 
-  // Google カレンダーインポート: JSON ファイルから tournaments[] / practices[] を id ベースで dedupe マージ
+  // Google カレンダーインポート: JSON から tournaments[] / practices[] を id ベースで dedupe マージ
   //   既存と同じ id があれば skip (上書きしない、ユーザー編集を保護)
   //   新規 id のみ追加、save() 経由で Firestore + localStorage に反映
+  // 入力は (a) File オブジェクト or (b) なし → アプリ同一ドメインの calendar_import.json を fetch
   const handleImportCalendarJson = useCallback(async (file) => {
-    if (!file) return;
     try {
-      const text = await file.text();
+      let text;
+      if (file) {
+        text = await file.text();
+      } else {
+        // ファイル選択なし → 標準パスから fetch (Google カレンダーから生成された最新の JSON)
+        const res = await fetch("./calendar_import.json", { cache: "no-store" });
+        if (!res.ok) throw new Error(`calendar_import.json 読み込み失敗 (HTTP ${res.status})`);
+        text = await res.text();
+      }
       const data = JSON.parse(text);
       const importedTour = Array.isArray(data.tournaments) ? data.tournaments : [];
       const importedPrac = Array.isArray(data.practices) ? data.practices : [];

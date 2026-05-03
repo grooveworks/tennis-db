@@ -224,17 +224,10 @@ function SettingsModal({ open, fontScale, onFontScaleChange, onClose, toast, onB
             全データを JSON で保存
           </button>
 
-          {/* JSON インポート (Google カレンダー由来 等) */}
-          <input
-            ref={importFileRef}
-            type="file"
-            accept=".json,application/json"
-            onChange={handleImportFileChange}
-            style={{ display: "none" }}
-          />
+          {/* Google カレンダー予定の取り込み (1 ボタン、ファイル選択不要) */}
           <button
             type="button"
-            onClick={() => importFileRef.current && importFileRef.current.click()}
+            onClick={() => onImportCalendarJson && onImportCalendarJson(null)}
             disabled={!onImportCalendarJson}
             style={{
               width: "100%", minHeight: 44, padding: "8px 16px",
@@ -247,11 +240,33 @@ function SettingsModal({ open, fontScale, onFontScaleChange, onClose, toast, onB
             }}
           >
             <Icon name="calendar" size={16} color={C.textSecondary} />
-            JSON ファイルからインポート (大会・練習)
+            Google カレンダー予定を取り込む
           </button>
           <div style={{ fontSize: 11, color: C.textMuted, marginTop: 4, lineHeight: 1.4 }}>
-            既存の id と一致するものは skip。新規のみ追加。
+            アプリ同梱の最新 JSON から大会・練習を追加 (既存 id は skip)。
           </div>
+          {/* ファイル選択経由のインポート (任意の JSON ファイル用、上級者向け) */}
+          <input
+            ref={importFileRef}
+            type="file"
+            accept=".json,application/json"
+            onChange={handleImportFileChange}
+            style={{ display: "none" }}
+          />
+          <button
+            type="button"
+            onClick={() => importFileRef.current && importFileRef.current.click()}
+            disabled={!onImportCalendarJson}
+            style={{
+              width: "100%", minHeight: 36, padding: "6px 16px", marginTop: 6,
+              background: "transparent", border: "none",
+              color: C.textMuted, fontSize: 11,
+              cursor: onImportCalendarJson ? "pointer" : "not-allowed",
+              fontFamily: font,
+            }}
+          >
+            (任意の JSON ファイルから取り込む)
+          </button>
         </div>
 
         {/* 31-2: 既存データの AI 一括要約 */}
