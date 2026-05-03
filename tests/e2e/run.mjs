@@ -158,6 +158,28 @@ test("H-9: _normalizeMatchResult で表記揺れを吸収", async (page) => {
   }
 });
 
+test("H-6: claudeFormatter の曜日が TZ 非依存 (手動 parse 経由)", async (page) => {
+  await page.goto(`${BASE}?dev=1`);
+  await page.waitForSelector('[role="tab"]', { timeout: 5000 });
+  // 既知の日付 → 曜日マッピング
+  const result = await page.evaluate(() => {
+    const cases = [
+      { date: "2026-04-05", expectWd: "日" },
+      { date: "2026-04-06", expectWd: "月" },
+      { date: "2026-04-12", expectWd: "日" },
+      { date: "2026-05-03", expectWd: "日" },
+    ];
+    return cases.map(c => {
+      const formatted = _fmtDateFull(c.date);
+      const wdMatch = formatted.match(/\((.)\)/);
+      return { date: c.date, expectWd: c.expectWd, actualWd: wdMatch ? wdMatch[1] : null, formatted };
+    });
+  });
+  for (const c of result) {
+    if (c.actualWd !== c.expectWd) throw new Error(`${c.date} 曜日: expected ${c.expectWd}, got ${c.actualWd} (formatted: ${c.formatted})`);
+  }
+});
+
 test("Home タブの主力ラケットが fixture data から計算される", async (page) => {
   await page.goto(`${BASE}?dev=1`);
   await page.waitForSelector('[role="tab"]', { timeout: 5000 });

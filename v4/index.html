@@ -725,10 +725,16 @@ function describeCascadeMessage(type, count) {
 // 入出力は string。呼び出し側が copyToClipboard に渡す。
 // v3 の formatXxxForClaude (v3/index.html:447-493) を v4 schema (stringMain/stringCross/tensionMain/tensionCross) に合わせて再実装
 
+// H-6 (Phase A 監査): TZ 依存を排除して曜日計算を安定化。
+//   旧: `new Date(iso + "T00:00:00")` はローカル TZ 解釈、海外移動時に曜日が 1 日ずれる
+//   新: ISO 文字列を手動 parse して new Date(y, m-1, d) で「ローカル TZ の 0:00」を明示
+//       (どの TZ でも「YYYY-MM-DD」が指す日付の曜日が一意に決まる)
 const _fmtDateFull = (d) => {
   if (!d) return "";
   const iso = normDate(d);
-  const dt = new Date(iso + "T00:00:00");
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || "");
+  if (!m) return iso;
+  const dt = new Date(parseInt(m[1], 10), parseInt(m[2], 10) - 1, parseInt(m[3], 10));
   if (isNaN(dt.getTime())) return iso;
   const wd = ["日", "月", "火", "水", "木", "金", "土"][dt.getDay()];
   return `${iso} (${wd})`;
