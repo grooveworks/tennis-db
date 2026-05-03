@@ -63,7 +63,7 @@ const _exportAllData = (toast) => {
   }
 };
 
-function SettingsModal({ open, fontScale, onFontScaleChange, onClose, toast }) {
+function SettingsModal({ open, fontScale, onFontScaleChange, onClose, toast, onBulkSummarize, bulkSummarizeProgress }) {
   useEffect(() => {
     if (!open) return;
     const handler = (e) => { if (e.key === "Escape") onClose && onClose(); };
@@ -74,6 +74,7 @@ function SettingsModal({ open, fontScale, onFontScaleChange, onClose, toast }) {
   if (!open) return null;
 
   const scale = typeof fontScale === "number" ? fontScale : 1.0;
+  const bulkRunning = bulkSummarizeProgress && bulkSummarizeProgress.running;
 
   return (
     <div
@@ -213,6 +214,46 @@ function SettingsModal({ open, fontScale, onFontScaleChange, onClose, toast }) {
             <Icon name="download-simple" size={16} color={C.primary} />
             全データを JSON で保存
           </button>
+        </div>
+
+        {/* 31-2: 既存データの AI 一括要約 */}
+        <div style={{ marginBottom: 22 }}>
+          <div style={{
+            fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 4,
+          }}>
+            メモ AI 要約 (一括処理)
+          </div>
+          <div style={{
+            fontSize: 11, color: C.textMuted, marginBottom: 10, lineHeight: 1.5,
+          }}>
+            既存の練習・試合・試打のメモ (60 文字以上) を AI で一括要約。
+            未要約のものだけが対象、既要約はスキップ。回線とコストに注意。
+          </div>
+          <button
+            type="button"
+            onClick={() => onBulkSummarize && onBulkSummarize()}
+            disabled={bulkRunning || !onBulkSummarize}
+            style={{
+              width: "100%", minHeight: 44, padding: "8px 16px",
+              border: `1px solid ${bulkRunning ? C.border : C.primary}`, borderRadius: 8,
+              background: bulkRunning ? C.panel2 : C.panel,
+              color: bulkRunning ? C.textMuted : C.primary,
+              fontSize: 14, fontWeight: 600,
+              cursor: bulkRunning ? "not-allowed" : "pointer",
+              fontFamily: font,
+              display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
+            }}
+          >
+            <Icon name="brain" size={16} color={bulkRunning ? C.textMuted : C.primary} />
+            {bulkRunning
+              ? `処理中… ${bulkSummarizeProgress.done}/${bulkSummarizeProgress.total}`
+              : "未要約のメモを AI で一括要約"}
+          </button>
+          {bulkRunning && bulkSummarizeProgress.lastLabel && (
+            <div style={{ fontSize: 11, color: C.textSecondary, marginTop: 6, textAlign: "center" }}>
+              {bulkSummarizeProgress.lastLabel}
+            </div>
+          )}
         </div>
 
         {/* バージョン情報 */}

@@ -333,6 +333,123 @@ function TennisDB() {
     try { localStorage.setItem(LS_PREFIX + "memo-font-scale-v1", String(scale)); } catch (_) {}
   };
 
+  // 31-2: 既存セッションのメモを一括 AI 要約
+  //   全 tournaments / practices / trials を走査、memoSummaries 未保存の field を summarizeSessionMemos で要約
+  //   Cloud Functions 呼出は逐次 (rate limit 配慮)、進捗は state で UI に伝播
+  const [bulkSummarizeProgress, setBulkSummarizeProgress] = useState({ running: false, done: 0, total: 0, lastLabel: "" });
+  const handleBulkSummarize = useCallback(async () => {
+    // 対象アイテムを集める (memoSummaries に未登録の field がある & memo > 60 文字 の組み合わせ)
+    const _hasUnsummarizedMemo = (item, fields) => {
+      if (!item) return false;
+      const sums = item.memoSummaries || {};
+      for (const f of fields) {
+        const v = item[f];
+        if (typeof v === "string" && v.trim().length >= 60 && !(sums[f] && sums[f].trim())) return true;
+      }
+      return false;
+    };
+    const tournamentFields = ["generalNote"];
+    const matchFields = ["mentalNote", "techNote", "opponentNote", "note"];
+    const practiceFields = ["generalNote", "focus", "coachNote", "goodNote", "improveNote"];
+    const trialFields = ["generalNote", "strokeNote", "serveNote", "volleyNote"];
+
+    const targets = [];
+    (tournaments || []).forEach(t => {
+      if (_hasUnsummarizedMemo(t, tournamentFields)) targets.push({ type: "tournament", id: t.id, label: `大会: ${t.name || t.date}` });
+      (t.matches || []).forEach(m => {
+        if (_hasUnsummarizedMemo(m, matchFields)) targets.push({ type: "match", parentId: t.id, matchId: m.id, label: `試合: ${m.opponent || m.round || ""}` });
+      });
+    });
+    (practices || []).forEach(p => {
+      if (_hasUnsummarizedMemo(p, practiceFields)) targets.push({ type: "practice", id: p.id, label: `練習: ${p.title || p.date}` });
+    });
+    (trials || []).forEach(tr => {
+      if (_hasUnsummarizedMemo(tr, trialFields)) targets.push({ type: "trial", id: tr.id, label: `試打: ${tr.racketName || tr.date}` });
+    });
+
+    if (targets.length === 0) {
+      toast.show("AI 要約対象のメモはありません (全て要約済 or 60 文字未満)", "info");
+      return;
+    }
+
+    setBulkSummarizeProgress({ running: true, done: 0, total: targets.length, lastLabel: "開始..." });
+
+    let updatedTournaments = [...(tournaments || [])];
+    let updatedPractices = [...(practices || [])];
+    let updatedTrials = [...(trials || [])];
+    let successCount = 0, failCount = 0;
+
+    for (let i = 0; i < targets.length; i++) {
+      const tgt = targets[i];
+      setBulkSummarizeProgress({ running: true, done: i, total: targets.length, lastLabel: tgt.label });
+      try {
+        if (tgt.type === "tournament") {
+          const item = updatedTournaments.find(x => x.id === tgt.id);
+          if (!item) continue;
+          const sums = await summarizeSessionMemos("tournament", item);
+          if (sums && Object.keys(sums).length > 0) {
+            const merged = { ...item, memoSummaries: { ...(item.memoSummaries || {}), ...sums } };
+            updatedTournaments = updatedTournaments.map(x => x.id === tgt.id ? merged : x);
+            successCount++;
+          }
+        } else if (tgt.type === "match") {
+          const parent = updatedTournaments.find(x => x.id === tgt.parentId);
+          if (!parent) continue;
+          const m = (parent.matches || []).find(x => x.id === tgt.matchId);
+          if (!m) continue;
+          const sums = await summarizeSessionMemos("match", m);
+          if (sums && Object.keys(sums).length > 0) {
+            const newMatches = (parent.matches || []).map(x => x.id === tgt.matchId
+              ? { ...x, memoSummaries: { ...(x.memoSummaries || {}), ...sums } } : x);
+            const newParent = { ...parent, matches: newMatches };
+            updatedTournaments = updatedTournaments.map(x => x.id === tgt.parentId ? newParent : x);
+            successCount++;
+          }
+        } else if (tgt.type === "practice") {
+          const item = updatedPractices.find(x => x.id === tgt.id);
+          if (!item) continue;
+          const sums = await summarizeSessionMemos("practice", item);
+          if (sums && Object.keys(sums).length > 0) {
+            const merged = { ...item, memoSummaries: { ...(item.memoSummaries || {}), ...sums } };
+            updatedPractices = updatedPractices.map(x => x.id === tgt.id ? merged : x);
+            successCount++;
+          }
+        } else if (tgt.type === "trial") {
+          const item = updatedTrials.find(x => x.id === tgt.id);
+          if (!item) continue;
+          const sums = await summarizeSessionMemos("trial", item);
+          if (sums && Object.keys(sums).length > 0) {
+            const merged = { ...item, memoSummaries: { ...(item.memoSummaries || {}), ...sums } };
+            updatedTrials = updatedTrials.map(x => x.id === tgt.id ? merged : x);
+            successCount++;
+          }
+        }
+      } catch (err) {
+        console.error("Bulk summarize error:", tgt, err);
+        failCount++;
+      }
+    }
+
+    setBulkSummarizeProgress({ running: true, done: targets.length, total: targets.length, lastLabel: "保存中..." });
+
+    // 全件処理後に state + Firestore に保存
+    if (updatedTournaments !== tournaments) {
+      setTournaments(updatedTournaments);
+      save(KEYS.tournaments, updatedTournaments);
+    }
+    if (updatedPractices !== practices) {
+      setPractices(updatedPractices);
+      save(KEYS.practices, updatedPractices);
+    }
+    if (updatedTrials !== trials) {
+      setTrials(updatedTrials);
+      save(KEYS.trials, updatedTrials);
+    }
+
+    setBulkSummarizeProgress({ running: false, done: 0, total: 0, lastLabel: "" });
+    toast.show(`AI 要約完了: 成功 ${successCount} 件 / 失敗 ${failCount} 件`, failCount > 0 ? "warning" : "success");
+  }, [tournaments, practices, trials, toast]);
+
   // 認証状態監視 + リアルタイム同期
   useEffect(() => {
     // Dev モード分岐: Firestore / Auth に一切繋がず、fixture をローカル展開して即起動
@@ -1351,6 +1468,8 @@ function TennisDB() {
         onFontScaleChange={handleFontScaleChange}
         onClose={handleSettingsClose}
         toast={toast}
+        onBulkSummarize={handleBulkSummarize}
+        bulkSummarizeProgress={bulkSummarizeProgress}
       />
       {/* S16 Phase 4-A: ストリング編集 Modal (Gear タブ Manage Masters → 行タップ / + 追加 で起動) */}
       <StringEditModal
