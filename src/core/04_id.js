@@ -21,11 +21,12 @@ const normDate=d=>{
 };
 
 // 短縮表示: "4/5"
+// Round 5 Batch E: parseInt の radix を明示して 8 進数誤解釈を防ぐ (現代ブラウザでも明示推奨)
 const fmtDate=d=>{
   const nd=normDate(d);
   if(!nd)return"";
   const m=nd.match(/(\d{4})-(\d{2})-(\d{2})/);
-  return m?`${parseInt(m[2])}/${parseInt(m[3])}`:"";
+  return m?`${parseInt(m[2],10)}/${parseInt(m[3],10)}`:"";
 };
 
 // 完全表示: "2026/4/5"
@@ -33,7 +34,7 @@ const fmtDateFull=d=>{
   const nd=normDate(d);
   if(!nd)return"";
   const m=nd.match(/(\d{4})-(\d{2})-(\d{2})/);
-  return m?`${m[1]}/${parseInt(m[2])}/${parseInt(m[3])}`:"";
+  return m?`${m[1]}/${parseInt(m[2],10)}/${parseInt(m[3],10)}`:"";
 };
 
 // 日付降順ソート（配列の date フィールドを使用）

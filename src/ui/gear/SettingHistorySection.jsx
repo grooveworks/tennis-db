@@ -3,7 +3,11 @@
 // 行タップで Period Detail (slide-in) が開く
 
 function SettingHistorySection({ racket, tournaments, practices, trials, onPeriodClick }) {
-  const history = computeSettingHistory(racket?.name, tournaments, practices, trials);
+  // Round 5 Batch A: 重い集計を useMemo でキャッシュ (毎レンダーでの全 sessions 走査を回避)
+  const history = useMemo(
+    () => computeSettingHistory(racket?.name, tournaments, practices, trials),
+    [racket?.name, tournaments, practices, trials]
+  );
 
   if (history.length === 0) {
     return (

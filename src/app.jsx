@@ -57,28 +57,7 @@ const _extractLevels = (tournaments) => {
 };
 
 // ── プレースホルダタブ (S13-S18 で実装)
-function PlaceholderTab({ name, stage }) {
-  return (
-    <div style={{
-      flex: 1,
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      justifyContent: "center",
-      padding: 40,
-      color: C.textMuted,
-      textAlign: "center",
-    }}>
-      <Icon name="clock" size={40} color={C.textMuted} />
-      <div style={{ fontSize: 16, fontWeight: 600, marginTop: 12, color: C.textSecondary }}>
-        {name}タブ
-      </div>
-      <div style={{ fontSize: 13, marginTop: 4 }}>
-        {stage} で実装予定
-      </div>
-    </div>
-  );
-}
+// Round 5 Batch C: PlaceholderTab dead code 削除 (Plan/Insights タブ実装で参照ゼロ)
 
 // ── Dev モード (Phase B 検証用) ────────────────────────────────────────
 //   URL に ?dev=1 を付けると Google SSO をスキップして fixture JSON を localStorage に展開、

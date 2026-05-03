@@ -240,11 +240,24 @@ function MergeModal({ open, type, itemA, itemB, trials, onConfirm, onCancel }) {
     return () => document.removeEventListener("keydown", handler);
   }, [open, onCancel]);
 
-  if (!open || !itemA || !itemB) return null;
+  // Round 5 Batch A: 重い計算を useMemo でキャッシュ (choices の radio 変化ごとの再計算回避)
+  //   diff は itemA/itemB/type が変化しなければ再計算不要 (choices 変更で diff は変わらない)
+  //   merged は choices も依存
+  //   relinkCount は trials/itemB/type に依存
+  const diff = useMemo(
+    () => (open && itemA && itemB) ? computeMergeDiff(itemA, itemB, type) : null,
+    [open, itemA?.id, itemB?.id, type]
+  );
+  const merged = useMemo(
+    () => (open && itemA && itemB) ? applyMerge(itemA, itemB, choices, type) : null,
+    [open, itemA?.id, itemB?.id, choices, type]
+  );
+  const relinkCount = useMemo(
+    () => (open && itemB) ? countRelinks(trials || [], itemB, type) : 0,
+    [open, trials, itemB?.id, type]
+  );
 
-  const diff = computeMergeDiff(itemA, itemB, type);
-  const merged = applyMerge(itemA, itemB, choices, type);
-  const relinkCount = countRelinks(trials || [], itemB, type);
+  if (!open || !itemA || !itemB) return null;
 
   const typeLabel = _mergeTypeLabel(type);
   const removedLabel = _mergeItemLabel(itemB, type);

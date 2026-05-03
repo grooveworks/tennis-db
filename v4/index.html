@@ -46,7 +46,7 @@ input,select,textarea,button{font-family:inherit}
 const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
 // ── 定数定義（色・キー・バージョン）─────────────
-const APP_VERSION="4.1.2-S18";
+const APP_VERSION="4.1.3-S18";
 const font="-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif";
 
 // 色設計（DESIGN_SYSTEM_v4.md §1 + §10 S13.5 改訂準拠）
@@ -121,7 +121,10 @@ let fbFunctions=null;
 try{ if(typeof fbApp.functions==="function") fbFunctions=fbApp.functions("asia-northeast1"); }
 catch(e){ console.warn("Functions init failed (AI summary will be disabled):", e?.message||e); }
 // オフライン永続化（タブ間同期対応）— v2/v3 と同じ挙動
-try{fbDb.enablePersistence({synchronizeTabs:true}).catch(()=>{});}catch(_){}
+// Round 5 Batch A: catch silent 廃止。失敗理由 (failed-precondition / unimplemented 等) を console.warn
+fbDb.enablePersistence({synchronizeTabs:true}).catch(err => {
+  console.warn("Firestore offline persistence failed:", err?.code, err?.message);
+});
 
 // === src/core/03_storage.js ===
 // ── データ保存層（localStorage + Firestore 同期）─────────
@@ -245,11 +248,12 @@ const normDate=d=>{
 };
 
 // 短縮表示: "4/5"
+// Round 5 Batch E: parseInt の radix を明示して 8 進数誤解釈を防ぐ (現代ブラウザでも明示推奨)
 const fmtDate=d=>{
   const nd=normDate(d);
   if(!nd)return"";
   const m=nd.match(/(\d{4})-(\d{2})-(\d{2})/);
-  return m?`${parseInt(m[2])}/${parseInt(m[3])}`:"";
+  return m?`${parseInt(m[2],10)}/${parseInt(m[3],10)}`:"";
 };
 
 // 完全表示: "2026/4/5"
@@ -257,7 +261,7 @@ const fmtDateFull=d=>{
   const nd=normDate(d);
   if(!nd)return"";
   const m=nd.match(/(\d{4})-(\d{2})-(\d{2})/);
-  return m?`${m[1]}/${parseInt(m[2])}/${parseInt(m[3])}`:"";
+  return m?`${m[1]}/${parseInt(m[2],10)}/${parseInt(m[3],10)}`:"";
 };
 
 // 日付降順ソート（配列の date フィールドを使用）
@@ -469,10 +473,11 @@ const labelFor=(key,type)=>{
 // === src/core/06_clipboard.js ===
 // Clipboard helper — text を OS クリップボードへ書き込む
 // ブラウザ対応:
-//   - navigator.share が使えるならシステム共有シートも誘導 (iOS/Android 実機で便利)
 //   - navigator.clipboard.writeText (http/https で動作)
 //   - execCommand("copy") フォールバック (file:// や古い Safari 用、UX 劣化なし)
 // 戻り値: Promise<boolean> 成功/失敗
+// Round 5 Batch A: catch silent 廃止、失敗理由を console.warn (ユーザー報告時のデバッグ用)
+//   Round 5 Batch C: 古いコメントの navigator.share 言及削除 (実装に存在しない、dead comment だった)
 const copyToClipboard = async (text) => {
   if (!text) return false;
   try {
@@ -480,19 +485,28 @@ const copyToClipboard = async (text) => {
       await navigator.clipboard.writeText(text);
       return true;
     }
-  } catch (_) { /* fallthrough */ }
+  } catch (err) {
+    console.warn("clipboard.writeText failed (falling back to execCommand):", err?.message || err);
+  }
+  // execCommand fallback、focus 復帰のため savedActive を保存
+  const savedActive = typeof document !== "undefined" ? document.activeElement : null;
+  let ta = null;
   try {
-    const ta = document.createElement("textarea");
+    ta = document.createElement("textarea");
     ta.value = text;
     ta.style.position = "fixed";
     ta.style.left = "-9999px";
     document.body.appendChild(ta);
     ta.select();
-    const ok = document.execCommand("copy");
-    document.body.removeChild(ta);
-    return ok;
-  } catch (_) {
+    return document.execCommand("copy");
+  } catch (err) {
+    console.warn("clipboard fallback (execCommand) failed:", err?.message || err);
     return false;
+  } finally {
+    if (ta && ta.parentNode) ta.parentNode.removeChild(ta);
+    if (savedActive && typeof savedActive.focus === "function") {
+      try { savedActive.focus(); } catch (_) {}
+    }
   }
 };
 
@@ -5221,7 +5235,11 @@ function ReorderHintBar({ children }) {
 // 行タップで Period Detail (slide-in) が開く
 
 function SettingHistorySection({ racket, tournaments, practices, trials, onPeriodClick }) {
-  const history = computeSettingHistory(racket?.name, tournaments, practices, trials);
+  // Round 5 Batch A: 重い集計を useMemo でキャッシュ (毎レンダーでの全 sessions 走査を回避)
+  const history = useMemo(
+    () => computeSettingHistory(racket?.name, tournaments, practices, trials),
+    [racket?.name, tournaments, practices, trials]
+  );
 
   if (history.length === 0) {
     return (
@@ -10540,11 +10558,24 @@ function MergeModal({ open, type, itemA, itemB, trials, onConfirm, onCancel }) {
     return () => document.removeEventListener("keydown", handler);
   }, [open, onCancel]);
 
-  if (!open || !itemA || !itemB) return null;
+  // Round 5 Batch A: 重い計算を useMemo でキャッシュ (choices の radio 変化ごとの再計算回避)
+  //   diff は itemA/itemB/type が変化しなければ再計算不要 (choices 変更で diff は変わらない)
+  //   merged は choices も依存
+  //   relinkCount は trials/itemB/type に依存
+  const diff = useMemo(
+    () => (open && itemA && itemB) ? computeMergeDiff(itemA, itemB, type) : null,
+    [open, itemA?.id, itemB?.id, type]
+  );
+  const merged = useMemo(
+    () => (open && itemA && itemB) ? applyMerge(itemA, itemB, choices, type) : null,
+    [open, itemA?.id, itemB?.id, choices, type]
+  );
+  const relinkCount = useMemo(
+    () => (open && itemB) ? countRelinks(trials || [], itemB, type) : 0,
+    [open, trials, itemB?.id, type]
+  );
 
-  const diff = computeMergeDiff(itemA, itemB, type);
-  const merged = applyMerge(itemA, itemB, choices, type);
-  const relinkCount = countRelinks(trials || [], itemB, type);
+  if (!open || !itemA || !itemB) return null;
 
   const typeLabel = _mergeTypeLabel(type);
   const removedLabel = _mergeItemLabel(itemB, type);
@@ -15775,28 +15806,7 @@ const _extractLevels = (tournaments) => {
 };
 
 // ── プレースホルダタブ (S13-S18 で実装)
-function PlaceholderTab({ name, stage }) {
-  return (
-    <div style={{
-      flex: 1,
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      justifyContent: "center",
-      padding: 40,
-      color: C.textMuted,
-      textAlign: "center",
-    }}>
-      <Icon name="clock" size={40} color={C.textMuted} />
-      <div style={{ fontSize: 16, fontWeight: 600, marginTop: 12, color: C.textSecondary }}>
-        {name}タブ
-      </div>
-      <div style={{ fontSize: 13, marginTop: 4 }}>
-        {stage} で実装予定
-      </div>
-    </div>
-  );
-}
+// Round 5 Batch C: PlaceholderTab dead code 削除 (Plan/Insights タブ実装で参照ゼロ)
 
 // ── Dev モード (Phase B 検証用) ────────────────────────────────────────
 //   URL に ?dev=1 を付けると Google SSO をスキップして fixture JSON を localStorage に展開、

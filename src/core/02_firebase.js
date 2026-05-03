@@ -18,4 +18,7 @@ let fbFunctions=null;
 try{ if(typeof fbApp.functions==="function") fbFunctions=fbApp.functions("asia-northeast1"); }
 catch(e){ console.warn("Functions init failed (AI summary will be disabled):", e?.message||e); }
 // オフライン永続化（タブ間同期対応）— v2/v3 と同じ挙動
-try{fbDb.enablePersistence({synchronizeTabs:true}).catch(()=>{});}catch(_){}
+// Round 5 Batch A: catch silent 廃止。失敗理由 (failed-precondition / unimplemented 等) を console.warn
+fbDb.enablePersistence({synchronizeTabs:true}).catch(err => {
+  console.warn("Firestore offline persistence failed:", err?.code, err?.message);
+});
