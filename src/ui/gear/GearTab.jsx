@@ -49,40 +49,9 @@ function _findMainRacket(rackets) {
   return sorted[0] || null;
 }
 
-// 直近 30 日 / 通算 / 試合勝率 (RacketDetailView と同等のロジックを inline で計算)
-function _computeUsage(racketName, tournaments, practices) {
-  if (!racketName) return { past30: 0, total: 0, winRate: null };
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const t30 = new Date(today); t30.setDate(t30.getDate() - 30);
-  const inLast30 = (dateStr) => {
-    if (!dateStr) return false;
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return false;
-    return d >= t30;
-  };
-  let past30 = 0, total = 0, wins = 0, matchTotal = 0;
-  (tournaments || []).forEach(t => {
-    const used = (t.racketName === racketName)
-      || (Array.isArray(t.matches) && t.matches.some(m => m && m.racketName === racketName));
-    if (used) {
-      total++;
-      if (inLast30(t.date)) past30++;
-    }
-    (t.matches || []).forEach(m => {
-      if (!m || m.racketName !== racketName) return;
-      matchTotal++;
-      const r = (m.result || "").toLowerCase();
-      if (r === "win" || r === "勝" || r === "勝利") wins++;
-    });
-  });
-  (practices || []).forEach(p => {
-    if (p.racketName !== racketName) return;
-    total++;
-    if (inLast30(p.date)) past30++;
-  });
-  const winRate = matchTotal > 0 ? Math.round((wins / matchTotal) * 100) : null;
-  return { past30, total, winRate };
-}
+// H-23 (Phase A 監査): domain/match_helpers.js computeRacketUsage に集約済
+//   旧の inline 実装は H-9 の result 正規化反映漏れ + RacketDetailView と微妙な差異があった
+//   現在は単一の純関数を共有 (計算結果の一貫性保証)
 
 // CurrentSetupCard (主力ラケットの大カード、Display tier 数字 3)
 function _CurrentSetupCard({ racket, usage }) {
@@ -363,7 +332,7 @@ function GearTab({
   //   依存変数が変わった時だけ再計算、毎レンダーでの再走査を防ぐ。
   const mainRacket = useMemo(() => _findMainRacket(rackets), [rackets]);
   const mainUsage = useMemo(
-    () => mainRacket ? _computeUsage(mainRacket.name, tournaments, practices) : { past30: 0, total: 0, winRate: null },
+    () => mainRacket ? computeRacketUsage(mainRacket.name, tournaments, practices) : { past30: 0, total: 0, winRate: null },
     [mainRacket?.name, tournaments, practices]
   );
   const sortedRackets = useMemo(

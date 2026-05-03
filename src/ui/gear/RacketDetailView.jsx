@@ -63,48 +63,9 @@ function _computeTrialAvgs(trials, racketName) {
   };
 }
 
-// Usage 統計 (Sessions から逆引き)
-//   - past30: 直近 30 日の使用回数 (tournaments + practices, racketName 一致)
-//   - total: 通算回数
-//   - winRate: tournaments の matches[] で result === "win" / "勝" 率 (% 整数、null なら "—")
-function _computeRacketUsage(racketName, tournaments, practices) {
-  if (!racketName) return { past30: 0, total: 0, winRate: null };
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const t30 = new Date(today); t30.setDate(t30.getDate() - 30);
-  const inLast30 = (dateStr) => {
-    if (!dateStr) return false;
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return false;
-    return d >= t30;
-  };
-
-  let past30 = 0, total = 0, wins = 0, matchTotal = 0;
-  (tournaments || []).forEach(t => {
-    const used = (t.racketName === racketName)
-      || (Array.isArray(t.matches) && t.matches.some(m => m && m.racketName === racketName));
-    if (used) {
-      total++;
-      if (inLast30(t.date)) past30++;
-    }
-    (t.matches || []).forEach(m => {
-      if (!m) return;
-      if (m.racketName !== racketName) return;
-      // H-9 (Phase A 監査): _normalizeMatchResult で勝敗表記揺れを共通吸収
-      //   matchTotal は win/loss のみカウント (default/不明は除外して winRate の分母を正確に)
-      const norm = _normalizeMatchResult(m.result);
-      if (norm !== "win" && norm !== "loss") return;
-      matchTotal++;
-      if (norm === "win") wins++;
-    });
-  });
-  (practices || []).forEach(p => {
-    if (p.racketName !== racketName) return;
-    total++;
-    if (inLast30(p.date)) past30++;
-  });
-  const winRate = matchTotal > 0 ? Math.round((wins / matchTotal) * 100) : null;
-  return { past30, total, winRate, matchTotal };
-}
+// H-23 (Phase A 監査): domain/match_helpers.js computeRacketUsage に集約済
+//   旧の _computeRacketUsage は GearTab._computeUsage と重複定義されていた
+//   現在は単一の純関数を共有
 
 // avg-bar (Trial Summary 用)
 function _AvgBar({ label, value, max = 5 }) {
@@ -214,7 +175,7 @@ function RacketDetailView({
     [trials, racket?.name]
   );
   const usage = useMemo(
-    () => _computeRacketUsage(racket?.name, tournaments, practices),
+    () => computeRacketUsage(racket?.name, tournaments, practices),
     [racket?.name, tournaments, practices]
   );
   const sortedMeas = useMemo(() => {

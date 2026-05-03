@@ -116,6 +116,46 @@ const computeRunningScore = (games) => {
   }, { me: 0, opp: 0 });
 };
 
+// H-23 (Phase A 監査): ラケット使用統計を domain 層に集約。
+//   旧: GearTab._computeUsage と RacketDetailView._computeRacketUsage が重複定義
+//        微妙な差異があり (GearTab 側は H-9 反映漏れ)、片方だけ修正される懸念があった
+//   新: 単一の純関数として両者から呼ぶ
+//   返り値: { past30: 直近30日使用数, total: 通算, wins, matchTotal, winRate (% or null) }
+const computeRacketUsage = (racketName, tournaments, practices) => {
+  if (!racketName) return { past30: 0, total: 0, wins: 0, matchTotal: 0, winRate: null };
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const t30 = new Date(today); t30.setDate(t30.getDate() - 30);
+  const inLast30 = (dateStr) => {
+    if (!dateStr) return false;
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return false;
+    return d >= t30;
+  };
+  let past30 = 0, total = 0, wins = 0, matchTotal = 0;
+  (tournaments || []).forEach(t => {
+    const used = (t.racketName === racketName)
+      || (Array.isArray(t.matches) && t.matches.some(m => m && m.racketName === racketName));
+    if (used) {
+      total++;
+      if (inLast30(t.date)) past30++;
+    }
+    (t.matches || []).forEach(m => {
+      if (!m || m.racketName !== racketName) return;
+      const norm = _normalizeMatchResult(m.result);
+      if (norm !== "win" && norm !== "loss") return;
+      matchTotal++;
+      if (norm === "win") wins++;
+    });
+  });
+  (practices || []).forEach(p => {
+    if (!p || p.racketName !== racketName) return;
+    total++;
+    if (inLast30(p.date)) past30++;
+  });
+  const winRate = matchTotal > 0 ? Math.round((wins / matchTotal) * 100) : null;
+  return { past30, total, wins, matchTotal, winRate };
+};
+
 // H-9 (Phase A 監査): match.result の表記揺れを正規化。
 //   v2/v3/v4 で "勝利"/"勝"/"win" や "敗北"/"敗"/"負"/"lose"/"loss" 等が混在する。
 //   返り値: "win" | "loss" | "default" (棄権) | null (不明)
