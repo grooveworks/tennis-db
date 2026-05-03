@@ -11989,7 +11989,12 @@ function QuickTrialMode({ open, cards, setCards, rackets, stringNames, onSaveTri
     const card = (cards || []).find(c => c.id === selected);
     if (!card) return;
     onSaveTrial && onSaveTrial({ card, eval: { ...eval_ } });
-    setSelected(null);
+    // H-18 (Phase A 監査): selectCard で積んだ "quickTrial-eval" history entry を消費する。
+    //   旧: setSelected(null) のみ → entry が orphan で残り、後の左端スワイプで誤動作
+    //   新: history.back() で entry を pop。popstate handler が evalRef を card に焼き付けて
+    //        setSelected(null) を呼ぶので、ここで明示的に setSelected しないこと。
+    //        また evalRef は既に最新値を持っているため popstate での焼き付けも問題なし。
+    try { window.history.back(); } catch (_) { setSelected(null); }
     setEval(_qtmFreshEval());
     setTouched(new Set());
   };
