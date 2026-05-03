@@ -1365,18 +1365,23 @@ function computeSettingHistory(racketName, tournaments, practices, trials) {
         item: t,
       });
     }
-    // matches[] 内の racketName 一致 (matches に個別ラケット指定あり)
+    // H-8 (Phase A 監査): matches[] 内の racketName 一致を判定。
+    //   ケース 1: tournament.racketName !== racketName だが matches[i].racketName === racketName
+    //     → match 単位で別ラケットを使った大会 (混在)、必ず追加
+    //   ケース 2: tournament.racketName === racketName で、matches[i] が異なる setting (テンション変更等)
+    //     → 大会途中で張替/変更したケース、setting sig が tournament と違う時のみ追加
+    //     (旧実装はこのケースを取りこぼしていた → setting 履歴に張替が出ない)
+    const tournamentSig = t.racketName === racketName ? _settingSignature(t) : null;
     (t.matches || []).forEach(m => {
       if (!m || m.racketName !== racketName) return;
-      // 試合単位で別シグネチャ → 親 tournament の date を使う
-      // ただし tournament 自身も racketName 一致だと重複するので、
-      // tournament に racketName 一致 + matches も同じラケット → tournament 側で 1 つ
-      // matches[] のラケットが tournament と異なる時のみ追加
-      if (t.racketName !== racketName) {
+      const matchSig = _settingSignature(m);
+      const shouldAdd = t.racketName !== racketName  // ケース 1
+                    || matchSig !== tournamentSig;    // ケース 2
+      if (shouldAdd) {
         items.push({
           type: "tournament-match",
           date: t.date,
-          sig: _settingSignature(m),
+          sig: matchSig,
           sessionId: t.id,
           item: t,
         });
