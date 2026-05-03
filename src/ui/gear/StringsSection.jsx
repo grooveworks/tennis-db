@@ -138,28 +138,30 @@ function StringsSection({ strings, onUpdate, onEdit, onAdd, toast }) {
         </div>
       ) : (
         visible.map((s, i) => {
-          // visible 内の index と元 strings 配列の index は異なる場合があるので、id ベースで原 index を取得
-          const originalIdx = (strings || []).findIndex(x => x.id === s.id);
           const isMuted = s.status === "rejected";
           const handleRowClick = () => {
             if (reorderMode) return;
             onEdit(s);
           };
-          const handleMoveUp = () => {
-            // visible リスト内の前の要素の元 index と入れ替え
-            if (i <= 0) return;
-            const prevId = visible[i - 1].id;
-            const prevOrig = (strings || []).findIndex(x => x.id === prevId);
-            if (originalIdx < 0 || prevOrig < 0) return;
-            handleMove(reorderItems(strings, originalIdx, prevOrig));
+          // H-22 (Phase A 監査): order フィールドを直接 swap する方式に変更。
+          //   旧: reorderItems(strings, originalIdx, prevOrig) で配列 index swap → splice で
+          //        全要素の order が 0..N に再採番される。visible 順 (status 優先 → order) と
+          //        strings 配列順が一致しない時、視覚的に意図しない順番になる。
+          //        例: [A(confirmed,3), B(confirmed,1), C(confirmed,2), D(confirmed,0)]
+          //            visible=[D,B,C,A]、D を下に → expected [B,D,C,A] / got [A,D,B,C]
+          //   新: visible[i] と visible[i±1] の order 値を直接交換、他要素は不変
+          const swapWithVisible = (otherIdx) => {
+            const other = visible[otherIdx];
+            if (!other || s.id === other.id) return;
+            const newList = (strings || []).map(x => {
+              if (x.id === s.id) return { ...x, order: other.order };
+              if (x.id === other.id) return { ...x, order: s.order };
+              return x;
+            });
+            handleMove(newList);
           };
-          const handleMoveDown = () => {
-            if (i >= visible.length - 1) return;
-            const nextId = visible[i + 1].id;
-            const nextOrig = (strings || []).findIndex(x => x.id === nextId);
-            if (originalIdx < 0 || nextOrig < 0) return;
-            handleMove(reorderItems(strings, originalIdx, nextOrig));
-          };
+          const handleMoveUp = () => { if (i > 0) swapWithVisible(i - 1); };
+          const handleMoveDown = () => { if (i < visible.length - 1) swapWithVisible(i + 1); };
           return (
             <div
               key={s.id}
