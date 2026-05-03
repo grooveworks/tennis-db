@@ -110,6 +110,28 @@ test("H-24: LS_UI_KEYS が global に集約されている", async (page) => {
   assertEqual(keys.sessionsSearch, "v4-sessions-search", "sessionsSearch key");
 });
 
+test("H-7: _isSetComplete が共通化され、両関数が同一判定を返す", async (page) => {
+  await page.goto(`${BASE}?dev=1`);
+  await page.waitForSelector('[role="tab"]', { timeout: 5000 });
+  // _isSetComplete が global に存在 + 各種境界条件
+  const result = await page.evaluate(() => {
+    const cases = [
+      { me: 6, opp: 0, expect: true },   // 6-0 完了
+      { me: 6, opp: 4, expect: true },   // 6-4 完了
+      { me: 6, opp: 5, expect: false },  // 6-5 未完了
+      { me: 5, opp: 5, expect: false },  // 5-5 未完了
+      { me: 7, opp: 5, expect: true },   // 7-5 完了
+      { me: 7, opp: 6, expect: true },   // 7-6 タイブレーク
+      { me: 6, opp: 6, expect: false },  // 6-6 未完了
+      { me: 8, opp: 6, expect: true },   // diff 2 で完了
+    ];
+    return cases.map(c => ({ ...c, actual: _isSetComplete(c.me, c.opp) }));
+  });
+  for (const c of result) {
+    if (c.actual !== c.expect) throw new Error(`_isSetComplete(${c.me},${c.opp}) expected ${c.expect}, got ${c.actual}`);
+  }
+});
+
 test("Home タブの主力ラケットが fixture data から計算される", async (page) => {
   await page.goto(`${BASE}?dev=1`);
   await page.waitForSelector('[role="tab"]', { timeout: 5000 });

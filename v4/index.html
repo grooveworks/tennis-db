@@ -965,11 +965,26 @@ const computeRunningScore = (games) => {
   }, { me: 0, opp: 0 });
 };
 
+// H-7 (Phase A 監査): セット完了判定を単一関数に集約。
+//   旧: computeSetScoresFromGames と computeAutoMatchResult が同じ条件を二重実装
+//        → 仕様変更時に片方だけ直すと割れる
+//   新: _isSetComplete を共有、両関数から呼ぶ
+// TENNIS_RULES.md §2.1 / §6:
+//   - 通常: 6 ゲーム先取で 2 ゲーム差以上 (6-0〜6-4)
+//   - 5-5 → 7 取って勝利 (7-5)
+//   - 6-6 → タイブレーク (7-6)
+const _isSetComplete = (me, opp) => {
+  const diff = Math.abs(me - opp);
+  if (me >= 6 && diff >= 2) return true;
+  if (opp >= 6 && diff >= 2) return true;
+  if (me === 7 && opp === 5) return true;
+  if (opp === 7 && me === 5) return true;
+  if (me === 7 && opp === 6) return true; // tiebreak
+  if (opp === 7 && me === 6) return true;
+  return false;
+};
+
 // S16.11 UX3: games[] からセットスコア配列を計算 (TENNIS_RULES §2.1, §6 準拠)
-//   セット獲得条件:
-//     - 通常: 6 ゲーム先取 (相手と 2 ゲーム差以上)
-//     - 5-5 → 7 ゲーム先取で勝利
-//     - 6-6 → タイブレーク (= 13 ゲーム目 = winner=tiebreak は special、本実装では games[] の最後の 1 ゲームを TB として扱う)
 //   戻り値: ["6-3", "7-5", ...] like setScores
 //   未完了セット (進行中) も最後に含める (例: 6-2 完了 + 3-2 進行中 → ["6-2", "3-2"])
 const computeSetScoresFromGames = (games) => {
@@ -982,17 +997,7 @@ const computeSetScoresFromGames = (games) => {
     if (g.winner === "me") me++;
     else if (g.winner === "opp") opp++;
     else continue; // 不明 winner はスキップ
-    // セット完了判定
-    const total = me + opp;
-    const diff = Math.abs(me - opp);
-    let setComplete = false;
-    if (me >= 6 && diff >= 2) setComplete = true;
-    else if (opp >= 6 && diff >= 2) setComplete = true;
-    else if (me === 7 && opp === 5) setComplete = true;
-    else if (opp === 7 && me === 5) setComplete = true;
-    else if (me === 7 && opp === 6) setComplete = true; // tiebreak win
-    else if (opp === 7 && me === 6) setComplete = true;
-    if (setComplete) {
+    if (_isSetComplete(me, opp)) {
       setScores.push(`${me}-${opp}`);
       me = 0; opp = 0;
     }
@@ -1017,16 +1022,7 @@ const computeAutoMatchResult = (games) => {
     const me = parseInt(m[1], 10);
     const opp = parseInt(m[2], 10);
     if (isNaN(me) || isNaN(opp)) continue;
-    // セットが完了しているかチェック (上の computeSetScoresFromGames の判定と同じ条件)
-    const diff = Math.abs(me - opp);
-    let setComplete = false;
-    if (me >= 6 && diff >= 2) setComplete = true;
-    else if (opp >= 6 && diff >= 2) setComplete = true;
-    else if (me === 7 && opp === 5) setComplete = true;
-    else if (opp === 7 && me === 5) setComplete = true;
-    else if (me === 7 && opp === 6) setComplete = true;
-    else if (opp === 7 && me === 6) setComplete = true;
-    if (!setComplete) continue;
+    if (!_isSetComplete(me, opp)) continue; // H-7: 共通判定関数
     if (me > opp) mySetsWon++;
     else oppSetsWon++;
   }
