@@ -130,7 +130,20 @@ const _loadDevFixture = async () => {
 function TennisDB() {
   const [user, setUser] = useState(null);
   const [authReady, setAuthReady] = useState(false);
-  const [tab, setTab] = useState("home"); // S14: default tab を home に変更 (DECISIONS S13.5 §10.9)
+  // リクエスト 3 (Phase B): タブ状態を localStorage 保存して reload 後復元。
+  //   旧: 必ず home に戻る (デフォルト) → ユーザーが Sessions タブ作業中の reload で home に飛ぶ
+  //   新: 最後のタブを LS_UI_KEYS.activeTab に保存、初期化時にそこから復元
+  //   許可タブ集合に該当しない値が入っていた場合は home にフォールバック (将来タブ削除時の安全策)
+  const [tab, setTab] = useState(() => {
+    try {
+      const saved = localStorage.getItem(LS_UI_KEYS.activeTab);
+      const VALID_TABS = ["home", "sessions", "gear", "plan", "insights"];
+      return saved && VALID_TABS.includes(saved) ? saved : "home";
+    } catch (_) { return "home"; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem(LS_UI_KEYS.activeTab, tab); } catch (_) {}
+  }, [tab]);
   const [tournaments, setTournaments] = useState([]);
   const [practices, setPractices] = useState([]);
   const [trials, setTrials] = useState([]);
