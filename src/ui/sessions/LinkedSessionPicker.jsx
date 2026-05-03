@@ -138,21 +138,28 @@ function _lpPickerSheet({ open, mode, practices, tournaments, onPick, onClose })
 }
 
 // メイン: 既存リンク表示 + 解除 + 追加ボタン
+// F-A4 (Phase A 監査): UX4 で linkedMatchId 単数 → linkedMatchIds[] 配列に移行したが、
+//   onChange で配列を更新していなかったため cascade.js が古い配列を参照していた。
+//   全 onChange で linkedMatchId と linkedMatchIds の両方を整合させる。
 function LinkedSessionPicker({ linkedPracticeId, linkedMatchId, practices, tournaments, onChange }) {
   const [pickerMode, setPickerMode] = useState(null); // "practice" | "match" | null
   const { practice, matchInfo } = _lpResolveLink({ linkedPracticeId, linkedMatchId, practices, tournaments });
 
+  // 単数 linkedMatchId から配列 linkedMatchIds を導出 (空文字なら空配列)
+  const _toIds = (id) => id ? [id] : [];
+
   const handlePick = (picked) => {
     if (picked.practice) {
-      onChange({ linkedPracticeId: picked.practice.id, linkedMatchId: linkedMatchId || "" });
+      onChange({ linkedPracticeId: picked.practice.id, linkedMatchId: linkedMatchId || "", linkedMatchIds: _toIds(linkedMatchId) });
     } else if (picked.matchInfo) {
-      onChange({ linkedPracticeId: linkedPracticeId || "", linkedMatchId: picked.matchInfo.match.id });
+      const newMatchId = picked.matchInfo.match.id;
+      onChange({ linkedPracticeId: linkedPracticeId || "", linkedMatchId: newMatchId, linkedMatchIds: _toIds(newMatchId) });
     }
     setPickerMode(null);
   };
 
-  const handleClearPractice = () => onChange({ linkedPracticeId: "", linkedMatchId: linkedMatchId || "" });
-  const handleClearMatch = () => onChange({ linkedPracticeId: linkedPracticeId || "", linkedMatchId: "" });
+  const handleClearPractice = () => onChange({ linkedPracticeId: "", linkedMatchId: linkedMatchId || "", linkedMatchIds: _toIds(linkedMatchId) });
+  const handleClearMatch = () => onChange({ linkedPracticeId: linkedPracticeId || "", linkedMatchId: "", linkedMatchIds: [] });
 
   return (
     <div>

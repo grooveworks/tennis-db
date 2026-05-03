@@ -332,6 +332,15 @@ function TennisDB() {
           const dataRef = fbDb.collection("users").doc(u.uid).collection("data");
           unsubSnapshot = dataRef.onSnapshot((snap) => {
             snap.docChanges().forEach((change) => {
+              // F-A1 (Phase A 監査): removed change を明示的に通知。
+              //   旧: removed を silent skip → 別端末で誤削除されたことに気付けない
+              //   新: 警告 toast + log で通知、state はそのまま (ローカルデータを保護)
+              //   通常の save() は ref.set() で書くだけなので、removed は管理コンソール直接操作 / Firestore Rules 異常時のみ
+              if (change.type === "removed") {
+                console.error(`Firestore doc removed unexpectedly: ${change.doc.id}`);
+                if (toast) toast.show(`同期異常検知: ${change.doc.id} がサーバ側で削除されました (ローカルデータは保護)`, "warning");
+                return;
+              }
               if (change.type !== "modified" && change.type !== "added") return;
               const key = change.doc.id;
               const docData = change.doc.data() || {};

@@ -212,7 +212,13 @@ function TrialEditForm({ form, errors = {}, onChange, practices, tournaments, tr
           linkedMatchId={form.linkedMatchId || ""}
           practices={practices}
           tournaments={tournaments}
-          onChange={(next) => onChange({ ...form, linkedPracticeId: next.linkedPracticeId, linkedMatchId: next.linkedMatchId })}
+          onChange={(next) => onChange({
+            ...form,
+            linkedPracticeId: next.linkedPracticeId,
+            linkedMatchId: next.linkedMatchId,
+            // F-A4: cascade.js は linkedMatchIds を優先参照するため、両方を整合させる
+            linkedMatchIds: Array.isArray(next.linkedMatchIds) ? next.linkedMatchIds : (next.linkedMatchId ? [next.linkedMatchId] : []),
+          })}
         />
       </div>
 

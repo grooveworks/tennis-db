@@ -9597,21 +9597,28 @@ function _lpPickerSheet({ open, mode, practices, tournaments, onPick, onClose })
 }
 
 // メイン: 既存リンク表示 + 解除 + 追加ボタン
+// F-A4 (Phase A 監査): UX4 で linkedMatchId 単数 → linkedMatchIds[] 配列に移行したが、
+//   onChange で配列を更新していなかったため cascade.js が古い配列を参照していた。
+//   全 onChange で linkedMatchId と linkedMatchIds の両方を整合させる。
 function LinkedSessionPicker({ linkedPracticeId, linkedMatchId, practices, tournaments, onChange }) {
   const [pickerMode, setPickerMode] = useState(null); // "practice" | "match" | null
   const { practice, matchInfo } = _lpResolveLink({ linkedPracticeId, linkedMatchId, practices, tournaments });
 
+  // 単数 linkedMatchId から配列 linkedMatchIds を導出 (空文字なら空配列)
+  const _toIds = (id) => id ? [id] : [];
+
   const handlePick = (picked) => {
     if (picked.practice) {
-      onChange({ linkedPracticeId: picked.practice.id, linkedMatchId: linkedMatchId || "" });
+      onChange({ linkedPracticeId: picked.practice.id, linkedMatchId: linkedMatchId || "", linkedMatchIds: _toIds(linkedMatchId) });
     } else if (picked.matchInfo) {
-      onChange({ linkedPracticeId: linkedPracticeId || "", linkedMatchId: picked.matchInfo.match.id });
+      const newMatchId = picked.matchInfo.match.id;
+      onChange({ linkedPracticeId: linkedPracticeId || "", linkedMatchId: newMatchId, linkedMatchIds: _toIds(newMatchId) });
     }
     setPickerMode(null);
   };
 
-  const handleClearPractice = () => onChange({ linkedPracticeId: "", linkedMatchId: linkedMatchId || "" });
-  const handleClearMatch = () => onChange({ linkedPracticeId: linkedPracticeId || "", linkedMatchId: "" });
+  const handleClearPractice = () => onChange({ linkedPracticeId: "", linkedMatchId: linkedMatchId || "", linkedMatchIds: _toIds(linkedMatchId) });
+  const handleClearMatch = () => onChange({ linkedPracticeId: linkedPracticeId || "", linkedMatchId: "", linkedMatchIds: [] });
 
   return (
     <div>
@@ -14758,7 +14765,13 @@ function TrialEditForm({ form, errors = {}, onChange, practices, tournaments, tr
           linkedMatchId={form.linkedMatchId || ""}
           practices={practices}
           tournaments={tournaments}
-          onChange={(next) => onChange({ ...form, linkedPracticeId: next.linkedPracticeId, linkedMatchId: next.linkedMatchId })}
+          onChange={(next) => onChange({
+            ...form,
+            linkedPracticeId: next.linkedPracticeId,
+            linkedMatchId: next.linkedMatchId,
+            // F-A4: cascade.js は linkedMatchIds を優先参照するため、両方を整合させる
+            linkedMatchIds: Array.isArray(next.linkedMatchIds) ? next.linkedMatchIds : (next.linkedMatchId ? [next.linkedMatchId] : []),
+          })}
         />
       </div>
 
@@ -15758,6 +15771,15 @@ function TennisDB() {
           const dataRef = fbDb.collection("users").doc(u.uid).collection("data");
           unsubSnapshot = dataRef.onSnapshot((snap) => {
             snap.docChanges().forEach((change) => {
+              // F-A1 (Phase A 監査): removed change を明示的に通知。
+              //   旧: removed を silent skip → 別端末で誤削除されたことに気付けない
+              //   新: 警告 toast + log で通知、state はそのまま (ローカルデータを保護)
+              //   通常の save() は ref.set() で書くだけなので、removed は管理コンソール直接操作 / Firestore Rules 異常時のみ
+              if (change.type === "removed") {
+                console.error(`Firestore doc removed unexpectedly: ${change.doc.id}`);
+                if (toast) toast.show(`同期異常検知: ${change.doc.id} がサーバ側で削除されました (ローカルデータは保護)`, "warning");
+                return;
+              }
               if (change.type !== "modified" && change.type !== "added") return;
               const key = change.doc.id;
               const docData = change.doc.data() || {};
