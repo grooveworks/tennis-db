@@ -15761,12 +15761,16 @@ function TennisDB() {
               //   - 受け入れる時のみ lsSave 実行
               const guardAndApply = (prev, transform) => {
                 const prevArr = Array.isArray(prev) ? prev : [];
-                if (prevArr.length >= 5 && val.length === 0) {
+                // F-A2 (Phase A 監査): 閾値 5 → 1 に下げる。
+                //   旧: 5 件未満の master (venues/opponents/next 等) が空配列で来た時に無防備
+                //   新: 1 件以上ローカルにあるなら、サーバ側 0 件は無条件で拒否
+                if (prevArr.length >= 1 && val.length === 0) {
                   console.error(`F1 GUARD: Refused empty array overwrite for ${key} (local=${prevArr.length}, server=0)`);
                   if (toast) toast.show(`同期異常検知: ${key} がサーバ側で空のため保護`, "warning");
                   return prev;
                 }
-                if (prevArr.length >= 10 && val.length < prevArr.length * 0.5) {
+                // 50% 急減: 閾値 10 → 4 に下げる (5 件→2 件のような小規模急減も拾う)
+                if (prevArr.length >= 4 && val.length < prevArr.length * 0.5) {
                   console.error(`F1 GUARD: Refused 50% reduction for ${key} (local=${prevArr.length}, server=${val.length})`);
                   if (toast) toast.show(`同期異常検知: ${key} が ${prevArr.length}→${val.length} 件に急減、保護`, "warning");
                   return prev;
