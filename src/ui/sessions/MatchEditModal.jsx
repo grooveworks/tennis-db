@@ -187,6 +187,15 @@ function MatchEditModal({ open, match, trnType, tournament, racketNames = [], st
     setDirty(true);
   }, [effectiveFormat]);
 
+  // リク 30-e Phase A (S18): GameTracker に渡す「試合終了」フラグ
+  //   computeAutoMatchResult が "勝利" / "敗北" を返したら終了。
+  //   棄権 (手動で result 設定) は対象外 (games による自動判定のみ)
+  const matchEnded = useMemo(() => {
+    if (!form?.games || form.games.length === 0) return false;
+    const r = computeAutoMatchResult(form.games, effectiveFormat);
+    return r === "勝利" || r === "敗北";
+  }, [form?.games, effectiveFormat]);
+
   // Esc で閉じる (未保存確認経由)
   useEffect(() => {
     if (!open) return;
@@ -409,8 +418,9 @@ function MatchEditModal({ open, match, trnType, tournament, racketNames = [], st
               <span><b>データテニス CSV 取込済み</b> ({form.matchStats?.points?.length || 0} ポイント)。スタッツ編集はスコープ外（CSV 再取込で更新）</span>
             </div>
           )}
-          {/* ゲーム単位記録 (F1.4.1)、S15.5.9 で onChange を dirty 追跡型に変更 */}
-          <GameTracker match={form} onChange={handleGameTrackerChange} confirm={confirm} />
+          {/* ゲーム単位記録 (F1.4.1)、S15.5.9 で onChange を dirty 追跡型に変更
+              リク 30-e Phase A: matchEnded prop で試合終了状態を伝達 */}
+          <GameTracker match={form} onChange={handleGameTrackerChange} confirm={confirm} matchEnded={matchEnded} />
         </div>
 
         {/* ③ コンディション (メンタル / フィジカル) */}

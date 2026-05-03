@@ -46,7 +46,7 @@ input,select,textarea,button{font-family:inherit}
 const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
 // ── 定数定義（色・キー・バージョン）─────────────
-const APP_VERSION="4.2.0-S18";
+const APP_VERSION="4.2.1-S18";
 const font="-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif";
 
 // 色設計（DESIGN_SYSTEM_v4.md §1 + §10 S13.5 改訂準拠）
@@ -9616,9 +9616,14 @@ function _gtCOModal({ open, initial, onSave, onSkip, onDelete, onClose, isEditMo
 }
 
 // ── メインコンポーネント
-function GameTracker({ match, onChange, confirm }) {
+//   リク 30-e Phase A (S18): matchEnded prop で試合終了状態を受け取る (computeAutoMatchResult 結果)
+//     - 試合終了バナー表示 (✓ 試合終了 + 自動セットスコア)
+//     - 「次のゲーム」+ ボタンを隠す (誤入力防止)
+//     - 「続けて記録する」展開で再開可能 (試合形式変更等の例外ケース対応)
+function GameTracker({ match, onChange, confirm, matchEnded }) {
   const games = Array.isArray(match.games) ? match.games : [];
   const changeovers = Array.isArray(match.changeovers) ? match.changeovers : [];
+  const setScores = Array.isArray(match.setScores) ? match.setScores : [];
   const score = computeRunningScore(games);
 
   // pending CO (新規発動): 奇数ゲーム後に自動で立ち上がる
@@ -9627,6 +9632,14 @@ function GameTracker({ match, onChange, confirm }) {
   const [editing, setEditing] = useState(null);
   // ゲーム log 行タップで開く編集ポップオーバー (index)
   const [gameEditIndex, setGameEditIndex] = useState(null);
+  // リク 30-e Phase A: 試合終了後に「続けて記録する」を押した展開状態
+  const [expandedAfterEnd, setExpandedAfterEnd] = useState(false);
+  // 別 match の編集に切替時にリセット
+  useEffect(() => { if (!matchEnded) setExpandedAfterEnd(false); }, [matchEnded]);
+  // matchEnded で pending CO が立ち上がってる場合は自動 skip (バナー表示優先)
+  useEffect(() => {
+    if (matchEnded && !expandedAfterEnd && pending) setPending(null);
+  }, [matchEnded, expandedAfterEnd, pending]);
 
   // ゲーム追加 (奇数ゲーム後で自動 CO 発動 — TENNIS_RULES.md §2.1)
   const handleAddGame = (winner) => {
@@ -9726,6 +9739,61 @@ function GameTracker({ match, onChange, confirm }) {
         )}
       </div>
 
+      {/* リク 30-e Phase A (S18): 試合終了バナー + 「続けて記録する」展開ボタン
+          matchEnded = true (computeAutoMatchResult で勝敗確定) の時に表示。
+          展開後は警告色のバナーに切替えて、再 collapse で誤入力防止に戻れる */}
+      {matchEnded && !expandedAfterEnd && (
+        <div style={{
+          background: C.successLight, border: `1px solid ${C.success}`,
+          borderRadius: 8, padding: "10px 12px", marginBottom: 10,
+          display: "flex", alignItems: "center", gap: 10,
+        }}>
+          <Icon name="check-circle" size={20} color={C.success} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#0a5b35" }}>試合終了</div>
+            {setScores.length > 0 && (
+              <div style={{ fontSize: 12, color: "#0a5b35", fontVariantNumeric: "tabular-nums" }}>
+                {setScores.join(" / ")}
+              </div>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => setExpandedAfterEnd(true)}
+            style={{
+              fontSize: 11, padding: "6px 10px", borderRadius: 6,
+              border: `1px solid ${C.success}`, background: C.panel, color: "#0a5b35",
+              cursor: "pointer", fontFamily: font, fontWeight: 600, flexShrink: 0,
+            }}
+          >
+            続けて記録する
+          </button>
+        </div>
+      )}
+      {matchEnded && expandedAfterEnd && (
+        <div style={{
+          background: C.warningLight, border: `1px solid ${C.warning}`,
+          borderRadius: 8, padding: "8px 12px", marginBottom: 10,
+          display: "flex", alignItems: "center", gap: 8,
+        }}>
+          <Icon name="info" size={14} color="#7e5d00" />
+          <div style={{ flex: 1, fontSize: 12, color: "#7e5d00" }}>
+            試合終了後の追加記録モード ({setScores.join(" / ")})
+          </div>
+          <button
+            type="button"
+            onClick={() => setExpandedAfterEnd(false)}
+            style={{
+              fontSize: 11, padding: "4px 10px", borderRadius: 6,
+              border: `1px solid ${C.warning}`, background: C.panel, color: "#7e5d00",
+              cursor: "pointer", fontFamily: font, fontWeight: 600, flexShrink: 0,
+            }}
+          >
+            戻す
+          </button>
+        </div>
+      )}
+
       {/* スコア表示 */}
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -9817,8 +9885,9 @@ function GameTracker({ match, onChange, confirm }) {
         </div>
       )}
 
-      {/* 次のゲーム入力 (ボタン 54px、間隙 10px、AAA) */}
-      {!pending && (
+      {/* 次のゲーム入力 (ボタン 54px、間隙 10px、AAA)
+          リク 30-e Phase A: 試合終了 (matchEnded) かつ非展開 (expandedAfterEnd=false) の時は + ボタンを隠す */}
+      {!pending && !(matchEnded && !expandedAfterEnd) && (
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
           <span style={{ fontSize: 12, color: C.textSecondary, minWidth: 84 }}>次のゲーム:</span>
           <button
@@ -10341,6 +10410,15 @@ function MatchEditModal({ open, match, trnType, tournament, racketNames = [], st
     setDirty(true);
   }, [effectiveFormat]);
 
+  // リク 30-e Phase A (S18): GameTracker に渡す「試合終了」フラグ
+  //   computeAutoMatchResult が "勝利" / "敗北" を返したら終了。
+  //   棄権 (手動で result 設定) は対象外 (games による自動判定のみ)
+  const matchEnded = useMemo(() => {
+    if (!form?.games || form.games.length === 0) return false;
+    const r = computeAutoMatchResult(form.games, effectiveFormat);
+    return r === "勝利" || r === "敗北";
+  }, [form?.games, effectiveFormat]);
+
   // Esc で閉じる (未保存確認経由)
   useEffect(() => {
     if (!open) return;
@@ -10563,8 +10641,9 @@ function MatchEditModal({ open, match, trnType, tournament, racketNames = [], st
               <span><b>データテニス CSV 取込済み</b> ({form.matchStats?.points?.length || 0} ポイント)。スタッツ編集はスコープ外（CSV 再取込で更新）</span>
             </div>
           )}
-          {/* ゲーム単位記録 (F1.4.1)、S15.5.9 で onChange を dirty 追跡型に変更 */}
-          <GameTracker match={form} onChange={handleGameTrackerChange} confirm={confirm} />
+          {/* ゲーム単位記録 (F1.4.1)、S15.5.9 で onChange を dirty 追跡型に変更
+              リク 30-e Phase A: matchEnded prop で試合終了状態を伝達 */}
+          <GameTracker match={form} onChange={handleGameTrackerChange} confirm={confirm} matchEnded={matchEnded} />
         </div>
 
         {/* ③ コンディション (メンタル / フィジカル) */}
