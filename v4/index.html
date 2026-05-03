@@ -12866,6 +12866,12 @@ function _dvMemoItem({ label, text, summary }) {
           background: C.primaryLight, borderRadius: 10,
           padding: "10px 14px",
           marginBottom: 6,
+          // リクエスト 31-2 補修 (A): 視覚的に 2 行で固定 (3 行目以降は「...」)
+          //   元文は下にフル表示なので情報損失なし
+          display: "-webkit-box",
+          WebkitBoxOrient: "vertical",
+          WebkitLineClamp: 2,
+          overflow: "hidden",
         }}>
           ✨ {String(summary).trim()}
         </div>
