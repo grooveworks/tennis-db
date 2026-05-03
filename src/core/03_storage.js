@@ -2,11 +2,24 @@
 // 設計: save() は uid 引数を取らない。fbAuth.currentUser を内部取得。
 // ログイン前は localStorage のみで動作（v2 方式、ログイン後にクラウド同期）
 
+// Round 5 Batch D: corrupt JSON 検出時に console.error で痕跡を残す + 元データを別キーに退避
+//   旧: catch(_){} で完全 silent → ユーザーから「データ消えた」と訴えられても証拠なし
+//   新: parse 失敗時に該当キーのデータを yuke-{k}-corrupted-{ts} に rename して証拠保全
 const lsLoad=k=>{
   try{
     const v=localStorage.getItem(LS_PREFIX+k+"-v1");
     if(v)return JSON.parse(v);
-  }catch(_){}
+  }catch(err){
+    console.error(`lsLoad parse error for key ${k}:`,err?.message||err);
+    try{
+      const v=localStorage.getItem(LS_PREFIX+k+"-v1");
+      if(v){
+        const ts=new Date().toISOString().replace(/[:.]/g,"-");
+        localStorage.setItem(`${LS_PREFIX}${k}-corrupted-${ts}`,v);
+        localStorage.removeItem(`${LS_PREFIX}${k}-v1`);
+      }
+    }catch(_){}
+  }
   return null;
 };
 const lsSave=(k,d)=>{

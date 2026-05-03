@@ -46,7 +46,7 @@ input,select,textarea,button{font-family:inherit}
 const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
 // ── 定数定義（色・キー・バージョン）─────────────
-const APP_VERSION="4.1.4-S18";
+const APP_VERSION="4.1.5-S18";
 const font="-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif";
 
 // 色設計（DESIGN_SYSTEM_v4.md §1 + §10 S13.5 改訂準拠）
@@ -131,11 +131,24 @@ fbDb.enablePersistence({synchronizeTabs:true}).catch(err => {
 // 設計: save() は uid 引数を取らない。fbAuth.currentUser を内部取得。
 // ログイン前は localStorage のみで動作（v2 方式、ログイン後にクラウド同期）
 
+// Round 5 Batch D: corrupt JSON 検出時に console.error で痕跡を残す + 元データを別キーに退避
+//   旧: catch(_){} で完全 silent → ユーザーから「データ消えた」と訴えられても証拠なし
+//   新: parse 失敗時に該当キーのデータを yuke-{k}-corrupted-{ts} に rename して証拠保全
 const lsLoad=k=>{
   try{
     const v=localStorage.getItem(LS_PREFIX+k+"-v1");
     if(v)return JSON.parse(v);
-  }catch(_){}
+  }catch(err){
+    console.error(`lsLoad parse error for key ${k}:`,err?.message||err);
+    try{
+      const v=localStorage.getItem(LS_PREFIX+k+"-v1");
+      if(v){
+        const ts=new Date().toISOString().replace(/[:.]/g,"-");
+        localStorage.setItem(`${LS_PREFIX}${k}-corrupted-${ts}`,v);
+        localStorage.removeItem(`${LS_PREFIX}${k}-v1`);
+      }
+    }catch(_){}
+  }
   return null;
 };
 const lsSave=(k,d)=>{
@@ -1472,9 +1485,12 @@ function computeSettingHistory(racketName, tournaments, practices, trials) {
   if (items.length === 0) return [];
 
   // 2. 日付昇順 (古い → 新しい)
+  // Round 5 Batch D: normDate を通して比較 (生 date が "2026/4/5" 形式と "2026-04-05" 混在しても正しく辞書順)
   items.sort((a, b) => {
-    if (a.date < b.date) return -1;
-    if (a.date > b.date) return 1;
+    const da = normDate(a.date) || "";
+    const db = normDate(b.date) || "";
+    if (da < db) return -1;
+    if (da > db) return 1;
     return 0;
   });
 

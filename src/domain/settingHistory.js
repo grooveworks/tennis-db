@@ -105,9 +105,12 @@ function computeSettingHistory(racketName, tournaments, practices, trials) {
   if (items.length === 0) return [];
 
   // 2. 日付昇順 (古い → 新しい)
+  // Round 5 Batch D: normDate を通して比較 (生 date が "2026/4/5" 形式と "2026-04-05" 混在しても正しく辞書順)
   items.sort((a, b) => {
-    if (a.date < b.date) return -1;
-    if (a.date > b.date) return 1;
+    const da = normDate(a.date) || "";
+    const db = normDate(b.date) || "";
+    if (da < db) return -1;
+    if (da > db) return 1;
     return 0;
   });
 
