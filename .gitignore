@@ -1,0 +1,10 @@
+# Dev モード用 fixture (実データ、プライバシー考慮で git 管理外)
+# 必要に応じて手動配置: cp tennis_db_<latest>.json v4/dev-fixture.json
+v4/dev-fixture.json
+
+# Claude Code の launch 設定 (環境依存)
+.claude/launch.json
+
+# OS / エディタ
+.DS_Store
+Thumbs.db

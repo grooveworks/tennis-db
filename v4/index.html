@@ -15545,6 +15545,53 @@ function PlaceholderTab({ name, stage }) {
   );
 }
 
+// ── Dev モード (Phase B 検証用) ────────────────────────────────────────
+//   URL に ?dev=1 を付けると Google SSO をスキップして fixture JSON を localStorage に展開、
+//   Firestore 接続せず純粋にローカルで動かす。本番データには絶対に触らない。
+//   ?dev=1&reset=1 で localStorage を全クリアして fixture を再ロード。
+//
+//   なぜ存在するか: Claude (私) が動作確認するための擬似環境。
+//   通常ユーザーは ?dev=1 を付けない限り影響なし。
+const _isDevMode = () => {
+  try {
+    const p = new URLSearchParams(window.location.search);
+    return p.get("dev") === "1";
+  } catch (_) { return false; }
+};
+const _isDevReset = () => {
+  try {
+    const p = new URLSearchParams(window.location.search);
+    return p.get("reset") === "1";
+  } catch (_) { return false; }
+};
+const _devFakeUser = { uid: "dev-local-user", displayName: "Dev", email: "dev@local" };
+// fixture を localStorage に展開 (既存値は上書きしない、reset=1 の時のみ全クリア後に展開)
+const _loadDevFixture = async () => {
+  // KEYS と fixture フィールド名のマップ (fixture は v3 互換 export 形式)
+  const fields = ["tournaments", "practices", "trials", "rackets", "strings", "venues", "opponents", "next", "stringSetups", "quickTrialCards"];
+  const alreadyLoaded = (lsLoad(KEYS.tournaments) || []).length > 0;
+  if (alreadyLoaded && !_isDevReset()) return false;
+  // reset=1: 関連 LS キーを全クリア
+  if (_isDevReset()) {
+    fields.forEach(k => {
+      try { localStorage.removeItem(LS_PREFIX + k + "-v1"); } catch (_) {}
+    });
+  }
+  try {
+    const res = await fetch("/v4/dev-fixture.json");
+    if (!res.ok) throw new Error("dev-fixture.json not found");
+    const data = await res.json();
+    fields.forEach(k => {
+      const v = data[k];
+      if (Array.isArray(v)) lsSave(k, v);
+    });
+    return true;
+  } catch (err) {
+    console.error("Dev fixture load failed:", err);
+    return false;
+  }
+};
+
 function TennisDB() {
   const [user, setUser] = useState(null);
   const [authReady, setAuthReady] = useState(false);
@@ -15740,6 +15787,28 @@ function TennisDB() {
 
   // 認証状態監視 + リアルタイム同期
   useEffect(() => {
+    // Dev モード分岐: Firestore / Auth に一切繋がず、fixture をローカル展開して即起動
+    //   通常ユーザーは ?dev=1 を付けない限りこの分岐に入らない
+    if (_isDevMode()) {
+      (async () => {
+        await _loadDevFixture();
+        // localStorage から各 state を再読み込み (既存の初回ロード経路と同じ)
+        setTournaments(normalizeItems(lsLoad(KEYS.tournaments) || []));
+        setPractices(normalizeItems(lsLoad(KEYS.practices) || []));
+        setTrials(normalizeItems(lsLoad(KEYS.trials) || []));
+        setRackets(assignDefaultOrders(lsLoad(KEYS.rackets) || []));
+        setStringsList(assignDefaultOrders(lsLoad(KEYS.strings) || []));
+        setVenues(lsLoad(KEYS.venues) || []);
+        setOpponents(lsLoad(KEYS.opponents) || []);
+        setNext(lsLoad(KEYS.next) || []);
+        setQuickTrialCards(lsLoad(KEYS.quickTrialCards) || []);
+        setStringSetups(assignDefaultOrders(lsLoad(KEYS.stringSetups) || []));
+        setUser(_devFakeUser);
+        setAuthReady(true);
+      })();
+      return; // unsubAuth / unsubSnapshot 設定なし
+    }
+
     let unsubSnapshot = null;
     const unsubAuth = fbAuth.onAuthStateChanged(async (u) => {
       setUser(u);
@@ -16635,6 +16704,17 @@ function TennisDB() {
       // S15.5.7: メモ系文字サイズの scale を CSS variable で子コンポーネントへ伝播
       "--memo-font-scale": String(fontScale),
     }}>
+      {/* Dev モードバナー: ?dev=1 で起動時のみ表示。本番には絶対書き込まないことを可視化 */}
+      {_isDevMode() && (
+        <div style={{
+          background: "#fbbc04", color: "#202124",
+          padding: "6px 12px", fontSize: 12, fontWeight: 600,
+          textAlign: "center", borderBottom: "1px solid #f59e0b",
+          flexShrink: 0,
+        }}>
+          DEV MODE — ローカル fixture で動作中、本番 Firestore には書き込みません (URL に &reset=1 で初期化)
+        </div>
+      )}
       {/* S13.5 共通 Header: Tennis*DB* + version + ☁️ + 🌤 + 👤 (§10.8 / DECISIONS S13.5) */}
       <Header
         tabTitle={tabTitles[tab] || ""}
