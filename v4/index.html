@@ -46,7 +46,7 @@ input,select,textarea,button{font-family:inherit}
 const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
 // ── 定数定義（色・キー・バージョン）─────────────
-const APP_VERSION="4.1.6-S18";
+const APP_VERSION="4.1.7-S18";
 const font="-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif";
 
 // 色設計（DESIGN_SYSTEM_v4.md §1 + §10 S13.5 改訂準拠）
@@ -2295,6 +2295,63 @@ function MasterField({ label, value, onChange, masterValues = [], placeholder, r
 }
 
 // === src/ui/common/Modal.jsx ===
+// useFocusTrap — モーダルが open の間、focus をモーダル内に閉じ込める (Round 5 a11y)
+//   - 開いた瞬間: 直前の active 要素を記憶 + モーダル内最初の focusable 要素に focus
+//   - Tab / Shift+Tab: 末尾↔先頭で循環 (capture phase で他リスナより先に処理)
+//   - close: 直前の active 要素に focus を戻す
+// 使い方: const ref = useFocusTrap(open); ... <div ref={ref}>{...}</div>
+// 注: hoisting により Modal.jsx 以外のモーダル (SettingsModal 等) からも使用可
+function useFocusTrap(open) {
+  const containerRef = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const prevFocus = document.activeElement;
+    const FOCUSABLE_SEL = 'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+    const getFocusables = () => {
+      const el = containerRef.current;
+      if (!el) return [];
+      return [...el.querySelectorAll(FOCUSABLE_SEL)].filter(n => n.offsetParent !== null);
+    };
+    const rafId = requestAnimationFrame(() => {
+      const list = getFocusables();
+      if (list.length > 0) list[0].focus();
+      else if (containerRef.current) {
+        containerRef.current.setAttribute("tabindex", "-1");
+        containerRef.current.focus();
+      }
+    });
+    const handleTab = (e) => {
+      if (e.key !== "Tab") return;
+      const list = getFocusables();
+      if (list.length === 0) { e.preventDefault(); return; }
+      const first = list[0];
+      const last = list[list.length - 1];
+      const active = document.activeElement;
+      if (containerRef.current && !containerRef.current.contains(active)) {
+        e.preventDefault();
+        first.focus();
+        return;
+      }
+      if (e.shiftKey && active === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && active === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", handleTab, true);
+    return () => {
+      cancelAnimationFrame(rafId);
+      document.removeEventListener("keydown", handleTab, true);
+      if (prevFocus && typeof prevFocus.focus === "function") {
+        try { prevFocus.focus(); } catch (_) {}
+      }
+    };
+  }, [open]);
+  return containerRef;
+}
+
 // Modal — モーダル基本枠
 // props:
 //   open: boolean
@@ -2303,6 +2360,7 @@ function MasterField({ label, value, onChange, masterValues = [], placeholder, r
 //   children: コンテンツ
 // DESIGN_SYSTEM §4.5 準拠、閉じるボタンは左上固定（戻ると位置統一）
 function Modal({ open, onClose, title, children }) {
+  const trapRef = useFocusTrap(open);
   useEffect(() => {
     if (!open) return;
     const handler = (e) => { if (e.key === "Escape") onClose && onClose(); };
@@ -2328,6 +2386,7 @@ function Modal({ open, onClose, title, children }) {
       }}
     >
       <div
+        ref={trapRef}
         style={{
           background: C.panel,
           borderRadius: RADIUS.card, // S13.5: 16 → 20 (Apple ライク、§10.3)
@@ -2519,6 +2578,7 @@ const _exportAllData = (toast) => {
 function SettingsModal({ open, fontScale, onFontScaleChange, onClose, toast, onBulkSummarize, bulkSummarizeProgress, onImportCalendarJson }) {
   // インポート用 hidden file input ref
   const importFileRef = useRef(null);
+  const trapRef = useFocusTrap(open); // Round 5: a11y focus trap
   const handleImportFileChange = (e) => {
     const file = e.target.files && e.target.files[0];
     if (file && onImportCalendarJson) onImportCalendarJson(file);
@@ -2549,7 +2609,7 @@ function SettingsModal({ open, fontScale, onFontScaleChange, onClose, toast, onB
         padding: 20, zIndex: 1000,
       }}
     >
-      <div style={{
+      <div ref={trapRef} style={{
         background: C.panel,
         borderRadius: RADIUS.card,
         width: "100%", maxWidth: 420,
@@ -3037,6 +3097,7 @@ const _wmTodayLabel = () => {
 };
 
 function WeatherModal({ open, onClose, weather }) {
+  const trapRef = useFocusTrap(open); // Round 5: a11y focus trap
   // Esc で閉じる
   useEffect(() => {
     if (!open) return;
@@ -3077,6 +3138,7 @@ function WeatherModal({ open, onClose, weather }) {
       />
       {/* Glass bottom sheet (TabBar 上に貼り付く) */}
       <div
+        ref={trapRef}
         role="dialog"
         aria-modal="true"
         aria-label="今日の天気詳細"
@@ -8952,6 +9014,7 @@ function FilterChip({ label, selectedValues = [], onOpen, onClear }) {
 
 function FilterDrawer({ open, title, options = [], selected = [], onApply, onClose }) {
   const [draft, setDraft] = useState(selected);
+  const trapRef = useFocusTrap(open); // Round 5: a11y focus trap
 
   // open のたびに最新の selected を draft に取り込む (親が外で変えても追従)
   useEffect(() => { if (open) setDraft(selected); }, [open]);
@@ -8986,6 +9049,7 @@ function FilterDrawer({ open, title, options = [], selected = [], onApply, onClo
       }}
     >
       <div
+        ref={trapRef}
         style={{
           background: C.panel,
           borderRadius: "16px 16px 0 0",
@@ -10031,6 +10095,7 @@ function _meRatingRow({ label, value, onChange }) {
 }
 
 function MatchEditModal({ open, match, trnType, racketNames = [], stringNames = [], opponentNames = [], recentSetups = [], confirm, onSave, onClose }) {
+  const trapRef = useFocusTrap(open); // Round 5: a11y focus trap
   // S15.5.9: 起動時に下書きがあればそちらを優先
   const [form, setForm] = useState(() => {
     if (!match || !match.id) return match;
@@ -10153,7 +10218,7 @@ function MatchEditModal({ open, match, trnType, racketNames = [], stringNames = 
         padding: "20px 12px", overflowY: "auto",
       }}
     >
-      <div style={{
+      <div ref={trapRef} style={{
         background: C.panel, borderRadius: 16, padding: 18,
         maxWidth: 480, width: "100%",
       }}>
@@ -10554,6 +10619,7 @@ function _MergeFinalCol({ title, tone, item, type, highlightFromB, highlightConf
 
 // ── 本体
 function MergeModal({ open, type, itemA, itemB, trials, onConfirm, onCancel }) {
+  const trapRef = useFocusTrap(open); // Round 5: a11y focus trap
   const [step, setStep] = useState("compare");
   const [choices, setChoices] = useState({});
   const [showCollapsed, setShowCollapsed] = useState(false);
@@ -10762,7 +10828,7 @@ function MergeModal({ open, type, itemA, itemB, trials, onConfirm, onCancel }) {
         padding: 20, zIndex: 1100,
       }}
     >
-      <div style={{
+      <div ref={trapRef} style={{
         background: C.panel,
         borderRadius: RADIUS.card,
         width: "100%", maxWidth: 560,
@@ -11727,6 +11793,7 @@ const _QA_PRAC_TYPE_OPTS = [
 ];
 
 function QuickAddModal({ open, type, racketNames = [], stringNames = [], venueNames = [], levelNames = [], onSave, onClose }) {
+  const trapRef = useFocusTrap(open); // Round 5: a11y focus trap
   const [form, setForm] = useState(null);
 
   // open / type 切替時に blank で再初期化 (前種別の値が残らないように)
@@ -11800,7 +11867,7 @@ function QuickAddModal({ open, type, racketNames = [], stringNames = [], venueNa
         padding: "20px 12px", overflowY: "auto",
       }}
     >
-      <div style={{
+      <div ref={trapRef} style={{
         background: C.panel, borderRadius: 16, padding: 18,
         maxWidth: 420, width: "100%",
       }}>

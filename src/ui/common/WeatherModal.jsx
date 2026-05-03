@@ -46,6 +46,7 @@ const _wmTodayLabel = () => {
 };
 
 function WeatherModal({ open, onClose, weather }) {
+  const trapRef = useFocusTrap(open); // Round 5: a11y focus trap
   // Esc で閉じる
   useEffect(() => {
     if (!open) return;
@@ -86,6 +87,7 @@ function WeatherModal({ open, onClose, weather }) {
       />
       {/* Glass bottom sheet (TabBar 上に貼り付く) */}
       <div
+        ref={trapRef}
         role="dialog"
         aria-modal="true"
         aria-label="今日の天気詳細"

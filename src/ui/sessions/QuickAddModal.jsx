@@ -123,6 +123,7 @@ const _QA_PRAC_TYPE_OPTS = [
 ];
 
 function QuickAddModal({ open, type, racketNames = [], stringNames = [], venueNames = [], levelNames = [], onSave, onClose }) {
+  const trapRef = useFocusTrap(open); // Round 5: a11y focus trap
   const [form, setForm] = useState(null);
 
   // open / type 切替時に blank で再初期化 (前種別の値が残らないように)
@@ -196,7 +197,7 @@ function QuickAddModal({ open, type, racketNames = [], stringNames = [], venueNa
         padding: "20px 12px", overflowY: "auto",
       }}
     >
-      <div style={{
+      <div ref={trapRef} style={{
         background: C.panel, borderRadius: 16, padding: 18,
         maxWidth: 420, width: "100%",
       }}>

@@ -66,6 +66,7 @@ const _exportAllData = (toast) => {
 function SettingsModal({ open, fontScale, onFontScaleChange, onClose, toast, onBulkSummarize, bulkSummarizeProgress, onImportCalendarJson }) {
   // インポート用 hidden file input ref
   const importFileRef = useRef(null);
+  const trapRef = useFocusTrap(open); // Round 5: a11y focus trap
   const handleImportFileChange = (e) => {
     const file = e.target.files && e.target.files[0];
     if (file && onImportCalendarJson) onImportCalendarJson(file);
@@ -96,7 +97,7 @@ function SettingsModal({ open, fontScale, onFontScaleChange, onClose, toast, onB
         padding: 20, zIndex: 1000,
       }}
     >
-      <div style={{
+      <div ref={trapRef} style={{
         background: C.panel,
         borderRadius: RADIUS.card,
         width: "100%", maxWidth: 420,

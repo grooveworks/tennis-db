@@ -85,6 +85,7 @@ function _meRatingRow({ label, value, onChange }) {
 }
 
 function MatchEditModal({ open, match, trnType, racketNames = [], stringNames = [], opponentNames = [], recentSetups = [], confirm, onSave, onClose }) {
+  const trapRef = useFocusTrap(open); // Round 5: a11y focus trap
   // S15.5.9: 起動時に下書きがあればそちらを優先
   const [form, setForm] = useState(() => {
     if (!match || !match.id) return match;
@@ -207,7 +208,7 @@ function MatchEditModal({ open, match, trnType, racketNames = [], stringNames = 
         padding: "20px 12px", overflowY: "auto",
       }}
     >
-      <div style={{
+      <div ref={trapRef} style={{
         background: C.panel, borderRadius: 16, padding: 18,
         maxWidth: 480, width: "100%",
       }}>

@@ -14,6 +14,7 @@
 
 function FilterDrawer({ open, title, options = [], selected = [], onApply, onClose }) {
   const [draft, setDraft] = useState(selected);
+  const trapRef = useFocusTrap(open); // Round 5: a11y focus trap
 
   // open のたびに最新の selected を draft に取り込む (親が外で変えても追従)
   useEffect(() => { if (open) setDraft(selected); }, [open]);
@@ -48,6 +49,7 @@ function FilterDrawer({ open, title, options = [], selected = [], onApply, onClo
       }}
     >
       <div
+        ref={trapRef}
         style={{
           background: C.panel,
           borderRadius: "16px 16px 0 0",

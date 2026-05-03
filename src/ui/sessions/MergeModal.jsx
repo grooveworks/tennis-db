@@ -216,6 +216,7 @@ function _MergeFinalCol({ title, tone, item, type, highlightFromB, highlightConf
 
 // ── 本体
 function MergeModal({ open, type, itemA, itemB, trials, onConfirm, onCancel }) {
+  const trapRef = useFocusTrap(open); // Round 5: a11y focus trap
   const [step, setStep] = useState("compare");
   const [choices, setChoices] = useState({});
   const [showCollapsed, setShowCollapsed] = useState(false);
@@ -424,7 +425,7 @@ function MergeModal({ open, type, itemA, itemB, trials, onConfirm, onCancel }) {
         padding: 20, zIndex: 1100,
       }}
     >
-      <div style={{
+      <div ref={trapRef} style={{
         background: C.panel,
         borderRadius: RADIUS.card,
         width: "100%", maxWidth: 560,
