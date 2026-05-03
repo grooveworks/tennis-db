@@ -29,7 +29,7 @@ function MeasurementEditModal({ open, item, racketName, onSave, onClose, onDelet
   const handleSave = () => {
     const next = {
       ...(item || {}),
-      id: item?.id || `ms${genId()}`,
+      id: item?.id || genId(), // H-21 (Phase A 監査): 'ms' prefix 廃止、racket/string と id 体系を統一
       state: (state || "").trim(),
       weight: (weight || "").trim(),
       balance: (balance || "").trim(),

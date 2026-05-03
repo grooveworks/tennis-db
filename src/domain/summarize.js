@@ -14,13 +14,12 @@
 
 const _summaryCache = new Map(); // key = `${fieldType}|${text}`, value = summary string
 
-// S16.11 C5: auth 切替で cache を必ずクリア (前ユーザーの要約が後ユーザーに漏れる経路を遮断)
-//   onAuthStateChanged を購読、別ユーザーのセッションに切替時即座に Map.clear()
-if (typeof fbAuth !== "undefined" && fbAuth?.onAuthStateChanged) {
-  fbAuth.onAuthStateChanged(() => {
-    _summaryCache.clear();
-  });
-}
+// S16.11 C5 + H-5 (Phase A 監査): auth 切替で cache をクリア。
+//   listener 戻り値 (unsubscribe 関数) を保持して、テスト等で必要なら解放可能にする。
+//   実アプリでは page lifecycle 全体で listener を保持し続けるが、参照を持つこと自体は害がない。
+const _unsubAuth = (typeof fbAuth !== "undefined" && fbAuth?.onAuthStateChanged)
+  ? fbAuth.onAuthStateChanged(() => { _summaryCache.clear(); })
+  : null;
 
 async function summarizeMemoText(text, fieldType) {
   const trimmed = (text || "").trim();
@@ -30,6 +29,11 @@ async function summarizeMemoText(text, fieldType) {
 
   const cacheKey = `${fieldType || ""}|${trimmed}`;
   if (_summaryCache.has(cacheKey)) return _summaryCache.get(cacheKey);
+
+  // H-4 (Phase A 監査): fbFunctions が初期化失敗で null の場合に TypeError を防ぐ
+  //   旧: try/catch で吸収していたが、構造が暗黙的で意図不明
+  //   新: 明示的な null チェックで早期 return (= line-clamp フォールバック)
+  if (typeof fbFunctions === "undefined" || !fbFunctions) return null;
 
   try {
     const callable = fbFunctions.httpsCallable("summarizeMemo");
