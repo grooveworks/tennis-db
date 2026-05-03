@@ -109,6 +109,9 @@ function WeeklySummary({ tournaments = [], practices = [] }) {
   }, [tournaments]);
 
   // 主力ラケット (直近 30 日)
+  // H-10 (Phase A 監査): tournament.matches[].racketName も含めて集計
+  //   旧: tournament トップ階の racketName しか見ず、match 単位で変えた場合に集計漏れ
+  //   新: matches[] 内の racketName も 1 試合 1 票で tally
   const mainRacketName = useMemo(() => {
     const cutoff = (() => {
       const d = new Date();
@@ -116,11 +119,22 @@ function WeeklySummary({ tournaments = [], practices = [] }) {
       return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
     })();
     const counts = {};
-    [...(practices || []), ...(tournaments || [])].forEach(item => {
-      if (!item || !item.racketName) return;
-      const nd = normDate(item.date);
-      if (nd >= cutoff && nd <= todayIso) {
-        counts[item.racketName] = (counts[item.racketName] || 0) + 1;
+    const inRange = (date) => {
+      const nd = normDate(date);
+      return nd >= cutoff && nd <= todayIso;
+    };
+    const tally = (name) => {
+      if (!name) return;
+      counts[name] = (counts[name] || 0) + 1;
+    };
+    (practices || []).forEach(p => {
+      if (p && p.racketName && inRange(p.date)) tally(p.racketName);
+    });
+    (tournaments || []).forEach(t => {
+      if (!t || !inRange(t.date)) return;
+      if (t.racketName) tally(t.racketName);
+      if (Array.isArray(t.matches)) {
+        t.matches.forEach(m => { if (m && m.racketName) tally(m.racketName); });
       }
     });
     const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];

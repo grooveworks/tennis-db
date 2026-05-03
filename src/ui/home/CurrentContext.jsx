@@ -119,18 +119,33 @@ function CurrentContext({ tournaments = [], practices = [], trials = [], next = 
   }, [next]);
 
   // 3. 主力ラケット (直近 30 日 練習+大会 使用回数最多)
+  // H-10 (Phase A 監査): tournament トップ階の racketName だけでなく、
+  //   matches[].racketName (試合ごとに変えたケース) も集計対象に含める。
+  //   旧: tournament.racketName が空だと使用回数 0 でカウントされない
+  //   新: matches 内の各 racketName を 1 回ずつ tally
   const mainRacket = useMemo(() => {
     const cutoff = _ctxThirtyDaysAgo();
     const counts = {};
-    const tally = (item) => {
-      if (!item || !item.racketName) return;
-      const nd = normDate(item.date);
-      if (nd >= cutoff && nd <= todayIso) {
-        counts[item.racketName] = (counts[item.racketName] || 0) + 1;
-      }
+    const inRange = (date) => {
+      const nd = normDate(date);
+      return nd >= cutoff && nd <= todayIso;
     };
-    (practices || []).forEach(tally);
-    (tournaments || []).forEach(tally);
+    const tallyName = (name) => {
+      if (!name) return;
+      counts[name] = (counts[name] || 0) + 1;
+    };
+    (practices || []).forEach(p => {
+      if (p && p.racketName && inRange(p.date)) tallyName(p.racketName);
+    });
+    (tournaments || []).forEach(t => {
+      if (!t || !inRange(t.date)) return;
+      // tournament トップ階 (フォールバック)
+      if (t.racketName) tallyName(t.racketName);
+      // 個別 match の racketName (混在ケース、個別記録があれば優先)
+      if (Array.isArray(t.matches)) {
+        t.matches.forEach(m => { if (m && m.racketName) tallyName(m.racketName); });
+      }
+    });
     const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
     if (entries.length === 0) return null;
     const [name, count] = entries[0];
