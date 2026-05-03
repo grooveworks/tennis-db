@@ -190,10 +190,14 @@ function RacketDetailView({
 }) {
   // history.pushState 連動 (Sessions と同じ pattern)
   // open=true のときに pushState、popstate で onClose
+  // H-12 (Phase A 監査): onClose を useRef に乗せて handler stale を排除しつつ
+  //   useEffect deps を [open, racket?.id] に保つ (pushState 二重発火を防ぐ)
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
   useEffect(() => {
     if (!open) return;
     try { window.history.pushState({ tdb: "gear-detail" }, ""); } catch (_) {}
-    const handler = (e) => { onClose && onClose(); };
+    const handler = () => { const fn = onCloseRef.current; if (fn) fn(); };
     window.addEventListener("popstate", handler);
     return () => window.removeEventListener("popstate", handler);
   }, [open, racket?.id]);

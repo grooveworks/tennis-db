@@ -78,10 +78,13 @@ function _dateMD(dateStr) {
 
 function PeriodDetailView({ open, period, racket, tournaments, practices, trials, onClose, onSessionClick }) {
   // history.pushState 連動 (Racket Detail と同じ pattern)
+  // H-13 (Phase A 監査): onClose を useRef に逃がして handler stale を排除
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
   useEffect(() => {
     if (!open) return;
     try { window.history.pushState({ tdb: "gear-period" }, ""); } catch (_) {}
-    const handler = () => { onClose && onClose(); };
+    const handler = () => { const fn = onCloseRef.current; if (fn) fn(); };
     window.addEventListener("popstate", handler);
     return () => window.removeEventListener("popstate", handler);
   }, [open, period?.startDate]);
