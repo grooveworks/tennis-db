@@ -90,6 +90,12 @@ function YearHeatmap({ items = [], trialLinks = { linkedTournamentIds: new Set()
     if (onPanelStateChange) onPanelStateChange(!!selected);
   }, [selected, onPanelStateChange]);
 
+  // H-14 (Phase A 監査): WeekPanel に渡す onClose を useCallback で安定化。
+  //   旧: <WeekPanel onClose={() => setSelected(null)} /> がインライン arrow function で
+  //        毎 render 新参照 → WeekPanel 内 ESC useEffect が re-attach を繰り返す
+  //   新: useCallback で同一参照を維持 → addEventListener/removeEventListener が 1 回ずつだけ
+  const handleWeekPanelClose = useCallback(() => setSelected(null), []);
+
   const isCurrentYear = year === todayInfo.y;
 
   // 年切替
@@ -292,7 +298,7 @@ function YearHeatmap({ items = [], trialLinks = { linkedTournamentIds: new Set()
         <WeekPanel
           weekLabel={selectedLabel}
           items={selectedItems}
-          onClose={() => setSelected(null)}
+          onClose={handleWeekPanelClose}
           onCardClick={onCardClick}
         />
       )}

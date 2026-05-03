@@ -8294,6 +8294,8 @@ function CalendarView({ items = [], trialLinks = { linkedTournamentIds: new Set(
     return { y: d.getFullYear(), m: d.getMonth() };
   });
   const [selectedDay, setSelectedDay] = useState(null); // 1-31 (現在表示中の月内の日付)
+  // H-14 (Phase A 監査): DayPanel に渡す onClose を useCallback で安定化 (ESC リスナー再登録防止)
+  const handleDayPanelClose = useCallback(() => setSelectedDay(null), []);
   // パネル開閉を親に通知 (FAB 表示制御)
   useEffect(() => {
     if (onPanelStateChange) onPanelStateChange(!!selectedDay);
@@ -8459,7 +8461,7 @@ function CalendarView({ items = [], trialLinks = { linkedTournamentIds: new Set(
           dateISO={selectedISO}
           tournaments={selectedSlot.tournaments}
           practices={selectedSlot.practices}
-          onClose={() => setSelectedDay(null)}
+          onClose={handleDayPanelClose}
           onCardClick={onCardClick}
         />
       )}
@@ -15224,6 +15226,12 @@ function YearHeatmap({ items = [], trialLinks = { linkedTournamentIds: new Set()
     if (onPanelStateChange) onPanelStateChange(!!selected);
   }, [selected, onPanelStateChange]);
 
+  // H-14 (Phase A 監査): WeekPanel に渡す onClose を useCallback で安定化。
+  //   旧: <WeekPanel onClose={() => setSelected(null)} /> がインライン arrow function で
+  //        毎 render 新参照 → WeekPanel 内 ESC useEffect が re-attach を繰り返す
+  //   新: useCallback で同一参照を維持 → addEventListener/removeEventListener が 1 回ずつだけ
+  const handleWeekPanelClose = useCallback(() => setSelected(null), []);
+
   const isCurrentYear = year === todayInfo.y;
 
   // 年切替
@@ -15426,7 +15434,7 @@ function YearHeatmap({ items = [], trialLinks = { linkedTournamentIds: new Set()
         <WeekPanel
           weekLabel={selectedLabel}
           items={selectedItems}
-          onClose={() => setSelected(null)}
+          onClose={handleWeekPanelClose}
           onCardClick={onCardClick}
         />
       )}

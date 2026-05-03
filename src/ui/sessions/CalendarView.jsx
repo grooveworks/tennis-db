@@ -38,6 +38,8 @@ function CalendarView({ items = [], trialLinks = { linkedTournamentIds: new Set(
     return { y: d.getFullYear(), m: d.getMonth() };
   });
   const [selectedDay, setSelectedDay] = useState(null); // 1-31 (現在表示中の月内の日付)
+  // H-14 (Phase A 監査): DayPanel に渡す onClose を useCallback で安定化 (ESC リスナー再登録防止)
+  const handleDayPanelClose = useCallback(() => setSelectedDay(null), []);
   // パネル開閉を親に通知 (FAB 表示制御)
   useEffect(() => {
     if (onPanelStateChange) onPanelStateChange(!!selectedDay);
@@ -203,7 +205,7 @@ function CalendarView({ items = [], trialLinks = { linkedTournamentIds: new Set(
           dateISO={selectedISO}
           tournaments={selectedSlot.tournaments}
           practices={selectedSlot.practices}
-          onClose={() => setSelectedDay(null)}
+          onClose={handleDayPanelClose}
           onCardClick={onCardClick}
         />
       )}
