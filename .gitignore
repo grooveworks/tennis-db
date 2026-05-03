@@ -5,6 +5,11 @@ v4/dev-fixture.json
 # Claude Code の launch 設定 (環境依存)
 .claude/launch.json
 
+# Node.js / Playwright (e2e テスト依存)
+node_modules/
+playwright-report/
+test-results/
+
 # OS / エディタ
 .DS_Store
 Thumbs.db
