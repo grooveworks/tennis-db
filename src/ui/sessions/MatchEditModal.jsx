@@ -84,8 +84,12 @@ function _meRatingRow({ label, value, onChange }) {
   );
 }
 
-function MatchEditModal({ open, match, trnType, racketNames = [], stringNames = [], opponentNames = [], recentSetups = [], confirm, onSave, onClose }) {
+function MatchEditModal({ open, match, trnType, tournament, racketNames = [], stringNames = [], opponentNames = [], recentSetups = [], confirm, onSave, onClose }) {
   const trapRef = useFocusTrap(open); // Round 5: a11y focus trap
+  // リク 30-e (S18): 試合形式を解決 (form.format > tournament.matchFormat > default)
+  //   form (state) を見ることで「変更」ボタン操作時に即座に効く。useMemo はキャッシュ。
+  //   helpers が format に応じてセット完了判定 / 試合勝敗判定を変える。
+  // 注: form は下で初期化されるため、ここでは関数内で参照するだけ (lexical scope)
   // S15.5.9: 起動時に下書きがあればそちらを優先
   const [form, setForm] = useState(() => {
     if (!match || !match.id) return match;
@@ -94,6 +98,13 @@ function MatchEditModal({ open, match, trnType, racketNames = [], stringNames = 
   });
   const [dirty, setDirty] = useState(() => match?.id ? _loadMatchDraft(match.id) !== null : false);
   const [restored, setRestored] = useState(() => match?.id ? _loadMatchDraft(match.id) !== null : false);
+
+  // リク 30-e (S18): 試合形式の解決 (form.format > tournament.matchFormat > default)
+  //   form を直接見るため、preset 切替・1-1 10pt TB トグルの影響が即座に反映
+  const effectiveFormat = useMemo(
+    () => resolveMatchFormat(form, tournament),
+    [form?.format, tournament?.matchFormat]
+  );
 
   // open のたびに最新の match を反映 (別 match を編集する時の対応、S15.5.9 で下書き優先)
   useEffect(() => {
@@ -165,15 +176,16 @@ function MatchEditModal({ open, match, trnType, racketNames = [], stringNames = 
   //   という偶然動作。今は「手動で result を選んだ後は二度と自動上書きしない」明確な仕様。
   const handleGameTrackerChange = useCallback((next) => {
     const games = Array.isArray(next.games) ? next.games : [];
-    const autoSetScores = computeSetScoresFromGames(games);
-    const autoResult = computeAutoMatchResult(games);
+    // リク 30-e (S18): format 渡して、4ゲーム先取/6ゲーム先取/1セット/3セット+10ptTB の各形式に対応
+    const autoSetScores = computeSetScoresFromGames(games, effectiveFormat);
+    const autoResult = computeAutoMatchResult(games, effectiveFormat);
     const merged = { ...next, setScores: autoSetScores };
     if (autoResult && !manualResultLockRef.current) {
       merged.result = autoResult;
     }
     setForm(merged);
     setDirty(true);
-  }, []);
+  }, [effectiveFormat]);
 
   // Esc で閉じる (未保存確認経由)
   useEffect(() => {
@@ -195,6 +207,30 @@ function MatchEditModal({ open, match, trnType, racketNames = [], stringNames = 
   const setScoresInput = Array.isArray(form.setScores) ? form.setScores.join(", ") : (form.setScores || "");
   const isDouble = trnType === "doubles" || trnType === "mixed";
   const showOpponent2 = isDouble;
+
+  // リク 30-e (S18): 試合形式 override UI 用 state
+  //   form.format=null = 大会から継承、object = 試合ごとに上書き
+  const isOverridden = !!form.format;
+  const inheritedFormat = tournament?.matchFormat || DEFAULT_MATCH_FORMAT;
+  const handleFormatPresetChange = (preset) => {
+    if (!preset) {
+      // 「大会に従う」= override 解除
+      setForm(p => ({ ...p, format: null }));
+      setDirty(true);
+      return;
+    }
+    // 3set の finalSetMode は既存 form.format から引き継ぐ (既に override 中の場合)
+    const finalSetMode = form.format?.finalSetMode || "normal";
+    setForm(p => ({ ...p, format: formatFromPreset(preset, finalSetMode, p.format?.noAd || false) }));
+    setDirty(true);
+  };
+  const handleFinalSetModeToggle = (checked) => {
+    // 3set + match.format がある時だけ意味がある
+    if (!form.format || form.format.preset !== "3set") return;
+    const next = formatFromPreset("3set", checked ? "matchTiebreak10" : "normal", form.format.noAd || false);
+    setForm(p => ({ ...p, format: next }));
+    setDirty(true);
+  };
 
   return (
     <div
@@ -261,6 +297,88 @@ function MatchEditModal({ open, match, trnType, racketNames = [], stringNames = 
         {showOpponent2 && (
           <MasterField label="対戦相手 2 (ダブルス)" value={form.opponent2 || ""} onChange={(v) => set("opponent2", v)} masterValues={opponentNames} placeholder="-- 対戦相手 2 を選択 --" />
         )}
+
+        {/* リク 30-e (S18): 試合形式 セクション (大会から継承 + 必要なら上書き)
+            プリセット 4 つ + 「大会に従う」 + 3set 時の 1-1 10pt TB トグル */}
+        <div style={{
+          background: C.bg, border: `1px solid ${C.divider}`,
+          borderRadius: 10, padding: "10px 12px", marginTop: 10, marginBottom: 10,
+        }}>
+          <div style={{
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            marginBottom: 8,
+          }}>
+            <div style={{
+              fontSize: 11, fontWeight: 700, color: C.primary,
+              display: "inline-flex", alignItems: "center", gap: 4,
+            }}>
+              <Icon name="trophy" size={13} color={C.primary} />試合形式
+            </div>
+            <span style={{
+              fontSize: 10, fontWeight: 600,
+              padding: "2px 6px", borderRadius: 4,
+              background: isOverridden ? C.warningLight : C.primaryLight,
+              color: isOverridden ? "#7e5d00" : C.primary,
+            }}>
+              {isOverridden ? "この試合のみ上書き" : "大会から継承"}
+            </span>
+          </div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 2 }}>
+            {formatLabel(effectiveFormat)}
+          </div>
+          <div style={{ fontSize: 11, color: C.textMuted, lineHeight: 1.5, marginBottom: 8 }}>
+            {formatRuleSummary(effectiveFormat)}
+          </div>
+          {/* プリセットボタン行 */}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {[
+              { v: null,    l: "大会に従う" },
+              { v: "1set",  l: "1セット" },
+              { v: "3set",  l: "3セット" },
+              { v: "6game", l: "6ゲーム先取" },
+              { v: "4game", l: "4ゲーム先取" },
+            ].map(opt => {
+              const active = opt.v === null ? !isOverridden : (form.format?.preset === opt.v);
+              return (
+                <button
+                  key={opt.l}
+                  type="button"
+                  onClick={() => handleFormatPresetChange(opt.v)}
+                  style={{
+                    minHeight: 36, padding: "6px 10px",
+                    borderRadius: 8,
+                    border: `1px solid ${active ? C.primary : C.border}`,
+                    background: active ? C.primary : C.panel,
+                    color: active ? "#fff" : C.text,
+                    fontSize: 12, fontWeight: 600,
+                    cursor: "pointer", fontFamily: font,
+                  }}
+                >
+                  {opt.l}
+                </button>
+              );
+            })}
+          </div>
+          {/* 3set 上書き時のみ: 1-1 で 10pt TB トグル */}
+          {isOverridden && form.format?.preset === "3set" && (
+            <label style={{
+              display: "flex", alignItems: "center", gap: 8,
+              marginTop: 10, padding: "8px 10px",
+              background: C.primaryLight, border: `1px solid ${C.primary}`,
+              borderRadius: 8, cursor: "pointer",
+            }}>
+              <input
+                type="checkbox"
+                checked={form.format.finalSetMode === "matchTiebreak10"}
+                onChange={(e) => handleFinalSetModeToggle(e.target.checked)}
+                style={{ width: 18, height: 18, accentColor: C.primary, margin: 0 }}
+              />
+              <span style={{ fontSize: 12, color: C.text, fontWeight: 500 }}>
+                最終セット (1-1) は 10 ポイントマッチタイブレークで決着
+              </span>
+            </label>
+          )}
+        </div>
 
         {/* ② スコア (セットスコア + ゲーム単位記録) — 関連グループとして枠で囲う */}
         <div style={{

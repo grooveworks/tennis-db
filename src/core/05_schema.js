@@ -29,6 +29,7 @@ const SCHEMA={
     {key:"overallResult",label:"結果",type:"text"},
     {key:"generalNote",label:"メモ",type:"textarea",combinable:true},
     {key:"matches",label:"試合記録",type:"array",itemType:"match"},
+    {key:"matchFormat",label:"試合形式",type:"object"}, // リク 30-e (S18): 大会のデフォルト試合形式
     {key:"visibility",label:"公開",type:"select"},
     {key:"memoSummaries",label:"メモ要約",type:"object"},
   ],
@@ -122,6 +123,7 @@ const SCHEMA={
     {key:"techNote",label:"技術メモ",type:"textarea",combinable:true},
     {key:"opponentNote",label:"相手メモ",type:"textarea",combinable:true},
     {key:"note",label:"試合メモ",type:"textarea",combinable:true},
+    {key:"format",label:"試合形式上書き",type:"object"}, // リク 30-e (S18): 大会の matchFormat を上書き、null=継承
     {key:"memoSummaries",label:"メモ要約",type:"object"},
   ],
   // ── S16 (Gear タブ) で追加 ──

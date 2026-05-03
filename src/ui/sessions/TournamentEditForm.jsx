@@ -183,9 +183,80 @@ function TournamentEditForm({ form, errors = {}, onChange, confirm, toast, racke
         <_SetupPickerButton recent={recentSetups} current={form} onApply={applySetup} />
       </div>
 
-      {/* ④ 試合記録 */}
+      {/* ④ 試合形式 (リク 30-e S18: 大会のデフォルト試合形式)
+          1set / 3set / 6game / 4game の 4 プリセット + 3set 時の 1-1 10pt TB トグル */}
       <div style={{ background: C.panel, border: `1px solid ${C.divider}`, borderRadius: 12, padding: 12, marginBottom: 10 }}>
-        <_sectionHead num="4" label={`試合記録${matches.length > 0 ? ` (${wins}勝${losses}敗 ・ ${matches.length}試合)` : ""}`} />
+        <_sectionHead num="4" label="試合形式" />
+        <div style={{ fontSize: 11, color: C.textMuted, lineHeight: 1.5, marginBottom: 10 }}>
+          各試合のセット数や勝敗条件のデフォルト。試合ごとに上書きも可。
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
+          {[
+            { v: "1set",  l: "1セット" },
+            { v: "3set",  l: "3セット" },
+            { v: "6game", l: "6ゲーム先取" },
+            { v: "4game", l: "4ゲーム先取" },
+          ].map(opt => {
+            const cur = form.matchFormat?.preset || "3set";
+            const active = cur === opt.v;
+            return (
+              <button
+                key={opt.v}
+                type="button"
+                onClick={() => {
+                  const finalSetMode = form.matchFormat?.finalSetMode || "normal";
+                  set("matchFormat", formatFromPreset(opt.v, finalSetMode, form.matchFormat?.noAd || false));
+                }}
+                style={{
+                  flex: "1 1 auto", minHeight: 40, padding: "8px 12px",
+                  borderRadius: 8,
+                  border: `1px solid ${active ? C.primary : C.border}`,
+                  background: active ? C.primary : C.panel,
+                  color: active ? "#fff" : C.text,
+                  fontSize: 13, fontWeight: 600,
+                  cursor: "pointer", fontFamily: font,
+                }}
+              >
+                {opt.l}
+              </button>
+            );
+          })}
+        </div>
+        {/* 3set 選択時のみ: 1-1 で 10pt TB トグル */}
+        {(form.matchFormat?.preset || "3set") === "3set" && (
+          <label style={{
+            display: "flex", alignItems: "center", gap: 8,
+            padding: "10px 12px",
+            background: C.primaryLight, border: `1px solid ${C.primary}`,
+            borderRadius: 8, cursor: "pointer", marginBottom: 8,
+          }}>
+            <input
+              type="checkbox"
+              checked={form.matchFormat?.finalSetMode === "matchTiebreak10"}
+              onChange={(e) => {
+                const next = formatFromPreset("3set", e.target.checked ? "matchTiebreak10" : "normal", form.matchFormat?.noAd || false);
+                set("matchFormat", next);
+              }}
+              style={{ width: 18, height: 18, accentColor: C.primary, margin: 0 }}
+            />
+            <span style={{ fontSize: 13, color: C.text, fontWeight: 500 }}>
+              最終セット (1-1) は 10 ポイントマッチタイブレークで決着
+            </span>
+          </label>
+        )}
+        <div style={{
+          fontSize: 11, color: C.textSecondary, lineHeight: 1.6,
+          background: C.bg, border: `1px solid ${C.divider}`,
+          borderRadius: 6, padding: "6px 10px",
+        }}>
+          <strong style={{ color: C.text, marginRight: 4 }}>{formatLabel(form.matchFormat || DEFAULT_MATCH_FORMAT)}:</strong>
+          {formatRuleSummary(form.matchFormat || DEFAULT_MATCH_FORMAT)}
+        </div>
+      </div>
+
+      {/* ⑤ 試合記録 */}
+      <div style={{ background: C.panel, border: `1px solid ${C.divider}`, borderRadius: 12, padding: 12, marginBottom: 10 }}>
+        <_sectionHead num="5" label={`試合記録${matches.length > 0 ? ` (${wins}勝${losses}敗 ・ ${matches.length}試合)` : ""}`} />
         {matches.length === 0 ? (
           <div style={{ padding: "12px 14px", background: C.bg, borderRadius: 8, border: `1px dashed ${C.border}`, fontSize: 12, color: C.textMuted, textAlign: "center", marginBottom: 8 }}>
             「+ 試合を追加」から各試合を記録できます
@@ -252,13 +323,13 @@ function TournamentEditForm({ form, errors = {}, onChange, confirm, toast, racke
 
       {/* ⑤ メモ */}
       <div style={{ background: C.panel, border: `1px solid ${C.divider}`, borderRadius: 12, padding: 12, marginBottom: 10 }}>
-        <_sectionHead num="5" label="メモ" />
+        <_sectionHead num="6" label="メモ" />
         <Textarea label="大会総括" value={form.generalNote || ""} onChange={(v) => set("generalNote", v)} placeholder="その日の大会を通じての気づき..." />
       </div>
 
       {/* ⑥ 公開設定 */}
       <div style={{ background: C.panel, border: `1px solid ${C.divider}`, borderRadius: 12, padding: 12, marginBottom: 10 }}>
-        <_sectionHead num="6" label="公開設定" />
+        <_sectionHead num="7" label="公開設定" />
         <_visibilityToggle value={form.visibility} onChange={(v) => set("visibility", v)} />
       </div>
 
@@ -267,6 +338,7 @@ function TournamentEditForm({ form, errors = {}, onChange, confirm, toast, racke
         open={!!matchModalState}
         match={matchModalState?.match}
         trnType={form.type}
+        tournament={form}
         racketNames={racketNames}
         stringNames={stringNames}
         opponentNames={opponentNames}

@@ -439,6 +439,7 @@ function SessionDetailView({ type, session, mode = "detail", tournaments, trials
           open={true}
           match={addMatchState.match}
           trnType={session?.type}
+          tournament={session}
           racketNames={racketNames}
           stringNames={stringNames}
           opponentNames={opponentNames}

@@ -29,6 +29,9 @@ const blankTournament = () => ({
   generalNote: "",
   matches: [],
   visibility: "public",
+  // リク 30-e (S18): 試合形式 (TENNIS_RULES.md §3.1 / match_helpers.MATCH_FORMAT_PRESETS)
+  //   デフォルト「3 セットマッチ」。1-1 で 10pt TB のトグルは matchFormat.finalSetMode で持つ
+  matchFormat: { ...MATCH_FORMAT_PRESETS["3set"], preset: "3set", noAd: false },
 });
 
 const blankPractice = () => ({
