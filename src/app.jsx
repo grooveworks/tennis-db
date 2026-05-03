@@ -1203,7 +1203,13 @@ function TennisDB() {
       />
     );
   } else if (tab === "insights") {
-    tabContent = <PlaceholderTab name="分析" stage="S18" />;
+    tabContent = (
+      <InsightsTab
+        tournaments={tournaments}
+        practices={practices}
+        trials={trials}
+      />
+    );
   }
 
   const tabTitles = { home: "ホーム", sessions: "記録 (Sessions)", gear: "機材", plan: "計画", insights: "分析" };
