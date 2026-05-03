@@ -8,7 +8,11 @@ const firebaseConfig={
   messagingSenderId:"1031131288345",
   appId:"1:1031131288345:web:2adcb9f2eeafa5801ceb88"
 };
-const fbApp=firebase.initializeApp(firebaseConfig);
+// Round 5 Batch E: 二重初期化に対して冪等にする (HMR や script 重複読込で initializeApp 例外を防ぐ)
+//   既に初期化されていれば同 app を再利用、無ければ新規初期化
+const fbApp = (firebase.apps && firebase.apps.length)
+  ? firebase.app()
+  : firebase.initializeApp(firebaseConfig);
 const fbAuth=fbApp.auth();
 const fbDb=fbApp.firestore();
 // S16 Phase 4-C-3: Cloud Functions (asia-northeast1 にデプロイ済の summarizeMemo を呼ぶため)
