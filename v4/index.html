@@ -9959,17 +9959,26 @@ function MatchEditModal({ open, match, trnType, racketNames = [], stringNames = 
 
   // S15.5.9: GameTracker からの onChange を dirty 追跡 + auto-save 連動
   //   従来 onChange={setForm} で dirty が立たず auto-save も走らなかったバグの解消
+  // H-17 (Phase A 監査): result 手動変更後の自動上書き抑止フラグを useRef で保持。
+  //   useState/form に乗せると Firestore に永続化されてしまうため、UI-only の状態として ref で管理。
+  //   open=true 切替 (新規モーダル起動) でリセット。
+  const manualResultLockRef = useRef(false);
+  useEffect(() => {
+    if (open) manualResultLockRef.current = false; // モーダル起動時にクリア
+  }, [open]);
+
   // S16.11 UX2/UX3: games[] 変化時に setScores と result を自動計算して反映
   //   - games から計算したセットスコアを setScores に同期 (重複入力撤廃)
   //   - 2 セット先取で result を自動 "勝利" / "敗北" 設定
-  //   - ユーザーが result を手動変更した後は上書きしない (manualResultLock フラグ)
+  // H-17: manualResultLockRef.current が true なら自動上書きを完全に skip
+  //   旧の `next.result === autoResult` 条件は、手動敗北→games で勝利に偏っても上書きされない
+  //   という偶然動作。今は「手動で result を選んだ後は二度と自動上書きしない」明確な仕様。
   const handleGameTrackerChange = useCallback((next) => {
     const games = Array.isArray(next.games) ? next.games : [];
     const autoSetScores = computeSetScoresFromGames(games);
     const autoResult = computeAutoMatchResult(games);
     const merged = { ...next, setScores: autoSetScores };
-    // result の自動上書きは「未設定」または「同じ自動値」の時のみ (ユーザー手動変更を尊重)
-    if (autoResult && (!next.result || next.result === autoResult)) {
+    if (autoResult && !manualResultLockRef.current) {
       merged.result = autoResult;
     }
     setForm(merged);
@@ -9987,7 +9996,12 @@ function MatchEditModal({ open, match, trnType, racketNames = [], stringNames = 
   if (!open || !form) return null;
 
   // setter で dirty フラグを立てる
-  const set = (k, v) => { setForm(p => ({ ...p, [k]: v })); setDirty(true); };
+  // H-17: result の手動変更時に manualResultLockRef を立てて自動上書きを抑止
+  const set = (k, v) => {
+    if (k === "result") manualResultLockRef.current = true;
+    setForm(p => ({ ...p, [k]: v }));
+    setDirty(true);
+  };
   const setScoresInput = Array.isArray(form.setScores) ? form.setScores.join(", ") : (form.setScores || "");
   const isDouble = trnType === "doubles" || trnType === "mixed";
   const showOpponent2 = isDouble;
