@@ -79,4 +79,7 @@ const blankTrial = () => ({
   strokeNote: "", serveNote: "", volleyNote: "", generalNote: "",
   linkedPracticeId: "",
   linkedMatchId: "",
+  // H-1 (Phase A 監査): UX4 で linkedMatchIds[] を導入したが blank.js への反映漏れがあり、
+  //   新規 trial が undefined のまま保存され cascade.js (linkedMatchIds 優先参照) が半欠損していた
+  linkedMatchIds: [],
 });

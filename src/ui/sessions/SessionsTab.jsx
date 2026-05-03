@@ -176,11 +176,16 @@ const _buildTrialLinkedSets = (tournaments, practices, trials) => {
     const matches = Array.isArray(t.matches) ? t.matches : [];
     matches.forEach(m => { if (m.id) matchToTournament.set(m.id, t.id); });
   });
+  // H-2 (Phase A 監査): UX4 で linkedMatchIds[] (配列) を導入したが、ここは旧 linkedMatchId のみ参照していた。
+  //   複数試合連携した試打のバッジが大会カードに出ないバグ。配列と旧単数を両対応する。
   trials.forEach(tr => {
-    if (tr.linkedMatchId) {
-      const tId = matchToTournament.get(tr.linkedMatchId);
+    const ids = Array.isArray(tr.linkedMatchIds) && tr.linkedMatchIds.length > 0
+      ? tr.linkedMatchIds
+      : (tr.linkedMatchId ? [tr.linkedMatchId] : []);
+    ids.forEach(mid => {
+      const tId = matchToTournament.get(mid);
       if (tId) linkedTournamentIds.add(tId);
-    }
+    });
     if (tr.linkedPracticeId) {
       linkedPracticeIds.add(tr.linkedPracticeId);
     }

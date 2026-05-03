@@ -309,7 +309,9 @@ function _SessionCard({ type, item, racketName, onClick }) {
     if (item.duration) metaParts.push(`${item.duration} min`);
     if (item.venue) metaParts.push(item.venue);
   } else if (type === "trial") {
-    if (item.linkedPracticeId || item.linkedMatchId) metaParts.push("連携あり");
+    // H-3 (Phase A 監査): UX4 で導入された linkedMatchIds[] も含めて連携判定
+    const hasLinkedMatch = item.linkedMatchId || (Array.isArray(item.linkedMatchIds) && item.linkedMatchIds.length > 0);
+    if (item.linkedPracticeId || hasLinkedMatch) metaParts.push("連携あり");
     if (item.venue) metaParts.push(item.venue);
   }
 
