@@ -29,7 +29,7 @@ const blankMatch = (matchCount, defaultsFromTournament) => {
     stringCross:  t.stringCross  || "",
     tensionMain:  t.tensionMain  || "",
     tensionCross: t.tensionCross || "",
-    result: "勝利",
+    result: "", // リクエスト 30-b: デフォルト「未定」(空文字)、ユーザーが意図的に選んだ時のみ値が入る
     setScores: [],
     mental: 3,
     physical: 3,

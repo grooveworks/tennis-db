@@ -24,7 +24,9 @@ const ROUND_OPTS = [
   { value: "予選",     label: "予選" },
   { value: "エキシビション", label: "エキシビション" },
 ];
+// リクエスト 30-b: デフォルト「勝利」を「未定」(空文字 = placeholder) に変更
 const RESULT_OPTS = [
+  { value: "", label: "-- 未定 --" },
   { value: "勝利", label: "勝利" },
   { value: "敗北", label: "敗北" },
   { value: "棄権", label: "棄権" },
@@ -247,7 +249,7 @@ function MatchEditModal({ open, match, trnType, racketNames = [], stringNames = 
         {/* ① 基本 */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>
           <Select label="ラウンド" value={form.round || "1回戦"} onChange={(v) => set("round", v)} options={ROUND_OPTS} />
-          <Select label="結果" value={form.result || "勝利"} onChange={(v) => set("result", v)} options={RESULT_OPTS} />
+          <Select label="結果" value={form.result ?? ""} onChange={(v) => set("result", v)} options={RESULT_OPTS} />
         </div>
         <MasterField label="対戦相手" value={form.opponent || ""} onChange={(v) => set("opponent", v)} masterValues={opponentNames} placeholder="-- 対戦相手を選択 --" />
         {showOpponent2 && (
