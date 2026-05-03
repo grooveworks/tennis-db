@@ -965,6 +965,19 @@ const computeRunningScore = (games) => {
   }, { me: 0, opp: 0 });
 };
 
+// H-9 (Phase A 監査): match.result の表記揺れを正規化。
+//   v2/v3/v4 で "勝利"/"勝"/"win" や "敗北"/"敗"/"負"/"lose"/"loss" 等が混在する。
+//   返り値: "win" | "loss" | "default" (棄権) | null (不明)
+//   消費側 (WeeklySummary, RacketDetailView, Insights 等) はこれを基準に集計
+const _normalizeMatchResult = (result) => {
+  const r = (result || "").toString().trim().toLowerCase();
+  if (!r) return null;
+  if (r === "勝利" || r === "勝" || r === "win" || r === "won") return "win";
+  if (r === "敗北" || r === "敗" || r === "負" || r === "lose" || r === "loss" || r === "lost") return "loss";
+  if (r === "棄権" || r === "default" || r === "withdraw" || r === "withdrew") return "default";
+  return null;
+};
+
 // H-7 (Phase A 監査): セット完了判定を単一関数に集約。
 //   旧: computeSetScoresFromGames と computeAutoMatchResult が同じ条件を二重実装
 //        → 仕様変更時に片方だけ直すと割れる
@@ -4342,9 +4355,12 @@ function _computeRacketUsage(racketName, tournaments, practices) {
     (t.matches || []).forEach(m => {
       if (!m) return;
       if (m.racketName !== racketName) return;
+      // H-9 (Phase A 監査): _normalizeMatchResult で勝敗表記揺れを共通吸収
+      //   matchTotal は win/loss のみカウント (default/不明は除外して winRate の分母を正確に)
+      const norm = _normalizeMatchResult(m.result);
+      if (norm !== "win" && norm !== "loss") return;
       matchTotal++;
-      const r = (m.result || "").toLowerCase();
-      if (r === "win" || r === "勝" || r === "勝利") wins++;
+      if (norm === "win") wins++;
     });
   });
   (practices || []).forEach(p => {
@@ -6559,6 +6575,9 @@ function WeeklySummary({ tournaments = [], practices = [] }) {
   }, [weekP]);
 
   // 直近 10 試合 N勝N敗 + 全試合勝率
+  // H-9 (Phase A 監査): _normalizeMatchResult で勝敗表記揺れを統一吸収
+  //   旧: "勝利"/"敗北" のみ拾い、V2 互換 "勝"/"win" 等が集計から漏れて勝率が低く出ていた
+  //   新: "win"/"loss" に正規化してから集計
   const matchStats = useMemo(() => {
     const all = [];
     [...(tournaments || [])]
@@ -6566,17 +6585,17 @@ function WeeklySummary({ tournaments = [], practices = [] }) {
       .forEach(t => {
         if (Array.isArray(t.matches)) {
           t.matches.forEach(m => {
-            if (m && (m.result === "勝利" || m.result === "敗北")) {
-              all.push(m.result);
-            }
+            if (!m) return;
+            const norm = _normalizeMatchResult(m.result);
+            if (norm === "win" || norm === "loss") all.push(norm);
           });
         }
       });
     const last10 = all.slice(0, 10);
-    const wins10 = last10.filter(r => r === "勝利").length;
-    const loses10 = last10.filter(r => r === "敗北").length;
-    const winsAll = all.filter(r => r === "勝利").length;
-    const losesAll = all.filter(r => r === "敗北").length;
+    const wins10 = last10.filter(r => r === "win").length;
+    const loses10 = last10.filter(r => r === "loss").length;
+    const winsAll = all.filter(r => r === "win").length;
+    const losesAll = all.filter(r => r === "loss").length;
     const totalAll = winsAll + losesAll;
     const winRate = totalAll > 0 ? Math.round((winsAll * 100) / totalAll) : 0;
     return { wins10, loses10, winsAll, losesAll, winRate, hasMatches: totalAll > 0 };
@@ -6732,8 +6751,10 @@ const _isFlattenMatches = (tournaments) => {
 const _isWinRate = (matches) => {
   let win = 0, loss = 0;
   for (const m of matches) {
-    if (m.result === "勝利") win++;
-    else if (m.result === "敗北") loss++;
+    // H-9 (Phase A 監査): _normalizeMatchResult で表記揺れ吸収
+    const _r = _normalizeMatchResult(m.result);
+    if (_r === "win") win++;
+    else if (_r === "loss") loss++;
   }
   const total = win + loss;
   return { win, loss, total, rate: total > 0 ? Math.round((win / total) * 100) : null };
@@ -6758,8 +6779,10 @@ const _isStatsByRacket = (matches) => {
     if (!name) continue;
     let s = map.get(name);
     if (!s) { s = { name, win: 0, loss: 0 }; map.set(name, s); }
-    if (m.result === "勝利") s.win++;
-    else if (m.result === "敗北") s.loss++;
+    // H-9 (Phase A 監査): _normalizeMatchResult で表記揺れ吸収
+    const _r = _normalizeMatchResult(m.result);
+    if (_r === "win") s.win++;
+    else if (_r === "loss") s.loss++;
   }
   return [...map.values()]
     .map(s => ({ ...s, total: s.win + s.loss, rate: (s.win + s.loss) > 0 ? Math.round(s.win / (s.win + s.loss) * 100) : null }))
@@ -6775,8 +6798,10 @@ const _isStatsByOpponent = (matches) => {
     for (const name of opps) {
       let s = map.get(name);
       if (!s) { s = { name, win: 0, loss: 0, lastDate: null }; map.set(name, s); }
-      if (m.result === "勝利") s.win++;
-      else if (m.result === "敗北") s.loss++;
+      // H-9 (Phase A 監査): _normalizeMatchResult で表記揺れ吸収
+      const _r = _normalizeMatchResult(m.result);
+      if (_r === "win") s.win++;
+      else if (_r === "loss") s.loss++;
       else continue;
       if (m._date && (!s.lastDate || m._date > s.lastDate)) s.lastDate = m._date;
     }
@@ -6799,8 +6824,10 @@ const _isMonthlyWinRate = (matches) => {
       if (!m._date) continue;
       const md = normDate(m._date);
       if (!md || md.slice(0, 7) !== ym) continue;
-      if (m.result === "勝利") win++;
-      else if (m.result === "敗北") loss++;
+      // H-9 (Phase A 監査): _normalizeMatchResult で表記揺れ吸収
+      const _r = _normalizeMatchResult(m.result);
+      if (_r === "win") win++;
+      else if (_r === "loss") loss++;
     }
     const total = win + loss;
     out.push({
@@ -7546,8 +7573,10 @@ function _computeOpponentStats(name, tournaments) {
       const opp1 = (m.opponent || "").trim();
       const opp2 = (m.opponent2 || "").trim();
       if (opp1 !== _name && opp2 !== _name) continue;
-      if (m.result === "勝利") win++;
-      else if (m.result === "敗北") loss++;
+      // H-9 (Phase A 監査): _normalizeMatchResult で表記揺れ吸収
+      const _r = _normalizeMatchResult(m.result);
+      if (_r === "win") win++;
+      else if (_r === "loss") loss++;
       else continue;
       if (t.date && (!lastDate || t.date > lastDate)) lastDate = t.date;
     }
@@ -8435,8 +8464,9 @@ const _tournamentMeta = (item) => {
   if (typeLabel) parts.push(typeLabel);
   const matches = Array.isArray(item.matches) ? item.matches : [];
   if (matches.length > 0) {
-    const wins = matches.filter(m => m.result === "勝利" || m.result === "win").length;
-    const losses = matches.filter(m => m.result === "敗北" || m.result === "loss").length;
+    // H-9 (Phase A 監査): _normalizeMatchResult で表記揺れ吸収 (勝/負/win/loss 等を含む)
+    const wins = matches.filter(m => _normalizeMatchResult(m.result) === "win").length;
+    const losses = matches.filter(m => _normalizeMatchResult(m.result) === "loss").length;
     parts.push(`${wins}勝${losses}敗`);
   }
   return parts.join(" / ");
@@ -13250,8 +13280,9 @@ const _buildCardProps = (type, item) => {
     const typeBadge = _mapTournamentType(item.type);  // 形式 (S/D/Mix) を category badge に
     const { badge, highlight } = _mapTournamentResult(item.overallResult);
     const matches = Array.isArray(item.matches) ? item.matches : [];
-    const wins = matches.filter(m => m.result === "勝利" || m.result === "win").length;
-    const losses = matches.filter(m => m.result === "敗北" || m.result === "loss").length;
+    // H-9 (Phase A 監査): _normalizeMatchResult で表記揺れ吸収
+    const wins = matches.filter(m => _normalizeMatchResult(m.result) === "win").length;
+    const losses = matches.filter(m => _normalizeMatchResult(m.result) === "loss").length;
     const parts = [];
     // 形式 (singles/doubles/mixed) は category badge に出すので meta からは除外
     if (matches.length > 0) parts.push(`${wins}勝${losses}敗`);
@@ -13847,19 +13878,19 @@ function _formatMonthCounts(tournaments, practices) {
 }
 
 function _formatRecentRecord(tournaments) {
-  // 直近の大会 10 試合分の勝敗 (matches.result === "勝利" / "敗北")
+  // H-9 (Phase A 監査): _normalizeMatchResult で表記揺れ吸収 (勝/負/win/loss/勝利/敗北)
   const sorted = [...tournaments].sort((a, b) => normDate(b.date).localeCompare(normDate(a.date)));
   const recentMatches = [];
   for (const t of sorted) {
     const matches = Array.isArray(t.matches) ? t.matches : [];
     for (const m of matches) {
-      if (m.result) recentMatches.push(m.result);
+      if (m && m.result) recentMatches.push(_normalizeMatchResult(m.result));
       if (recentMatches.length >= 10) break;
     }
     if (recentMatches.length >= 10) break;
   }
-  const wins = recentMatches.filter(r => r === "勝利" || r === "win").length;
-  const losses = recentMatches.filter(r => r === "敗北" || r === "loss").length;
+  const wins = recentMatches.filter(r => r === "win").length;
+  const losses = recentMatches.filter(r => r === "loss").length;
   return { count: recentMatches.length, wins, losses };
 }
 

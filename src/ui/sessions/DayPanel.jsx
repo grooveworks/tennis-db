@@ -41,8 +41,9 @@ const _tournamentMeta = (item) => {
   if (typeLabel) parts.push(typeLabel);
   const matches = Array.isArray(item.matches) ? item.matches : [];
   if (matches.length > 0) {
-    const wins = matches.filter(m => m.result === "勝利" || m.result === "win").length;
-    const losses = matches.filter(m => m.result === "敗北" || m.result === "loss").length;
+    // H-9 (Phase A 監査): _normalizeMatchResult で表記揺れ吸収 (勝/負/win/loss 等を含む)
+    const wins = matches.filter(m => _normalizeMatchResult(m.result) === "win").length;
+    const losses = matches.filter(m => _normalizeMatchResult(m.result) === "loss").length;
     parts.push(`${wins}勝${losses}敗`);
   }
   return parts.join(" / ");

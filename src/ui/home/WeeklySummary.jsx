@@ -82,6 +82,9 @@ function WeeklySummary({ tournaments = [], practices = [] }) {
   }, [weekP]);
 
   // 直近 10 試合 N勝N敗 + 全試合勝率
+  // H-9 (Phase A 監査): _normalizeMatchResult で勝敗表記揺れを統一吸収
+  //   旧: "勝利"/"敗北" のみ拾い、V2 互換 "勝"/"win" 等が集計から漏れて勝率が低く出ていた
+  //   新: "win"/"loss" に正規化してから集計
   const matchStats = useMemo(() => {
     const all = [];
     [...(tournaments || [])]
@@ -89,17 +92,17 @@ function WeeklySummary({ tournaments = [], practices = [] }) {
       .forEach(t => {
         if (Array.isArray(t.matches)) {
           t.matches.forEach(m => {
-            if (m && (m.result === "勝利" || m.result === "敗北")) {
-              all.push(m.result);
-            }
+            if (!m) return;
+            const norm = _normalizeMatchResult(m.result);
+            if (norm === "win" || norm === "loss") all.push(norm);
           });
         }
       });
     const last10 = all.slice(0, 10);
-    const wins10 = last10.filter(r => r === "勝利").length;
-    const loses10 = last10.filter(r => r === "敗北").length;
-    const winsAll = all.filter(r => r === "勝利").length;
-    const losesAll = all.filter(r => r === "敗北").length;
+    const wins10 = last10.filter(r => r === "win").length;
+    const loses10 = last10.filter(r => r === "loss").length;
+    const winsAll = all.filter(r => r === "win").length;
+    const losesAll = all.filter(r => r === "loss").length;
     const totalAll = winsAll + losesAll;
     const winRate = totalAll > 0 ? Math.round((winsAll * 100) / totalAll) : 0;
     return { wins10, loses10, winsAll, losesAll, winRate, hasMatches: totalAll > 0 };

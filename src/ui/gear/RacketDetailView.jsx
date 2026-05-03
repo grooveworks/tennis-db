@@ -89,9 +89,12 @@ function _computeRacketUsage(racketName, tournaments, practices) {
     (t.matches || []).forEach(m => {
       if (!m) return;
       if (m.racketName !== racketName) return;
+      // H-9 (Phase A 監査): _normalizeMatchResult で勝敗表記揺れを共通吸収
+      //   matchTotal は win/loss のみカウント (default/不明は除外して winRate の分母を正確に)
+      const norm = _normalizeMatchResult(m.result);
+      if (norm !== "win" && norm !== "loss") return;
       matchTotal++;
-      const r = (m.result || "").toLowerCase();
-      if (r === "win" || r === "勝" || r === "勝利") wins++;
+      if (norm === "win") wins++;
     });
   });
   (practices || []).forEach(p => {

@@ -72,8 +72,10 @@ const _isFlattenMatches = (tournaments) => {
 const _isWinRate = (matches) => {
   let win = 0, loss = 0;
   for (const m of matches) {
-    if (m.result === "勝利") win++;
-    else if (m.result === "敗北") loss++;
+    // H-9 (Phase A 監査): _normalizeMatchResult で表記揺れ吸収
+    const _r = _normalizeMatchResult(m.result);
+    if (_r === "win") win++;
+    else if (_r === "loss") loss++;
   }
   const total = win + loss;
   return { win, loss, total, rate: total > 0 ? Math.round((win / total) * 100) : null };
@@ -98,8 +100,10 @@ const _isStatsByRacket = (matches) => {
     if (!name) continue;
     let s = map.get(name);
     if (!s) { s = { name, win: 0, loss: 0 }; map.set(name, s); }
-    if (m.result === "勝利") s.win++;
-    else if (m.result === "敗北") s.loss++;
+    // H-9 (Phase A 監査): _normalizeMatchResult で表記揺れ吸収
+    const _r = _normalizeMatchResult(m.result);
+    if (_r === "win") s.win++;
+    else if (_r === "loss") s.loss++;
   }
   return [...map.values()]
     .map(s => ({ ...s, total: s.win + s.loss, rate: (s.win + s.loss) > 0 ? Math.round(s.win / (s.win + s.loss) * 100) : null }))
@@ -115,8 +119,10 @@ const _isStatsByOpponent = (matches) => {
     for (const name of opps) {
       let s = map.get(name);
       if (!s) { s = { name, win: 0, loss: 0, lastDate: null }; map.set(name, s); }
-      if (m.result === "勝利") s.win++;
-      else if (m.result === "敗北") s.loss++;
+      // H-9 (Phase A 監査): _normalizeMatchResult で表記揺れ吸収
+      const _r = _normalizeMatchResult(m.result);
+      if (_r === "win") s.win++;
+      else if (_r === "loss") s.loss++;
       else continue;
       if (m._date && (!s.lastDate || m._date > s.lastDate)) s.lastDate = m._date;
     }
@@ -139,8 +145,10 @@ const _isMonthlyWinRate = (matches) => {
       if (!m._date) continue;
       const md = normDate(m._date);
       if (!md || md.slice(0, 7) !== ym) continue;
-      if (m.result === "勝利") win++;
-      else if (m.result === "敗北") loss++;
+      // H-9 (Phase A 監査): _normalizeMatchResult で表記揺れ吸収
+      const _r = _normalizeMatchResult(m.result);
+      if (_r === "win") win++;
+      else if (_r === "loss") loss++;
     }
     const total = win + loss;
     out.push({

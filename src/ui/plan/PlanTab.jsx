@@ -367,8 +367,10 @@ function _computeOpponentStats(name, tournaments) {
       const opp1 = (m.opponent || "").trim();
       const opp2 = (m.opponent2 || "").trim();
       if (opp1 !== _name && opp2 !== _name) continue;
-      if (m.result === "勝利") win++;
-      else if (m.result === "敗北") loss++;
+      // H-9 (Phase A 監査): _normalizeMatchResult で表記揺れ吸収
+      const _r = _normalizeMatchResult(m.result);
+      if (_r === "win") win++;
+      else if (_r === "loss") loss++;
       else continue;
       if (t.date && (!lastDate || t.date > lastDate)) lastDate = t.date;
     }

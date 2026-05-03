@@ -20,19 +20,19 @@ function _formatMonthCounts(tournaments, practices) {
 }
 
 function _formatRecentRecord(tournaments) {
-  // 直近の大会 10 試合分の勝敗 (matches.result === "勝利" / "敗北")
+  // H-9 (Phase A 監査): _normalizeMatchResult で表記揺れ吸収 (勝/負/win/loss/勝利/敗北)
   const sorted = [...tournaments].sort((a, b) => normDate(b.date).localeCompare(normDate(a.date)));
   const recentMatches = [];
   for (const t of sorted) {
     const matches = Array.isArray(t.matches) ? t.matches : [];
     for (const m of matches) {
-      if (m.result) recentMatches.push(m.result);
+      if (m && m.result) recentMatches.push(_normalizeMatchResult(m.result));
       if (recentMatches.length >= 10) break;
     }
     if (recentMatches.length >= 10) break;
   }
-  const wins = recentMatches.filter(r => r === "勝利" || r === "win").length;
-  const losses = recentMatches.filter(r => r === "敗北" || r === "loss").length;
+  const wins = recentMatches.filter(r => r === "win").length;
+  const losses = recentMatches.filter(r => r === "loss").length;
   return { count: recentMatches.length, wins, losses };
 }
 

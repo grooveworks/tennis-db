@@ -116,6 +116,19 @@ const computeRunningScore = (games) => {
   }, { me: 0, opp: 0 });
 };
 
+// H-9 (Phase A 監査): match.result の表記揺れを正規化。
+//   v2/v3/v4 で "勝利"/"勝"/"win" や "敗北"/"敗"/"負"/"lose"/"loss" 等が混在する。
+//   返り値: "win" | "loss" | "default" (棄権) | null (不明)
+//   消費側 (WeeklySummary, RacketDetailView, Insights 等) はこれを基準に集計
+const _normalizeMatchResult = (result) => {
+  const r = (result || "").toString().trim().toLowerCase();
+  if (!r) return null;
+  if (r === "勝利" || r === "勝" || r === "win" || r === "won") return "win";
+  if (r === "敗北" || r === "敗" || r === "負" || r === "lose" || r === "loss" || r === "lost") return "loss";
+  if (r === "棄権" || r === "default" || r === "withdraw" || r === "withdrew") return "default";
+  return null;
+};
+
 // H-7 (Phase A 監査): セット完了判定を単一関数に集約。
 //   旧: computeSetScoresFromGames と computeAutoMatchResult が同じ条件を二重実装
 //        → 仕様変更時に片方だけ直すと割れる

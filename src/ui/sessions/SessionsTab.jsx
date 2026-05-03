@@ -110,8 +110,9 @@ const _buildCardProps = (type, item) => {
     const typeBadge = _mapTournamentType(item.type);  // 形式 (S/D/Mix) を category badge に
     const { badge, highlight } = _mapTournamentResult(item.overallResult);
     const matches = Array.isArray(item.matches) ? item.matches : [];
-    const wins = matches.filter(m => m.result === "勝利" || m.result === "win").length;
-    const losses = matches.filter(m => m.result === "敗北" || m.result === "loss").length;
+    // H-9 (Phase A 監査): _normalizeMatchResult で表記揺れ吸収
+    const wins = matches.filter(m => _normalizeMatchResult(m.result) === "win").length;
+    const losses = matches.filter(m => _normalizeMatchResult(m.result) === "loss").length;
     const parts = [];
     // 形式 (singles/doubles/mixed) は category badge に出すので meta からは除外
     if (matches.length > 0) parts.push(`${wins}勝${losses}敗`);

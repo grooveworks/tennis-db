@@ -132,6 +132,32 @@ test("H-7: _isSetComplete が共通化され、両関数が同一判定を返す
   }
 });
 
+test("H-9: _normalizeMatchResult で表記揺れを吸収", async (page) => {
+  await page.goto(`${BASE}?dev=1`);
+  await page.waitForSelector('[role="tab"]', { timeout: 5000 });
+  const result = await page.evaluate(() => {
+    const cases = [
+      { input: "勝利", expect: "win" },
+      { input: "勝", expect: "win" },
+      { input: "win", expect: "win" },
+      { input: "WIN", expect: "win" },
+      { input: "敗北", expect: "loss" },
+      { input: "敗", expect: "loss" },
+      { input: "負", expect: "loss" },
+      { input: "loss", expect: "loss" },
+      { input: "lose", expect: "loss" },
+      { input: "棄権", expect: "default" },
+      { input: "", expect: null },
+      { input: null, expect: null },
+      { input: "不明", expect: null },
+    ];
+    return cases.map(c => ({ ...c, actual: _normalizeMatchResult(c.input) }));
+  });
+  for (const c of result) {
+    if (c.actual !== c.expect) throw new Error(`_normalizeMatchResult(${JSON.stringify(c.input)}) expected ${c.expect}, got ${c.actual}`);
+  }
+});
+
 test("Home タブの主力ラケットが fixture data から計算される", async (page) => {
   await page.goto(`${BASE}?dev=1`);
   await page.waitForSelector('[role="tab"]', { timeout: 5000 });
