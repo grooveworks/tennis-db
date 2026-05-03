@@ -174,16 +174,12 @@ function CurrentContext({ tournaments = [], practices = [], trials = [], next = 
   return (
     <div style={{ background: C.panel, borderRadius: RADIUS.card, padding: 16, marginBottom: 8 }}>
       {/* ヘッダ */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+      {/* リクエスト 4 (Phase B): "CURRENT" バッジを削除 (見出し「現在の状況」と意味重複) */}
+      <div style={{ display: "flex", alignItems: "center", marginBottom: 10 }}>
         <div style={{ fontSize: 14, fontWeight: 700, color: C.text, display: "flex", alignItems: "center", gap: 6 }}>
           <Icon name="map-pin" size={16} color={C.primary} />
           現在の状況
         </div>
-        <span style={{
-          fontSize: 10, fontWeight: 600, color: C.primary,
-          background: C.primaryLight, padding: "3px 8px",
-          borderRadius: 8, letterSpacing: 0.3,
-        }}>CURRENT</span>
       </div>
 
       {/* 1. 次の大会 → tournament Detail へリンク */}

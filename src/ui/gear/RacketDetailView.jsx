@@ -370,7 +370,8 @@ function RacketDetailView({
                       background: "rgba(15,157,88,0.14)",
                       padding: "1px 5px", borderRadius: 4,
                     }}>
-                      CURRENT
+                      {/* リクエスト 4 (Phase B): "CURRENT" → 「現行」(英語混在排除) */}
+                      現行
                     </span>
                   )}
                 </div>
