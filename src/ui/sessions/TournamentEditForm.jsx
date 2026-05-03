@@ -191,26 +191,34 @@ function TournamentEditForm({ form, errors = {}, onChange, confirm, toast, racke
             「+ 試合を追加」から各試合を記録できます
           </div>
         ) : matches.map((m, i) => (
+          // H-19 (Phase A 監査、preview_h19_p2.html 案 C 承認済):
+          //   - 編集/削除ボタンを 24×24 → 44×44 (iOS HIG 準拠、削除誤押下リスク低減)
+          //   - 行内 gap を 8 → 4 に詰めて対戦相手の表示幅 (~100px) を確保
+          //   - 行高 64px / 対戦相手 minWidth: 0 で flexbox truncation を保証
           <div key={m.id || i} style={{
             background: C.bg, borderRadius: 8, padding: "10px 12px", marginBottom: 6,
-            display: "flex", alignItems: "center", gap: 8, minHeight: 44,
+            display: "flex", alignItems: "center", gap: 4, minHeight: 44,
           }}>
-            <span style={{ fontSize: 11, color: C.textSecondary, minWidth: 42, fontWeight: 600 }}>{m.round || "—"}</span>
-            <span style={{ flex: 1, fontSize: 13, fontWeight: 500, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            <span style={{ fontSize: 11, color: C.textSecondary, minWidth: 42, fontWeight: 600, flexShrink: 0 }}>{m.round || "—"}</span>
+            <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 500, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {m.opponent || "(対戦相手未入力)"}
               {m.opponent2 && <span style={{ color: C.textSecondary, fontWeight: 400 }}> / {m.opponent2}</span>}
             </span>
-            <span style={{ fontSize: 13, fontWeight: 700, color: m.result === "勝利" ? "#0a5b35" : m.result === "敗北" ? "#a31511" : C.textMuted }}>
+            <span style={{ fontSize: 13, fontWeight: 700, flexShrink: 0, color: m.result === "勝利" ? "#0a5b35" : m.result === "敗北" ? "#a31511" : C.textMuted }}>
               {m.result === "勝利" ? "○" : m.result === "敗北" ? "×" : m.result === "棄権" ? "棄" : "—"}
             </span>
-            <span style={{ fontSize: 11, color: C.textSecondary, fontVariantNumeric: "tabular-nums" }}>
+            <span style={{ fontSize: 11, color: C.textSecondary, fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>
               {Array.isArray(m.setScores) ? m.setScores.join(", ") : ""}
             </span>
             <button
               type="button"
               onClick={() => handleEditMatch(m)}
               aria-label="試合を編集"
-              style={{ background: "none", border: "none", color: C.primary, cursor: "pointer", padding: 4, display: "flex", borderRadius: 4 }}
+              style={{
+                background: "none", border: "none", color: C.primary, cursor: "pointer",
+                width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center",
+                borderRadius: 8, flexShrink: 0,
+              }}
             >
               <Icon name="pencil" size={16} color={C.primary} />
             </button>
@@ -218,7 +226,11 @@ function TournamentEditForm({ form, errors = {}, onChange, confirm, toast, racke
               type="button"
               onClick={() => handleDeleteMatch(m.id)}
               aria-label="試合を削除"
-              style={{ background: "none", border: "none", color: C.error, cursor: "pointer", padding: 4, display: "flex", borderRadius: 4 }}
+              style={{
+                background: "none", border: "none", color: C.error, cursor: "pointer",
+                width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center",
+                borderRadius: 8, flexShrink: 0,
+              }}
             >
               <Icon name="trash-2" size={16} color={C.error} />
             </button>

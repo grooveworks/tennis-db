@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="ja"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=375, initial-scale=1">
+<title>H-19 v2: タップ領域 vs 対戦相手表示幅 トレードオフ</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.0.3/src/regular/style.css">
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", sans-serif; background: #f2f2f7; color: #202124; margin: 0; padding: 16px; max-width: 375px; margin: 0 auto; }
+  h1 { font-size: 16px; margin: 0 0 4px; }
+  .sub { font-size: 12px; color: #5f6368; margin-bottom: 16px; line-height: 1.5; }
+  .label { font-size: 11px; font-weight: 700; color: #80868b; letter-spacing: 0.04em; text-transform: uppercase; margin: 18px 0 4px; }
+  .desc { font-size: 11px; color: #5f6368; margin-bottom: 6px; line-height: 1.5; }
+  .panel { background: #fff; border: 1px solid #e8eaed; border-radius: 12px; padding: 12px; margin-bottom: 6px; }
+  .row { background: #f2f2f7; border-radius: 8px; padding: 10px 12px; margin-bottom: 6px; display: flex; align-items: center; min-height: 44px; }
+  .row.gap-8 { gap: 8px; }
+  .row.gap-4 { gap: 4px; }
+  .round { font-size: 11px; color: #5f6368; min-width: 42px; font-weight: 600; flex-shrink: 0; }
+  .round.compact { min-width: 28px; }
+  .opp { flex: 1; font-size: 13px; font-weight: 500; color: #202124; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .result { font-size: 13px; font-weight: 700; flex-shrink: 0; }
+  .result.win { color: #0a5b35; }
+  .result.lose { color: #a31511; }
+  .scores { font-size: 11px; color: #5f6368; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+  .btn-24 { background: none; border: none; cursor: pointer; padding: 4px; display: flex; border-radius: 4px; flex-shrink: 0; }
+  .btn-40 { background: none; border: none; cursor: pointer; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 8px; flex-shrink: 0; }
+  .btn-44 { background: none; border: none; cursor: pointer; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 8px; flex-shrink: 0; }
+  .edit { color: #007AFF; }
+  .del { color: #d93025; }
+  i { font-size: 16px; }
+  .meta { font-size: 10px; color: #80868b; padding: 4px 4px 0; font-variant-numeric: tabular-nums; }
+  .winner { background: #e8f5e9; border: 1px solid #66bb6a; border-radius: 8px; padding: 8px 12px; margin-top: 8px; font-size: 12px; color: #1b5e20; line-height: 1.5; }
+</style>
+</head>
+<body>
+
+<h1>H-19 v2: タップ領域 vs 対戦相手表示幅</h1>
+<p class="sub">
+  ボタンを 44×44 にすると対戦相手の表示幅が 135 → 95px に減ります。<br>
+  以下 4 案を実機 375px で比較。文字切れ位置が異なります。<br>
+  サンプル相手名: 「佐藤次郎 / 鈴木花子」 (ダブルス、10 文字)
+</p>
+
+<div class="label">A 現状 (Before、未修正)</div>
+<div class="desc">ボタン 24×24、gap 8 — タップ領域が小さいが対戦相手名は最も長く出る</div>
+<div class="panel">
+  <div class="row gap-8">
+    <span class="round">1回戦</span>
+    <span class="opp" id="oppA">佐藤次郎 / 鈴木花子</span>
+    <span class="result lose">×</span>
+    <span class="scores">3-6, 4-6</span>
+    <button class="btn-24 edit"><i class="ph ph-pencil"></i></button>
+    <button class="btn-24 del"><i class="ph ph-trash"></i></button>
+  </div>
+</div>
+<div class="meta" id="metaA">対戦相手幅: ?px</div>
+
+<div class="label">B 提案 1: 44×44 + gap 8 (前回プロト)</div>
+<div class="desc">HIG 完全準拠、ただし対戦相手幅 -40px → 「佐藤次郎」だけで切れる可能性</div>
+<div class="panel">
+  <div class="row gap-8">
+    <span class="round">1回戦</span>
+    <span class="opp" id="oppB">佐藤次郎 / 鈴木花子</span>
+    <span class="result lose">×</span>
+    <span class="scores">3-6, 4-6</span>
+    <button class="btn-44 edit"><i class="ph ph-pencil"></i></button>
+    <button class="btn-44 del"><i class="ph ph-trash"></i></button>
+  </div>
+</div>
+<div class="meta" id="metaB">対戦相手幅: ?px</div>
+
+<div class="label">C 提案 2: 44×44 + gap 4 (推奨)</div>
+<div class="desc">HIG 準拠維持、要素間の隙間を 8→4 に詰めて 16px 取り戻す</div>
+<div class="panel">
+  <div class="row gap-4">
+    <span class="round">1回戦</span>
+    <span class="opp" id="oppC">佐藤次郎 / 鈴木花子</span>
+    <span class="result lose">×</span>
+    <span class="scores">3-6, 4-6</span>
+    <button class="btn-44 edit"><i class="ph ph-pencil"></i></button>
+    <button class="btn-44 del"><i class="ph ph-trash"></i></button>
+  </div>
+</div>
+<div class="meta" id="metaC">対戦相手幅: ?px</div>
+
+<div class="label">D 提案 3: 40×40 + gap 8 (妥協)</div>
+<div class="desc">HIG (44) は微満たさないが現状 24 より大幅改善、対戦相手も B より広い</div>
+<div class="panel">
+  <div class="row gap-8">
+    <span class="round">1回戦</span>
+    <span class="opp" id="oppD">佐藤次郎 / 鈴木花子</span>
+    <span class="result lose">×</span>
+    <span class="scores">3-6, 4-6</span>
+    <button class="btn-40 edit"><i class="ph ph-pencil"></i></button>
+    <button class="btn-40 del"><i class="ph ph-trash"></i></button>
+  </div>
+</div>
+<div class="meta" id="metaD">対戦相手幅: ?px</div>
+
+<div class="label">E 提案 4: 44×44 + gap 4 + 「回戦」省略 (最大確保)</div>
+<div class="desc">round badge を 42→28px に縮める (例: 「1回戦」→「1R」)、対戦相手幅をさらに +14px</div>
+<div class="panel">
+  <div class="row gap-4">
+    <span class="round compact">1R</span>
+    <span class="opp" id="oppE">佐藤次郎 / 鈴木花子</span>
+    <span class="result lose">×</span>
+    <span class="scores">3-6, 4-6</span>
+    <button class="btn-44 edit"><i class="ph ph-pencil"></i></button>
+    <button class="btn-44 del"><i class="ph ph-trash"></i></button>
+  </div>
+</div>
+<div class="meta" id="metaE">対戦相手幅: ?px</div>
+
+<div class="winner" id="conclusion">読み込み中...</div>
+
+<div class="label">私の推奨</div>
+<div class="desc" style="font-size: 12px; line-height: 1.7;">
+<b>C (44×44 + gap 4)</b> が最善。理由:<br>
+• HIG 完全準拠 (削除誤押下を最大限防ぐ)<br>
+• gap 4 は実用上問題なく見える (Apple HIG にも 4-8px 推奨範囲がある)<br>
+• 対戦相手名はダブルス表記でも切れにくい (~135px 確保)<br>
+• 「1R」省略 (E 案) はラベル変更でユーザーの慣れに影響、必要時の追加対応で十分
+</div>
+
+<script>
+  const ids = ['A', 'B', 'C', 'D', 'E'];
+  const widths = {};
+  ids.forEach(k => {
+    const el = document.getElementById('opp' + k);
+    if (el) {
+      const w = Math.round(el.getBoundingClientRect().width);
+      widths[k] = w;
+      document.getElementById('meta' + k).textContent = `対戦相手幅: ${w}px`;
+    }
+  });
+  const concl = document.getElementById('conclusion');
+  concl.innerHTML = `<b>計測結果</b>: A ${widths.A}px / B ${widths.B}px / C ${widths.C}px / D ${widths.D}px / E ${widths.E}px<br>(対戦相手「佐藤次郎 / 鈴木花子」=10 文字 ≒ 130px)`;
+</script>
+</body></html>

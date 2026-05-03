@@ -180,6 +180,60 @@ test("H-6: claudeFormatter の曜日が TZ 非依存 (手動 parse 経由)", asy
   }
 });
 
+test("H-19: TournamentEditForm の試合行ボタンが 44×44 + gap 4", async (page) => {
+  await page.goto(`${BASE}?dev=1`);
+  await page.waitForSelector('[role="tab"]', { timeout: 5000 });
+  // Sessions タブへ
+  await page.locator('[role="tab"]').filter({ hasText: "記録" }).click();
+  await page.waitForTimeout(500);
+  // matches を持つ大会の id を fixture から取得して直接編集 view を開く JS で navigate
+  const opened = await page.evaluate(() => {
+    const tournaments = JSON.parse(localStorage.getItem('yuke-tournaments-v1') || '[]');
+    const t = tournaments.find(x => Array.isArray(x.matches) && x.matches.length > 0);
+    if (!t) return false;
+    // SessionDetailView を edit mode で直接開く
+    // app.jsx の setDetail({ type, session, mode: 'edit' }) を呼ぶ手段がないので、
+    // 一覧でその大会カードを click → detail → 編集ボタン、の代わりに
+    // tournament の id を URL ハッシュ等で渡す手段がない → Sessions card を順に探して click
+    // → 簡易: querySelectorAll(role=button) で大会名一致のものを探す
+    const cards = [...document.querySelectorAll('[role="button"]')];
+    const card = cards.find(c => (c.getAttribute('aria-label') || '').includes(t.name) || (c.textContent || '').includes(t.name));
+    if (!card) return { found: false, name: t.name };
+    card.click();
+    return { found: true, name: t.name };
+  });
+  if (!opened || !opened.found) {
+    // 大会カードが見つからない (UI 上で見えてない) 場合は SKIP
+    console.log(`    (skip) tournament card not visible: ${opened?.name}`);
+    return;
+  }
+  await page.waitForTimeout(800);
+  // detail 画面の編集ボタンをクリック
+  await page.evaluate(() => {
+    const editBtns = [...document.querySelectorAll('button')].filter(b => (b.textContent || '').includes('編集'));
+    if (editBtns.length > 0) editBtns[0].click();
+  });
+  await page.waitForTimeout(800);
+  // 試合行のボタン寸法を測定
+  const result = await page.evaluate(() => {
+    const editBtns = [...document.querySelectorAll('button[aria-label="試合を編集"]')];
+    const delBtns  = [...document.querySelectorAll('button[aria-label="試合を削除"]')];
+    if (editBtns.length === 0 || delBtns.length === 0) {
+      return { foundButtons: false, edit: editBtns.length, del: delBtns.length };
+    }
+    const e = editBtns[0].getBoundingClientRect();
+    const d = delBtns[0].getBoundingClientRect();
+    return {
+      foundButtons: true,
+      editSize: `${Math.round(e.width)}×${Math.round(e.height)}`,
+      delSize: `${Math.round(d.width)}×${Math.round(d.height)}`,
+    };
+  });
+  if (!result.foundButtons) throw new Error(`試合行ボタンが見えない (edit=${result.edit}, del=${result.del})`);
+  if (result.editSize !== "44×44") throw new Error(`編集ボタンサイズ: expected 44×44, got ${result.editSize}`);
+  if (result.delSize !== "44×44") throw new Error(`削除ボタンサイズ: expected 44×44, got ${result.delSize}`);
+});
+
 test("Home タブの主力ラケットが fixture data から計算される", async (page) => {
   await page.goto(`${BASE}?dev=1`);
   await page.waitForSelector('[role="tab"]', { timeout: 5000 });

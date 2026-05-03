@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="ja"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=375, initial-scale=1">
+<title>H-19 試合行ボタン タップ領域 改善案</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.0.3/src/regular/style.css">
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", sans-serif; background: #f2f2f7; color: #202124; margin: 0; padding: 16px; max-width: 420px; margin: 0 auto; }
+  h1 { font-size: 16px; margin: 0 0 4px; color: #202124; }
+  .sub { font-size: 12px; color: #5f6368; margin-bottom: 16px; }
+  .label { font-size: 11px; font-weight: 700; color: #80868b; letterspacing: 0.04em; text-transform: uppercase; margin: 16px 0 6px; }
+  .panel { background: #fff; border: 1px solid #e8eaed; border-radius: 12px; padding: 12px; margin-bottom: 10px; }
+  .row { background: #f2f2f7; border-radius: 8px; padding: 10px 12px; margin-bottom: 6px; display: flex; align-items: center; gap: 8px; min-height: 44px; }
+  .round { font-size: 11px; color: #5f6368; min-width: 42px; font-weight: 600; }
+  .opp { flex: 1; font-size: 13px; font-weight: 500; color: #202124; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .result { font-size: 13px; font-weight: 700; color: #0a5b35; }
+  .scores { font-size: 11px; color: #5f6368; font-variant-numeric: tabular-nums; }
+  /* 旧 (現在) ボタン */
+  .btn-old { background: none; border: none; cursor: pointer; padding: 4px; display: flex; border-radius: 4px; position: relative; }
+  .btn-old.edit { color: #007AFF; }
+  .btn-old.del { color: #d93025; }
+  /* 新 (提案) ボタン: 44×44 */
+  .btn-new { background: none; border: none; cursor: pointer; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 8px; position: relative; flex-shrink: 0; }
+  .btn-new.edit { color: #007AFF; }
+  .btn-new.del { color: #d93025; }
+  .btn-new:hover { background: rgba(0, 0, 0, 0.04); }
+  .btn-new:active { background: rgba(0, 0, 0, 0.08); }
+  i { font-size: 16px; }
+  /* タップ領域可視化 */
+  .show-hit .btn-old::before, .show-hit .btn-new::before {
+    content: ""; position: absolute; inset: 0; border: 1.5px dashed #ff3b30; border-radius: inherit; pointer-events: none;
+  }
+  .show-hit .btn-old::before { background: rgba(255, 59, 48, 0.10); }
+  .show-hit .btn-new::before { background: rgba(0, 200, 83, 0.10); border-color: #0a5b35; }
+  .toggle { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #fff; border: 1px solid #e8eaed; border-radius: 8px; font-size: 12px; cursor: pointer; margin-bottom: 12px; }
+  .toggle input { margin: 0; }
+  .legend { display: flex; gap: 14px; font-size: 11px; color: #5f6368; margin-bottom: 8px; padding: 0 4px; }
+  .legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: 4px; vertical-align: -1px; border: 1.5px dashed; border-radius: 2px; }
+  .legend .red::before { border-color: #ff3b30; background: rgba(255, 59, 48, 0.10); }
+  .legend .grn::before { border-color: #0a5b35; background: rgba(0, 200, 83, 0.10); }
+  .note { font-size: 11px; color: #80868b; padding: 6px 4px; line-height: 1.5; }
+</style>
+</head>
+<body class="show-hit">
+
+<h1>H-19 試合行ボタン タップ領域 改善案</h1>
+<p class="sub">大会編集画面の試合記録セクションで、各試合行の編集 (鉛筆) / 削除 (ゴミ箱) ボタン</p>
+
+<label class="toggle">
+  <input type="checkbox" id="toggleHit" checked> タップ領域を可視化 (赤=現状/緑=提案)
+</label>
+
+<div class="legend">
+  <span class="red">現状: 24×24px (iOS HIG 44px 未達)</span>
+  <span class="grn">提案: 44×44px (HIG 準拠)</span>
+</div>
+
+<div class="label">現状 (Before)</div>
+<div class="panel">
+  <div class="row">
+    <span class="round">1回戦</span>
+    <span class="opp">山田太郎</span>
+    <span class="result">○</span>
+    <span class="scores">6-3, 6-4</span>
+    <button class="btn-old edit"><i class="ph ph-pencil"></i></button>
+    <button class="btn-old del"><i class="ph ph-trash"></i></button>
+  </div>
+  <div class="row">
+    <span class="round">2回戦</span>
+    <span class="opp">佐藤次郎 / 鈴木花子</span>
+    <span class="result" style="color:#a31511">×</span>
+    <span class="scores">3-6, 4-6</span>
+    <button class="btn-old edit"><i class="ph ph-pencil"></i></button>
+    <button class="btn-old del"><i class="ph ph-trash"></i></button>
+  </div>
+</div>
+<div class="note">
+  問題: ボタン本体は 24×24px。指 (10mm 圏) がはみ出して隣を誤タップしやすい。<br>
+  特に削除ボタンを誤押下するとデータ消失リスク。
+</div>
+
+<div class="label">提案 (After)</div>
+<div class="panel">
+  <div class="row">
+    <span class="round">1回戦</span>
+    <span class="opp">山田太郎</span>
+    <span class="result">○</span>
+    <span class="scores">6-3, 6-4</span>
+    <button class="btn-new edit"><i class="ph ph-pencil"></i></button>
+    <button class="btn-new del"><i class="ph ph-trash"></i></button>
+  </div>
+  <div class="row">
+    <span class="round">2回戦</span>
+    <span class="opp">佐藤次郎 / 鈴木花子</span>
+    <span class="result" style="color:#a31511">×</span>
+    <span class="scores">3-6, 4-6</span>
+    <button class="btn-new edit"><i class="ph ph-pencil"></i></button>
+    <button class="btn-new del"><i class="ph ph-trash"></i></button>
+  </div>
+</div>
+<div class="note">
+  改善: タップ領域 44×44px (アイコン自体は 16px のまま、周囲 padding で拡大)。<br>
+  行の高さは元から min-height 44px 確保済なので、ボタンの拡大は行高に影響しない。<br>
+  hover/active で薄い灰色背景を表示して視覚 feedback も追加。
+</div>
+
+<div class="label">変更内容まとめ</div>
+<ul style="font-size:12px; color:#5f6368; padding-left: 18px; line-height: 1.6;">
+  <li>ボタン本体を <code>width:44 height:44</code> に変更 (現在 padding:4)</li>
+  <li>アイコンは中央寄せ (display:flex + align/justify center)</li>
+  <li>border-radius を 4 → 8 (角丸を強めて円ぽく)</li>
+  <li>hover/active で薄い背景色 (タップ feedback)</li>
+  <li>機能・ロジック変更なし (純粋に CSS のみ)</li>
+</ul>
+
+<script>
+  document.getElementById('toggleHit').addEventListener('change', e => {
+    document.body.classList.toggle('show-hit', e.target.checked);
+  });
+</script>
+</body></html>
