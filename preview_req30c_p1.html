@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="ja"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=375, initial-scale=1">
+<title>30-c 試合編集モーダル 順番再配置</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.0.3/src/regular/style.css">
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", sans-serif; background: #f2f2f7; color: #202124; margin: 0; padding: 16px; max-width: 380px; margin: 0 auto; }
+  h1 { font-size: 16px; margin: 0 0 4px; }
+  .sub { font-size: 12px; color: #5f6368; margin-bottom: 16px; line-height: 1.5; }
+  .label { font-size: 11px; font-weight: 700; color: #80868b; letter-spacing: 0.04em; text-transform: uppercase; margin: 16px 0 6px; }
+  .desc { font-size: 11px; color: #5f6368; margin-bottom: 6px; line-height: 1.5; }
+
+  .modal { background: #fff; border-radius: 16px; padding: 16px; margin-bottom: 8px; }
+  .modal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .modal-title { font-size: 16px; font-weight: 700; color: #202124; }
+  .modal-close { width: 28px; height: 28px; border: none; background: transparent; cursor: pointer; color: #5f6368; }
+
+  .field { margin-bottom: 12px; }
+  .field-label { font-size: 12px; color: #5f6368; margin-bottom: 4px; font-weight: 500; }
+  .input, .select { width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid #dadce0; border-radius: 8px; font-size: 13px; background: #fff; color: #202124; min-height: 44px; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+  /* セクション枠 (関連グループ) */
+  .group {
+    background: #fafbfc;
+    border: 1px solid #e8eaed;
+    border-radius: 10px;
+    padding: 10px 12px;
+    margin-bottom: 10px;
+  }
+  .group-title { font-size: 11px; font-weight: 700; color: #5f6368; margin-bottom: 8px; display: inline-flex; align-items: center; gap: 4px; }
+  .group-title.score { color: #007AFF; }
+  .group-title.body  { color: #0a5b35; }
+  .group-title.gear  { color: #6a23a3; }
+  .group-title i { font-size: 13px; }
+
+  /* レーティングボタン */
+  .rating-row { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+  .rating-row .rl { font-size: 12px; color: #5f6368; min-width: 64px; }
+  .rating-row .rb { display: flex; gap: 4px; flex: 1; }
+  .rating-row .rb button { width: 36px; height: 36px; border: 1px solid #dadce0; border-radius: 6px; background: #fff; font-size: 12px; cursor: pointer; }
+  .rating-row .rb button.active { background: #007AFF; color: #fff; border-color: #007AFF; }
+
+  /* GameTracker mock */
+  .gt {
+    background: #fff;
+    border: 1px solid #dadce0;
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-top: 6px;
+  }
+  .gt-head { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; font-size: 11px; }
+  .gt-head .me { color: #0a5b35; font-weight: 700; }
+  .gt-head .opp { color: #a31511; font-weight: 700; text-align: right; }
+  .gt-btn { display: flex; gap: 8px; }
+  .gt-btn button { flex: 1; padding: 8px; border-radius: 8px; border: 1px solid; font-size: 13px; cursor: pointer; }
+  .gt-btn .me { background: #e8f5e9; border-color: #66bb6a; color: #0a5b35; }
+  .gt-btn .opp { background: #ffebee; border-color: #ef5350; color: #a31511; }
+</style>
+</head>
+<body>
+
+<h1>30-c 試合編集モーダル 順番再配置</h1>
+<p class="sub">
+  画像で示された現状: ① 結果 / ② 対戦相手 / ③ <b>セットスコア</b> / ④ メンタル + 機材 / ⑤ <b>ゲーム単位記録</b><br>
+  → スコア系 (セットスコアとゲーム単位記録) が **メンタル/機材で分断** されている
+</p>
+
+<div class="label">A 現状 (画像と同じ)</div>
+<div class="desc">セットスコア → メンタル → 機材 → ゲーム単位記録 の順</div>
+<div class="modal">
+  <div class="modal-head">
+    <div class="modal-title">試合の詳細を記録</div>
+    <button class="modal-close"><i class="ph ph-x"></i></button>
+  </div>
+  <div class="row2">
+    <div class="field"><div class="field-label">ラウンド</div><select class="select"><option>1回戦</option></select></div>
+    <div class="field"><div class="field-label">結果</div><select class="select"><option>-- 未定 --</option></select></div>
+  </div>
+  <div class="field">
+    <div class="field-label">対戦相手</div>
+    <select class="select"><option>-- 対戦相手を選択 --</option></select>
+  </div>
+  <div class="field">
+    <div class="field-label">セットスコア</div>
+    <input class="input" placeholder="例: 6-3, 6-4">
+  </div>
+  <div class="rating-row">
+    <span class="rl">メンタル</span>
+    <span class="rb"><button>1</button><button>2</button><button class="active">3</button><button>4</button><button>5</button></span>
+  </div>
+  <div class="rating-row">
+    <span class="rl">フィジカル</span>
+    <span class="rb"><button>1</button><button>2</button><button class="active">3</button><button>4</button><button>5</button></span>
+  </div>
+  <div style="font-size: 12px; font-weight: 700; color: #5f6368; margin: 8px 0 4px;">機材</div>
+  <div class="field"><div class="field-label">ラケット</div><select class="select"><option>YONEX EZONE 100 TOUR</option></select></div>
+  <div class="row2">
+    <div class="field"><div class="field-label">縦糸</div><select class="select"><option>Babolat Blast 1.25</option></select></div>
+    <div class="field"><div class="field-label">横糸</div><select class="select"><option>Yonex Poly Tour P</option></select></div>
+  </div>
+  <div class="row2">
+    <div class="field"><div class="field-label">テンション縦</div><input class="input" value="46"></div>
+    <div class="field"><div class="field-label">テンション横</div><input class="input" value="43"></div>
+  </div>
+  <div style="font-size: 13px; font-weight: 700; color: #007AFF; margin: 10px 0 4px; display: inline-flex; align-items: center; gap: 4px;">
+    <i class="ph ph-play-circle"></i>ゲーム単位記録
+  </div>
+  <div class="gt">
+    <div class="gt-head"><span class="me">私 0</span><span class="opp">相手 0</span></div>
+    <div class="gt-btn"><button class="me">私が獲得</button><button class="opp">相手が獲得</button></div>
+  </div>
+</div>
+
+<div class="label">B 提案案 X (スコア系をまとめる)</div>
+<div class="desc">セットスコア ↔ ゲーム単位記録 を隣接させる + メンタル/機材は後ろへ移動 + グループ枠で関連明示</div>
+<div class="modal">
+  <div class="modal-head">
+    <div class="modal-title">試合の詳細を記録</div>
+    <button class="modal-close"><i class="ph ph-x"></i></button>
+  </div>
+  <!-- ① 基本情報 -->
+  <div class="row2">
+    <div class="field"><div class="field-label">ラウンド</div><select class="select"><option>1回戦</option></select></div>
+    <div class="field"><div class="field-label">結果</div><select class="select"><option>-- 未定 --</option></select></div>
+  </div>
+  <div class="field">
+    <div class="field-label">対戦相手</div>
+    <select class="select"><option>-- 対戦相手を選択 --</option></select>
+  </div>
+
+  <!-- ② スコア系を 1 グループにまとめる (枠で囲って分断感を消す) -->
+  <div class="group">
+    <div class="group-title score"><i class="ph ph-trophy"></i>スコア</div>
+    <div class="field" style="margin-bottom: 8px;">
+      <div class="field-label">セットスコア</div>
+      <input class="input" placeholder="例: 6-3, 6-4">
+    </div>
+    <div class="field" style="margin-bottom: 0;">
+      <div class="field-label">ゲーム単位記録</div>
+      <div class="gt">
+        <div class="gt-head"><span class="me">私 0</span><span class="opp">相手 0</span></div>
+        <div class="gt-btn"><button class="me">私が獲得</button><button class="opp">相手が獲得</button></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ③ コンディション (メンタル/フィジカル) -->
+  <div class="group">
+    <div class="group-title body"><i class="ph ph-pulse"></i>コンディション</div>
+    <div class="rating-row" style="margin-bottom: 4px;">
+      <span class="rl">メンタル</span>
+      <span class="rb"><button>1</button><button>2</button><button class="active">3</button><button>4</button><button>5</button></span>
+    </div>
+    <div class="rating-row" style="margin-bottom: 0;">
+      <span class="rl">フィジカル</span>
+      <span class="rb"><button>1</button><button>2</button><button class="active">3</button><button>4</button><button>5</button></span>
+    </div>
+  </div>
+
+  <!-- ④ 機材 -->
+  <div class="group">
+    <div class="group-title gear"><i class="ph ph-backpack"></i>機材</div>
+    <div class="field"><div class="field-label">ラケット</div><select class="select"><option>YONEX EZONE 100 TOUR</option></select></div>
+    <div class="row2">
+      <div class="field"><div class="field-label">縦糸</div><select class="select"><option>Babolat Blast 1.25</option></select></div>
+      <div class="field"><div class="field-label">横糸</div><select class="select"><option>Yonex Poly Tour P</option></select></div>
+    </div>
+    <div class="row2" style="margin-bottom: 0;">
+      <div class="field" style="margin-bottom: 0;"><div class="field-label">テンション縦</div><input class="input" value="46"></div>
+      <div class="field" style="margin-bottom: 0;"><div class="field-label">テンション横</div><input class="input" value="43"></div>
+    </div>
+  </div>
+</div>
+
+<div class="label">変更点まとめ</div>
+<div class="desc" style="line-height: 1.7;">
+1. <b>順序入替</b>: メンタル + 機材 を「ゲーム単位記録」より下へ移動<br>
+2. <b>セットスコア + ゲーム単位記録 を 1 グループに</b>: 「スコア」枠で囲って関連明示<br>
+3. <b>コンディション (メンタル + フィジカル) を 1 グループに</b>: 「コンディション」枠<br>
+4. <b>機材を 1 グループに</b>: 既に「機材」見出しがあるが、カード枠で他と統一<br>
+<br>
+<b>順序の根拠</b>: 試合中・直後に書く順 (試合結果 → 詳細スコア → 自分のコンディション → 使った道具)<br>
+<br>
+<b>メリット</b>: スコアを一気に入力でき、メンタル評価で集中の流れを断ち切らない。機材は変更頻度が低いので最後 (一度設定したらコピーで使い回せる)
+</div>
+
+<div class="label">ご懸念があれば教えてください</div>
+<div class="desc" style="line-height: 1.7;">
+- グループ枠 (薄い灰色背景) は不要 / 邪魔 / もっと薄く?<br>
+- 「コンディション」「スコア」のラベルは不要 / 別名?<br>
+- 順序の前提が違う (例: 機材は変えやすい位置に置きたい)?<br>
+- グループタイトルのアイコン (trophy / pulse / backpack) は不要 / 別?
+</div>
+
+</body></html>

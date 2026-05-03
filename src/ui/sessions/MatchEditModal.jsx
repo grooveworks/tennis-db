@@ -246,7 +246,12 @@ function MatchEditModal({ open, match, trnType, racketNames = [], stringNames = 
           </div>
         )}
 
-        {/* ① 基本 */}
+        {/* リクエスト 30-c (preview_req30c_p1.html 案 X 承認済): 順序再配置
+              ① 基本 → ② スコア (セットスコア + GameTracker をまとめる) →
+              ③ コンディション (メンタル/フィジカル) → ④ 機材 → ⑤ メモ
+            旧: スコアと GameTracker の間にメンタル/機材が挟まり情報分断 */}
+
+        {/* ① 基本: ラウンド / 結果 / 対戦相手 */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>
           <Select label="ラウンド" value={form.round || "1回戦"} onChange={(v) => set("round", v)} options={ROUND_OPTS} />
           <Select label="結果" value={form.result ?? ""} onChange={(v) => set("result", v)} options={RESULT_OPTS} />
@@ -255,63 +260,93 @@ function MatchEditModal({ open, match, trnType, racketNames = [], stringNames = 
         {showOpponent2 && (
           <MasterField label="対戦相手 2 (ダブルス)" value={form.opponent2 || ""} onChange={(v) => set("opponent2", v)} masterValues={opponentNames} placeholder="-- 対戦相手 2 を選択 --" />
         )}
-        <Input
-          label="セットスコア"
-          value={setScoresInput}
-          onChange={(v) => set("setScores", v.split(",").map(s => s.trim()).filter(Boolean))}
-          placeholder="例: 6-3, 6-4"
-        />
 
-        {/* matchStats が CSV 取込済みの場合の注記 (S11 範囲外、表示のみ) */}
-        {form.matchStats && form.matchStats.stats && (
+        {/* ② スコア (セットスコア + ゲーム単位記録) — 関連グループとして枠で囲う */}
+        <div style={{
+          background: C.bg, border: `1px solid ${C.divider}`,
+          borderRadius: 10, padding: "10px 12px", marginTop: 10, marginBottom: 10,
+        }}>
           <div style={{
-            fontSize: 11, color: "#7e5d00", background: C.warningLight,
-            border: `1px solid ${C.warning}`, borderRadius: 6,
-            padding: "6px 10px", marginBottom: 10,
-            display: "flex", alignItems: "center", gap: 6,
+            fontSize: 11, fontWeight: 700, color: C.primary,
+            display: "inline-flex", alignItems: "center", gap: 4, marginBottom: 8,
           }}>
-            <Icon name="bar-chart-3" size={13} color="#7e5d00" />
-            <span><b>データテニス CSV 取込済み</b> ({form.matchStats?.points?.length || 0} ポイント)。スタッツ編集はスコープ外（CSV 再取込で更新）</span>
+            <Icon name="trophy" size={13} color={C.primary} />スコア
           </div>
-        )}
+          <Input
+            label="セットスコア"
+            value={setScoresInput}
+            onChange={(v) => set("setScores", v.split(",").map(s => s.trim()).filter(Boolean))}
+            placeholder="例: 6-3, 6-4"
+          />
+          {/* matchStats が CSV 取込済みの場合の注記 (S11 範囲外、表示のみ) */}
+          {form.matchStats && form.matchStats.stats && (
+            <div style={{
+              fontSize: 11, color: "#7e5d00", background: C.warningLight,
+              border: `1px solid ${C.warning}`, borderRadius: 6,
+              padding: "6px 10px", marginBottom: 10,
+              display: "flex", alignItems: "center", gap: 6,
+            }}>
+              <Icon name="bar-chart-3" size={13} color="#7e5d00" />
+              <span><b>データテニス CSV 取込済み</b> ({form.matchStats?.points?.length || 0} ポイント)。スタッツ編集はスコープ外（CSV 再取込で更新）</span>
+            </div>
+          )}
+          {/* ゲーム単位記録 (F1.4.1)、S15.5.9 で onChange を dirty 追跡型に変更 */}
+          <GameTracker match={form} onChange={handleGameTrackerChange} confirm={confirm} />
+        </div>
 
-        {/* ② 評価 */}
-        <div style={{ marginTop: 4 }}>
+        {/* ③ コンディション (メンタル / フィジカル) */}
+        <div style={{
+          background: C.bg, border: `1px solid ${C.divider}`,
+          borderRadius: 10, padding: "10px 12px", marginBottom: 10,
+        }}>
+          <div style={{
+            fontSize: 11, fontWeight: 700, color: C.success,
+            display: "inline-flex", alignItems: "center", gap: 4, marginBottom: 8,
+          }}>
+            <Icon name="pulse" size={13} color={C.success} />コンディション
+          </div>
           <_meRatingRow label="メンタル" value={form.mental || 3} onChange={(n) => set("mental", n)} />
           <_meRatingRow label="フィジカル" value={form.physical || 3} onChange={(n) => set("physical", n)} />
         </div>
 
-        {/* ③ 機材 — ラケット 1 行 / 縦糸+横糸 / テンション縦+横 */}
-        <div style={{ fontSize: 11, color: C.textMuted, fontWeight: 600, letterSpacing: 0.5, textTransform: "uppercase", marginTop: 10, marginBottom: 4 }}>機材</div>
-        <MasterField label="ラケット" value={form.racketName || ""} onChange={(v) => set("racketName", v)} masterValues={racketNames} placeholder="-- ラケットを選択 --" />
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>
-          <MasterField label="縦糸" value={form.stringMain || ""} onChange={(v) => set("stringMain", v)} masterValues={stringNames} placeholder="-- 縦糸を選択 --" />
-          <MasterField label="横糸" value={form.stringCross || ""} onChange={(v) => set("stringCross", v)} masterValues={stringNames} placeholder="-- 同じなら空欄 --" />
+        {/* ④ 機材 — ラケット 1 行 / 縦糸+横糸 / テンション縦+横 */}
+        <div style={{
+          background: C.bg, border: `1px solid ${C.divider}`,
+          borderRadius: 10, padding: "10px 12px", marginBottom: 10,
+        }}>
+          <div style={{
+            fontSize: 11, fontWeight: 700, color: C.trialAccent,
+            display: "inline-flex", alignItems: "center", gap: 4, marginBottom: 8,
+          }}>
+            <Icon name="backpack" size={13} color={C.trialAccent} />機材
+          </div>
+          <MasterField label="ラケット" value={form.racketName || ""} onChange={(v) => set("racketName", v)} masterValues={racketNames} placeholder="-- ラケットを選択 --" />
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>
+            <MasterField label="縦糸" value={form.stringMain || ""} onChange={(v) => set("stringMain", v)} masterValues={stringNames} placeholder="-- 縦糸を選択 --" />
+            <MasterField label="横糸" value={form.stringCross || ""} onChange={(v) => set("stringCross", v)} masterValues={stringNames} placeholder="-- 同じなら空欄 --" />
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>
+            <Input label="テンション縦" value={form.tensionMain || ""} onChange={(v) => set("tensionMain", v)} placeholder="46" />
+            <Input label="テンション横" value={form.tensionCross || ""} onChange={(v) => set("tensionCross", v)} placeholder="43" />
+          </div>
+          {/* S16.11 UX5: 履歴セット picker (5 フィールド一括入力で 90 秒チェンジオーバー対応) */}
+          <_SetupPickerButton
+            recent={recentSetups}
+            current={form}
+            onApply={(s) => {
+              if (!s) return;
+              setForm(prev => ({
+                ...prev,
+                racketName: s.racketName || "",
+                stringMain: s.stringMain || "",
+                stringCross: s.stringCross || "",
+                tensionMain: s.tensionMain || "",
+                tensionCross: s.tensionCross || "",
+              }));
+              setDirty(true);
+            }}
+          />
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>
-          <Input label="テンション縦" value={form.tensionMain || ""} onChange={(v) => set("tensionMain", v)} placeholder="46" />
-          <Input label="テンション横" value={form.tensionCross || ""} onChange={(v) => set("tensionCross", v)} placeholder="43" />
-        </div>
-        {/* S16.11 UX5: 履歴セット picker (5 フィールド一括入力で 90 秒チェンジオーバー対応) */}
-        <_SetupPickerButton
-          recent={recentSetups}
-          current={form}
-          onApply={(s) => {
-            if (!s) return;
-            setForm(prev => ({
-              ...prev,
-              racketName: s.racketName || "",
-              stringMain: s.stringMain || "",
-              stringCross: s.stringCross || "",
-              tensionMain: s.tensionMain || "",
-              tensionCross: s.tensionCross || "",
-            }));
-            setDirty(true);
-          }}
-        />
-
-        {/* ④ ゲーム単位記録 (F1.4.1)、S15.5.9 で onChange を dirty 追跡型に変更 */}
-        <GameTracker match={form} onChange={handleGameTrackerChange} confirm={confirm} />
 
         {/* ⑤ メモ */}
         <div style={{ fontSize: 11, color: C.textMuted, fontWeight: 600, letterSpacing: 0.5, textTransform: "uppercase", marginTop: 14, marginBottom: 4 }}>メモ</div>
