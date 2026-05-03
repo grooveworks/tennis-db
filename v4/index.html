@@ -46,7 +46,7 @@ input,select,textarea,button{font-family:inherit}
 const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
 // ── 定数定義（色・キー・バージョン）─────────────
-const APP_VERSION="4.1.7-S18";
+const APP_VERSION="4.1.8-S18";
 const font="-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif";
 
 // 色設計（DESIGN_SYSTEM_v4.md §1 + §10 S13.5 改訂準拠）
@@ -13064,7 +13064,16 @@ function _dvMemoItem({ label, text, summary }) {
 function SessionDetailView({ type, session, mode = "detail", tournaments, trials, practices, racketNames, stringNames, venueNames, opponentNames, levelNames, onClose, onEdit, onEditCancel, onSave, onDelete, onMerge, onCreateCard, onOpenLinkedSession, toast, confirm }) {
   const [visible, setVisible] = useState(false);
   const [closing, setClosing] = useState(false);
+  // リク 30-a: 大会詳細から直接「+ 試合を追加」する用の Match Modal state
+  //   { match: blankMatch+defaults } | null
+  const [addMatchState, setAddMatchState] = useState(null);
   const reduced = typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // リク 30-a: 履歴セット picker 用 (TournamentEditForm と同じロジック)
+  const recentSetups = useMemo(
+    () => _computeRecentSetups(tournaments, practices, trials),
+    [tournaments, practices, trials]
+  );
 
   // enter アニメ: mount 後 1 frame で translateX(100%) → translateX(0)
   useEffect(() => {
@@ -13112,6 +13121,23 @@ function SessionDetailView({ type, session, mode = "detail", tournaments, trials
     if (onMerge) onMerge(type, session);
     else toast.show("マージハンドラ未接続", "warning");
   };
+
+  // リク 30-a: 詳細画面の「+ 試合を追加」ボタンから直接 MatchEditModal を開く
+  //   blankMatch のデフォルト = 直前の試合 (あれば)、無ければ大会レベル機材
+  const handleAddMatchClick = useCallback(() => {
+    if (type !== "tournament" || !session) return;
+    const matches = Array.isArray(session.matches) ? session.matches : [];
+    const lastMatch = matches.length > 0 ? matches[matches.length - 1] : null;
+    setAddMatchState({ match: blankMatch(matches.length, lastMatch || session) });
+  }, [type, session]);
+
+  // 保存: session.matches に append → 親 onSave で永続化、モーダル閉じる (詳細画面はそのまま残す)
+  const handleAddMatchSave = useCallback((newMatch) => {
+    if (!session) return;
+    const updated = { ...session, matches: [...(Array.isArray(session.matches) ? session.matches : []), newMatch] };
+    if (onSave) onSave(type, updated);
+    setAddMatchState(null);
+  }, [session, type, onSave]);
 
   // linked セッション算出
   const linkedTrials = (type === "practice" && session)
@@ -13199,6 +13225,7 @@ function SessionDetailView({ type, session, mode = "detail", tournaments, trials
           <TournamentDetail
             session={session}
             onMatchClick={() => toast.show("試合詳細は次 Stage で実装予定", "info")}
+            onAddMatch={handleAddMatchClick}
           />
         )}
         {type === "practice" && (
@@ -13247,6 +13274,22 @@ function SessionDetailView({ type, session, mode = "detail", tournaments, trials
           <Icon name="trash-2" size={18} ariaLabel="削除" />
         </button>
       </div>
+
+      {/* リク 30-a: 詳細画面から直接「+ 試合を追加」する用の MatchEditModal */}
+      {addMatchState && type === "tournament" && (
+        <MatchEditModal
+          open={true}
+          match={addMatchState.match}
+          trnType={session?.type}
+          racketNames={racketNames}
+          stringNames={stringNames}
+          opponentNames={opponentNames}
+          recentSetups={recentSetups}
+          confirm={confirm}
+          onSave={handleAddMatchSave}
+          onClose={() => setAddMatchState(null)}
+        />
+      )}
     </div>
   );
 }
@@ -14394,7 +14437,9 @@ function TimeGroupHeader({ level = "month", label, count, collapsible = false, c
 // SessionDetailView から session prop を受け取り、Header/ActionBar は呼び出し側で描画
 // 共通 helper (_dvSection / _dvInfoCell / _dvResultBadgeProps / _dvTournamentHighlight)
 // は SessionDetailView.jsx で定義 (関数宣言なので巻き上げで見える)
-function TournamentDetail({ session, onMatchClick }) {
+// リクエスト 30-a: onAddMatch を受け取って「+ 試合を追加」ボタンを表示。
+//   タップで編集モードを経由せず直接 MatchEditModal を開ける (3 → 2 タップ)。
+function TournamentDetail({ session, onMatchClick, onAddMatch }) {
   const t = session || {};
   const hl = _dvTournamentHighlight(t.overallResult);
   const resultBadge = _dvTournamentResultBadgeProps(t.overallResult);
@@ -14448,9 +14493,9 @@ function TournamentDetail({ session, onMatchClick }) {
         </_dvSection>
       )}
 
-      {/* 試合記録 (実件数のみ) */}
-      {matches.length > 0 && (
-        <_dvSection title={`試合記録 (${matches.length}試合)`}>
+      {/* 試合記録 (リク 30-a: 試合 0 件でも常時表示し、末尾に + 試合を追加 ボタンを置く) */}
+      {(matches.length > 0 || onAddMatch) && (
+        <_dvSection title={matches.length > 0 ? `試合記録 (${matches.length}試合)` : "試合記録"}>
           {matches.map((m, i) => (
             <div
               key={m.id || i}
@@ -14459,7 +14504,7 @@ function TournamentDetail({ session, onMatchClick }) {
                 background: C.bg,
                 borderRadius: 8,
                 padding: "10px 12px",
-                marginBottom: i < matches.length - 1 ? 6 : 0,
+                marginBottom: 6,
                 display: "flex",
                 alignItems: "center",
                 gap: 10,
@@ -14483,6 +14528,20 @@ function TournamentDetail({ session, onMatchClick }) {
               {onMatchClick && <Icon name="chevron-right" size={14} color={C.textMuted} />}
             </div>
           ))}
+          {onAddMatch && (
+            <button
+              type="button"
+              onClick={onAddMatch}
+              style={{
+                width: "100%", minHeight: 44, padding: 10,
+                borderRadius: 8, border: `1px dashed ${C.primary}`, background: C.primaryLight, color: C.primary,
+                fontSize: 13, fontWeight: 600, cursor: "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontFamily: font,
+              }}
+            >
+              <Icon name="plus" size={16} color={C.primary} />試合を追加
+            </button>
+          )}
         </_dvSection>
       )}
 

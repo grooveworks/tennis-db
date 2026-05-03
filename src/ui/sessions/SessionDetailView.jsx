@@ -222,7 +222,16 @@ function _dvMemoItem({ label, text, summary }) {
 function SessionDetailView({ type, session, mode = "detail", tournaments, trials, practices, racketNames, stringNames, venueNames, opponentNames, levelNames, onClose, onEdit, onEditCancel, onSave, onDelete, onMerge, onCreateCard, onOpenLinkedSession, toast, confirm }) {
   const [visible, setVisible] = useState(false);
   const [closing, setClosing] = useState(false);
+  // リク 30-a: 大会詳細から直接「+ 試合を追加」する用の Match Modal state
+  //   { match: blankMatch+defaults } | null
+  const [addMatchState, setAddMatchState] = useState(null);
   const reduced = typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // リク 30-a: 履歴セット picker 用 (TournamentEditForm と同じロジック)
+  const recentSetups = useMemo(
+    () => _computeRecentSetups(tournaments, practices, trials),
+    [tournaments, practices, trials]
+  );
 
   // enter アニメ: mount 後 1 frame で translateX(100%) → translateX(0)
   useEffect(() => {
@@ -270,6 +279,23 @@ function SessionDetailView({ type, session, mode = "detail", tournaments, trials
     if (onMerge) onMerge(type, session);
     else toast.show("マージハンドラ未接続", "warning");
   };
+
+  // リク 30-a: 詳細画面の「+ 試合を追加」ボタンから直接 MatchEditModal を開く
+  //   blankMatch のデフォルト = 直前の試合 (あれば)、無ければ大会レベル機材
+  const handleAddMatchClick = useCallback(() => {
+    if (type !== "tournament" || !session) return;
+    const matches = Array.isArray(session.matches) ? session.matches : [];
+    const lastMatch = matches.length > 0 ? matches[matches.length - 1] : null;
+    setAddMatchState({ match: blankMatch(matches.length, lastMatch || session) });
+  }, [type, session]);
+
+  // 保存: session.matches に append → 親 onSave で永続化、モーダル閉じる (詳細画面はそのまま残す)
+  const handleAddMatchSave = useCallback((newMatch) => {
+    if (!session) return;
+    const updated = { ...session, matches: [...(Array.isArray(session.matches) ? session.matches : []), newMatch] };
+    if (onSave) onSave(type, updated);
+    setAddMatchState(null);
+  }, [session, type, onSave]);
 
   // linked セッション算出
   const linkedTrials = (type === "practice" && session)
@@ -357,6 +383,7 @@ function SessionDetailView({ type, session, mode = "detail", tournaments, trials
           <TournamentDetail
             session={session}
             onMatchClick={() => toast.show("試合詳細は次 Stage で実装予定", "info")}
+            onAddMatch={handleAddMatchClick}
           />
         )}
         {type === "practice" && (
@@ -405,6 +432,22 @@ function SessionDetailView({ type, session, mode = "detail", tournaments, trials
           <Icon name="trash-2" size={18} ariaLabel="削除" />
         </button>
       </div>
+
+      {/* リク 30-a: 詳細画面から直接「+ 試合を追加」する用の MatchEditModal */}
+      {addMatchState && type === "tournament" && (
+        <MatchEditModal
+          open={true}
+          match={addMatchState.match}
+          trnType={session?.type}
+          racketNames={racketNames}
+          stringNames={stringNames}
+          opponentNames={opponentNames}
+          recentSetups={recentSetups}
+          confirm={confirm}
+          onSave={handleAddMatchSave}
+          onClose={() => setAddMatchState(null)}
+        />
+      )}
     </div>
   );
 }

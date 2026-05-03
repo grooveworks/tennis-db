@@ -2,7 +2,9 @@
 // SessionDetailView から session prop を受け取り、Header/ActionBar は呼び出し側で描画
 // 共通 helper (_dvSection / _dvInfoCell / _dvResultBadgeProps / _dvTournamentHighlight)
 // は SessionDetailView.jsx で定義 (関数宣言なので巻き上げで見える)
-function TournamentDetail({ session, onMatchClick }) {
+// リクエスト 30-a: onAddMatch を受け取って「+ 試合を追加」ボタンを表示。
+//   タップで編集モードを経由せず直接 MatchEditModal を開ける (3 → 2 タップ)。
+function TournamentDetail({ session, onMatchClick, onAddMatch }) {
   const t = session || {};
   const hl = _dvTournamentHighlight(t.overallResult);
   const resultBadge = _dvTournamentResultBadgeProps(t.overallResult);
@@ -56,9 +58,9 @@ function TournamentDetail({ session, onMatchClick }) {
         </_dvSection>
       )}
 
-      {/* 試合記録 (実件数のみ) */}
-      {matches.length > 0 && (
-        <_dvSection title={`試合記録 (${matches.length}試合)`}>
+      {/* 試合記録 (リク 30-a: 試合 0 件でも常時表示し、末尾に + 試合を追加 ボタンを置く) */}
+      {(matches.length > 0 || onAddMatch) && (
+        <_dvSection title={matches.length > 0 ? `試合記録 (${matches.length}試合)` : "試合記録"}>
           {matches.map((m, i) => (
             <div
               key={m.id || i}
@@ -67,7 +69,7 @@ function TournamentDetail({ session, onMatchClick }) {
                 background: C.bg,
                 borderRadius: 8,
                 padding: "10px 12px",
-                marginBottom: i < matches.length - 1 ? 6 : 0,
+                marginBottom: 6,
                 display: "flex",
                 alignItems: "center",
                 gap: 10,
@@ -91,6 +93,20 @@ function TournamentDetail({ session, onMatchClick }) {
               {onMatchClick && <Icon name="chevron-right" size={14} color={C.textMuted} />}
             </div>
           ))}
+          {onAddMatch && (
+            <button
+              type="button"
+              onClick={onAddMatch}
+              style={{
+                width: "100%", minHeight: 44, padding: 10,
+                borderRadius: 8, border: `1px dashed ${C.primary}`, background: C.primaryLight, color: C.primary,
+                fontSize: 13, fontWeight: 600, cursor: "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontFamily: font,
+              }}
+            >
+              <Icon name="plus" size={16} color={C.primary} />試合を追加
+            </button>
+          )}
         </_dvSection>
       )}
 
