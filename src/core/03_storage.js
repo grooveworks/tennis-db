@@ -47,7 +47,7 @@ const cleanForFirestore=obj=>{
 };
 
 // 保存エラー通知（アプリ内バナー用）
-let _lastSaveError=null;
+// Round 5 Batch B: dead state _lastSaveError 削除 (外部から読む手段が無く、listeners だけで十分だった)
 const _saveErrorListeners=[];
 const onSaveError=fn=>{
   _saveErrorListeners.push(fn);
@@ -57,8 +57,8 @@ const onSaveError=fn=>{
   };
 };
 const notifySaveError=(key,err)=>{
-  _lastSaveError={key,message:err.message||String(err),at:new Date().toISOString()};
-  _saveErrorListeners.forEach(fn=>fn(_lastSaveError));
+  const info={key,message:err.message||String(err),at:new Date().toISOString()};
+  _saveErrorListeners.forEach(fn=>fn(info));
 };
 
 // save: localStorage 即時 + Firestore 即時 (S16.11 で 800ms debounce 全廃)

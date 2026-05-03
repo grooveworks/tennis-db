@@ -807,30 +807,12 @@ function TennisDB() {
         if (cascadeApplied) setTrials(newTrials);
 
         // localStorage
-        lsSave(KEYS[key], newItems);
-        if (cascadeApplied) lsSave(KEYS.trials, newTrials);
-
-        // Firestore 書き込み (削除対象 + cascade 後 trials を並行)
-        if (user) {
-          try {
-            const writes = [
-              fbDb.collection("users").doc(user.uid).collection("data").doc(key)
-                .set({ items: cleanForFirestore(newItems) }, { merge: false }),
-            ];
-            if (cascadeApplied) {
-              writes.push(
-                fbDb.collection("users").doc(user.uid).collection("data").doc("trials")
-                  .set({ items: cleanForFirestore(newTrials) }, { merge: false })
-              );
-            }
-            await Promise.all(writes);
-          } catch (e) {
-            console.error("Firestore delete error:", e);
-            toast.show("クラウド同期失敗 (ローカルは削除済み)", "warning");
-            setDetail(null);
-            return;
-          }
-        }
+        // Round 5 Batch C (write pattern 一貫化): save() 経由に統一
+        //   旧: fbDb.collection().set({items}, {merge:false}) を直接呼んでいた → updatedAt 抜け、
+        //       _pendingWrites chain にも乗らず handleSave / persist× 経路と race
+        //   新: save() 経由で _pendingWrites chain に直列化 + updatedAt 自動付与
+        save(KEYS[key], newItems);
+        if (cascadeApplied) save(KEYS.trials, newTrials);
         setDetail(null);
         // toast: cascade 件数が 0 なら従来文言、>0 なら追記
         const msg = cascadeApplied
@@ -885,29 +867,9 @@ function TennisDB() {
     else setTrials(newItems);
     if (trialsChanged) setTrials(newTrials);
 
-    // localStorage
-    lsSave(KEYS[key], newItems);
-    if (trialsChanged) lsSave(KEYS.trials, newTrials);
-
-    // Firestore (A 更新 + trials 更新を並行書き込み、handleDelete と同じパターン)
-    if (user) {
-      try {
-        const writes = [
-          fbDb.collection("users").doc(user.uid).collection("data").doc(key)
-            .set({ items: cleanForFirestore(newItems) }, { merge: false }),
-        ];
-        if (trialsChanged) {
-          writes.push(
-            fbDb.collection("users").doc(user.uid).collection("data").doc("trials")
-              .set({ items: cleanForFirestore(newTrials) }, { merge: false })
-          );
-        }
-        await Promise.all(writes);
-      } catch (e) {
-        console.error("Firestore merge error:", e);
-        toast.show("クラウド同期失敗 (ローカルは統合済み)", "warning");
-      }
-    }
+    // Round 5 Batch C (write pattern 一貫化): save() 経由に統一
+    save(KEYS[key], newItems);
+    if (trialsChanged) save(KEYS.trials, newTrials);
 
     // Modal/Picker を閉じ、Detail を merged で再描画 (key 同じ id なので mode 維持)
     setMergeStarting(null);
@@ -1027,27 +989,14 @@ function TennisDB() {
     };
     const newTrials = [trial, ...(trials || [])];
     const newCards = (quickTrialCards || []).filter(c => c.id !== card.id);
-    // 即時 state 更新 + localStorage
+    // 即時 state 更新 + Firestore 書き込み
+    // Round 5 Batch C (write pattern 一貫化): save() 経由に統一
+    //   旧: lsSave + 直接 fbDb.set + Promise.all → updatedAt 不揃い、_pendingWrites bypass
+    //   新: save() で chain 直列化 + payload 統一
     setTrials(newTrials);
     setQuickTrialCards(newCards);
-    lsSave(KEYS.trials, newTrials);
-    lsSave(KEYS.quickTrialCards, newCards);
-    // S15.5.3 fix: Chrome Background Throttling 回避のため、trials も quickTrialCards も
-    //   即時 Firestore write (handleDelete と同じ Promise.all パターン)
-    if (user) {
-      try {
-        await Promise.all([
-          fbDb.collection("users").doc(user.uid).collection("data").doc(KEYS.trials)
-            .set({ items: cleanForFirestore(newTrials), updatedAt: new Date().toISOString() }),
-          fbDb.collection("users").doc(user.uid).collection("data").doc(KEYS.quickTrialCards)
-            .set({ items: cleanForFirestore(newCards), updatedAt: new Date().toISOString() }),
-        ]);
-      } catch (err) {
-        console.error("Firestore quickTrial save error:", err);
-        toast.show("クラウド同期失敗 (ローカルは保存済み)", "warning");
-        return;
-      }
-    }
+    save(KEYS.trials, newTrials);
+    save(KEYS.quickTrialCards, newCards);
     // toast (連携状況をユーザーに通知)
     const linked = !!matchingP || !!linkedMtchId;
     const linkMsg = linkedMtchId && matchingP ? "練習＋試合と紐付け"
