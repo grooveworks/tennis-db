@@ -46,7 +46,7 @@ input,select,textarea,button{font-family:inherit}
 const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
 // ── 定数定義（色・キー・バージョン）─────────────
-const APP_VERSION="4.2.2-S18";
+const APP_VERSION="4.2.3-S18";
 const font="-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif";
 
 // 色設計（DESIGN_SYSTEM_v4.md §1 + §10 S13.5 改訂準拠）
@@ -6305,6 +6305,7 @@ const _hdpDateLabel = (iso) => {
 };
 
 function HomeDayPanel({ open, iso, tournaments = [], practices = [], trials = [], onClose, onItemClick }) {
+  const trapRef = useFocusTrap(open && !!iso); // Round 5 a11y: focus trap (再点検追加)
   // Esc で閉じる
   useEffect(() => {
     if (!open) return;
@@ -6339,6 +6340,7 @@ function HomeDayPanel({ open, iso, tournaments = [], practices = [], trials = []
       />
       {/* Glass Panel */}
       <div
+        ref={trapRef}
         role="dialog"
         aria-modal="true"
         aria-label={`${_hdpDateLabel(iso)} の予定`}
@@ -8455,6 +8457,8 @@ function _SetupPickerSheet({ open, recent = [], current, onApply, onClose }) {
     return () => document.removeEventListener("keydown", handler);
   }, [open, onClose]);
 
+  const trapRef = useFocusTrap(open); // Round 5 a11y: focus trap (再点検追加)
+
   if (!open) return null;
 
   const curKey = _setupKey(current);
@@ -8481,7 +8485,7 @@ function _SetupPickerSheet({ open, recent = [], current, onApply, onClose }) {
         zIndex: 1200,
       }}
     >
-      <div style={{
+      <div ref={trapRef} style={{
         background: C.panel,
         borderRadius: "16px 16px 0 0",
         width: "100%", maxWidth: 480, margin: "0 auto",
@@ -9603,6 +9607,7 @@ function _gtGameEditPopover({ index, current, onSwitchMe, onSwitchOpp, onDelete,
 // ── pending/edit CO モーダル
 function _gtCOModal({ open, initial, onSave, onSkip, onDelete, onClose, isEditMode }) {
   const [draft, setDraft] = useState(initial);
+  const trapRef = useFocusTrap(open); // Round 5 a11y: focus trap (再点検追加)
   // initial が変わったら draft をリセット (afterGame 違いの CO を編集する時)
   useEffect(() => { if (open) setDraft(initial); }, [open, initial?.afterGame]);
   if (!open || !draft) return null;
@@ -9617,7 +9622,7 @@ function _gtCOModal({ open, initial, onSave, onSkip, onDelete, onClose, isEditMo
         display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
       }}
     >
-      <div style={{
+      <div ref={trapRef} style={{
         background: C.panel, border: `1.5px solid ${C.primary}`, borderRadius: 12,
         padding: 14, maxWidth: 380, width: "100%", maxHeight: "90vh", overflowY: "auto",
         boxShadow: "0 4px 16px rgba(26,115,232,.18)",
@@ -10257,6 +10262,7 @@ function _lpCandidateRow({ kind, label, sub, onPick }) {
 
 // 連携先選択シート (画面下からせり上がる)
 function _lpPickerSheet({ open, mode, practices, tournaments, onPick, onClose }) {
+  const trapRef = useFocusTrap(open); // Round 5 a11y: focus trap (再点検追加)
   if (!open) return null;
   // mode === "practice" or "match" でフィルタ
   let candidates = [];
@@ -10298,7 +10304,7 @@ function _lpPickerSheet({ open, mode, practices, tournaments, onPick, onClose })
         display: "flex", alignItems: "flex-end", justifyContent: "center",
       }}
     >
-      <div style={{
+      <div ref={trapRef} style={{
         background: C.panel, borderRadius: "16px 16px 0 0",
         width: "100%", maxWidth: 500, maxHeight: "70vh",
         display: "flex", flexDirection: "column",

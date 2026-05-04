@@ -108,6 +108,8 @@ function _SetupPickerSheet({ open, recent = [], current, onApply, onClose }) {
     return () => document.removeEventListener("keydown", handler);
   }, [open, onClose]);
 
+  const trapRef = useFocusTrap(open); // Round 5 a11y: focus trap (再点検追加)
+
   if (!open) return null;
 
   const curKey = _setupKey(current);
@@ -134,7 +136,7 @@ function _SetupPickerSheet({ open, recent = [], current, onApply, onClose }) {
         zIndex: 1200,
       }}
     >
-      <div style={{
+      <div ref={trapRef} style={{
         background: C.panel,
         borderRadius: "16px 16px 0 0",
         width: "100%", maxWidth: 480, margin: "0 auto",

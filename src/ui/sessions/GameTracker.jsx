@@ -205,6 +205,7 @@ function _gtGameEditPopover({ index, current, onSwitchMe, onSwitchOpp, onDelete,
 // ── pending/edit CO モーダル
 function _gtCOModal({ open, initial, onSave, onSkip, onDelete, onClose, isEditMode }) {
   const [draft, setDraft] = useState(initial);
+  const trapRef = useFocusTrap(open); // Round 5 a11y: focus trap (再点検追加)
   // initial が変わったら draft をリセット (afterGame 違いの CO を編集する時)
   useEffect(() => { if (open) setDraft(initial); }, [open, initial?.afterGame]);
   if (!open || !draft) return null;
@@ -219,7 +220,7 @@ function _gtCOModal({ open, initial, onSave, onSkip, onDelete, onClose, isEditMo
         display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
       }}
     >
-      <div style={{
+      <div ref={trapRef} style={{
         background: C.panel, border: `1.5px solid ${C.primary}`, borderRadius: 12,
         padding: 14, maxWidth: 380, width: "100%", maxHeight: "90vh", overflowY: "auto",
         boxShadow: "0 4px 16px rgba(26,115,232,.18)",

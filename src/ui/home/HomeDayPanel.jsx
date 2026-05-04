@@ -33,6 +33,7 @@ const _hdpDateLabel = (iso) => {
 };
 
 function HomeDayPanel({ open, iso, tournaments = [], practices = [], trials = [], onClose, onItemClick }) {
+  const trapRef = useFocusTrap(open && !!iso); // Round 5 a11y: focus trap (再点検追加)
   // Esc で閉じる
   useEffect(() => {
     if (!open) return;
@@ -67,6 +68,7 @@ function HomeDayPanel({ open, iso, tournaments = [], practices = [], trials = []
       />
       {/* Glass Panel */}
       <div
+        ref={trapRef}
         role="dialog"
         aria-modal="true"
         aria-label={`${_hdpDateLabel(iso)} の予定`}

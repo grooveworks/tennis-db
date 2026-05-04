@@ -64,6 +64,7 @@ function _lpCandidateRow({ kind, label, sub, onPick }) {
 
 // 連携先選択シート (画面下からせり上がる)
 function _lpPickerSheet({ open, mode, practices, tournaments, onPick, onClose }) {
+  const trapRef = useFocusTrap(open); // Round 5 a11y: focus trap (再点検追加)
   if (!open) return null;
   // mode === "practice" or "match" でフィルタ
   let candidates = [];
@@ -105,7 +106,7 @@ function _lpPickerSheet({ open, mode, practices, tournaments, onPick, onClose })
         display: "flex", alignItems: "flex-end", justifyContent: "center",
       }}
     >
-      <div style={{
+      <div ref={trapRef} style={{
         background: C.panel, borderRadius: "16px 16px 0 0",
         width: "100%", maxWidth: 500, maxHeight: "70vh",
         display: "flex", flexDirection: "column",
