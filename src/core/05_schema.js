@@ -124,6 +124,7 @@ const SCHEMA={
     {key:"opponentNote",label:"相手メモ",type:"textarea",combinable:true},
     {key:"note",label:"試合メモ",type:"textarea",combinable:true},
     {key:"format",label:"試合形式上書き",type:"object"}, // リク 30-e (S18): 大会の matchFormat を上書き、null=継承
+    {key:"tbDetails",label:"TB 詳細",type:"array"}, // リク 30-e Phase B (S18): 各セットの TB ポイント詳細
     {key:"memoSummaries",label:"メモ要約",type:"object"},
   ],
   // ── S16 (Gear タブ) で追加 ──

@@ -305,7 +305,11 @@ function _gtCOModal({ open, initial, onSave, onSkip, onDelete, onClose, isEditMo
 //     - 試合終了バナー表示 (✓ 試合終了 + 自動セットスコア)
 //     - 「次のゲーム」+ ボタンを隠す (誤入力防止)
 //     - 「続けて記録する」展開で再開可能 (試合形式変更等の例外ケース対応)
-function GameTracker({ match, onChange, confirm, matchEnded }) {
+//   リク 30-e Phase B (S18): format prop で試合形式を受け取る → TB 状態を検知して TB 入力 banner 表示
+//     - 通常 TB (6-6): 7 ポイント先取・差 2、勝者 + 負けた側ポイント を入力
+//     - マッチ TB (1-1 で 10pt): 10 ポイント先取、同上
+//     - 入力された loser ポイントは tbDetails に保存し、setScores の表示を装飾 ("7-6(5)" / "10-7")
+function GameTracker({ match, onChange, confirm, matchEnded, format }) {
   const games = Array.isArray(match.games) ? match.games : [];
   const changeovers = Array.isArray(match.changeovers) ? match.changeovers : [];
   const setScores = Array.isArray(match.setScores) ? match.setScores : [];
@@ -319,12 +323,30 @@ function GameTracker({ match, onChange, confirm, matchEnded }) {
   const [gameEditIndex, setGameEditIndex] = useState(null);
   // リク 30-e Phase A: 試合終了後に「続けて記録する」を押した展開状態
   const [expandedAfterEnd, setExpandedAfterEnd] = useState(false);
+  // リク 30-e Phase B: TB 入力 banner の loser ポイント state
+  //   selectedPreset: number | null (プリセットボタン選択時の値)
+  //   otherText: string (その他テキスト入力)
+  const [tbSelectedPreset, setTbSelectedPreset] = useState(null);
+  const [tbOtherText, setTbOtherText] = useState("");
   // 別 match の編集に切替時にリセット
   useEffect(() => { if (!matchEnded) setExpandedAfterEnd(false); }, [matchEnded]);
   // matchEnded で pending CO が立ち上がってる場合は自動 skip (バナー表示優先)
   useEffect(() => {
     if (matchEnded && !expandedAfterEnd && pending) setPending(null);
   }, [matchEnded, expandedAfterEnd, pending]);
+
+  // リク 30-e Phase B: TB 状態の検知 (format 必須、未指定なら null = TB 状態なし扱い)
+  const tbState = useMemo(
+    () => format ? computeTbState(games, format) : { type: null, isInTB: false, setIndex: 0 },
+    [games, format]
+  );
+  // TB 状態が変わったら入力 state クリア (前セットの値を引きずらない)
+  useEffect(() => {
+    if (!tbState.isInTB) {
+      setTbSelectedPreset(null);
+      setTbOtherText("");
+    }
+  }, [tbState.isInTB, tbState.setIndex]);
 
   // ゲーム追加 (奇数ゲーム後で自動 CO 発動 — TENNIS_RULES.md §2.1)
   const handleAddGame = (winner) => {
@@ -333,6 +355,35 @@ function GameTracker({ match, onChange, confirm, matchEnded }) {
     if (promptAfterGame !== null) {
       setPending({ afterGame: promptAfterGame, mental: 3, physical: 3, note: "" });
     }
+  };
+
+  // リク 30-e Phase B: TB banner からの送信 (勝者 + loser ポイント)
+  //   loser は preset 優先、無ければ otherText を数値解釈、空なら null (詳細なし)
+  const handleTbSubmit = (winner) => {
+    let loser = null;
+    if (typeof tbSelectedPreset === "number") {
+      loser = tbSelectedPreset;
+    } else if (tbOtherText.trim() !== "") {
+      const n = parseInt(tbOtherText.trim(), 10);
+      if (!isNaN(n) && n >= 0) loser = n;
+    }
+    // games に 1 ゲーム追加 (TB の勝敗を表す 1 ゲーム)
+    const { match: next, promptAfterGame } = addGame(match, winner);
+    // tbDetails の該当 setIndex に詳細を記録 (loser 入力時のみ、null なら装飾なし)
+    if (loser !== null) {
+      const td = Array.isArray(next.tbDetails) ? [...next.tbDetails] : [];
+      while (td.length < tbState.setIndex) td.push(null);
+      td[tbState.setIndex] = { type: tbState.type, winner, loser };
+      onChange({ ...next, tbDetails: td });
+    } else {
+      onChange(next);
+    }
+    if (promptAfterGame !== null) {
+      setPending({ afterGame: promptAfterGame, mental: 3, physical: 3, note: "" });
+    }
+    // 入力 state はクリア (useEffect で自動だが念のため)
+    setTbSelectedPreset(null);
+    setTbOtherText("");
   };
 
   // 直近撤回 (A 直近撤回): 直近ゲーム + 直後 CO を同時撤回
@@ -570,9 +621,105 @@ function GameTracker({ match, onChange, confirm, matchEnded }) {
         </div>
       )}
 
+      {/* リク 30-e Phase B: TB 入力 banner (通常 TB or マッチ TB)
+          isInTB の時に通常の + ボタンを置き換える。loser ポイント (preset / その他) +
+          勝者ボタン (私の勝ち / 相手の勝ち) で送信。 */}
+      {!pending && !(matchEnded && !expandedAfterEnd) && tbState.isInTB && (() => {
+        const isMatchTb = tbState.type === "match10";
+        const presets = isMatchTb ? [5, 6, 7, 8] : [3, 4, 5, 6];
+        const tbBg = isMatchTb ? "#FFF1D2" : C.tournamentLight;
+        const tbBorder = isMatchTb ? C.warning : C.tournamentAccent;
+        const tbColor = isMatchTb ? "#7e5d00" : "#875700";
+        const title = isMatchTb
+          ? "マッチタイブレーク (10 ポイント先取・差 2)"
+          : "タイブレーク (7 ポイント先取・差 2)";
+        const hint = isMatchTb
+          ? "1-1 で第 3 セットの代わりに 10 ポイント TB。勝者を選び、負けた側のポイントを入力 (任意)"
+          : "勝者を選び、負けた側のポイントを入力 (任意)";
+        return (
+          <div style={{
+            background: tbBg, border: `1.5px solid ${tbBorder}`,
+            borderRadius: 10, padding: 12, marginBottom: 4,
+          }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: tbColor, display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+              <Icon name="trophy" size={14} color={tbColor} />
+              {title}
+            </div>
+            <div style={{ fontSize: 11, color: C.textSecondary, marginBottom: 10, lineHeight: 1.5 }}>{hint}</div>
+
+            {/* プリセット行 */}
+            <div style={{ fontSize: 11, color: C.textSecondary, fontWeight: 600, marginBottom: 4 }}>負けた側のポイント</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6, marginBottom: 6 }}>
+              {presets.map(p => {
+                const active = tbSelectedPreset === p;
+                return (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => { setTbSelectedPreset(p); setTbOtherText(""); }}
+                    style={{
+                      minHeight: 44, borderRadius: 8,
+                      border: `1.5px solid ${C.primary}`,
+                      background: active ? C.primary : C.panel,
+                      color: active ? "#fff" : C.primary,
+                      fontSize: 14, fontWeight: 700,
+                      cursor: "pointer", fontFamily: font,
+                    }}
+                  >{p}</button>
+                );
+              })}
+            </div>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={tbOtherText}
+              onChange={(e) => { setTbOtherText(e.target.value); setTbSelectedPreset(null); }}
+              placeholder={isMatchTb ? "その他: 例 12 (デュース TB)" : "その他: 例 8 (デュース TB)"}
+              style={{
+                width: "100%", minHeight: 38, padding: "8px 10px",
+                border: `1px solid ${C.border}`, borderRadius: 8,
+                fontSize: 14, fontFamily: font, marginBottom: 10,
+              }}
+            />
+
+            {/* 勝者ボタン (1 つで送信) */}
+            <div style={{ fontSize: 11, color: C.textSecondary, fontWeight: 600, marginBottom: 4 }}>勝者を選んで記録</div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button
+                type="button"
+                onClick={() => handleTbSubmit("me")}
+                style={{
+                  flex: 1, minHeight: 54, borderRadius: 10,
+                  border: `1.5px solid ${C.practiceAccent}`, background: C.practiceLight,
+                  color: "#0a5b35", fontSize: 15, fontWeight: 800,
+                  cursor: "pointer", fontFamily: font,
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                }}
+              >
+                <Icon name="check" size={18} color="#0a5b35" />私の勝ち
+              </button>
+              <button
+                type="button"
+                onClick={() => handleTbSubmit("opp")}
+                style={{
+                  flex: 1, minHeight: 54, borderRadius: 10,
+                  border: `1.5px solid ${C.error}`, background: C.errorLight,
+                  color: "#a31511", fontSize: 15, fontWeight: 800,
+                  cursor: "pointer", fontFamily: font,
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                }}
+              >
+                <Icon name="check" size={18} color="#a31511" />相手の勝ち
+              </button>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* 次のゲーム入力 (ボタン 54px、間隙 10px、AAA)
-          リク 30-e Phase A: 試合終了 (matchEnded) かつ非展開 (expandedAfterEnd=false) の時は + ボタンを隠す */}
-      {!pending && !(matchEnded && !expandedAfterEnd) && (
+          リク 30-e Phase A: 試合終了 (matchEnded) かつ非展開 (expandedAfterEnd=false) の時は + ボタンを隠す
+          リク 30-e Phase B: TB 状態 (isInTB) の時も + ボタンを隠して TB banner に切替 */}
+      {!pending && !(matchEnded && !expandedAfterEnd) && !tbState.isInTB && (
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
           <span style={{ fontSize: 12, color: C.textSecondary, minWidth: 84 }}>次のゲーム:</span>
           <button

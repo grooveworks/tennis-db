@@ -177,7 +177,10 @@ function MatchEditModal({ open, match, trnType, tournament, racketNames = [], st
   const handleGameTrackerChange = useCallback((next) => {
     const games = Array.isArray(next.games) ? next.games : [];
     // リク 30-e (S18): format 渡して、4ゲーム先取/6ゲーム先取/1セット/3セット+10ptTB の各形式に対応
-    const autoSetScores = computeSetScoresFromGames(games, effectiveFormat);
+    const baseSetScores = computeSetScoresFromGames(games, effectiveFormat);
+    // リク 30-e Phase B (S18): tbDetails を適用して "7-6(5)" / "10-7" 等の詳細表記に変換
+    const tbDetails = Array.isArray(next.tbDetails) ? next.tbDetails : [];
+    const autoSetScores = applyTbDetails(baseSetScores, tbDetails);
     const autoResult = computeAutoMatchResult(games, effectiveFormat);
     const merged = { ...next, setScores: autoSetScores };
     if (autoResult && !manualResultLockRef.current) {
@@ -419,8 +422,9 @@ function MatchEditModal({ open, match, trnType, tournament, racketNames = [], st
             </div>
           )}
           {/* ゲーム単位記録 (F1.4.1)、S15.5.9 で onChange を dirty 追跡型に変更
-              リク 30-e Phase A: matchEnded prop で試合終了状態を伝達 */}
-          <GameTracker match={form} onChange={handleGameTrackerChange} confirm={confirm} matchEnded={matchEnded} />
+              リク 30-e Phase A: matchEnded prop で試合終了状態を伝達
+              リク 30-e Phase B: format prop で TB 状態検知 (6-6 / 1-1) */}
+          <GameTracker match={form} onChange={handleGameTrackerChange} confirm={confirm} matchEnded={matchEnded} format={effectiveFormat} />
         </div>
 
         {/* ③ コンディション (メンタル / フィジカル) */}

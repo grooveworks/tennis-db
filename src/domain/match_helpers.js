@@ -111,6 +111,10 @@ const blankMatch = (matchCount, defaultsFromTournament) => {
     games: [],
     changeovers: [],
     format: null, // null = 大会の matchFormat を継承。試合ごとに上書きしたい時のみ object
+    // リク 30-e Phase B (S18): 各セットの TB 詳細 (index = setIndex 0-based)。
+    //   { type: "regular" | "match10", winner: "me"|"opp", loser: number } | null
+    //   未入力なら setScores はシンプル表記 ("7-6" / "1-0") のまま
+    tbDetails: [],
   };
 };
 
@@ -336,6 +340,84 @@ const computeSetScoresFromGames = (games, format) => {
     setScores.push(`${me}-${opp}`);
   }
   return setScores;
+};
+
+// リク 30-e Phase B (S18): 現在進行セットがタイブレーク状態か判定。GameTracker の TB 入力 banner 用。
+//   戻り値:
+//     { type: null,         isInTB: false, setIndex }   ← 通常進行 or 試合終了
+//     { type: "regular",    isInTB: true,  setIndex }   ← 通常 TB (例: 6-6 で発動)
+//     { type: "match10",    isInTB: true,  setIndex }   ← マッチ TB (1-1 で 10pt 置換)
+//   setIndex = 完了済セット数 (0-based、TB 進行中セットの index と一致)
+const computeTbState = (games, format) => {
+  const list = Array.isArray(games) ? games : [];
+  const f = format || DEFAULT_MATCH_FORMAT;
+  const needSets = f.bestOfSets || 1;
+  const useMatchTB = f.finalSetMode === "matchTiebreak10";
+  let me = 0, opp = 0;
+  let mySets = 0, oppSets = 0;
+  let setIndex = 0;
+
+  for (const g of list) {
+    if (!g) continue;
+    const w = g.winner;
+    if (w !== "me" && w !== "opp") continue;
+
+    // matchTB10 突入後 (1-1 等): このゲームを matchTB の決着ゲームとして処理 (1 ゲーム = 試合決着)
+    if (useMatchTB && mySets === needSets - 1 && oppSets === needSets - 1) {
+      if (w === "me") mySets++; else oppSets++;
+      setIndex++;
+      return { type: null, isInTB: false, setIndex };
+    }
+
+    if (w === "me") me++; else opp++;
+
+    if (_isSetComplete(me, opp, f)) {
+      if (me > opp) mySets++; else oppSets++;
+      me = 0; opp = 0;
+      setIndex++;
+      if (mySets >= needSets || oppSets >= needSets) {
+        return { type: null, isInTB: false, setIndex };
+      }
+    }
+  }
+  // 進行中セットの状態判定
+  if (useMatchTB && mySets === needSets - 1 && oppSets === needSets - 1 && me === 0 && opp === 0) {
+    return { type: "match10", isInTB: true, setIndex };
+  }
+  if (f.tiebreakAt === "6-6" && me === 6 && opp === 6) {
+    return { type: "regular", isInTB: true, setIndex };
+  }
+  if (f.tiebreakAt === "5-5" && me === 5 && opp === 5) {
+    return { type: "regular", isInTB: true, setIndex };
+  }
+  if (f.tiebreakAt === "4-4" && me === 4 && opp === 4) {
+    return { type: "regular", isInTB: true, setIndex };
+  }
+  return { type: null, isInTB: false, setIndex };
+};
+
+// リク 30-e Phase B (S18): setScores と tbDetails を組み合わせて詳細表記版を返す
+//   通常 TB: "7-6" → "7-6(5)" (loser=5)
+//   matchTB10: "1-0" → "10-7" (me 勝ち + loser=7)、"0-1" → "7-10" (opp 勝ち + loser=7)
+//   tbDetails が無い / loser 未入力 / フォーマット不一致なら元の score をそのまま返す
+const applyTbDetails = (setScores, tbDetails) => {
+  const sc = Array.isArray(setScores) ? setScores : [];
+  const td = Array.isArray(tbDetails) ? tbDetails : [];
+  return sc.map((score, i) => {
+    const detail = td[i];
+    if (!detail || typeof detail.loser !== "number") return score;
+    if (detail.type === "regular") {
+      // 7-6 / 6-7 のみ装飾対象 (それ以外の score は不整合なので無視)
+      if (score === "7-6" || score === "6-7") return `${score}(${detail.loser})`;
+      return score;
+    }
+    if (detail.type === "match10") {
+      if (score === "1-0") return `10-${detail.loser}`;
+      if (score === "0-1") return `${detail.loser}-10`;
+      return score;
+    }
+    return score;
+  });
 };
 
 // リク 30-e (S18): games[] から match の自動勝敗判定 (format 適用、TENNIS_RULES §3.1 準拠)

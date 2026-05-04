@@ -46,7 +46,7 @@ input,select,textarea,button{font-family:inherit}
 const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
 // ── 定数定義（色・キー・バージョン）─────────────
-const APP_VERSION="4.2.1-S18";
+const APP_VERSION="4.2.2-S18";
 const font="-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif";
 
 // 色設計（DESIGN_SYSTEM_v4.md §1 + §10 S13.5 改訂準拠）
@@ -411,6 +411,7 @@ const SCHEMA={
     {key:"opponentNote",label:"相手メモ",type:"textarea",combinable:true},
     {key:"note",label:"試合メモ",type:"textarea",combinable:true},
     {key:"format",label:"試合形式上書き",type:"object"}, // リク 30-e (S18): 大会の matchFormat を上書き、null=継承
+    {key:"tbDetails",label:"TB 詳細",type:"array"}, // リク 30-e Phase B (S18): 各セットの TB ポイント詳細
     {key:"memoSummaries",label:"メモ要約",type:"object"},
   ],
   // ── S16 (Gear タブ) で追加 ──
@@ -1004,6 +1005,10 @@ const blankMatch = (matchCount, defaultsFromTournament) => {
     games: [],
     changeovers: [],
     format: null, // null = 大会の matchFormat を継承。試合ごとに上書きしたい時のみ object
+    // リク 30-e Phase B (S18): 各セットの TB 詳細 (index = setIndex 0-based)。
+    //   { type: "regular" | "match10", winner: "me"|"opp", loser: number } | null
+    //   未入力なら setScores はシンプル表記 ("7-6" / "1-0") のまま
+    tbDetails: [],
   };
 };
 
@@ -1229,6 +1234,84 @@ const computeSetScoresFromGames = (games, format) => {
     setScores.push(`${me}-${opp}`);
   }
   return setScores;
+};
+
+// リク 30-e Phase B (S18): 現在進行セットがタイブレーク状態か判定。GameTracker の TB 入力 banner 用。
+//   戻り値:
+//     { type: null,         isInTB: false, setIndex }   ← 通常進行 or 試合終了
+//     { type: "regular",    isInTB: true,  setIndex }   ← 通常 TB (例: 6-6 で発動)
+//     { type: "match10",    isInTB: true,  setIndex }   ← マッチ TB (1-1 で 10pt 置換)
+//   setIndex = 完了済セット数 (0-based、TB 進行中セットの index と一致)
+const computeTbState = (games, format) => {
+  const list = Array.isArray(games) ? games : [];
+  const f = format || DEFAULT_MATCH_FORMAT;
+  const needSets = f.bestOfSets || 1;
+  const useMatchTB = f.finalSetMode === "matchTiebreak10";
+  let me = 0, opp = 0;
+  let mySets = 0, oppSets = 0;
+  let setIndex = 0;
+
+  for (const g of list) {
+    if (!g) continue;
+    const w = g.winner;
+    if (w !== "me" && w !== "opp") continue;
+
+    // matchTB10 突入後 (1-1 等): このゲームを matchTB の決着ゲームとして処理 (1 ゲーム = 試合決着)
+    if (useMatchTB && mySets === needSets - 1 && oppSets === needSets - 1) {
+      if (w === "me") mySets++; else oppSets++;
+      setIndex++;
+      return { type: null, isInTB: false, setIndex };
+    }
+
+    if (w === "me") me++; else opp++;
+
+    if (_isSetComplete(me, opp, f)) {
+      if (me > opp) mySets++; else oppSets++;
+      me = 0; opp = 0;
+      setIndex++;
+      if (mySets >= needSets || oppSets >= needSets) {
+        return { type: null, isInTB: false, setIndex };
+      }
+    }
+  }
+  // 進行中セットの状態判定
+  if (useMatchTB && mySets === needSets - 1 && oppSets === needSets - 1 && me === 0 && opp === 0) {
+    return { type: "match10", isInTB: true, setIndex };
+  }
+  if (f.tiebreakAt === "6-6" && me === 6 && opp === 6) {
+    return { type: "regular", isInTB: true, setIndex };
+  }
+  if (f.tiebreakAt === "5-5" && me === 5 && opp === 5) {
+    return { type: "regular", isInTB: true, setIndex };
+  }
+  if (f.tiebreakAt === "4-4" && me === 4 && opp === 4) {
+    return { type: "regular", isInTB: true, setIndex };
+  }
+  return { type: null, isInTB: false, setIndex };
+};
+
+// リク 30-e Phase B (S18): setScores と tbDetails を組み合わせて詳細表記版を返す
+//   通常 TB: "7-6" → "7-6(5)" (loser=5)
+//   matchTB10: "1-0" → "10-7" (me 勝ち + loser=7)、"0-1" → "7-10" (opp 勝ち + loser=7)
+//   tbDetails が無い / loser 未入力 / フォーマット不一致なら元の score をそのまま返す
+const applyTbDetails = (setScores, tbDetails) => {
+  const sc = Array.isArray(setScores) ? setScores : [];
+  const td = Array.isArray(tbDetails) ? tbDetails : [];
+  return sc.map((score, i) => {
+    const detail = td[i];
+    if (!detail || typeof detail.loser !== "number") return score;
+    if (detail.type === "regular") {
+      // 7-6 / 6-7 のみ装飾対象 (それ以外の score は不整合なので無視)
+      if (score === "7-6" || score === "6-7") return `${score}(${detail.loser})`;
+      return score;
+    }
+    if (detail.type === "match10") {
+      if (score === "1-0") return `10-${detail.loser}`;
+      if (score === "0-1") return `${detail.loser}-10`;
+      return score;
+    }
+    return score;
+  });
 };
 
 // リク 30-e (S18): games[] から match の自動勝敗判定 (format 適用、TENNIS_RULES §3.1 準拠)
@@ -9620,7 +9703,11 @@ function _gtCOModal({ open, initial, onSave, onSkip, onDelete, onClose, isEditMo
 //     - 試合終了バナー表示 (✓ 試合終了 + 自動セットスコア)
 //     - 「次のゲーム」+ ボタンを隠す (誤入力防止)
 //     - 「続けて記録する」展開で再開可能 (試合形式変更等の例外ケース対応)
-function GameTracker({ match, onChange, confirm, matchEnded }) {
+//   リク 30-e Phase B (S18): format prop で試合形式を受け取る → TB 状態を検知して TB 入力 banner 表示
+//     - 通常 TB (6-6): 7 ポイント先取・差 2、勝者 + 負けた側ポイント を入力
+//     - マッチ TB (1-1 で 10pt): 10 ポイント先取、同上
+//     - 入力された loser ポイントは tbDetails に保存し、setScores の表示を装飾 ("7-6(5)" / "10-7")
+function GameTracker({ match, onChange, confirm, matchEnded, format }) {
   const games = Array.isArray(match.games) ? match.games : [];
   const changeovers = Array.isArray(match.changeovers) ? match.changeovers : [];
   const setScores = Array.isArray(match.setScores) ? match.setScores : [];
@@ -9634,12 +9721,30 @@ function GameTracker({ match, onChange, confirm, matchEnded }) {
   const [gameEditIndex, setGameEditIndex] = useState(null);
   // リク 30-e Phase A: 試合終了後に「続けて記録する」を押した展開状態
   const [expandedAfterEnd, setExpandedAfterEnd] = useState(false);
+  // リク 30-e Phase B: TB 入力 banner の loser ポイント state
+  //   selectedPreset: number | null (プリセットボタン選択時の値)
+  //   otherText: string (その他テキスト入力)
+  const [tbSelectedPreset, setTbSelectedPreset] = useState(null);
+  const [tbOtherText, setTbOtherText] = useState("");
   // 別 match の編集に切替時にリセット
   useEffect(() => { if (!matchEnded) setExpandedAfterEnd(false); }, [matchEnded]);
   // matchEnded で pending CO が立ち上がってる場合は自動 skip (バナー表示優先)
   useEffect(() => {
     if (matchEnded && !expandedAfterEnd && pending) setPending(null);
   }, [matchEnded, expandedAfterEnd, pending]);
+
+  // リク 30-e Phase B: TB 状態の検知 (format 必須、未指定なら null = TB 状態なし扱い)
+  const tbState = useMemo(
+    () => format ? computeTbState(games, format) : { type: null, isInTB: false, setIndex: 0 },
+    [games, format]
+  );
+  // TB 状態が変わったら入力 state クリア (前セットの値を引きずらない)
+  useEffect(() => {
+    if (!tbState.isInTB) {
+      setTbSelectedPreset(null);
+      setTbOtherText("");
+    }
+  }, [tbState.isInTB, tbState.setIndex]);
 
   // ゲーム追加 (奇数ゲーム後で自動 CO 発動 — TENNIS_RULES.md §2.1)
   const handleAddGame = (winner) => {
@@ -9648,6 +9753,35 @@ function GameTracker({ match, onChange, confirm, matchEnded }) {
     if (promptAfterGame !== null) {
       setPending({ afterGame: promptAfterGame, mental: 3, physical: 3, note: "" });
     }
+  };
+
+  // リク 30-e Phase B: TB banner からの送信 (勝者 + loser ポイント)
+  //   loser は preset 優先、無ければ otherText を数値解釈、空なら null (詳細なし)
+  const handleTbSubmit = (winner) => {
+    let loser = null;
+    if (typeof tbSelectedPreset === "number") {
+      loser = tbSelectedPreset;
+    } else if (tbOtherText.trim() !== "") {
+      const n = parseInt(tbOtherText.trim(), 10);
+      if (!isNaN(n) && n >= 0) loser = n;
+    }
+    // games に 1 ゲーム追加 (TB の勝敗を表す 1 ゲーム)
+    const { match: next, promptAfterGame } = addGame(match, winner);
+    // tbDetails の該当 setIndex に詳細を記録 (loser 入力時のみ、null なら装飾なし)
+    if (loser !== null) {
+      const td = Array.isArray(next.tbDetails) ? [...next.tbDetails] : [];
+      while (td.length < tbState.setIndex) td.push(null);
+      td[tbState.setIndex] = { type: tbState.type, winner, loser };
+      onChange({ ...next, tbDetails: td });
+    } else {
+      onChange(next);
+    }
+    if (promptAfterGame !== null) {
+      setPending({ afterGame: promptAfterGame, mental: 3, physical: 3, note: "" });
+    }
+    // 入力 state はクリア (useEffect で自動だが念のため)
+    setTbSelectedPreset(null);
+    setTbOtherText("");
   };
 
   // 直近撤回 (A 直近撤回): 直近ゲーム + 直後 CO を同時撤回
@@ -9885,9 +10019,105 @@ function GameTracker({ match, onChange, confirm, matchEnded }) {
         </div>
       )}
 
+      {/* リク 30-e Phase B: TB 入力 banner (通常 TB or マッチ TB)
+          isInTB の時に通常の + ボタンを置き換える。loser ポイント (preset / その他) +
+          勝者ボタン (私の勝ち / 相手の勝ち) で送信。 */}
+      {!pending && !(matchEnded && !expandedAfterEnd) && tbState.isInTB && (() => {
+        const isMatchTb = tbState.type === "match10";
+        const presets = isMatchTb ? [5, 6, 7, 8] : [3, 4, 5, 6];
+        const tbBg = isMatchTb ? "#FFF1D2" : C.tournamentLight;
+        const tbBorder = isMatchTb ? C.warning : C.tournamentAccent;
+        const tbColor = isMatchTb ? "#7e5d00" : "#875700";
+        const title = isMatchTb
+          ? "マッチタイブレーク (10 ポイント先取・差 2)"
+          : "タイブレーク (7 ポイント先取・差 2)";
+        const hint = isMatchTb
+          ? "1-1 で第 3 セットの代わりに 10 ポイント TB。勝者を選び、負けた側のポイントを入力 (任意)"
+          : "勝者を選び、負けた側のポイントを入力 (任意)";
+        return (
+          <div style={{
+            background: tbBg, border: `1.5px solid ${tbBorder}`,
+            borderRadius: 10, padding: 12, marginBottom: 4,
+          }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: tbColor, display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+              <Icon name="trophy" size={14} color={tbColor} />
+              {title}
+            </div>
+            <div style={{ fontSize: 11, color: C.textSecondary, marginBottom: 10, lineHeight: 1.5 }}>{hint}</div>
+
+            {/* プリセット行 */}
+            <div style={{ fontSize: 11, color: C.textSecondary, fontWeight: 600, marginBottom: 4 }}>負けた側のポイント</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6, marginBottom: 6 }}>
+              {presets.map(p => {
+                const active = tbSelectedPreset === p;
+                return (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => { setTbSelectedPreset(p); setTbOtherText(""); }}
+                    style={{
+                      minHeight: 44, borderRadius: 8,
+                      border: `1.5px solid ${C.primary}`,
+                      background: active ? C.primary : C.panel,
+                      color: active ? "#fff" : C.primary,
+                      fontSize: 14, fontWeight: 700,
+                      cursor: "pointer", fontFamily: font,
+                    }}
+                  >{p}</button>
+                );
+              })}
+            </div>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={tbOtherText}
+              onChange={(e) => { setTbOtherText(e.target.value); setTbSelectedPreset(null); }}
+              placeholder={isMatchTb ? "その他: 例 12 (デュース TB)" : "その他: 例 8 (デュース TB)"}
+              style={{
+                width: "100%", minHeight: 38, padding: "8px 10px",
+                border: `1px solid ${C.border}`, borderRadius: 8,
+                fontSize: 14, fontFamily: font, marginBottom: 10,
+              }}
+            />
+
+            {/* 勝者ボタン (1 つで送信) */}
+            <div style={{ fontSize: 11, color: C.textSecondary, fontWeight: 600, marginBottom: 4 }}>勝者を選んで記録</div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button
+                type="button"
+                onClick={() => handleTbSubmit("me")}
+                style={{
+                  flex: 1, minHeight: 54, borderRadius: 10,
+                  border: `1.5px solid ${C.practiceAccent}`, background: C.practiceLight,
+                  color: "#0a5b35", fontSize: 15, fontWeight: 800,
+                  cursor: "pointer", fontFamily: font,
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                }}
+              >
+                <Icon name="check" size={18} color="#0a5b35" />私の勝ち
+              </button>
+              <button
+                type="button"
+                onClick={() => handleTbSubmit("opp")}
+                style={{
+                  flex: 1, minHeight: 54, borderRadius: 10,
+                  border: `1.5px solid ${C.error}`, background: C.errorLight,
+                  color: "#a31511", fontSize: 15, fontWeight: 800,
+                  cursor: "pointer", fontFamily: font,
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                }}
+              >
+                <Icon name="check" size={18} color="#a31511" />相手の勝ち
+              </button>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* 次のゲーム入力 (ボタン 54px、間隙 10px、AAA)
-          リク 30-e Phase A: 試合終了 (matchEnded) かつ非展開 (expandedAfterEnd=false) の時は + ボタンを隠す */}
-      {!pending && !(matchEnded && !expandedAfterEnd) && (
+          リク 30-e Phase A: 試合終了 (matchEnded) かつ非展開 (expandedAfterEnd=false) の時は + ボタンを隠す
+          リク 30-e Phase B: TB 状態 (isInTB) の時も + ボタンを隠して TB banner に切替 */}
+      {!pending && !(matchEnded && !expandedAfterEnd) && !tbState.isInTB && (
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
           <span style={{ fontSize: 12, color: C.textSecondary, minWidth: 84 }}>次のゲーム:</span>
           <button
@@ -10400,7 +10630,10 @@ function MatchEditModal({ open, match, trnType, tournament, racketNames = [], st
   const handleGameTrackerChange = useCallback((next) => {
     const games = Array.isArray(next.games) ? next.games : [];
     // リク 30-e (S18): format 渡して、4ゲーム先取/6ゲーム先取/1セット/3セット+10ptTB の各形式に対応
-    const autoSetScores = computeSetScoresFromGames(games, effectiveFormat);
+    const baseSetScores = computeSetScoresFromGames(games, effectiveFormat);
+    // リク 30-e Phase B (S18): tbDetails を適用して "7-6(5)" / "10-7" 等の詳細表記に変換
+    const tbDetails = Array.isArray(next.tbDetails) ? next.tbDetails : [];
+    const autoSetScores = applyTbDetails(baseSetScores, tbDetails);
     const autoResult = computeAutoMatchResult(games, effectiveFormat);
     const merged = { ...next, setScores: autoSetScores };
     if (autoResult && !manualResultLockRef.current) {
@@ -10642,8 +10875,9 @@ function MatchEditModal({ open, match, trnType, tournament, racketNames = [], st
             </div>
           )}
           {/* ゲーム単位記録 (F1.4.1)、S15.5.9 で onChange を dirty 追跡型に変更
-              リク 30-e Phase A: matchEnded prop で試合終了状態を伝達 */}
-          <GameTracker match={form} onChange={handleGameTrackerChange} confirm={confirm} matchEnded={matchEnded} />
+              リク 30-e Phase A: matchEnded prop で試合終了状態を伝達
+              リク 30-e Phase B: format prop で TB 状態検知 (6-6 / 1-1) */}
+          <GameTracker match={form} onChange={handleGameTrackerChange} confirm={confirm} matchEnded={matchEnded} format={effectiveFormat} />
         </div>
 
         {/* ③ コンディション (メンタル / フィジカル) */}
