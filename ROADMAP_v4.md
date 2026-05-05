@@ -1,6 +1,6 @@
 # Tennis DB v4.0 — 実装ロードマップ
 
-最終更新: 2026-04-21（Sessions タブ再スコープ） / 前提: REQUIREMENTS_v4.md, ARCHITECTURE_v4.md, CLAUDE.md
+最終更新: 2026-05-05（S18 完了、wheel picker 復活 + 試合形式多様化 + 練習試合記録 等）/ 前提: REQUIREMENTS_v4.md, ARCHITECTURE_v4.md, CLAUDE.md
 
 ---
 
@@ -50,15 +50,50 @@
 | **S13** ✅ | Session 削除 + cascade | 関連する linkedXxx を自動クリアする安全削除。focus 型誤定義の根本修正・編集 UX 改善・Firestore batch load・left-edge swipe を history pushState 方式に も同梱 |
 | **S13.5** 🎨 | **DESIGN_SYSTEM 全面改訂 (Apple-flavored Material 路線)** | Primary `#1a73e8`→`#007AFF` / Lucide→Phosphor + Tabler `tennis` 拝借 / 角丸ヒエラルキー (大 20 / 中 14 / ボタン 10-12) / Display tier (28-40px) / Glass = floating panel 限定 / Card hover lift (PC のみ) / 100vh→100dvh / スクロールバー細身 / Next Actions check circle (Apple Reminders 風) — 2026-04-27 ピボット、AUDIT_v4_design_research_2026-04-27.md と DECISIONS_v4.md S13.5 参照 |
 | **S14** ✅ | Home タブ | Quick Add 3 ボタン / Current Context / 今週サマリー / 次のアクション / 2 週間カレンダー (= 5 カード上限) / 共通 Header (Tennis**DB** + version + 同期 + 天気 + logout) / default tab home 変更同梱 / 天気タップ詳細 Modal (Open-Meteo hourly + テニス指標 3 列) / QuickAddModal trial 拡張 / Input/Textarea box-sizing+appearance 修正 (Safari iOS 重なり解消) / TabBar PWA safe-area 対応 |
-| **S15** | Sessions マージ機能 | 同タイプ2件の統合、A/B 切替・競合選択 |
-| **S16** | **Gear タブ（v3 未実装を v4 で初実装）** | ラケット/ガット/セッティング/実測値 |
-| **S17** | **Plan タブ（v3 未実装を v4 で初実装）** | Next Actions 詳細、対戦相手管理 |
-| **S18** | **Insights タブ（v3 未実装を v4 で初実装）** | 集計・推移・メンタル |
-| **S19** | インポート（GCal / CSV / Watch） | 外部データ取込 + プレビュー + 取り消し |
+| **S15** ✅ | Sessions マージ機能 | 同タイプ2件の統合、A/B 切替・競合選択 (MergeModal) |
+| **S16** ✅ | **Gear タブ（v3 未実装を v4 で初実装）** | ラケット/ガット/セッティング/実測値 (S16.11 まで polish 済) |
+| **S17** ⏸️ | **Plan タブ（v3 未実装を v4 で初実装）** | Next Actions 詳細、対戦相手管理 — **凍結中**、初期実装あるが UX 詰めが必要、再着手判断要 |
+| **S18** ⏸️/✅ | **Insights タブ初期実装は凍結、代わりに大量の polish + リクエスト消化** | 集計・推移・メンタル (元計画) は凍結。S18 実態は下記 §1.1 参照 |
+| **S19** | インポート（GCal / CSV / Watch） | 外部データ取込 + プレビュー + 取り消し (Google Calendar 取り込みは S18 で先行実装済、CSV/Watch 未着手) |
 | **S20** | セッション自動連関 | 試打→大会、練習→大会 の自動リンク表示（機械的に繋ぐ） |
 | **S21** | リリース準備 | v3 を凍結、/v4/ を正式化、日付形式の最終一括マイグレーション |
 
-合計 **23 Stage** (2026-04-27 に S13.5 挿入)。S2-S5 が UI/UX 先行、S6-S15 がコア機能、S16-S18 が v3 未実装を v4 で新規実装、S19-S21 が仕上げ、S13.5 は Apple ライク化のためのデザイン再構築。
+合計 **23 Stage** (2026-04-27 に S13.5 挿入)。S2-S5 が UI/UX 先行、S6-S15 がコア機能、S16-S18 が v3 未実装を v4 で新規実装 (Plan/Insights は凍結中)、S19-S21 が仕上げ、S13.5 は Apple ライク化のためのデザイン再構築。
+
+### 1.1 S18 実態 (元計画 = Insights、実際 = polish + リクエスト消化)
+
+S18 は元計画の Insights タブ実装ではなく、**Phase A 全コード監査 → Phase B 致命/高 29 件修正 → リクエスト 30 系全件消化 + Round 5 UI Phase 1 + wheel picker 復活 + Home 改善** の大規模 polish フェーズになった。最終 v4.5.0-S18。
+
+#### S18 で実装された機能 (バージョン順)
+
+| バージョン | 内容 | カテゴリ |
+|---|---|---|
+| 4.0.0 → 4.1.0 | Phase A 監査 + Phase B Round 1-4 (致命 5 + 高 24 = 29 件修正) + Dev モード + e2e | 内部品質 |
+| 4.1.0 → 4.1.2 | リク 3/4/7-f/30-b/30-c/31-2 + Calendar import 1 ボタン化 | リクエスト |
+| 4.1.2 → 4.1.6 | Round 5 batch A〜E (useMemo / catch silent / dead code / write 一貫化 / lsLoad 破損検出 / Firebase 冪等化) | 内部品質 |
+| 4.1.7 | Round 5 UI Phase 1: モーダル focus trap (Modal 基底 + 6 独自モーダル) | a11y |
+| 4.1.8 | リク 30-a: 大会タップから直接「+ 試合を追加」(タップ 3→2) | UX |
+| 4.2.0 | リク 30-e: 試合形式多様化 (1/3 セット / 6/4 ゲーム先取 / 1-1 で 10pt TB) | 機能 |
+| 4.2.1 | Phase A: 試合終了バナー + 「続けて記録する」展開 | UX |
+| 4.2.2 | Phase B: TB スコア入力欄 (パターン A) + 自動装飾 `7-6(5)` / `10-7` | 機能 |
+| 4.2.3 | Round 5 UI Phase 1 補完: leaf modal 4 件に focus trap | a11y |
+| 4.3.0 | wheel picker 復活 (PracticeEditForm)、事故 3 件全修正の安全設計 | UX (再発) |
+| 4.3.1 | wheel picker 全画面適用 (Tournament/Trial/QuickAdd) | UX |
+| 4.4.0 | F4.4 最近の好成績カード (Home 実装漏れ補完) | 機能 (補完) |
+| 4.4.1 | Issue 1: 主力ラケットフィルター戻り口 (バナー + タブ切替自動解除) | UX |
+| 4.5.0 | Issue 2: 練習試合記録 (practice.matches[] + 案 3' 採用) | 機能 |
+
+#### S18 で凍結された項目
+- **Plan タブ詳細実装** (元計画 S17): タブは存在するが UX 詰めが必要、ユーザーが「凍結」明言
+- **Insights タブ詳細実装** (元計画 S18): 同上、別 Stage で再着手判断
+- **Round 5 UI Phase 2** (タップ領域 44px): ユーザー却下、memory に「触らない」ルール保存
+
+#### S18 で確立されたルール (memory に保存済)
+- データ破壊事故 (2026-05-03) ルール: 値変換禁止 / build 承認後のみ / 暗黙確定禁止
+- バージョニング: X = 互換性壊す / Y = 機能追加 (Z リセット) / Z = 修正
+- 2 段階プレビュー方針: UI 変更は preview HTML 承認 → 実装
+- タップ領域 44px 違反は変更しない (レイアウト崩壊リスク)
+- その他 13+ ルール (HANDOFF_v4_S18.md §3 参照)
 
 ### Home タブ責務 (S14 でこれを満たすよう実装、DECISIONS_v4.md S13.5 と一致)
 
