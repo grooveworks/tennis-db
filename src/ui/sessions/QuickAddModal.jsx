@@ -241,8 +241,9 @@ function QuickAddModal({ open, type, racketNames = [], stringNames = [], venueNa
             <Input label="イベント名" value={form.title || ""} onChange={(v) => set("title", v)} placeholder="例: ナイターレッスン中上級" />
             <MasterField label="会場" value={form.venue || ""} onChange={(v) => set("venue", v)} masterValues={venueNames} placeholder="-- 会場を選択 --" />
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>
-              <Input type="time" label="開始時刻" value={form.startTime || ""} onChange={(v) => set("startTime", v)} />
-              <Input type="time" label="終了時刻" value={form.endTime || ""} onChange={(v) => set("endTime", v)} />
+              {/* リク 30-* (S18) Wheel picker 全画面適用 */}
+              <TimeWheel label="開始時刻" value={form.startTime || ""} onChange={(v) => set("startTime", v)} />
+              <TimeWheel label="終了時刻" value={form.endTime || ""} onChange={(v) => set("endTime", v)} />
             </div>
             <div style={{ marginTop: 4 }}>
               <label style={{ display: "block", fontSize: 12, color: C.textSecondary, fontWeight: 500, marginBottom: 4 }}>公開設定</label>
@@ -264,8 +265,8 @@ function QuickAddModal({ open, type, racketNames = [], stringNames = [], venueNa
               <MasterField label="横糸" value={form.stringCross || ""} onChange={(v) => set("stringCross", v)} masterValues={stringNames} placeholder="-- 横糸 --" />
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>
-              <Input label="テンション 縦" value={form.tensionMain || ""} onChange={(v) => set("tensionMain", v)} placeholder="例: 48" />
-              <Input label="テンション 横" value={form.tensionCross || ""} onChange={(v) => set("tensionCross", v)} placeholder="例: 46" />
+              <NumWheel label="テンション 縦" value={form.tensionMain || ""} min={35} max={55} step={1} onChange={(v) => set("tensionMain", v)} />
+              <NumWheel label="テンション 横" value={form.tensionCross || ""} min={35} max={55} step={1} onChange={(v) => set("tensionCross", v)} />
             </div>
             <_qaJudgment value={form.judgment} onChange={(v) => set("judgment", v)} />
           </>

@@ -144,8 +144,9 @@ function TrialEditForm({ form, errors = {}, onChange, practices, tournaments, tr
           <_teJudgmentRow value={form.judgment || ""} onChange={(v) => set("judgment", v)} />
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>
-          <Input type="time" label="開始時刻" value={form.startTime || ""} onChange={(v) => set("startTime", v)} />
-          <Input type="time" label="終了時刻" value={form.endTime || ""} onChange={(v) => set("endTime", v)} />
+          {/* リク 30-* (S18) Wheel picker 全画面適用 */}
+          <TimeWheel label="開始時刻" value={form.startTime || ""} onChange={(v) => set("startTime", v)} />
+          <TimeWheel label="終了時刻" value={form.endTime || ""} onChange={(v) => set("endTime", v)} />
         </div>
       </div>
 
@@ -154,7 +155,7 @@ function TrialEditForm({ form, errors = {}, onChange, practices, tournaments, tr
         <_teSectionHead num="2" label="会場 / 気象" />
         <MasterField label="会場" value={form.venue || ""} onChange={(v) => set("venue", v)} masterValues={venueNames} placeholder="-- 会場を選択 --" />
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>
-          <Input type="number" label="気温(℃)" value={form.temp || ""} onChange={(v) => set("temp", v)} placeholder="18" />
+          <NumWheel label="気温(℃)" value={form.temp || ""} min={-5} max={40} step={1} onChange={(v) => set("temp", v)} />
           <Select label="天気" value={form.weather || ""} onChange={(v) => set("weather", v)} options={_TRIAL_WEATHER} />
         </div>
       </div>
@@ -168,8 +169,8 @@ function TrialEditForm({ form, errors = {}, onChange, practices, tournaments, tr
           <MasterField label="横糸" value={form.stringCross || ""} onChange={(v) => set("stringCross", v)} masterValues={stringNames} placeholder="-- 同じなら空欄 --" />
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>
-          <Input label="テンション縦" value={form.tensionMain || ""} onChange={(v) => set("tensionMain", v)} placeholder="46" />
-          <Input label="テンション横" value={form.tensionCross || ""} onChange={(v) => set("tensionCross", v)} placeholder="43" />
+          <NumWheel label="テンション縦" value={form.tensionMain || ""} min={35} max={55} step={1} onChange={(v) => set("tensionMain", v)} />
+          <NumWheel label="テンション横" value={form.tensionCross || ""} min={35} max={55} step={1} onChange={(v) => set("tensionCross", v)} />
         </div>
         {/* S16.11 UX5: 履歴セット picker */}
         <_SetupPickerButton recent={recentSetups} current={form} onApply={applySetup} />
