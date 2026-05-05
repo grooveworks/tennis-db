@@ -175,10 +175,12 @@ function PracticeEditForm({ form, errors = {}, onChange, racketNames = [], strin
           <Select label="種別" value={form.type || ""} onChange={(v) => set("type", v)} options={_PRAC_TYPE_OPTS} />
         </div>
         <Input label="イベント名" value={form.title || ""} onChange={(v) => set("title", v)} placeholder="例: ナイターレッスン中上級" />
+        {/* リク 30-* (S18 Phase B) Wheel picker 復活: 時刻 + 時間(分) を立体ホイール化
+            既存値の rounding/clamping は禁止 (preserved で保持)、背景タップ/ESC = キャンセル */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0 8px" }}>
-          <Input type="time" label="開始" value={form.startTime || ""} onChange={(v) => set("startTime", v)} />
-          <Input type="time" label="終了" value={form.endTime || ""} onChange={(v) => set("endTime", v)} />
-          <Input type="number" label="時間(分)" value={form.duration || ""} onChange={(v) => set("duration", v)} placeholder="90" />
+          <TimeWheel label="開始" value={form.startTime || ""} onChange={(v) => set("startTime", v)} />
+          <TimeWheel label="終了" value={form.endTime || ""} onChange={(v) => set("endTime", v)} />
+          <NumWheel label="時間(分)" value={form.duration || ""} min={0} max={720} step={5} onChange={(v) => set("duration", v)} />
         </div>
       </div>
 
@@ -187,7 +189,7 @@ function PracticeEditForm({ form, errors = {}, onChange, racketNames = [], strin
         <_peSectionHead num="2" label="会場 / 気象" />
         <MasterField label="会場" value={form.venue || ""} onChange={(v) => set("venue", v)} masterValues={venueNames} placeholder="-- 会場を選択 --" />
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>
-          <Input type="number" label="気温(℃)" value={form.temp || ""} onChange={(v) => set("temp", v)} placeholder="18" />
+          <NumWheel label="気温(℃)" value={form.temp || ""} min={-5} max={40} step={1} onChange={(v) => set("temp", v)} />
           <Select label="天気" value={form.weather || ""} onChange={(v) => set("weather", v)} options={_PRAC_WEATHER} />
         </div>
       </div>
@@ -201,8 +203,8 @@ function PracticeEditForm({ form, errors = {}, onChange, racketNames = [], strin
           <MasterField label="横糸" value={form.stringCross || ""} onChange={(v) => set("stringCross", v)} masterValues={stringNames} placeholder="-- 同じなら空欄 --" />
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>
-          <Input label="テンション縦" value={form.tensionMain || ""} onChange={(v) => set("tensionMain", v)} placeholder="46" />
-          <Input label="テンション横" value={form.tensionCross || ""} onChange={(v) => set("tensionCross", v)} placeholder="43" />
+          <NumWheel label="テンション縦" value={form.tensionMain || ""} min={35} max={55} step={1} onChange={(v) => set("tensionMain", v)} />
+          <NumWheel label="テンション横" value={form.tensionCross || ""} min={35} max={55} step={1} onChange={(v) => set("tensionCross", v)} />
         </div>
         {/* S16.11 UX5: 履歴セット picker */}
         <_SetupPickerButton recent={recentSetups} current={form} onApply={applySetup} />
