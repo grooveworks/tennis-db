@@ -6,6 +6,30 @@
 
 ---
 
+## R0. フック前提 (2026-05-06 新設、最優先)
+
+このプロジェクトは `.claude/hooks/` (4 ファイル) と `.claude/settings.json` の hooks 設定で claude の独断行動を物理的に縛っている。**フック設定が無い環境では作業を始めない**。
+
+**確認手順 (セッション開始時の最初):**
+1. `.claude/settings.json` に `hooks` セクションが存在するか
+2. `.claude/hooks/` に 4 つの ps1 が揃っているか:
+   - `session-start.ps1` / `file-guard.ps1` / `git-guard.ps1` / `user-keyword-guard.ps1`
+3. 欠けていたらユーザーに告げる、復元するまで作業しない
+
+**フックが効いている前提のもの (= フック無しでは安全性が崩壊):**
+- 重要ファイル編集 (`01_constants.js` の APP_VERSION / `build.ps1` / `settings.json` / `hooks/*.ps1`) → ask 強制
+- `git commit` / `git push` / `git reset --hard` / `git push --force` → ask 強制
+- ユーザー警告キーワード (「違う / やめて / 戻して / 何度も / ちゃんと / 勝手に」等) → 自己点検 context 注入
+- セッション開始時の重要 context 強制注入
+
+**フック編集時の再帰ルール:**
+- `.claude/hooks/*.ps1` 自身も file-guard で保護対象
+- 編集後は必ず BOM 付与: `& .claude/addbom.ps1 -path <ps1path>` (BOM 無いと PowerShell が文字化けでクラッシュ)
+
+詳細は memory `feedback_hooks_required_2026_05_06.md` 参照。
+
+---
+
 ## 5 ルール (これだけ守れば大半の失敗を防げる)
 
 ### R1. 対処療法禁止
