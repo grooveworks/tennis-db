@@ -49,7 +49,7 @@ input,select,textarea,button{font-family:inherit}
 const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
 // ── 定数定義（色・キー・バージョン）─────────────
-const APP_VERSION="4.4.0-S18";
+const APP_VERSION="4.4.1-S18";
 const font="-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif";
 
 // 色設計（DESIGN_SYSTEM_v4.md §1 + §10 S13.5 改訂準拠）
@@ -15217,7 +15217,7 @@ const _hasAnyFilter = (filters, search) => {
 };
 
 // ── 本体
-function SessionsTab({ tournaments = [], practices = [], trials = [], loading = false, onCardClick, onFabClick }) {
+function SessionsTab({ tournaments = [], practices = [], trials = [], loading = false, onCardClick, onFabClick, filterFromHome, onBackToHome, onUserChangedFilter }) {
   const [collapsedYears, setCollapsedYears] = useState(() => {
     try { return JSON.parse(localStorage.getItem("v4-sessions-collapsed-years") || "{}"); }
     catch { return {}; }
@@ -15255,6 +15255,14 @@ function SessionsTab({ tournaments = [], practices = [], trials = [], loading = 
   useEffect(() => { try { localStorage.setItem(LS_SEARCH, search || ""); } catch {} }, [search]);
   useEffect(() => { try { localStorage.setItem(LS_FILTERS, JSON.stringify(filters)); } catch {} }, [filters]);
   useEffect(() => { try { localStorage.setItem(LS_SEARCH_OPEN, String(searchOpen)); } catch {} }, [searchOpen]);
+  // S18 Issue 1: filterFromHome 状態でユーザーが filter を変更したら、永続化扱いに切替 (フラグ false)
+  //   mount 時の filters を ref で保持、現在 filters が異なれば user 操作扱い
+  const _initialFiltersRef = useRef(filters);
+  useEffect(() => {
+    if (filterFromHome && JSON.stringify(filters) !== JSON.stringify(_initialFiltersRef.current)) {
+      onUserChangedFilter && onUserChangedFilter();
+    }
+  }, [filters, filterFromHome, onUserChangedFilter]);
   // 検索語がある時は強制展開
   const showSearch = searchOpen || (search || "").trim().length > 0;
 
@@ -15375,6 +15383,31 @@ function SessionsTab({ tournaments = [], practices = [], trials = [], loading = 
 
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
+      {/* S18 Issue 1: ホームから飛んだフィルターのバナー (Home起源時のみ表示)
+          タップでホームに戻る (フィルターは app.jsx tab change useEffect で自動解除) */}
+      {filterFromHome && onBackToHome && (
+        <button
+          type="button"
+          onClick={onBackToHome}
+          style={{
+            display: "flex", alignItems: "center", gap: 8,
+            background: C.primaryLight, color: C.primary,
+            border: "none", borderBottom: `1px solid ${C.divider}`,
+            padding: "10px 16px",
+            fontSize: 13, fontWeight: 600, fontFamily: font,
+            cursor: "pointer",
+            width: "100%", textAlign: "left",
+          }}
+          aria-label="ホームに戻る"
+        >
+          <Icon name="arrow-left" size={16} color={C.primary} />
+          <span>ホームに戻る</span>
+          <span style={{ marginLeft: "auto", fontSize: 11, fontWeight: 500, color: C.primaryHover }}>
+            主力ラケットフィルター中
+          </span>
+        </button>
+      )}
+
       <SummaryHeader
         tournaments={tournaments}
         practices={practices}
@@ -18201,6 +18234,11 @@ function TennisDB() {
   // S15.5+: Home の「現在の状況」 → 主力ラケット行タップ → Sessions タブをそのラケットでフィルタ
   //   localStorage に Sessions タブの filters を書き込み + setTab("sessions") で遷移
   //   SessionsTab は mount 時に _loadFilters で localStorage から filters 読み込むため、unmount → mount で反映
+  // S18 (Issue 1): filterFromHome flag で「Home 起源のフィルター」を判定。
+  //   - Sessions タブ上部に「ホームに戻る」バナー表示
+  //   - 別タブ切替 (TabBar) で自動解除 (filterFromHome=true の時のみ)
+  //   - Sessions 内で手動フィルター操作 → flag を false に切替 (永続化扱いに)
+  const [filterFromHome, setFilterFromHome] = useState(false);
   const handleMainRacketClick = (racketName) => {
     if (!racketName) return;
     try {
@@ -18208,8 +18246,19 @@ function TennisDB() {
       // H-24 (Phase A 監査): キーを LS_UI_KEYS から参照、SessionsTab.jsx と単一の真実に統一
       localStorage.setItem(LS_UI_KEYS.sessionsFilters, JSON.stringify(filters));
     } catch (_) {}
+    setFilterFromHome(true);
     setTab("sessions");
   };
+  // S18 Issue 1: tab が sessions から離れた時、filterFromHome なら自動解除
+  useEffect(() => {
+    if (tab !== "sessions" && filterFromHome) {
+      try {
+        const empty = { type: [], racket: [], opponent: [], result: [] };
+        localStorage.setItem(LS_UI_KEYS.sessionsFilters, JSON.stringify(empty));
+      } catch (_) {}
+      setFilterFromHome(false);
+    }
+  }, [tab, filterFromHome]);
 
   // S14: Home Quick Add 3 ボタン用
   // S15.5 fix: 試打 (trial) の起動先を QuickAddModal → QuickTrialMode (カード式) に切り替え
@@ -18587,6 +18636,9 @@ function TennisDB() {
         loading={loading}
         onCardClick={handleCardClick}
         onFabClick={handleFabClick}
+        filterFromHome={filterFromHome}
+        onBackToHome={() => setTab("home")}
+        onUserChangedFilter={() => setFilterFromHome(false)}
       />
     );
   } else if (tab === "home") {

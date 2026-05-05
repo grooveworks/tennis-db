@@ -341,7 +341,7 @@ const _hasAnyFilter = (filters, search) => {
 };
 
 // ── 本体
-function SessionsTab({ tournaments = [], practices = [], trials = [], loading = false, onCardClick, onFabClick }) {
+function SessionsTab({ tournaments = [], practices = [], trials = [], loading = false, onCardClick, onFabClick, filterFromHome, onBackToHome, onUserChangedFilter }) {
   const [collapsedYears, setCollapsedYears] = useState(() => {
     try { return JSON.parse(localStorage.getItem("v4-sessions-collapsed-years") || "{}"); }
     catch { return {}; }
@@ -379,6 +379,14 @@ function SessionsTab({ tournaments = [], practices = [], trials = [], loading = 
   useEffect(() => { try { localStorage.setItem(LS_SEARCH, search || ""); } catch {} }, [search]);
   useEffect(() => { try { localStorage.setItem(LS_FILTERS, JSON.stringify(filters)); } catch {} }, [filters]);
   useEffect(() => { try { localStorage.setItem(LS_SEARCH_OPEN, String(searchOpen)); } catch {} }, [searchOpen]);
+  // S18 Issue 1: filterFromHome 状態でユーザーが filter を変更したら、永続化扱いに切替 (フラグ false)
+  //   mount 時の filters を ref で保持、現在 filters が異なれば user 操作扱い
+  const _initialFiltersRef = useRef(filters);
+  useEffect(() => {
+    if (filterFromHome && JSON.stringify(filters) !== JSON.stringify(_initialFiltersRef.current)) {
+      onUserChangedFilter && onUserChangedFilter();
+    }
+  }, [filters, filterFromHome, onUserChangedFilter]);
   // 検索語がある時は強制展開
   const showSearch = searchOpen || (search || "").trim().length > 0;
 
@@ -499,6 +507,31 @@ function SessionsTab({ tournaments = [], practices = [], trials = [], loading = 
 
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
+      {/* S18 Issue 1: ホームから飛んだフィルターのバナー (Home起源時のみ表示)
+          タップでホームに戻る (フィルターは app.jsx tab change useEffect で自動解除) */}
+      {filterFromHome && onBackToHome && (
+        <button
+          type="button"
+          onClick={onBackToHome}
+          style={{
+            display: "flex", alignItems: "center", gap: 8,
+            background: C.primaryLight, color: C.primary,
+            border: "none", borderBottom: `1px solid ${C.divider}`,
+            padding: "10px 16px",
+            fontSize: 13, fontWeight: 600, fontFamily: font,
+            cursor: "pointer",
+            width: "100%", textAlign: "left",
+          }}
+          aria-label="ホームに戻る"
+        >
+          <Icon name="arrow-left" size={16} color={C.primary} />
+          <span>ホームに戻る</span>
+          <span style={{ marginLeft: "auto", fontSize: 11, fontWeight: 500, color: C.primaryHover }}>
+            主力ラケットフィルター中
+          </span>
+        </button>
+      )}
+
       <SummaryHeader
         tournaments={tournaments}
         practices={practices}

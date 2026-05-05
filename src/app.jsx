@@ -895,6 +895,11 @@ function TennisDB() {
   // S15.5+: Home の「現在の状況」 → 主力ラケット行タップ → Sessions タブをそのラケットでフィルタ
   //   localStorage に Sessions タブの filters を書き込み + setTab("sessions") で遷移
   //   SessionsTab は mount 時に _loadFilters で localStorage から filters 読み込むため、unmount → mount で反映
+  // S18 (Issue 1): filterFromHome flag で「Home 起源のフィルター」を判定。
+  //   - Sessions タブ上部に「ホームに戻る」バナー表示
+  //   - 別タブ切替 (TabBar) で自動解除 (filterFromHome=true の時のみ)
+  //   - Sessions 内で手動フィルター操作 → flag を false に切替 (永続化扱いに)
+  const [filterFromHome, setFilterFromHome] = useState(false);
   const handleMainRacketClick = (racketName) => {
     if (!racketName) return;
     try {
@@ -902,8 +907,19 @@ function TennisDB() {
       // H-24 (Phase A 監査): キーを LS_UI_KEYS から参照、SessionsTab.jsx と単一の真実に統一
       localStorage.setItem(LS_UI_KEYS.sessionsFilters, JSON.stringify(filters));
     } catch (_) {}
+    setFilterFromHome(true);
     setTab("sessions");
   };
+  // S18 Issue 1: tab が sessions から離れた時、filterFromHome なら自動解除
+  useEffect(() => {
+    if (tab !== "sessions" && filterFromHome) {
+      try {
+        const empty = { type: [], racket: [], opponent: [], result: [] };
+        localStorage.setItem(LS_UI_KEYS.sessionsFilters, JSON.stringify(empty));
+      } catch (_) {}
+      setFilterFromHome(false);
+    }
+  }, [tab, filterFromHome]);
 
   // S14: Home Quick Add 3 ボタン用
   // S15.5 fix: 試打 (trial) の起動先を QuickAddModal → QuickTrialMode (カード式) に切り替え
@@ -1281,6 +1297,9 @@ function TennisDB() {
         loading={loading}
         onCardClick={handleCardClick}
         onFabClick={handleFabClick}
+        filterFromHome={filterFromHome}
+        onBackToHome={() => setTab("home")}
+        onUserChangedFilter={() => setFilterFromHome(false)}
       />
     );
   } else if (tab === "home") {
