@@ -66,7 +66,7 @@ function PracticeDetail({ session, linkedTrials, onLinkedTrialClick }) {
   const p = session || {};
   const typeBadge = _dvPracticeTypeBadgeProps(p.type);
   const trials = Array.isArray(linkedTrials) ? linkedTrials : [];
-  // S18 Issue 2: 練習にも matches[] (案 3' 採用)。編集画面で追加した試合を詳細でも表示。
+  // S16 Issue 2: 練習にも matches[] (案 3' 採用)。編集画面で追加した試合を詳細でも表示。
   const matches = Array.isArray(p.matches) ? p.matches : [];
   const wins = matches.filter(m => m.result === "勝利").length;
   const losses = matches.filter(m => m.result === "敗北" || m.result === "棄権").length;
@@ -233,7 +233,7 @@ function PracticeDetail({ session, linkedTrials, onLinkedTrialClick }) {
         </_dvSection>
       )}
 
-      {/* S18 Issue 2: 試合記録 (matches[] が 1 件以上の時のみ表示、read-only) */}
+      {/* S16 Issue 2: 試合記録 (matches[] が 1 件以上の時のみ表示、read-only) */}
       {matches.length > 0 && (
         <_dvSection title={`試合記録 (${wins}勝${losses}敗 ・ ${matches.length}試合)`}>
           {matches.map((m, i) => (

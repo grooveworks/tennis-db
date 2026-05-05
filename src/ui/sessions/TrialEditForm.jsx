@@ -144,7 +144,7 @@ function TrialEditForm({ form, errors = {}, onChange, practices, tournaments, tr
           <_teJudgmentRow value={form.judgment || ""} onChange={(v) => set("judgment", v)} />
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>
-          {/* リク 30-* (S18) Wheel picker 全画面適用 */}
+          {/* リク 30-* (S16) Wheel picker 全画面適用 */}
           <TimeWheel label="開始時刻" value={form.startTime || ""} onChange={(v) => set("startTime", v)} />
           <TimeWheel label="終了時刻" value={form.endTime || ""} onChange={(v) => set("endTime", v)} />
         </div>

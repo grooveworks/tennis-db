@@ -34,7 +34,7 @@ input,select,textarea,button{font-family:inherit}
 @keyframes modalEnter{from{opacity:0;transform:scale(0.95)}to{opacity:1;transform:scale(1)}}
 @keyframes drawerEnter{from{transform:translateY(100%)}to{transform:translateY(0)}}
 @keyframes dayPanelSlideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
-/* リク 30-* (S18) Wheel picker scroll: スクロールバー非表示 + snap */
+/* リク 30-* (S16) Wheel picker scroll: スクロールバー非表示 + snap */
 .wheel-col-scroll::-webkit-scrollbar{display:none}
 .wheel-col-scroll{scrollbar-width:none;-ms-overflow-style:none}
 @media (prefers-reduced-motion:reduce){
@@ -49,7 +49,11 @@ input,select,textarea,button{font-family:inherit}
 const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
 // ── 定数定義（色・キー・バージョン）─────────────
-const APP_VERSION="4.5.0-S18";
+// Stage 番号: 2026-05-05 までの作業は「S16 の延長 (Gear タブ完成後の polish + リク消化)」として進めていたが、
+// claude が独断で -S18 を継承して 12 push (memory: feedback_stage_numbering_2026_05_05)。
+// 2026-05-06 にユーザー認識と整合させるため -S16 に戻した。
+// 過去 commit message に -S18 が刻印されているのはその独断継承の跡。force push せず履歴は温存。
+const APP_VERSION="4.5.0-S16";
 const font="-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif";
 
 // 色設計（DESIGN_SYSTEM_v4.md §1 + §10 S13.5 改訂準拠）
@@ -319,7 +323,7 @@ const SCHEMA={
     {key:"overallResult",label:"結果",type:"text"},
     {key:"generalNote",label:"メモ",type:"textarea",combinable:true},
     {key:"matches",label:"試合記録",type:"array",itemType:"match"},
-    {key:"matchFormat",label:"試合形式",type:"object"}, // リク 30-e (S18): 大会のデフォルト試合形式
+    {key:"matchFormat",label:"試合形式",type:"object"}, // リク 30-e (S16): 大会のデフォルト試合形式
     {key:"visibility",label:"公開",type:"select"},
     {key:"memoSummaries",label:"メモ要約",type:"object"},
   ],
@@ -355,7 +359,7 @@ const SCHEMA={
     {key:"hrZone3",label:"HR Z3",type:"text"},
     {key:"hrZone4",label:"HR Z4",type:"text"},
     {key:"hrZone5",label:"HR Z5",type:"text"},
-    {key:"matches",label:"試合記録",type:"array",itemType:"match"}, // S18 Issue 2: 練習にも matches[] (案 3')
+    {key:"matches",label:"試合記録",type:"array",itemType:"match"}, // S16 Issue 2: 練習にも matches[] (案 3')
     {key:"visibility",label:"公開",type:"select"},
     {key:"memoSummaries",label:"メモ要約",type:"object"},
   ],
@@ -414,8 +418,8 @@ const SCHEMA={
     {key:"techNote",label:"技術メモ",type:"textarea",combinable:true},
     {key:"opponentNote",label:"相手メモ",type:"textarea",combinable:true},
     {key:"note",label:"試合メモ",type:"textarea",combinable:true},
-    {key:"format",label:"試合形式上書き",type:"object"}, // リク 30-e (S18): 大会の matchFormat を上書き、null=継承
-    {key:"tbDetails",label:"TB 詳細",type:"array"}, // リク 30-e Phase B (S18): 各セットの TB ポイント詳細
+    {key:"format",label:"試合形式上書き",type:"object"}, // リク 30-e (S16): 大会の matchFormat を上書き、null=継承
+    {key:"tbDetails",label:"TB 詳細",type:"array"}, // リク 30-e Phase B (S16): 各セットの TB ポイント詳細
     {key:"memoSummaries",label:"メモ要約",type:"object"},
   ],
   // ── S16 (Gear タブ) で追加 ──
@@ -566,7 +570,7 @@ const blankTournament = () => ({
   generalNote: "",
   matches: [],
   visibility: "public",
-  // リク 30-e (S18): 試合形式 (TENNIS_RULES.md §3.1 / match_helpers.MATCH_FORMAT_PRESETS)
+  // リク 30-e (S16): 試合形式 (TENNIS_RULES.md §3.1 / match_helpers.MATCH_FORMAT_PRESETS)
   //   デフォルト「3 セットマッチ」。1-1 で 10pt TB のトグルは matchFormat.finalSetMode で持つ
   matchFormat: { ...MATCH_FORMAT_PRESETS["3set"], preset: "3set", noAd: false },
 });
@@ -594,7 +598,7 @@ const blankPractice = () => ({
   improveNote: "",
   generalNote: "",
   visibility: "public",
-  // S18 Issue 2 (案 3' 採用): 練習にも matches[] を持たせる。
+  // S16 Issue 2 (案 3' 採用): 練習にも matches[] を持たせる。
   //   練習試合 / ゲーム練習 など、type 不問でゲーム記録できるように。
   //   空配列ならフォーム下部に小さい + ボタンのみ、1 件以上で ⑥ 試合記録 セクション展開。
   matches: [],
@@ -909,7 +913,7 @@ const formatTrialForClaude = (t) => {
 //   - replaceGameWinner: index 指定で winner を切替
 //   - upsertChangeover / removeChangeover: CO の追記・上書き・削除
 //   - ゲーム削除に伴う orphan CO の cleanup (削除されたゲームより後ろの CO の afterGame を 1 ずつ前へ)
-//   - リク 30-e (S18): 試合形式 (matchFormat) 対応 (TENNIS_RULES.md §3.1)
+//   - リク 30-e (S16): 試合形式 (matchFormat) 対応 (TENNIS_RULES.md §3.1)
 //     1set / 3set / 6game / 4game / custom + 1-1 で matchTiebreak10
 //
 // 仕様: TENNIS_RULES.md §2.1 / §3.1 / §13
@@ -921,7 +925,7 @@ const formatTrialForClaude = (t) => {
 //   - changeovers[].afterGame は 1-based (1G 後 = afterGame:1)
 //   - games[] は 0-based の配列 (index 0 = ゲーム 1)
 
-// リク 30-e (S18): 試合形式プリセット (TENNIS_RULES.md §3.1)
+// リク 30-e (S16): 試合形式プリセット (TENNIS_RULES.md §3.1)
 //   - 1set:  1 セットマッチ (= 6 ゲームマッチ、差 2、6-6 で 7pt TB)
 //   - 3set:  3 セットマッチ (1 セットマッチ × 2 セット先取)
 //   - 6game: 6 ゲーム先取 (草トー時短、5-5 で次取った方勝ち、TB なし)
@@ -1013,7 +1017,7 @@ const blankMatch = (matchCount, defaultsFromTournament) => {
     games: [],
     changeovers: [],
     format: null, // null = 大会の matchFormat を継承。試合ごとに上書きしたい時のみ object
-    // リク 30-e Phase B (S18): 各セットの TB 詳細 (index = setIndex 0-based)。
+    // リク 30-e Phase B (S16): 各セットの TB 詳細 (index = setIndex 0-based)。
     //   { type: "regular" | "match10", winner: "me"|"opp", loser: number } | null
     //   未入力なら setScores はシンプル表記 ("7-6" / "1-0") のまま
     tbDetails: [],
@@ -1151,7 +1155,7 @@ const _normalizeMatchResult = (result) => {
 //   旧: computeSetScoresFromGames と computeAutoMatchResult が同じ条件を二重実装
 //        → 仕様変更時に片方だけ直すと割れる
 //   新: _isSetComplete を共有、両関数から呼ぶ
-// リク 30-e (S18): format 引数を取って草トーローカルルールに対応
+// リク 30-e (S16): format 引数を取って草トーローカルルールに対応
 // TENNIS_RULES.md §2.1 / §3.1:
 //   - 1set/3set: 6 先取・差 2、5-5→7-5、6-6→TB (7-6)
 //   - 6game (草トー): 5-5 で次取った方勝ち (6-5 で終了)
@@ -1198,7 +1202,7 @@ const _isSetComplete = (me, opp, format) => {
   return false;
 };
 
-// リク 30-e (S18): games[] からセットスコア配列を計算 (format 適用、TENNIS_RULES §3.1 準拠)
+// リク 30-e (S16): games[] からセットスコア配列を計算 (format 適用、TENNIS_RULES §3.1 準拠)
 //   戻り値: ["6-3", "7-5", ...] like setScores
 //   未完了セット (進行中) も最後に含める (例: 6-2 完了 + 3-2 進行中 → ["6-2", "3-2"])
 //   matchTiebreak10 mode: bestOfSets-1 同点になった次のセットは 1 ゲーム = matchTB
@@ -1244,7 +1248,7 @@ const computeSetScoresFromGames = (games, format) => {
   return setScores;
 };
 
-// リク 30-e Phase B (S18): 現在進行セットがタイブレーク状態か判定。GameTracker の TB 入力 banner 用。
+// リク 30-e Phase B (S16): 現在進行セットがタイブレーク状態か判定。GameTracker の TB 入力 banner 用。
 //   戻り値:
 //     { type: null,         isInTB: false, setIndex }   ← 通常進行 or 試合終了
 //     { type: "regular",    isInTB: true,  setIndex }   ← 通常 TB (例: 6-6 で発動)
@@ -1298,7 +1302,7 @@ const computeTbState = (games, format) => {
   return { type: null, isInTB: false, setIndex };
 };
 
-// リク 30-e Phase B (S18): setScores と tbDetails を組み合わせて詳細表記版を返す
+// リク 30-e Phase B (S16): setScores と tbDetails を組み合わせて詳細表記版を返す
 //   通常 TB: "7-6" → "7-6(5)" (loser=5)
 //   matchTB10: "1-0" → "10-7" (me 勝ち + loser=7)、"0-1" → "7-10" (opp 勝ち + loser=7)
 //   tbDetails が無い / loser 未入力 / フォーマット不一致なら元の score をそのまま返す
@@ -1322,7 +1326,7 @@ const applyTbDetails = (setScores, tbDetails) => {
   });
 };
 
-// リク 30-e (S18): games[] から match の自動勝敗判定 (format 適用、TENNIS_RULES §3.1 準拠)
+// リク 30-e (S16): games[] から match の自動勝敗判定 (format 適用、TENNIS_RULES §3.1 準拠)
 //   - bestOfSets 達成で勝敗確定
 //   - matchTiebreak10 mode で 1-1 後の次ゲームは 10pt TB 勝者扱い
 //   - 戻り値: "勝利" | "敗北" | null (未確定)
@@ -6553,7 +6557,7 @@ function HomeQuickAdd({ onQuickAdd }) {
 //   - WeeklySummary:   今週サマリー (Display tier 大数字、4 統計 + フッタ)
 //   - NextActions:     次のアクション top 3 (Apple Reminders 風 check circle + priority dot)
 //   - TwoWeekCalendar: 2 週間カレンダー (14 セル + 練習濃淡 + 大会 + 試打 dot)
-//   - RecentResults:   最近の好成績 (REQUIREMENTS F4.4、S18 で実装漏れを追加)
+//   - RecentResults:   最近の好成績 (REQUIREMENTS F4.4、S16 で実装漏れを追加)
 //   - HomeDayPanel:    カレンダーマス タップで Glass overlay (本 component 内部で state 管理)
 //
 // 配線:
@@ -6627,7 +6631,7 @@ function HomeTab({
       />
 
       {/* 5. 最近の好成績 (REQUIREMENTS F4.4 / WIREFRAMES §2.1)
-            実装漏れだった F4.4 を S18 で追加。優勝/準優勝/3位/ベスト8/ベスト16/予選突破 に限定。 */}
+            実装漏れだった F4.4 を S16 で追加。優勝/準優勝/3位/ベスト8/ベスト16/予選突破 に限定。 */}
       <RecentResults
         tournaments={tournaments}
         onCardClick={onCardClick}
@@ -6796,7 +6800,7 @@ function NextActions({ next = [], onToggle }) {
 // === src/ui/home/RecentResults.jsx ===
 // RecentResults — Home タブ「最近の好成績」カード (REQUIREMENTS_v4.md F4.4 / WIREFRAMES_v4.md §2.1)
 //
-// S18: 実装漏れの追加実装。設計書には定義されていたが S14 P1 で実装が抜けていた。
+// S16: 実装漏れの追加実装。設計書には定義されていたが S14 P1 で実装が抜けていた。
 //
 // 表示:
 //   - tournaments で overallResult が「好成績」(優勝/準優勝/3位/ベスト8/ベスト16/予選突破)
@@ -8490,7 +8494,7 @@ function PlanTab({
 }
 
 // === src/ui/sessions/_NumWheel.jsx ===
-// _NumWheel.jsx — Wheel picker components (S18 Phase B 復活、preview_s18_p10/p12 承認デザイン)
+// _NumWheel.jsx — Wheel picker components (S16 Phase B 復活、preview_s18_p10/p12 承認デザイン)
 //
 // 提供するコンポーネント (PracticeEditForm 等から使用):
 //   TimeWheel       : 2 列ホイール (時 0-23 + 分 5 分刻み 0-55)、HH:MM 形式
@@ -10461,11 +10465,11 @@ function _gtCOModal({ open, initial, onSave, onSkip, onDelete, onClose, isEditMo
 }
 
 // ── メインコンポーネント
-//   リク 30-e Phase A (S18): matchEnded prop で試合終了状態を受け取る (computeAutoMatchResult 結果)
+//   リク 30-e Phase A (S16): matchEnded prop で試合終了状態を受け取る (computeAutoMatchResult 結果)
 //     - 試合終了バナー表示 (✓ 試合終了 + 自動セットスコア)
 //     - 「次のゲーム」+ ボタンを隠す (誤入力防止)
 //     - 「続けて記録する」展開で再開可能 (試合形式変更等の例外ケース対応)
-//   リク 30-e Phase B (S18): format prop で試合形式を受け取る → TB 状態を検知して TB 入力 banner 表示
+//   リク 30-e Phase B (S16): format prop で試合形式を受け取る → TB 状態を検知して TB 入力 banner 表示
 //     - 通常 TB (6-6): 7 ポイント先取・差 2、勝者 + 負けた側ポイント を入力
 //     - マッチ TB (1-1 で 10pt): 10 ポイント先取、同上
 //     - 入力された loser ポイントは tbDetails に保存し、setScores の表示を装飾 ("7-6(5)" / "10-7")
@@ -10635,7 +10639,7 @@ function GameTracker({ match, onChange, confirm, matchEnded, format }) {
         )}
       </div>
 
-      {/* リク 30-e Phase A (S18): 試合終了バナー + 「続けて記録する」展開ボタン
+      {/* リク 30-e Phase A (S16): 試合終了バナー + 「続けて記録する」展開ボタン
           matchEnded = true (computeAutoMatchResult で勝敗確定) の時に表示。
           展開後は警告色のバナーに切替えて、再 collapse で誤入力防止に戻れる */}
       {matchEnded && !expandedAfterEnd && (
@@ -11302,7 +11306,7 @@ function _meRatingRow({ label, value, onChange }) {
 
 function MatchEditModal({ open, match, trnType, tournament, racketNames = [], stringNames = [], opponentNames = [], recentSetups = [], confirm, onSave, onClose }) {
   const trapRef = useFocusTrap(open); // Round 5: a11y focus trap
-  // リク 30-e (S18): 試合形式を解決 (form.format > tournament.matchFormat > default)
+  // リク 30-e (S16): 試合形式を解決 (form.format > tournament.matchFormat > default)
   //   form (state) を見ることで「変更」ボタン操作時に即座に効く。useMemo はキャッシュ。
   //   helpers が format に応じてセット完了判定 / 試合勝敗判定を変える。
   // 注: form は下で初期化されるため、ここでは関数内で参照するだけ (lexical scope)
@@ -11315,7 +11319,7 @@ function MatchEditModal({ open, match, trnType, tournament, racketNames = [], st
   const [dirty, setDirty] = useState(() => match?.id ? _loadMatchDraft(match.id) !== null : false);
   const [restored, setRestored] = useState(() => match?.id ? _loadMatchDraft(match.id) !== null : false);
 
-  // リク 30-e (S18): 試合形式の解決 (form.format > tournament.matchFormat > default)
+  // リク 30-e (S16): 試合形式の解決 (form.format > tournament.matchFormat > default)
   //   form を直接見るため、preset 切替・1-1 10pt TB トグルの影響が即座に反映
   const effectiveFormat = useMemo(
     () => resolveMatchFormat(form, tournament),
@@ -11392,9 +11396,9 @@ function MatchEditModal({ open, match, trnType, tournament, racketNames = [], st
   //   という偶然動作。今は「手動で result を選んだ後は二度と自動上書きしない」明確な仕様。
   const handleGameTrackerChange = useCallback((next) => {
     const games = Array.isArray(next.games) ? next.games : [];
-    // リク 30-e (S18): format 渡して、4ゲーム先取/6ゲーム先取/1セット/3セット+10ptTB の各形式に対応
+    // リク 30-e (S16): format 渡して、4ゲーム先取/6ゲーム先取/1セット/3セット+10ptTB の各形式に対応
     const baseSetScores = computeSetScoresFromGames(games, effectiveFormat);
-    // リク 30-e Phase B (S18): tbDetails を適用して "7-6(5)" / "10-7" 等の詳細表記に変換
+    // リク 30-e Phase B (S16): tbDetails を適用して "7-6(5)" / "10-7" 等の詳細表記に変換
     const tbDetails = Array.isArray(next.tbDetails) ? next.tbDetails : [];
     const autoSetScores = applyTbDetails(baseSetScores, tbDetails);
     const autoResult = computeAutoMatchResult(games, effectiveFormat);
@@ -11406,7 +11410,7 @@ function MatchEditModal({ open, match, trnType, tournament, racketNames = [], st
     setDirty(true);
   }, [effectiveFormat]);
 
-  // リク 30-e Phase A (S18): GameTracker に渡す「試合終了」フラグ
+  // リク 30-e Phase A (S16): GameTracker に渡す「試合終了」フラグ
   //   computeAutoMatchResult が "勝利" / "敗北" を返したら終了。
   //   棄権 (手動で result 設定) は対象外 (games による自動判定のみ)
   const matchEnded = useMemo(() => {
@@ -11436,7 +11440,7 @@ function MatchEditModal({ open, match, trnType, tournament, racketNames = [], st
   const isDouble = trnType === "doubles" || trnType === "mixed";
   const showOpponent2 = isDouble;
 
-  // リク 30-e (S18): 試合形式 override UI 用 state
+  // リク 30-e (S16): 試合形式 override UI 用 state
   //   form.format=null = 大会から継承、object = 試合ごとに上書き
   const isOverridden = !!form.format;
   const inheritedFormat = tournament?.matchFormat || DEFAULT_MATCH_FORMAT;
@@ -11526,7 +11530,7 @@ function MatchEditModal({ open, match, trnType, tournament, racketNames = [], st
           <MasterField label="対戦相手 2 (ダブルス)" value={form.opponent2 || ""} onChange={(v) => set("opponent2", v)} masterValues={opponentNames} placeholder="-- 対戦相手 2 を選択 --" />
         )}
 
-        {/* リク 30-e (S18): 試合形式 セクション (大会から継承 + 必要なら上書き)
+        {/* リク 30-e (S16): 試合形式 セクション (大会から継承 + 必要なら上書き)
             プリセット 4 つ + 「大会に従う」 + 3set 時の 1-1 10pt TB トグル */}
         <div style={{
           background: C.bg, border: `1px solid ${C.divider}`,
@@ -12462,7 +12466,7 @@ function PracticeDetail({ session, linkedTrials, onLinkedTrialClick }) {
   const p = session || {};
   const typeBadge = _dvPracticeTypeBadgeProps(p.type);
   const trials = Array.isArray(linkedTrials) ? linkedTrials : [];
-  // S18 Issue 2: 練習にも matches[] (案 3' 採用)。編集画面で追加した試合を詳細でも表示。
+  // S16 Issue 2: 練習にも matches[] (案 3' 採用)。編集画面で追加した試合を詳細でも表示。
   const matches = Array.isArray(p.matches) ? p.matches : [];
   const wins = matches.filter(m => m.result === "勝利").length;
   const losses = matches.filter(m => m.result === "敗北" || m.result === "棄権").length;
@@ -12629,7 +12633,7 @@ function PracticeDetail({ session, linkedTrials, onLinkedTrialClick }) {
         </_dvSection>
       )}
 
-      {/* S18 Issue 2: 試合記録 (matches[] が 1 件以上の時のみ表示、read-only) */}
+      {/* S16 Issue 2: 試合記録 (matches[] が 1 件以上の時のみ表示、read-only) */}
       {matches.length > 0 && (
         <_dvSection title={`試合記録 (${wins}勝${losses}敗 ・ ${matches.length}試合)`}>
           {matches.map((m, i) => (
@@ -12792,7 +12796,7 @@ function PracticeEditForm({ form, errors = {}, onChange, racketNames = [], strin
     [tournaments, practices, trials]
   );
 
-  // S18 Issue 2: 練習にも matches[] を持たせる (案 3' 採用、preview_s18_p13 確定)
+  // S16 Issue 2: 練習にも matches[] を持たせる (案 3' 採用、preview_s18_p13 確定)
   //   練習試合 / ゲーム練習 など、type 不問でゲーム記録できるように
   //   matches[] が空 = メモ下に小さい + ボタン
   //   matches[] が 1 件以上 = ⑥ 試合記録 セクション展開
@@ -12871,7 +12875,7 @@ function PracticeEditForm({ form, errors = {}, onChange, racketNames = [], strin
           <Select label="種別" value={form.type || ""} onChange={(v) => set("type", v)} options={_PRAC_TYPE_OPTS} />
         </div>
         <Input label="イベント名" value={form.title || ""} onChange={(v) => set("title", v)} placeholder="例: ナイターレッスン中上級" />
-        {/* リク 30-* (S18 Phase B) Wheel picker 復活: 時刻 + 時間(分) を立体ホイール化
+        {/* リク 30-* (S16 Phase B) Wheel picker 復活: 時刻 + 時間(分) を立体ホイール化
             既存値の rounding/clamping は禁止 (preserved で保持)、背景タップ/ESC = キャンセル */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0 8px" }}>
           <TimeWheel label="開始" value={form.startTime || ""} onChange={(v) => set("startTime", v)} />
@@ -12926,7 +12930,7 @@ function PracticeEditForm({ form, errors = {}, onChange, racketNames = [], strin
         <Textarea label="良かった点" value={form.goodNote || ""} onChange={(v) => onChange({ ...form, goodNote: v })} placeholder="できるようになったこと..." />
         <Textarea label="改善点" value={form.improveNote || ""} onChange={(v) => onChange({ ...form, improveNote: v })} placeholder="次回意識したいこと..." />
         <Textarea label="メモ" value={form.generalNote || ""} onChange={(v) => onChange({ ...form, generalNote: v })} placeholder="その他気づき..." />
-        {/* S18 Issue 2 案 3': 0 件は控えめな + ボタンのみ (普段は無視できる主張)
+        {/* S16 Issue 2 案 3': 0 件は控えめな + ボタンのみ (普段は無視できる主張)
             1 件以上は下のフルセクション展開 */}
         {matches.length === 0 && (
           <button
@@ -13403,7 +13407,7 @@ function QuickAddModal({ open, type, racketNames = [], stringNames = [], venueNa
             <Input label="イベント名" value={form.title || ""} onChange={(v) => set("title", v)} placeholder="例: ナイターレッスン中上級" />
             <MasterField label="会場" value={form.venue || ""} onChange={(v) => set("venue", v)} masterValues={venueNames} placeholder="-- 会場を選択 --" />
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>
-              {/* リク 30-* (S18) Wheel picker 全画面適用 */}
+              {/* リク 30-* (S16) Wheel picker 全画面適用 */}
               <TimeWheel label="開始時刻" value={form.startTime || ""} onChange={(v) => set("startTime", v)} />
               <TimeWheel label="終了時刻" value={form.endTime || ""} onChange={(v) => set("endTime", v)} />
             </div>
@@ -15414,7 +15418,7 @@ function SessionsTab({ tournaments = [], practices = [], trials = [], loading = 
   useEffect(() => { try { localStorage.setItem(LS_SEARCH, search || ""); } catch {} }, [search]);
   useEffect(() => { try { localStorage.setItem(LS_FILTERS, JSON.stringify(filters)); } catch {} }, [filters]);
   useEffect(() => { try { localStorage.setItem(LS_SEARCH_OPEN, String(searchOpen)); } catch {} }, [searchOpen]);
-  // S18 Issue 1: filterFromHome 状態でユーザーが filter を変更したら、永続化扱いに切替 (フラグ false)
+  // S16 Issue 1: filterFromHome 状態でユーザーが filter を変更したら、永続化扱いに切替 (フラグ false)
   //   mount 時の filters を ref で保持、現在 filters が異なれば user 操作扱い
   const _initialFiltersRef = useRef(filters);
   useEffect(() => {
@@ -15542,7 +15546,7 @@ function SessionsTab({ tournaments = [], practices = [], trials = [], loading = 
 
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
-      {/* S18 Issue 1: ホームから飛んだフィルターのバナー (Home起源時のみ表示)
+      {/* S16 Issue 1: ホームから飛んだフィルターのバナー (Home起源時のみ表示)
           タップでホームに戻る (フィルターは app.jsx tab change useEffect で自動解除) */}
       {filterFromHome && onBackToHome && (
         <button
@@ -16239,7 +16243,7 @@ function TournamentEditForm({ form, errors = {}, onChange, confirm, toast, racke
         </div>
         <Select label="結果" value={form.overallResult || ""} onChange={(v) => set("overallResult", v)} options={_RESULT_OPTS} />
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>
-          {/* リク 30-* (S18) Wheel picker 全画面適用 */}
+          {/* リク 30-* (S16) Wheel picker 全画面適用 */}
           <TimeWheel label="開始時刻" value={form.startTime || ""} onChange={(v) => set("startTime", v)} />
           <TimeWheel label="終了時刻" value={form.endTime || ""} onChange={(v) => set("endTime", v)} />
         </div>
@@ -16271,7 +16275,7 @@ function TournamentEditForm({ form, errors = {}, onChange, confirm, toast, racke
         <_SetupPickerButton recent={recentSetups} current={form} onApply={applySetup} />
       </div>
 
-      {/* ④ 試合形式 (リク 30-e S18: 大会のデフォルト試合形式)
+      {/* ④ 試合形式 (リク 30-e S16: 大会のデフォルト試合形式)
           1set / 3set / 6game / 4game の 4 プリセット + 3set 時の 1-1 10pt TB トグル */}
       <div style={{ background: C.panel, border: `1px solid ${C.divider}`, borderRadius: 12, padding: 12, marginBottom: 10 }}>
         <_sectionHead num="4" label="試合形式" />
@@ -16749,7 +16753,7 @@ function TrialEditForm({ form, errors = {}, onChange, practices, tournaments, tr
           <_teJudgmentRow value={form.judgment || ""} onChange={(v) => set("judgment", v)} />
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>
-          {/* リク 30-* (S18) Wheel picker 全画面適用 */}
+          {/* リク 30-* (S16) Wheel picker 全画面適用 */}
           <TimeWheel label="開始時刻" value={form.startTime || ""} onChange={(v) => set("startTime", v)} />
           <TimeWheel label="終了時刻" value={form.endTime || ""} onChange={(v) => set("endTime", v)} />
         </div>
@@ -17554,7 +17558,7 @@ const _extractLevels = (tournaments) => {
   return [..._TOURNAMENT_LEVEL_DEFAULTS, ...[...set].filter(v => !_TOURNAMENT_LEVEL_DEFAULTS.includes(v))];
 };
 
-// ── プレースホルダタブ (S13-S18 で実装)
+// ── プレースホルダタブ (S13-S16 で実装)
 // Round 5 Batch C: PlaceholderTab dead code 削除 (Plan/Insights タブ実装で参照ゼロ)
 
 // ── Dev モード (Phase B 検証用) ────────────────────────────────────────
@@ -18393,7 +18397,7 @@ function TennisDB() {
   // S15.5+: Home の「現在の状況」 → 主力ラケット行タップ → Sessions タブをそのラケットでフィルタ
   //   localStorage に Sessions タブの filters を書き込み + setTab("sessions") で遷移
   //   SessionsTab は mount 時に _loadFilters で localStorage から filters 読み込むため、unmount → mount で反映
-  // S18 (Issue 1): filterFromHome flag で「Home 起源のフィルター」を判定。
+  // S16 (Issue 1): filterFromHome flag で「Home 起源のフィルター」を判定。
   //   - Sessions タブ上部に「ホームに戻る」バナー表示
   //   - 別タブ切替 (TabBar) で自動解除 (filterFromHome=true の時のみ)
   //   - Sessions 内で手動フィルター操作 → flag を false に切替 (永続化扱いに)
@@ -18408,7 +18412,7 @@ function TennisDB() {
     setFilterFromHome(true);
     setTab("sessions");
   };
-  // S18 Issue 1: tab が sessions から離れた時、filterFromHome なら自動解除
+  // S16 Issue 1: tab が sessions から離れた時、filterFromHome なら自動解除
   useEffect(() => {
     if (tab !== "sessions" && filterFromHome) {
       try {

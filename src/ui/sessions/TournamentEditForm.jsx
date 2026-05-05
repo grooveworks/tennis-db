@@ -152,7 +152,7 @@ function TournamentEditForm({ form, errors = {}, onChange, confirm, toast, racke
         </div>
         <Select label="結果" value={form.overallResult || ""} onChange={(v) => set("overallResult", v)} options={_RESULT_OPTS} />
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>
-          {/* リク 30-* (S18) Wheel picker 全画面適用 */}
+          {/* リク 30-* (S16) Wheel picker 全画面適用 */}
           <TimeWheel label="開始時刻" value={form.startTime || ""} onChange={(v) => set("startTime", v)} />
           <TimeWheel label="終了時刻" value={form.endTime || ""} onChange={(v) => set("endTime", v)} />
         </div>
@@ -184,7 +184,7 @@ function TournamentEditForm({ form, errors = {}, onChange, confirm, toast, racke
         <_SetupPickerButton recent={recentSetups} current={form} onApply={applySetup} />
       </div>
 
-      {/* ④ 試合形式 (リク 30-e S18: 大会のデフォルト試合形式)
+      {/* ④ 試合形式 (リク 30-e S16: 大会のデフォルト試合形式)
           1set / 3set / 6game / 4game の 4 プリセット + 3set 時の 1-1 10pt TB トグル */}
       <div style={{ background: C.panel, border: `1px solid ${C.divider}`, borderRadius: 12, padding: 12, marginBottom: 10 }}>
         <_sectionHead num="4" label="試合形式" />

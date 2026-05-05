@@ -1,124 +1,236 @@
-# HANDOFF v4 — Stage S16 (Gear タブ初実装) 開始用
+# Tennis DB v4 — 引き継ぎ書 (S16 継続中、2026-05-06 更新)
 
-作成: 2026-04-28 / S15 完了 push 時に作成
-更新: 2026-04-28 S15.5 完了 / 2026-04-29 S15.5.9 まで反映 (試合中事故と auto-save 実装、複数 hotfix 同梱)
-
-参照ファイル: `CLAUDE.md` (5 ルール) / `DECISIONS_v4.md` (全 Stage、特に S15 / S15.5 セクション 末尾の S15.5.7-9 hotfix) / `MEMORY.md` 全索引
+> **このファイルは、文脈を知らない次の担当者 (次セッションの Claude あるいは別の人) が単独で読んで現状を把握できることを目的とする。**
 
 ---
 
-## 1. 完了状態 (S15.5.9 まで反映)
+## 0. 最初に必ず読む — Stage 番号事故とフック対策 (2026-05-05 〜 06)
 
-- APP_VERSION: `4.0.0-S15.5.9`
-- GitHub Pages 反映: `https://grooveworks.github.io/tennis-db/v4/`
+### 経緯
+- 2026-05-05: Claude (前セッション担当) が、ユーザー認識と無関係に APP_VERSION を `-S18` として 12 push を継続。ユーザーは「**S16 (Gear タブ含む全般 polish)** の続き」を進めている認識だった
+- ユーザーが繰り返し「S16」と言ったのを Claude は無視し続けた → 「飛び番号のセッションは絶対に許さない」「全部直せ」と強く叱責される
+- 2026-05-06: APP_VERSION を `-S16` に戻し、src/ 配下のコメントも S16 に整合 (本ファイルもリネーム)。**過去 commit message に残る `-S18` は force push せず履歴に残す** (rewrite リスク回避、事故記録としても機能)
 
-### S15 主要追加 (2026-04-28):
+### フック対策 (2026-05-06、新設)
+Claude の自制 (memory ルール) では再発するため、外部強制 (フック) を導入:
+- `.claude/hooks/session-start.ps1` — 重要 context を model に強制注入
+- `.claude/hooks/file-guard.ps1` — `01_constants.js` (APP_VERSION) / `build.ps1` / `settings.json` / `hooks/*.ps1` 編集を `ask` 強制
+- `.claude/hooks/git-guard.ps1` — `git commit` / `push` / `reset --hard` / `push --force` を `ask` 強制
+- `.claude/hooks/user-keyword-guard.ps1` — 「違う / やめて / 戻して / 何度も / ちゃんと」等のユーザー警告キーワード検知 → 自己点検 context 注入
 
-- **Sessions マージ機能** (REQUIREMENTS F1.10):
-  - `src/domain/merge.js` 新規 — 純関数 5 つ (computeMergeDiff / applyMerge / mergeMatches / relinkAfterMerge / countRelinks)。SCHEMA 駆動、type 分岐は本ファイルのみ (N3.3)
-  - `src/ui/sessions/MergePartnerPicker.jsx` 新規 — 同タイプ候補から相手選択、日付近い順 + 検索、同日候補は青強調
-  - `src/ui/sessions/MergeModal.jsx` 新規 — 2 ステップ (compare → confirm)、独自 overlay (560px)、競合 (赤ラジオ) / 補完 (緑自動) / 一致 (折り畳み) のセクション分類
-  - `src/ui/sessions/SessionDetailView.jsx` 改修 — Action bar を 4 ボタン化 (編集 / マージ / Claude / 削除、危険度の昇順)
-  - `src/app.jsx` 改修 — mergeStarting / mergePartner state + handleMerge 系ハンドラ + Picker/Modal 配線
-  - `tests/run.html` 改修 — merge.js のユニットテスト 31 件追加 (合計 44 tests 全 pass)、自己完結型に変更 (preview パネルの相対パス制約回避)
+**フック前提は CLAUDE.md R0 に記載。フックが無い環境では作業を始めるな** (memory: `feedback_hooks_required_2026_05_06.md`)。
 
-- **handleQuickAddSave の history.pushState 抜け fix** (S12 から潜在バグ):
-  - 新規練習作成 → Detail → 戻るボタンが Tennis DB の前のページ (Google 等) に飛ぶ問題
-  - `handleCardClick` と同じ `history.pushState({tdb:"detail"}, "")` を追加して解消
-
-### S15.5 主要追加 (2026-04-28、S16 着手前の急ぎリリース、2026-04-30 大会で実戦投入用):
-
-- **試打カード式 QuickTrialMode** (V2 移植 + v4 デザイン):
-  - `src/ui/sessions/QuickTrialMode.jsx` 新規 — カード一覧 view + 評価入力 view (17 項目 × 1-5)、eval/touched は per-card 永続
-  - 4 セクション進捗カウンタ (性能 / 特性 / ショット / 総合)、完了で緑表示
-  - status 色 (active/candidate/considering/support) はカード左帯と小チップだけ。タイトル黒固定、評価選択は primary 統一
-  - Home 試打ボタン → カード式に完全置き換え (フォーム入力 = QuickAddModal trial 経路は Home からは廃止)
-
-- **試打カードへの自動連携** (V2 互換 + 拡張):
-  - 同日 practice → linkedPracticeId + temp/venue/**weather** 自動コピー
-  - 同日 tournament の最後の match → linkedMatchId 自動設定
-  - judgment デフォルト「保留」、使ったカードは保存後に削除 (使い切り)
-
-- **TrialDetail から「試打カードに追加」**:
-  - `src/ui/sessions/TrialDetail.jsx` 機材セクションに アウトライン CTA 追加
-  - `app.jsx` `handleCreateCardFromTrial` — 既存試打のラケット情報を新カードに昇格 (重複追加防止)
-  - エース機 (例: EZONE100TOUR) を 1 度試打 → カード化 → 以降毎回 1 タップで再利用
-
-- **iOS 左端スワイプ対応** (S15.5.2 修正):
-  - QuickTrialMode 起動時 + 評価 view 入る時に `history.pushState`、戻る経路 (← / X / iOS スワイプ) を `history.back()` 経由で統一
-  - popstate listener で内部 state 制御 (selected あり → 一覧へ、なし → 閉じる)
-  - `eval_` / `touched` は `useRef` で tracking (popstate handler の stale closure 回避)
-  - `persistQuickTrialCards` 関数形式対応 (setCards `prev => ...` 用)
-
-- **Chrome 環境 hotfix** (S15.5.3 / S15.5.4):
-  - **試打カード書き込みを debounce bypass で即時 Firestore write** (Chrome Background Tab Throttling で `setTimeout(800)` が背景タブで発火しない問題)
-  - **`loadSessionsFromFirestore` に 15 秒 timeout** (Chrome で Firestore get が永遠 pending → Sessions タブ「読み込み中」固まる問題)
-  - 失敗時 toast でユーザーに可視化 (「試打カードのクラウド同期に失敗」「クラウド読み込みエラー」)
-  - 詳細は DECISIONS_v4.md S15.5 セクション末尾参照
-
-### S15.5.5 - S15.5.9 追加修正 (2026-04-28 〜 2026-04-29):
-
-- **S15.5.5/.6**: Home「現在の状況」行クリック対応 + Chrome 読込高速化 (localStorage 即表示、Firestore は backgound 取得)
-- **S15.5.7**: ⚙️ Settings Modal 新設 (Header から version 削除 → Modal 内常設) / 文字サイズ「標準/大/特大」切替 (メモ系のみ scale 適用) / メモ全 textarea を auto-grow 化 / 表示メモ全文表示
-- **S15.5.8 hotfix**: GameTracker の MENTAL_LABELS / PHYSICAL_LABELS 定義漏れ (S11 から潜在、画面真っ白の致命バグ) を fix
-- **S15.5.9**: MatchEditModal + SessionEditView 全部に auto-save (localStorage 下書き) + 復元バナー (Safari 破棄 / 戻る誤操作 / クラッシュ後の救済)、GameTracker onChange を dirty 追跡型に修正
-
-### GitHub Pages deploy 方式の変更 (S15.5.9 期間中):
-
-- 自動 `pages-build-deployment` workflow が GitHub 障害で 30 分以上 Queued 固着
-- 対処: `.github/workflows/pages.yml` を追加し、Settings > Pages の Source を **「GitHub Actions」**に変更
-- 以降の deploy はこの workflow が処理 (公式テンプレート、actions/checkout + configure-pages + upload-pages-artifact + deploy-pages)
-- 通常 1-3 分で完了。再度詰まる場合は workflow を見直す
+### 次の担当者へのルール (memory に保存済)
+- `feedback_stage_numbering_2026_05_05.md`: claude が勝手に Stage 番号を increment/継承するの禁止
+- 新しい Stage に進む時は必ずユーザーに「Stage 番号は何にしますか?」と確認
 
 ---
 
-## 2. S15 で確立 / 再確認されたメタ運用
+## 1. 現バージョン
 
-- **2 段階プレビュー方針** (memory `feedback_two_stage_preview.md`): preview_s15_p1.html で 3 画面プロト (Action bar / Picker / MergeModal compare+confirm) を承認 → 本実装。S15 でも厳守
-- **過去データ品質の歴史的負債** (memory `project_data_quality_legacy.md` 新規): V2 で GCal インポート中止 → 1 年以上前は AW 由来カロリーのみで現実乖離。S15 マージは過去データ救済導線にも使える / S18 統計では除外フィルタ要検討 / S19 インポート再挑戦時は merge.js 流用
-- **テスト自己完結化方針** (S15 で確立): preview パネルが `<script src="../src/...">` を解決できない。tests/run.html は domain/core 系の中身を inline コピー、実装変更時は手動同期。バンドル化スクリプト追加は今後の課題
-- **APP_VERSION 中間カウンタ運用** (S14 確立): Stage 中の修正のたびに `4.0.0-S<N>.1` `.2` ... と上げ、Stage 完了 push 時に `4.0.0-S<N>` に整える
-
----
-
-## 3. S16 の最小起動タスク
-
-ROADMAP S16: 「**Gear タブ (v3 未実装を v4 で初実装)** — ラケット / ガット / セッティング / 実測値」
-
-1. ユーザー: `S16 を始めてください`
-2. 私の最初の応答で CLAUDE.md セッション開始プロトコル実行 (5 項目、grep 出力コピペ必須):
-   - ROADMAP S16 / DECISIONS_v4.md S15 セクション / REQUIREMENTS F2.x 機材管理 / WIREFRAMES Gear タブ節
-   - v2/v3 該当箇所 grep (V2 = 信頼可リサーチ元、V3 = 機材タブは Placeholder のまま未実装の可能性大)
-   - v4 既存実装の重複チェック (Gear / RacketCard / StringCard 等の識別子)
-   - 関連 master データ構造 (rackets / strings / venues) は既に S11 で読込済 (`src/app.jsx`)
-3. preview_s16_p<M>.html で UX 提案 → 承認 → 実装
-4. **試打 (trial) との連動を考慮**: S15 暫定で「種類フィルタ=試打」時のみ独立カード (S6-S10 の暫定方針)。S16 完成で試打集約画面ができたら Sessions の暫定カードを削除
+- **HEAD commit**: フック safety system 導入 (`0c851b5`、2026-05-06) + S16 整合 commit (これから push)
+- **APP_VERSION**: `v4.5.0-S16`
+- **GitHub Pages**: デプロイ済 (反映には数分かかる場合あり)
 
 ---
 
-## 4. 共通方針リマインダ
+## 2. 凍結中の機能 — 「廃止」ではない、再着手前提
 
-- canonical 日付形式: `YYYY-MM-DD`
-- 画面幅: <600px=単列、≥1024px=左右分割
-- Firestore 書き込み: `core/03_storage.js` の `save()` (cleanForFirestore + 800ms debounce) または handleDelete/handleMergeConfirm のような並行 Promise.all パターン
-- APP_VERSION: `4.0.0-S(N)` Stage 完了時のみ更新
+### 2.1 Plan タブ (REQUIREMENTS_v4.md F3.x)
+**現状**: タブは存在し、初期実装が `src/ui/plan/PlanTab.jsx` にある (commit `4800e86` で導入)。
+**凍結理由**: Claude が preview 承認サイクルを飛ばして勝手に作り込んだため、ユーザーが「凍結」と明言した。**機能を廃止したわけではない**。
+**残仕様**: REQUIREMENTS_v4.md F3.1 (Next Actions) / F3.2 (対戦相手管理: 名前 + 特徴 + 戦績)
+**再着手の手順**:
+1. ユーザーに「Plan タブを再着手しますか?」と確認 (新 Stage 番号も合わせて聞く)
+2. REQUIREMENTS_v4.md F3.x を読み、**現状の PlanTab.jsx と要件の差分**を洗い出す
+3. WIREFRAMES_v4.md / DESIGN_SYSTEM_v4.md を確認
+4. 静的プロト (preview_s<N>_p<M>.html) で UX 承認 → 実装、の 2 段階プレビュー方針を遵守
+5. 1 タスク = 1 push、push 前に承認
+
+### 2.2 Insights タブ (REQUIREMENTS_v4.md F5.x)
+**現状**: タブは存在し、初期実装が `src/ui/insights/InsightsTab.jsx` にある (commit `57e2086`)。
+**凍結理由**: Plan タブと同じ。Claude の余計な作業で凍結。
+**残仕様**: REQUIREMENTS_v4.md F5 (集計・推移・メンタル)
+**再着手の手順**: §2.1 と同じ手順を踏む。
 
 ---
 
-## 5. S15 / S15.5 のリサーチ用 preview ファイル (今後参照可)
+## 3. 完了している機能 (2026-05-04 〜 06 で実装、push 済)
 
-- `preview_s15_p1.html`: Sessions マージ機能 UX (Action bar 4 ボタン / Picker / MergeModal 比較+確認) — 大会のマージや S19 インポート再挑戦時のレイアウト議論で再利用可
-- `preview_s15.5_p1.html`: 試打カード式 初回プロト (status 色多用版、p2 で改訂前)
-- `preview_s15.5_p2.html`: 試打カード式 シンプル&モダン改訂版 (ChatGPT レビュー反映、最終確定版) — S16 Gear タブとの導線議論で再利用可
+「S16 の延長」として実装された機能 (git 履歴では commit message に `-S18` が刻印されているが §0 の通り Claude のミス継承の結果。実態は S16 の延長作業):
+
+| 内部 ver. | commit | 内容 | 種別 |
+|---|---|---|---|
+| 4.1.7 | `b503a8d` | Round 5 UI Phase 1: モーダル focus trap (a11y) | a11y |
+| 4.1.8 | `1cd6e18` | リク 30-a: 大会詳細から直接「+ 試合を追加」(タップ 3→2) | UX |
+| 4.2.0 | `68ce51c` | リク 30-e: 試合形式多様化 (1/3 セット / 6/4 ゲーム先取 / 1-1 で 10pt TB) | 機能 |
+| 4.2.1 | `4b54852` | リク 30-e Phase A: 試合終了バナー + 「続けて記録する」展開 | UX |
+| 4.2.2 | `55161ab` | リク 30-e Phase B: TB スコア入力欄 + 自動装飾 `7-6(5)` / `10-7` | 機能 |
+| 4.2.3 | `0af640d` | focus trap 補完 (leaf modal 4 件) | a11y |
+| 4.3.0 | `e9bc3a5` | wheel picker 復活 (PracticeEditForm)、stash の事故 3 件全修正の安全設計 | UX |
+| 4.3.1 | `cbfc159` | wheel picker 全画面適用 (Tournament/Trial/QuickAdd) | UX |
+| 4.4.0 | `01b1a0d` | F4.4「最近の好成績」カード (Home 実装漏れ補完) | 機能 |
+| 4.4.1 | `a967ca9` | Issue 1: ホーム→Sessions 戻り口 (バナー + タブ切替自動解除) | UX |
+| 4.5.0 | `3cfe102` | Issue 2: 練習試合記録 (practice.matches[]、案 3' = +ボタン常時) | 機能 |
+| (docs) | `8a06e11` | ROADMAP/HANDOFF 更新 (-S18 表記時) | docs |
+| (chore) | `0c851b5` | フック safety system 追加 (Stage 番号事故対策) | infra |
 
 ---
 
-## 6. 関連ファイル
+## 4. データモデル変更 (2026-05-04 〜 06 追加)
 
-S16 着手時に必読:
-- `CLAUDE.md` 5 ルール
-- `DECISIONS_v4.md` 全件 (特に S15 セクション)
-- `MEMORY.md` 全索引 (`feedback_two_stage_preview.md` / `project_v2_v3_history.md` / `project_data_quality_legacy.md` 含む)
-- `ROADMAP_v4.md` S16 行
-- `REQUIREMENTS_v4.md` F2.x 機材管理
-- `WIREFRAMES_v4.md` Gear タブ節 (該当節のみ)
+```js
+// tournament: 試合形式のデフォルト
+tournament.matchFormat = {
+  preset: "1set" | "3set" | "6game" | "4game" | "custom",
+  setTargetGames: 4 | 6 | 8,
+  setMinDiff: 1 | 2,
+  tiebreakAt: "never" | "5-5" | "6-6" | "4-4",
+  tiebreakPoints: 7 | 10 | null,
+  bestOfSets: 1 | 2,
+  finalSetMode: "normal" | "matchTiebreak10",
+  noAd: boolean,
+};
+
+// match: 大会・練習共通の試合配列の各要素
+match.format = null | { ...上記同型 };  // null = 親 (大会 or 練習) から継承
+match.tbDetails = [
+  null,                                            // セット 1: TB なし
+  { type: "regular",  winner: "me", loser: 5 },   // セット 2: "7-6(5)"
+  { type: "match10",  winner: "me", loser: 7 },   // matchTB10: "10-7"
+];
+
+// practice: 試合記録 (Issue 2 で追加)
+practice.matches = [];  // 大会 matches[] と同形式
+```
+
+旧データ後方互換: 各フィールド未設定なら従前動作のまま。
+
+---
+
+## 5. 過去の重要事故 — 必ず守るルール
+
+### 2026-05-03 データ破壊事故 (memory: `feedback_data_destruction_2026_05_03.md`)
+- 自作 wheel picker (S17.x 時代) で背景タップ = 確定にしたため、ユーザーが既存セッションを開いて閉じただけで分が 5 分刻みに丸まる、6 時間超 duration が 0 にフォールバック等のデータ消失が発生
+- ユーザーから「万死に値する」「データを消えるようなことをするなと言っているのに、慎重にやらず安易にやりやがった」と強く叱責
+- **絶対遵守ルール**:
+  - 値変換ロジックを書き戻し禁止 (rounding/clamping した値を元データに戻さない)
+  - 暗黙確定禁止 (背景タップ・スクロール離脱・タイマー = 確定にしない、明示ボタンのみ)
+  - `build.ps1` は明示的承認後のみ
+- **2026-05 の wheel picker 復活時** (`e9bc3a5`) は、上記 3 件すべて修正した安全設計で実装
+
+### 2026-05-05 Stage 番号事故 (memory: `feedback_stage_numbering_2026_05_05.md`)
+- §0 参照
+- フックで対策済 (memory: `feedback_hooks_required_2026_05_06.md`)
+
+### タップ領域 44px 違反は変更しない (memory: `feedback_no_tap_area_resize.md`)
+- ヘッダー/モーダル/カレンダーナビ等の小型ボタン拡大はレイアウト崩壊を起こすためユーザー却下
+- 提案禁止
+
+---
+
+## 6. 残作業
+
+### 6.1 凍結中 (再着手判断要、§2 参照)
+- Plan タブ詳細実装 (REQUIREMENTS F3.x)
+- Insights タブ詳細実装 (REQUIREMENTS F5.x)
+
+### 6.2 ユーザー情報共有待ち (再発時のみ対応)
+- リク 1 ホームのリンク切れ詳細: ユーザーが「解決済」と過去に言ったが、最新状況の情報共有なし
+- リク 11 ストリングセット省略箇所: ユーザーも場所を覚えていない、再現時に対応
+
+### 6.3 任意 polish (未着手、優先度低)
+- GameTracker の TB 内ポイント単位記録 (現状は preset 入力で十分機能するが、より精緻に記録したい場合)
+- setScores の `7-6(5)` 表記の文字列パース (現状は表示装飾のみ)
+
+### 6.4 元 ROADMAP の未着手 Stage
+- S19 インポート (CSV / Apple Watch、Google Calendar は本セッションで先行実装済)
+- S20 セッション自動連関 (試打→大会、練習→大会 の自動リンク)
+- S21 リリース準備 (v3 凍結、日付形式マイグレーション)
+
+---
+
+## 7. 検証環境 (Dev モード)
+
+`http://localhost:8081/v4/index.html?dev=1[&reset=1]`
+- Google SSO スキップ、fixture (`v4/dev-fixture.json`) で起動
+- 本番 Firestore に書き込まない (データ保護)
+- `&reset=1` で localStorage 初期化
+
+`v4/dev-fixture.json` は `.gitignore` で git 管理外。次セッションでは `cp tennis_db_<latest>.json v4/dev-fixture.json` で配置。
+
+### Playwright e2e
+`node tests/e2e/run.mjs` で 13 テスト走る (要 `C:\Program Files\nodejs\` PATH)
+
+---
+
+## 8. 次セッション開始時のアクション
+
+```
+新セッション担当者がやるべき手順:
+
+1. CLAUDE.md を最初から読む (特に R0 フック前提)
+2. このファイル (HANDOFF_v4_S16.md) を最初から最後まで読む
+3. MEMORY.md を読む (特に「Stage 番号自動 increment 禁止」「フック設定なしで作業するな」)
+4. .claude/settings.json と .claude/hooks/ を確認 (4 ファイル揃っているか)
+5. ユーザーに状況確認:
+   - 「現バージョン v4.5.0-S16 を確認しました」
+   - 「次に何を始めますか? 新しい Stage に進む場合は Stage 番号もご指示ください」
+6. ユーザーから次のタスクを受けたら:
+   - Plan/Insights タブ再着手なら → §2 の手順 (REQUIREMENTS 確認 → preview 承認 → 実装)
+   - 新機能 / リク対応なら → REQUIREMENTS / WIREFRAMES / DECISIONS 該当節を必ず読む
+   - 既存 polish なら → 静的プロト承認なしで進めて良いか確認
+7. 1 タスク = 1 push、push 前に必ずユーザー承認、Stage 番号は勝手に決めない
+```
+
+---
+
+## 9. 重要な実 file パス
+
+| 用途 | パス |
+|---|---|
+| メイン source | `src/app.jsx`, `src/core/`, `src/domain/`, `src/ui/` |
+| バージョン定数 | `src/core/01_constants.js` `APP_VERSION` |
+| ビルド | `build.ps1` (PowerShell)、output: `v4/index.html` |
+| 検証 fixture | `v4/dev-fixture.json` (gitignored) |
+| Calendar 取り込み JSON | `v4/calendar_import.json` (git に入れる) |
+| 静的プロト | `preview_<topic>_p<N>.html` (repo root) |
+| e2e | `tests/e2e/run.mjs` |
+| Cloud Functions | `functions/index.js` (Anthropic Claude Haiku 経由要約) |
+| 設計書 | `REQUIREMENTS_v4.md` / `ARCHITECTURE_v4.md` / `ROADMAP_v4.md` / `WIREFRAMES_v4.md` / `DESIGN_SYSTEM_v4.md` / `DECISIONS_v4.md` / `TENNIS_RULES.md` |
+| **claude フック** | `.claude/hooks/*.ps1`, `.claude/settings.json` |
+
+### 2026-05-04 〜 06 で追加された主要ファイル
+| ファイル | 内容 |
+|---|---|
+| `src/ui/sessions/_NumWheel.jsx` | TimeWheel/DurationWheel/NumWheel + WheelSheet (Bottom sheet) + WheelColumn (3D 立体) |
+| `src/ui/home/RecentResults.jsx` | F4.4「最近の好成績」カード |
+| `src/ui/sessions/PracticeEditForm.jsx` (修正) | matches[] 操作 + 案 3' の + ボタン |
+| `src/ui/sessions/PracticeDetail.jsx` (修正) | matches[] 読み取り表示 |
+| `src/domain/match_helpers.js` (大幅追加) | matchFormat 関連 helpers (resolveMatchFormat / formatFromPreset / computeTbState / applyTbDetails) |
+| `TENNIS_RULES.md` §3.1 / §9.1 | 草トーローカルルール + matchFormat データモデル |
+| `preview_s18_p1.html` 〜 `p13.html` | 静的プロト (タップ領域 / 試合形式 / TB 入力 / wheel デザイン段階 / practice matches UI) — ファイル名の `s18` は当時の Stage 番号誤認の名残、内容は S16 の polish |
+| `.claude/hooks/*.ps1` (4 ファイル) | フック safety system (Stage 番号事故対策) |
+
+---
+
+## 10. 確立されたルール (memory に保存済、必ず参照)
+
+| ルール | 要点 | memory file |
+|---|---|---|
+| ⚠️ データ破壊事故 (2026-05-03) | 値変換禁止 / build 承認後のみ / 暗黙確定禁止 | `feedback_data_destruction_2026_05_03.md` |
+| ⚠️ Stage 番号自動 increment 禁止 (2026-05-05) | claude が勝手に -S<N> 変更禁止、毎回ユーザー確認 | `feedback_stage_numbering_2026_05_05.md` |
+| ⚠️ フック設定なしで作業するな (2026-05-06) | hooks/ + settings.json hooks 必須、claude 自制では再発 | `feedback_hooks_required_2026_05_06.md` |
+| バージョニング | X = 互換性壊す、Y = 機能追加 (Z リセット)、Z = 修正 | `feedback_versioning.md` |
+| バージョン番号を必ず伝える | push のたびに独立行で `v4.X.Y-S<N>` を明示 | `feedback_version_announcement.md` |
+| 小さな変更でも事前確認 | ファイル名・ボタン文言・サブ機能・バージョン解釈、些細でも commit 前に確認 | `feedback_confirm_small_changes.md` |
+| push は確認してから | git push 前にユーザーの確認 | `feedback_push_confirmation.md` |
+| 1 タスク = 1 push | 小刻み patch 禁止 | `feedback_commit_granularity.md` |
+| 謝罪は単独で | 次アクションと混ぜない、軽口で流さない | `feedback_apology_discipline.md` |
+| 平易な言葉 | 専門用語禁止 | `feedback_plain_language.md` |
+| 更新完了は明示的に | 「更新完了・F5 で確認」を独立行 | `feedback_update_announcement.md` |
+| 選択肢は数字で | 1, 2, 3 (a/b/c 禁止) | `feedback_choice_notation.md` |
+| 2 段階プレビュー | UI 変更は preview_s<N>_p<M>.html 承認 → 実装 | `feedback_two_stage_preview.md` |
+| 「セッション」用語 NG | v4 は「Stage (S<N>)」、v3 は「Phase」と呼ぶ | (CLAUDE.md にも記載) |
+| タップ領域 44px 違反は変更しない | レイアウト崩壊リスク、提案も禁止 | `feedback_no_tap_area_resize.md` |
+| Stage 番号変更時の整合 | grep で全文書を同時更新 | `feedback_stage_renumbering.md` |

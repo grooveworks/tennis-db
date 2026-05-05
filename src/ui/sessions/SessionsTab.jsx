@@ -379,7 +379,7 @@ function SessionsTab({ tournaments = [], practices = [], trials = [], loading = 
   useEffect(() => { try { localStorage.setItem(LS_SEARCH, search || ""); } catch {} }, [search]);
   useEffect(() => { try { localStorage.setItem(LS_FILTERS, JSON.stringify(filters)); } catch {} }, [filters]);
   useEffect(() => { try { localStorage.setItem(LS_SEARCH_OPEN, String(searchOpen)); } catch {} }, [searchOpen]);
-  // S18 Issue 1: filterFromHome 状態でユーザーが filter を変更したら、永続化扱いに切替 (フラグ false)
+  // S16 Issue 1: filterFromHome 状態でユーザーが filter を変更したら、永続化扱いに切替 (フラグ false)
   //   mount 時の filters を ref で保持、現在 filters が異なれば user 操作扱い
   const _initialFiltersRef = useRef(filters);
   useEffect(() => {
@@ -507,7 +507,7 @@ function SessionsTab({ tournaments = [], practices = [], trials = [], loading = 
 
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
-      {/* S18 Issue 1: ホームから飛んだフィルターのバナー (Home起源時のみ表示)
+      {/* S16 Issue 1: ホームから飛んだフィルターのバナー (Home起源時のみ表示)
           タップでホームに戻る (フィルターは app.jsx tab change useEffect で自動解除) */}
       {filterFromHome && onBackToHome && (
         <button

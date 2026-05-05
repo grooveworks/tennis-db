@@ -86,7 +86,7 @@ function _meRatingRow({ label, value, onChange }) {
 
 function MatchEditModal({ open, match, trnType, tournament, racketNames = [], stringNames = [], opponentNames = [], recentSetups = [], confirm, onSave, onClose }) {
   const trapRef = useFocusTrap(open); // Round 5: a11y focus trap
-  // リク 30-e (S18): 試合形式を解決 (form.format > tournament.matchFormat > default)
+  // リク 30-e (S16): 試合形式を解決 (form.format > tournament.matchFormat > default)
   //   form (state) を見ることで「変更」ボタン操作時に即座に効く。useMemo はキャッシュ。
   //   helpers が format に応じてセット完了判定 / 試合勝敗判定を変える。
   // 注: form は下で初期化されるため、ここでは関数内で参照するだけ (lexical scope)
@@ -99,7 +99,7 @@ function MatchEditModal({ open, match, trnType, tournament, racketNames = [], st
   const [dirty, setDirty] = useState(() => match?.id ? _loadMatchDraft(match.id) !== null : false);
   const [restored, setRestored] = useState(() => match?.id ? _loadMatchDraft(match.id) !== null : false);
 
-  // リク 30-e (S18): 試合形式の解決 (form.format > tournament.matchFormat > default)
+  // リク 30-e (S16): 試合形式の解決 (form.format > tournament.matchFormat > default)
   //   form を直接見るため、preset 切替・1-1 10pt TB トグルの影響が即座に反映
   const effectiveFormat = useMemo(
     () => resolveMatchFormat(form, tournament),
@@ -176,9 +176,9 @@ function MatchEditModal({ open, match, trnType, tournament, racketNames = [], st
   //   という偶然動作。今は「手動で result を選んだ後は二度と自動上書きしない」明確な仕様。
   const handleGameTrackerChange = useCallback((next) => {
     const games = Array.isArray(next.games) ? next.games : [];
-    // リク 30-e (S18): format 渡して、4ゲーム先取/6ゲーム先取/1セット/3セット+10ptTB の各形式に対応
+    // リク 30-e (S16): format 渡して、4ゲーム先取/6ゲーム先取/1セット/3セット+10ptTB の各形式に対応
     const baseSetScores = computeSetScoresFromGames(games, effectiveFormat);
-    // リク 30-e Phase B (S18): tbDetails を適用して "7-6(5)" / "10-7" 等の詳細表記に変換
+    // リク 30-e Phase B (S16): tbDetails を適用して "7-6(5)" / "10-7" 等の詳細表記に変換
     const tbDetails = Array.isArray(next.tbDetails) ? next.tbDetails : [];
     const autoSetScores = applyTbDetails(baseSetScores, tbDetails);
     const autoResult = computeAutoMatchResult(games, effectiveFormat);
@@ -190,7 +190,7 @@ function MatchEditModal({ open, match, trnType, tournament, racketNames = [], st
     setDirty(true);
   }, [effectiveFormat]);
 
-  // リク 30-e Phase A (S18): GameTracker に渡す「試合終了」フラグ
+  // リク 30-e Phase A (S16): GameTracker に渡す「試合終了」フラグ
   //   computeAutoMatchResult が "勝利" / "敗北" を返したら終了。
   //   棄権 (手動で result 設定) は対象外 (games による自動判定のみ)
   const matchEnded = useMemo(() => {
@@ -220,7 +220,7 @@ function MatchEditModal({ open, match, trnType, tournament, racketNames = [], st
   const isDouble = trnType === "doubles" || trnType === "mixed";
   const showOpponent2 = isDouble;
 
-  // リク 30-e (S18): 試合形式 override UI 用 state
+  // リク 30-e (S16): 試合形式 override UI 用 state
   //   form.format=null = 大会から継承、object = 試合ごとに上書き
   const isOverridden = !!form.format;
   const inheritedFormat = tournament?.matchFormat || DEFAULT_MATCH_FORMAT;
@@ -310,7 +310,7 @@ function MatchEditModal({ open, match, trnType, tournament, racketNames = [], st
           <MasterField label="対戦相手 2 (ダブルス)" value={form.opponent2 || ""} onChange={(v) => set("opponent2", v)} masterValues={opponentNames} placeholder="-- 対戦相手 2 を選択 --" />
         )}
 
-        {/* リク 30-e (S18): 試合形式 セクション (大会から継承 + 必要なら上書き)
+        {/* リク 30-e (S16): 試合形式 セクション (大会から継承 + 必要なら上書き)
             プリセット 4 つ + 「大会に従う」 + 3set 時の 1-1 10pt TB トグル */}
         <div style={{
           background: C.bg, border: `1px solid ${C.divider}`,

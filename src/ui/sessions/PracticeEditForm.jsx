@@ -131,7 +131,7 @@ function PracticeEditForm({ form, errors = {}, onChange, racketNames = [], strin
     [tournaments, practices, trials]
   );
 
-  // S18 Issue 2: 練習にも matches[] を持たせる (案 3' 採用、preview_s18_p13 確定)
+  // S16 Issue 2: 練習にも matches[] を持たせる (案 3' 採用、preview_s18_p13 確定)
   //   練習試合 / ゲーム練習 など、type 不問でゲーム記録できるように
   //   matches[] が空 = メモ下に小さい + ボタン
   //   matches[] が 1 件以上 = ⑥ 試合記録 セクション展開
@@ -210,7 +210,7 @@ function PracticeEditForm({ form, errors = {}, onChange, racketNames = [], strin
           <Select label="種別" value={form.type || ""} onChange={(v) => set("type", v)} options={_PRAC_TYPE_OPTS} />
         </div>
         <Input label="イベント名" value={form.title || ""} onChange={(v) => set("title", v)} placeholder="例: ナイターレッスン中上級" />
-        {/* リク 30-* (S18 Phase B) Wheel picker 復活: 時刻 + 時間(分) を立体ホイール化
+        {/* リク 30-* (S16 Phase B) Wheel picker 復活: 時刻 + 時間(分) を立体ホイール化
             既存値の rounding/clamping は禁止 (preserved で保持)、背景タップ/ESC = キャンセル */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0 8px" }}>
           <TimeWheel label="開始" value={form.startTime || ""} onChange={(v) => set("startTime", v)} />
@@ -265,7 +265,7 @@ function PracticeEditForm({ form, errors = {}, onChange, racketNames = [], strin
         <Textarea label="良かった点" value={form.goodNote || ""} onChange={(v) => onChange({ ...form, goodNote: v })} placeholder="できるようになったこと..." />
         <Textarea label="改善点" value={form.improveNote || ""} onChange={(v) => onChange({ ...form, improveNote: v })} placeholder="次回意識したいこと..." />
         <Textarea label="メモ" value={form.generalNote || ""} onChange={(v) => onChange({ ...form, generalNote: v })} placeholder="その他気づき..." />
-        {/* S18 Issue 2 案 3': 0 件は控えめな + ボタンのみ (普段は無視できる主張)
+        {/* S16 Issue 2 案 3': 0 件は控えめな + ボタンのみ (普段は無視できる主張)
             1 件以上は下のフルセクション展開 */}
         {matches.length === 0 && (
           <button

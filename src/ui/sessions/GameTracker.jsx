@@ -302,11 +302,11 @@ function _gtCOModal({ open, initial, onSave, onSkip, onDelete, onClose, isEditMo
 }
 
 // ── メインコンポーネント
-//   リク 30-e Phase A (S18): matchEnded prop で試合終了状態を受け取る (computeAutoMatchResult 結果)
+//   リク 30-e Phase A (S16): matchEnded prop で試合終了状態を受け取る (computeAutoMatchResult 結果)
 //     - 試合終了バナー表示 (✓ 試合終了 + 自動セットスコア)
 //     - 「次のゲーム」+ ボタンを隠す (誤入力防止)
 //     - 「続けて記録する」展開で再開可能 (試合形式変更等の例外ケース対応)
-//   リク 30-e Phase B (S18): format prop で試合形式を受け取る → TB 状態を検知して TB 入力 banner 表示
+//   リク 30-e Phase B (S16): format prop で試合形式を受け取る → TB 状態を検知して TB 入力 banner 表示
 //     - 通常 TB (6-6): 7 ポイント先取・差 2、勝者 + 負けた側ポイント を入力
 //     - マッチ TB (1-1 で 10pt): 10 ポイント先取、同上
 //     - 入力された loser ポイントは tbDetails に保存し、setScores の表示を装飾 ("7-6(5)" / "10-7")
@@ -476,7 +476,7 @@ function GameTracker({ match, onChange, confirm, matchEnded, format }) {
         )}
       </div>
 
-      {/* リク 30-e Phase A (S18): 試合終了バナー + 「続けて記録する」展開ボタン
+      {/* リク 30-e Phase A (S16): 試合終了バナー + 「続けて記録する」展開ボタン
           matchEnded = true (computeAutoMatchResult で勝敗確定) の時に表示。
           展開後は警告色のバナーに切替えて、再 collapse で誤入力防止に戻れる */}
       {matchEnded && !expandedAfterEnd && (

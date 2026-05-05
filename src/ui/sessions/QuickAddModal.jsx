@@ -241,7 +241,7 @@ function QuickAddModal({ open, type, racketNames = [], stringNames = [], venueNa
             <Input label="イベント名" value={form.title || ""} onChange={(v) => set("title", v)} placeholder="例: ナイターレッスン中上級" />
             <MasterField label="会場" value={form.venue || ""} onChange={(v) => set("venue", v)} masterValues={venueNames} placeholder="-- 会場を選択 --" />
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>
-              {/* リク 30-* (S18) Wheel picker 全画面適用 */}
+              {/* リク 30-* (S16) Wheel picker 全画面適用 */}
               <TimeWheel label="開始時刻" value={form.startTime || ""} onChange={(v) => set("startTime", v)} />
               <TimeWheel label="終了時刻" value={form.endTime || ""} onChange={(v) => set("endTime", v)} />
             </div>

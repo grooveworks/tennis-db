@@ -56,7 +56,7 @@ const _extractLevels = (tournaments) => {
   return [..._TOURNAMENT_LEVEL_DEFAULTS, ...[...set].filter(v => !_TOURNAMENT_LEVEL_DEFAULTS.includes(v))];
 };
 
-// ── プレースホルダタブ (S13-S18 で実装)
+// ── プレースホルダタブ (S13-S16 で実装)
 // Round 5 Batch C: PlaceholderTab dead code 削除 (Plan/Insights タブ実装で参照ゼロ)
 
 // ── Dev モード (Phase B 検証用) ────────────────────────────────────────
@@ -895,7 +895,7 @@ function TennisDB() {
   // S15.5+: Home の「現在の状況」 → 主力ラケット行タップ → Sessions タブをそのラケットでフィルタ
   //   localStorage に Sessions タブの filters を書き込み + setTab("sessions") で遷移
   //   SessionsTab は mount 時に _loadFilters で localStorage から filters 読み込むため、unmount → mount で反映
-  // S18 (Issue 1): filterFromHome flag で「Home 起源のフィルター」を判定。
+  // S16 (Issue 1): filterFromHome flag で「Home 起源のフィルター」を判定。
   //   - Sessions タブ上部に「ホームに戻る」バナー表示
   //   - 別タブ切替 (TabBar) で自動解除 (filterFromHome=true の時のみ)
   //   - Sessions 内で手動フィルター操作 → flag を false に切替 (永続化扱いに)
@@ -910,7 +910,7 @@ function TennisDB() {
     setFilterFromHome(true);
     setTab("sessions");
   };
-  // S18 Issue 1: tab が sessions から離れた時、filterFromHome なら自動解除
+  // S16 Issue 1: tab が sessions から離れた時、filterFromHome なら自動解除
   useEffect(() => {
     if (tab !== "sessions" && filterFromHome) {
       try {

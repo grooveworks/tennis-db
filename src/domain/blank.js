@@ -29,7 +29,7 @@ const blankTournament = () => ({
   generalNote: "",
   matches: [],
   visibility: "public",
-  // リク 30-e (S18): 試合形式 (TENNIS_RULES.md §3.1 / match_helpers.MATCH_FORMAT_PRESETS)
+  // リク 30-e (S16): 試合形式 (TENNIS_RULES.md §3.1 / match_helpers.MATCH_FORMAT_PRESETS)
   //   デフォルト「3 セットマッチ」。1-1 で 10pt TB のトグルは matchFormat.finalSetMode で持つ
   matchFormat: { ...MATCH_FORMAT_PRESETS["3set"], preset: "3set", noAd: false },
 });
@@ -57,7 +57,7 @@ const blankPractice = () => ({
   improveNote: "",
   generalNote: "",
   visibility: "public",
-  // S18 Issue 2 (案 3' 採用): 練習にも matches[] を持たせる。
+  // S16 Issue 2 (案 3' 採用): 練習にも matches[] を持たせる。
   //   練習試合 / ゲーム練習 など、type 不問でゲーム記録できるように。
   //   空配列ならフォーム下部に小さい + ボタンのみ、1 件以上で ⑥ 試合記録 セクション展開。
   matches: [],

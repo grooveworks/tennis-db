@@ -1,4 +1,4 @@
-// _NumWheel.jsx — Wheel picker components (S18 Phase B 復活、preview_s18_p10/p12 承認デザイン)
+// _NumWheel.jsx — Wheel picker components (S16 Phase B 復活、preview_s18_p10/p12 承認デザイン)
 //
 // 提供するコンポーネント (PracticeEditForm 等から使用):
 //   TimeWheel       : 2 列ホイール (時 0-23 + 分 5 分刻み 0-55)、HH:MM 形式

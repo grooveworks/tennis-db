@@ -1,6 +1,6 @@
 // RecentResults — Home タブ「最近の好成績」カード (REQUIREMENTS_v4.md F4.4 / WIREFRAMES_v4.md §2.1)
 //
-// S18: 実装漏れの追加実装。設計書には定義されていたが S14 P1 で実装が抜けていた。
+// S16: 実装漏れの追加実装。設計書には定義されていたが S14 P1 で実装が抜けていた。
 //
 // 表示:
 //   - tournaments で overallResult が「好成績」(優勝/準優勝/3位/ベスト8/ベスト16/予選突破)

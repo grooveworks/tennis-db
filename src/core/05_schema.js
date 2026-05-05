@@ -29,7 +29,7 @@ const SCHEMA={
     {key:"overallResult",label:"結果",type:"text"},
     {key:"generalNote",label:"メモ",type:"textarea",combinable:true},
     {key:"matches",label:"試合記録",type:"array",itemType:"match"},
-    {key:"matchFormat",label:"試合形式",type:"object"}, // リク 30-e (S18): 大会のデフォルト試合形式
+    {key:"matchFormat",label:"試合形式",type:"object"}, // リク 30-e (S16): 大会のデフォルト試合形式
     {key:"visibility",label:"公開",type:"select"},
     {key:"memoSummaries",label:"メモ要約",type:"object"},
   ],
@@ -65,7 +65,7 @@ const SCHEMA={
     {key:"hrZone3",label:"HR Z3",type:"text"},
     {key:"hrZone4",label:"HR Z4",type:"text"},
     {key:"hrZone5",label:"HR Z5",type:"text"},
-    {key:"matches",label:"試合記録",type:"array",itemType:"match"}, // S18 Issue 2: 練習にも matches[] (案 3')
+    {key:"matches",label:"試合記録",type:"array",itemType:"match"}, // S16 Issue 2: 練習にも matches[] (案 3')
     {key:"visibility",label:"公開",type:"select"},
     {key:"memoSummaries",label:"メモ要約",type:"object"},
   ],
@@ -124,8 +124,8 @@ const SCHEMA={
     {key:"techNote",label:"技術メモ",type:"textarea",combinable:true},
     {key:"opponentNote",label:"相手メモ",type:"textarea",combinable:true},
     {key:"note",label:"試合メモ",type:"textarea",combinable:true},
-    {key:"format",label:"試合形式上書き",type:"object"}, // リク 30-e (S18): 大会の matchFormat を上書き、null=継承
-    {key:"tbDetails",label:"TB 詳細",type:"array"}, // リク 30-e Phase B (S18): 各セットの TB ポイント詳細
+    {key:"format",label:"試合形式上書き",type:"object"}, // リク 30-e (S16): 大会の matchFormat を上書き、null=継承
+    {key:"tbDetails",label:"TB 詳細",type:"array"}, // リク 30-e Phase B (S16): 各セットの TB ポイント詳細
     {key:"memoSummaries",label:"メモ要約",type:"object"},
   ],
   // ── S16 (Gear タブ) で追加 ──

@@ -2,7 +2,11 @@
 const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
 // ── 定数定義（色・キー・バージョン）─────────────
-const APP_VERSION="4.5.0-S18";
+// Stage 番号: 2026-05-05 までの作業は「S16 の延長 (Gear タブ完成後の polish + リク消化)」として進めていたが、
+// claude が独断で -S18 を継承して 12 push (memory: feedback_stage_numbering_2026_05_05)。
+// 2026-05-06 にユーザー認識と整合させるため -S16 に戻した。
+// 過去 commit message に -S18 が刻印されているのはその独断継承の跡。force push せず履歴は温存。
+const APP_VERSION="4.5.0-S16";
 const font="-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif";
 
 // 色設計（DESIGN_SYSTEM_v4.md §1 + §10 S13.5 改訂準拠）

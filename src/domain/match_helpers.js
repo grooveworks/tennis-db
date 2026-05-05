@@ -7,7 +7,7 @@
 //   - replaceGameWinner: index 指定で winner を切替
 //   - upsertChangeover / removeChangeover: CO の追記・上書き・削除
 //   - ゲーム削除に伴う orphan CO の cleanup (削除されたゲームより後ろの CO の afterGame を 1 ずつ前へ)
-//   - リク 30-e (S18): 試合形式 (matchFormat) 対応 (TENNIS_RULES.md §3.1)
+//   - リク 30-e (S16): 試合形式 (matchFormat) 対応 (TENNIS_RULES.md §3.1)
 //     1set / 3set / 6game / 4game / custom + 1-1 で matchTiebreak10
 //
 // 仕様: TENNIS_RULES.md §2.1 / §3.1 / §13
@@ -19,7 +19,7 @@
 //   - changeovers[].afterGame は 1-based (1G 後 = afterGame:1)
 //   - games[] は 0-based の配列 (index 0 = ゲーム 1)
 
-// リク 30-e (S18): 試合形式プリセット (TENNIS_RULES.md §3.1)
+// リク 30-e (S16): 試合形式プリセット (TENNIS_RULES.md §3.1)
 //   - 1set:  1 セットマッチ (= 6 ゲームマッチ、差 2、6-6 で 7pt TB)
 //   - 3set:  3 セットマッチ (1 セットマッチ × 2 セット先取)
 //   - 6game: 6 ゲーム先取 (草トー時短、5-5 で次取った方勝ち、TB なし)
@@ -111,7 +111,7 @@ const blankMatch = (matchCount, defaultsFromTournament) => {
     games: [],
     changeovers: [],
     format: null, // null = 大会の matchFormat を継承。試合ごとに上書きしたい時のみ object
-    // リク 30-e Phase B (S18): 各セットの TB 詳細 (index = setIndex 0-based)。
+    // リク 30-e Phase B (S16): 各セットの TB 詳細 (index = setIndex 0-based)。
     //   { type: "regular" | "match10", winner: "me"|"opp", loser: number } | null
     //   未入力なら setScores はシンプル表記 ("7-6" / "1-0") のまま
     tbDetails: [],
@@ -249,7 +249,7 @@ const _normalizeMatchResult = (result) => {
 //   旧: computeSetScoresFromGames と computeAutoMatchResult が同じ条件を二重実装
 //        → 仕様変更時に片方だけ直すと割れる
 //   新: _isSetComplete を共有、両関数から呼ぶ
-// リク 30-e (S18): format 引数を取って草トーローカルルールに対応
+// リク 30-e (S16): format 引数を取って草トーローカルルールに対応
 // TENNIS_RULES.md §2.1 / §3.1:
 //   - 1set/3set: 6 先取・差 2、5-5→7-5、6-6→TB (7-6)
 //   - 6game (草トー): 5-5 で次取った方勝ち (6-5 で終了)
@@ -296,7 +296,7 @@ const _isSetComplete = (me, opp, format) => {
   return false;
 };
 
-// リク 30-e (S18): games[] からセットスコア配列を計算 (format 適用、TENNIS_RULES §3.1 準拠)
+// リク 30-e (S16): games[] からセットスコア配列を計算 (format 適用、TENNIS_RULES §3.1 準拠)
 //   戻り値: ["6-3", "7-5", ...] like setScores
 //   未完了セット (進行中) も最後に含める (例: 6-2 完了 + 3-2 進行中 → ["6-2", "3-2"])
 //   matchTiebreak10 mode: bestOfSets-1 同点になった次のセットは 1 ゲーム = matchTB
@@ -342,7 +342,7 @@ const computeSetScoresFromGames = (games, format) => {
   return setScores;
 };
 
-// リク 30-e Phase B (S18): 現在進行セットがタイブレーク状態か判定。GameTracker の TB 入力 banner 用。
+// リク 30-e Phase B (S16): 現在進行セットがタイブレーク状態か判定。GameTracker の TB 入力 banner 用。
 //   戻り値:
 //     { type: null,         isInTB: false, setIndex }   ← 通常進行 or 試合終了
 //     { type: "regular",    isInTB: true,  setIndex }   ← 通常 TB (例: 6-6 で発動)
@@ -396,7 +396,7 @@ const computeTbState = (games, format) => {
   return { type: null, isInTB: false, setIndex };
 };
 
-// リク 30-e Phase B (S18): setScores と tbDetails を組み合わせて詳細表記版を返す
+// リク 30-e Phase B (S16): setScores と tbDetails を組み合わせて詳細表記版を返す
 //   通常 TB: "7-6" → "7-6(5)" (loser=5)
 //   matchTB10: "1-0" → "10-7" (me 勝ち + loser=7)、"0-1" → "7-10" (opp 勝ち + loser=7)
 //   tbDetails が無い / loser 未入力 / フォーマット不一致なら元の score をそのまま返す
@@ -420,7 +420,7 @@ const applyTbDetails = (setScores, tbDetails) => {
   });
 };
 
-// リク 30-e (S18): games[] から match の自動勝敗判定 (format 適用、TENNIS_RULES §3.1 準拠)
+// リク 30-e (S16): games[] から match の自動勝敗判定 (format 適用、TENNIS_RULES §3.1 準拠)
 //   - bestOfSets 達成で勝敗確定
 //   - matchTiebreak10 mode で 1-1 後の次ゲームは 10pt TB 勝者扱い
 //   - 戻り値: "勝利" | "敗北" | null (未確定)
