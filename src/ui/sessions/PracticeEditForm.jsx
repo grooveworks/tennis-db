@@ -124,12 +124,47 @@ function _peVisibility({ value, onChange }) {
   );
 }
 
-function PracticeEditForm({ form, errors = {}, onChange, racketNames = [], stringNames = [], venueNames = [], tournaments = [], practices = [], trials = [] }) {
+function PracticeEditForm({ form, errors = {}, onChange, racketNames = [], stringNames = [], venueNames = [], opponentNames = [], tournaments = [], practices = [], trials = [], confirm }) {
   // S16.11 UX5: 履歴セット picker
   const recentSetups = useMemo(
     () => _computeRecentSetups(tournaments, practices, trials),
     [tournaments, practices, trials]
   );
+
+  // S18 Issue 2: 練習にも matches[] を持たせる (案 3' 採用、preview_s18_p13 確定)
+  //   練習試合 / ゲーム練習 など、type 不問でゲーム記録できるように
+  //   matches[] が空 = メモ下に小さい + ボタン
+  //   matches[] が 1 件以上 = ⑥ 試合記録 セクション展開
+  const matches = Array.isArray(form.matches) ? form.matches : [];
+  const wins = matches.filter(m => m.result === "勝利").length;
+  const losses = matches.filter(m => m.result === "敗北" || m.result === "棄権").length;
+  const [matchModalState, setMatchModalState] = useState(null);
+  const handleAddMatch = () => {
+    const lastMatch = matches.length > 0 ? matches[matches.length - 1] : null;
+    setMatchModalState({ match: blankMatch(matches.length, lastMatch || form), isNew: true });
+  };
+  const handleEditMatch = (m) => {
+    setMatchModalState({ match: m, isNew: false });
+  };
+  const handleSaveMatch = (newMatch) => {
+    const exists = matches.find(m => m.id === newMatch.id);
+    const newMatches = exists
+      ? matches.map(m => m.id === newMatch.id ? newMatch : m)
+      : [...matches, newMatch];
+    onChange({ ...form, matches: newMatches });
+    setMatchModalState(null);
+  };
+  const handleDeleteMatch = (id) => {
+    if (!confirm) {
+      onChange({ ...form, matches: matches.filter(m => m.id !== id) });
+      return;
+    }
+    confirm.ask(
+      "この試合記録を削除します。よろしいですか?",
+      () => onChange({ ...form, matches: matches.filter(m => m.id !== id) }),
+      { title: "試合記録を削除", yesLabel: "削除する", yesVariant: "danger", icon: "trash-2" }
+    );
+  };
   const applySetup = (s) => {
     if (!s) return;
     onChange({
@@ -230,13 +265,100 @@ function PracticeEditForm({ form, errors = {}, onChange, racketNames = [], strin
         <Textarea label="良かった点" value={form.goodNote || ""} onChange={(v) => onChange({ ...form, goodNote: v })} placeholder="できるようになったこと..." />
         <Textarea label="改善点" value={form.improveNote || ""} onChange={(v) => onChange({ ...form, improveNote: v })} placeholder="次回意識したいこと..." />
         <Textarea label="メモ" value={form.generalNote || ""} onChange={(v) => onChange({ ...form, generalNote: v })} placeholder="その他気づき..." />
+        {/* S18 Issue 2 案 3': 0 件は控えめな + ボタンのみ (普段は無視できる主張)
+            1 件以上は下のフルセクション展開 */}
+        {matches.length === 0 && (
+          <button
+            type="button"
+            onClick={handleAddMatch}
+            style={{
+              width: "100%", minHeight: 36, padding: "8px 10px",
+              borderRadius: 8, border: `1px dashed ${C.border}`,
+              background: "transparent", color: C.textSecondary,
+              fontSize: 12, fontWeight: 500, cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+              marginTop: 10, fontFamily: font,
+              transition: "background 150ms, color 150ms, border-color 150ms",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = C.primaryLight;
+              e.currentTarget.style.color = C.primary;
+              e.currentTarget.style.borderColor = C.primary;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "transparent";
+              e.currentTarget.style.color = C.textSecondary;
+              e.currentTarget.style.borderColor = C.border;
+            }}
+          >
+            <Icon name="plus" size={14} color={C.textSecondary} />
+            試合記録を追加
+          </button>
+        )}
       </div>
 
-      {/* ⑥ 公開設定 */}
+      {/* ⑥ 試合記録 (matches[] が 1 件以上の時のみ展開、案 3' 採用、preview_s18_p13) */}
+      {matches.length > 0 && (
+        <div style={{ background: C.panel, border: `1px solid ${C.divider}`, borderRadius: 12, padding: 12, marginBottom: 10 }}>
+          <_peSectionHead num="6" label={`試合記録 (${wins}勝${losses}敗 ・ ${matches.length}試合)`} />
+          {matches.map((m, i) => (
+            <div key={m.id || i} style={{
+              background: C.bg, borderRadius: 8, padding: "10px 12px", marginBottom: 6,
+              display: "flex", alignItems: "center", gap: 4, minHeight: 44,
+            }}>
+              <span style={{ fontSize: 11, color: C.textSecondary, minWidth: 42, fontWeight: 600, flexShrink: 0 }}>{m.round || "—"}</span>
+              <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 500, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {m.opponent || "(対戦相手未入力)"}
+                {m.opponent2 && <span style={{ color: C.textSecondary, fontWeight: 400 }}> / {m.opponent2}</span>}
+              </span>
+              <span style={{ fontSize: 13, fontWeight: 700, flexShrink: 0, color: m.result === "勝利" ? "#0a5b35" : m.result === "敗北" ? "#a31511" : C.textMuted }}>
+                {m.result === "勝利" ? "○" : m.result === "敗北" ? "×" : m.result === "棄権" ? "棄" : "—"}
+              </span>
+              <span style={{ fontSize: 11, color: C.textSecondary, fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>
+                {Array.isArray(m.setScores) ? m.setScores.join(", ") : ""}
+              </span>
+              <button type="button" onClick={() => handleEditMatch(m)} aria-label="試合を編集"
+                style={{ background: "none", border: "none", color: C.primary, cursor: "pointer", width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8, flexShrink: 0 }}>
+                <Icon name="pencil" size={16} color={C.primary} />
+              </button>
+              <button type="button" onClick={() => handleDeleteMatch(m.id)} aria-label="試合を削除"
+                style={{ background: "none", border: "none", color: C.error, cursor: "pointer", width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8, flexShrink: 0 }}>
+                <Icon name="trash-2" size={16} color={C.error} />
+              </button>
+            </div>
+          ))}
+          <button type="button" onClick={handleAddMatch}
+            style={{
+              width: "100%", minHeight: 44, padding: 10,
+              borderRadius: 8, border: `1px dashed ${C.primary}`, background: C.primaryLight, color: C.primary,
+              fontSize: 13, fontWeight: 600, cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontFamily: font,
+            }}>
+            <Icon name="plus" size={16} color={C.primary} />試合を追加
+          </button>
+        </div>
+      )}
+
+      {/* ⑦ 公開設定 (matches あれば 7、なければ実質 6 だが番号は固定 6 のまま) */}
       <div style={{ background: C.panel, border: `1px solid ${C.divider}`, borderRadius: 12, padding: 12, marginBottom: 10 }}>
-        <_peSectionHead num="6" label="公開設定" />
+        <_peSectionHead num={matches.length > 0 ? "7" : "6"} label="公開設定" />
         <_peVisibility value={form.visibility} onChange={(v) => onChange({ ...form, visibility: v })} />
       </div>
+
+      {/* Match Modal (大会と共通の MatchEditModal を流用) */}
+      <MatchEditModal
+        open={!!matchModalState}
+        match={matchModalState?.match}
+        trnType="practice"
+        tournament={form}
+        racketNames={racketNames}
+        stringNames={stringNames}
+        opponentNames={opponentNames}
+        recentSetups={recentSetups}
+        confirm={confirm}
+        onSave={handleSaveMatch}
+        onClose={() => setMatchModalState(null)}
+      />
     </>
   );
 }

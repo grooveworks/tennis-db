@@ -57,6 +57,10 @@ const blankPractice = () => ({
   improveNote: "",
   generalNote: "",
   visibility: "public",
+  // S18 Issue 2 (案 3' 採用): 練習にも matches[] を持たせる。
+  //   練習試合 / ゲーム練習 など、type 不問でゲーム記録できるように。
+  //   空配列ならフォーム下部に小さい + ボタンのみ、1 件以上で ⑥ 試合記録 セクション展開。
+  matches: [],
 });
 
 // 試打: S14 (Home 3 ボタン) で再利用予定。S12 では使わないが定義しておく

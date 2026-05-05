@@ -65,6 +65,7 @@ const SCHEMA={
     {key:"hrZone3",label:"HR Z3",type:"text"},
     {key:"hrZone4",label:"HR Z4",type:"text"},
     {key:"hrZone5",label:"HR Z5",type:"text"},
+    {key:"matches",label:"試合記録",type:"array",itemType:"match"}, // S18 Issue 2: 練習にも matches[] (案 3')
     {key:"visibility",label:"公開",type:"select"},
     {key:"memoSummaries",label:"メモ要約",type:"object"},
   ],

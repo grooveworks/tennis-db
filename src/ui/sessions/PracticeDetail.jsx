@@ -66,6 +66,10 @@ function PracticeDetail({ session, linkedTrials, onLinkedTrialClick }) {
   const p = session || {};
   const typeBadge = _dvPracticeTypeBadgeProps(p.type);
   const trials = Array.isArray(linkedTrials) ? linkedTrials : [];
+  // S18 Issue 2: 練習にも matches[] (案 3' 採用)。編集画面で追加した試合を詳細でも表示。
+  const matches = Array.isArray(p.matches) ? p.matches : [];
+  const wins = matches.filter(m => m.result === "勝利").length;
+  const losses = matches.filter(m => m.result === "敗北" || m.result === "棄権").length;
 
   const hasWatchSummary = !!(p.heartRateAvg || p.calories || p.totalCalories || p.duration);
   const zones = [
@@ -226,6 +230,32 @@ function PracticeDetail({ session, linkedTrials, onLinkedTrialClick }) {
           {p.goodNote    && <_dvMemoItem label="良かった点"  text={p.goodNote}    summary={p.memoSummaries?.goodNote} />}
           {p.improveNote && <_dvMemoItem label="改善点"      text={p.improveNote} summary={p.memoSummaries?.improveNote} />}
           {p.generalNote && <_dvMemoItem label="メモ"        text={p.generalNote} summary={p.memoSummaries?.generalNote} />}
+        </_dvSection>
+      )}
+
+      {/* S18 Issue 2: 試合記録 (matches[] が 1 件以上の時のみ表示、read-only) */}
+      {matches.length > 0 && (
+        <_dvSection title={`試合記録 (${wins}勝${losses}敗 ・ ${matches.length}試合)`}>
+          {matches.map((m, i) => (
+            <div
+              key={m.id || i}
+              style={{
+                background: C.bg, borderRadius: 8, padding: "10px 12px", marginBottom: 6,
+                display: "flex", alignItems: "center", gap: 10, minHeight: 44,
+              }}
+            >
+              <span style={{ fontSize: 11, color: C.textSecondary, minWidth: 36, fontWeight: 600 }}>{m.round || "—"}</span>
+              <span style={{ flex: 1, fontSize: 13, fontWeight: 500, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {m.opponent || "(対戦相手 未入力)"}{m.opponent2 ? " / " + m.opponent2 : ""}
+              </span>
+              <span style={{ fontSize: 12, color: C.textSecondary, fontVariantNumeric: "tabular-nums" }}>
+                {Array.isArray(m.setScores) ? m.setScores.filter(Boolean).join(" ") : ""}
+              </span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: m.result === "勝利" ? C.practiceAccent : m.result === "敗北" ? C.error : C.textMuted }}>
+                {m.result === "勝利" ? "勝" : m.result === "敗北" ? "負" : m.result === "棄権" ? "棄" : "—"}
+              </span>
+            </div>
+          ))}
         </_dvSection>
       )}
     </>

@@ -184,7 +184,9 @@ function SessionEditView({ type, session, practices, tournaments, trials, racket
           <PracticeEditForm
             form={form} errors={errors} onChange={handleChange}
             racketNames={racketNames} stringNames={stringNames} venueNames={venueNames}
+            opponentNames={opponentNames}
             tournaments={tournaments} practices={practices} trials={trials}
+            confirm={confirm}
           />
         )}
         {type === "trial" && (
