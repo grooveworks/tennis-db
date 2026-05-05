@@ -16,7 +16,7 @@ Claude の自制 (memory ルール) では再発するため、外部強制 (フ
 - `.claude/hooks/session-start.ps1` — 重要 context を model に強制注入
 - `.claude/hooks/file-guard.ps1` — `01_constants.js` (APP_VERSION) / `build.ps1` / `settings.json` / `hooks/*.ps1` 編集を `ask` 強制
 - `.claude/hooks/git-guard.ps1` — `git commit` / `push` / `reset --hard` / `push --force` を `ask` 強制
-- `.claude/hooks/user-keyword-guard.ps1` — 「違う / やめて / 戻して / 何度も / ちゃんと」等のユーザー警告キーワード検知 → 自己点検 context 注入
+- `.claude/hooks/user-keyword-guard.ps1` — ユーザー警告キーワード検知 → 自己点検 context 注入 (検知対象 22 件: 違う / やめて / やめろ / 戻して / 戻せ / 無視 / 何度も / ちゃんと / 勝手に / 都合 / 馬鹿 / バカ / 聞いてない / 聞いてねえ / 言ったろ / 言っただろ / 前にも / 何回 / うんざり / マジで / やばい / イライラ)
 
 **フック前提は CLAUDE.md R0 に記載。フックが無い環境では作業を始めるな** (memory: `feedback_hooks_required_2026_05_06.md`)。
 
@@ -28,8 +28,11 @@ Claude の自制 (memory ルール) では再発するため、外部強制 (フ
 
 ## 1. 現バージョン
 
-- **HEAD commit**: フック safety system 導入 (`0c851b5`、2026-05-06) + S16 整合 commit (これから push)
-- **APP_VERSION**: `v4.5.0-S16`
+- **APP_VERSION**: `v4.5.0-S16` (`src/core/01_constants.js`)
+- **直近の主要 commit**:
+  - `0c851b5` chore: claude フック safety system 追加 (Stage 番号事故対策、2026-05-06)
+  - `01cce5c` fix: Stage 番号事故修正 (S18 → S16 整合、2026-05-06)
+  - 最新 HEAD は `git log` で確認すること (このファイルの hash 表記は更新が遅れる可能性あり)
 - **GitHub Pages**: デプロイ済 (反映には数分かかる場合あり)
 
 ---
@@ -74,6 +77,7 @@ Claude の自制 (memory ルール) では再発するため、外部強制 (フ
 | 4.5.0 | `3cfe102` | Issue 2: 練習試合記録 (practice.matches[]、案 3' = +ボタン常時) | 機能 |
 | (docs) | `8a06e11` | ROADMAP/HANDOFF 更新 (-S18 表記時) | docs |
 | (chore) | `0c851b5` | フック safety system 追加 (Stage 番号事故対策) | infra |
+| (fix) | `01cce5c` | Stage 番号事故修正 (S18 → S16 整合: APP_VERSION + 全 src/ コメント + HANDOFF/ROADMAP + v4/index.html ビルド再生成) | infra |
 
 ---
 
@@ -144,7 +148,7 @@ practice.matches = [];  // 大会 matches[] と同形式
 - setScores の `7-6(5)` 表記の文字列パース (現状は表示装飾のみ)
 
 ### 6.4 元 ROADMAP の未着手 Stage
-- S19 インポート (CSV / Apple Watch、Google Calendar は本セッションで先行実装済)
+- S19 インポート (CSV / Apple Watch、Google Calendar は S16 拡張期間で先行実装済)
 - S20 セッション自動連関 (試打→大会、練習→大会 の自動リンク)
 - S21 リリース準備 (v3 凍結、日付形式マイグレーション)
 
