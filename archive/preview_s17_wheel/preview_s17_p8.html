@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>S17 テンション 回転式ホイールピッカー (自作)</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 14px;
+    background: #F2F2F7;
+    font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', sans-serif;
+    color: #202124;
+    max-width: 480px; margin: 0 auto;
+  }
+  h2 { font-size: 14px; margin: 16px 0 8px; }
+  h3 {
+    font-size: 12px; margin: 14px 0 6px;
+    padding: 4px 10px; border-radius: 6px;
+    background: #fef7e0; color: #7e5d00;
+  }
+  .field { margin-bottom: 8px; }
+  .field label {
+    display: block; font-size: 11px; color: #5f6368;
+    font-weight: 500; margin-bottom: 4px;
+  }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; }
+
+  /* テンションボタン (閉じている時) */
+  .tension-btn {
+    width: 100%; min-height: 40px; padding: 8px 10px;
+    border: 1px solid #dadce0; border-radius: 6px;
+    background: #fff; font-size: 14px; color: #202124;
+    font-family: inherit; cursor: pointer;
+    text-align: center; font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .tension-btn.empty { color: #80868b; font-weight: 400; }
+
+  /* モーダル背景 */
+  .modal-bg {
+    position: absolute; inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  /* ホイール本体 */
+  .wheel-card {
+    background: rgba(247, 245, 232, 0.97);
+    backdrop-filter: blur(10px);
+    border-radius: 16px;
+    padding: 16px 20px;
+    width: 280px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+  }
+  .wheel-title {
+    text-align: center; font-size: 12px; color: #5f6368;
+    font-weight: 600; margin-bottom: 8px;
+  }
+  .wheel-area {
+    position: relative;
+    height: 200px;
+    overflow: hidden;
+  }
+  /* 中央の選択行 (背景ハイライト) */
+  .wheel-area::before {
+    content: "";
+    position: absolute;
+    left: -20px; right: -20px;
+    top: 50%; transform: translateY(-50%);
+    height: 36px;
+    background: rgba(120, 120, 120, 0.18);
+    border-radius: 8px;
+    pointer-events: none;
+  }
+  .wheel-list {
+    display: flex; flex-direction: column;
+    align-items: center;
+    /* 中央行を中心に上下にパディング (中央位置にスナップさせるため) */
+    padding: 82px 0;
+  }
+  .wheel-item {
+    flex: 0 0 36px;
+    line-height: 36px;
+    font-size: 28px;
+    color: rgba(60,60,67,0.4);
+    font-variant-numeric: tabular-nums;
+    font-weight: 400;
+    transition: opacity 100ms;
+  }
+  .wheel-item.center {
+    color: #202124;
+    font-weight: 600;
+  }
+  .wheel-item.near {
+    color: rgba(60,60,67,0.7);
+  }
+  /* footer (リセット + ✓) */
+  .wheel-foot {
+    display: flex; justify-content: space-between;
+    align-items: center; margin-top: 12px;
+  }
+  .wheel-reset {
+    background: rgba(120,120,128,0.16);
+    border: none; border-radius: 14px;
+    padding: 8px 16px; font-size: 13px;
+    color: #007AFF; font-weight: 500; cursor: pointer;
+    font-family: inherit;
+  }
+  .wheel-ok {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: #007AFF; border: none; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 18px;
+    box-shadow: 0 2px 6px rgba(0,122,255,0.4);
+  }
+
+  .legend {
+    background: #fff; border: 1px solid #e8eaed; border-radius: 8px;
+    padding: 8px 12px; font-size: 11px; line-height: 1.5;
+    margin-bottom: 10px; color: #5f6368;
+  }
+  .legend b { color: #202124; }
+  .question {
+    background: #fce8e6; color: #a31511; border: 1px solid #a31511;
+    border-radius: 8px;
+    padding: 10px 12px; font-size: 12px; line-height: 1.7;
+    margin: 14px 0 4px;
+  }
+</style>
+</head>
+<body>
+
+<h2>S17: テンション 回転式ホイール (自作)</h2>
+
+<div class="legend">
+  <b>仕様:</b><br>
+  ・テンション欄をタップ → モーダルで回転式ホイール表示<br>
+  ・縦スクロール (フリック)、中央行が現在値、近接行は薄く<br>
+  ・35〜55 (1 ポンド刻み)<br>
+  ・✓ で確定、リセットで空にする、背景タップでキャンセル<br>
+  ・iOS / Android / デスクトップ全部で同じ見た目
+</div>
+
+<h3>状態 1: 閉じている (テンション欄)</h3>
+
+<div style="background:#fff; border:1px solid #e8eaed; border-radius:12px; padding:12px;">
+  <div class="grid2">
+    <div class="field">
+      <label>テンション縦</label>
+      <button class="tension-btn">46</button>
+    </div>
+    <div class="field">
+      <label>テンション横</label>
+      <button class="tension-btn">43</button>
+    </div>
+  </div>
+</div>
+
+<h3>状態 2: タップで回転式ホイールが開く</h3>
+
+<div style="position: relative; height: 480px; border: 2px dashed #80868b; border-radius: 12px; overflow: hidden; background: #F2F2F7;">
+  <div style="padding: 14px;">
+    <div style="background:#fff; border:1px solid #e8eaed; border-radius:12px; padding:12px;">
+      <div class="grid2">
+        <div class="field">
+          <label>テンション縦</label>
+          <button class="tension-btn">46</button>
+        </div>
+        <div class="field">
+          <label>テンション横</label>
+          <button class="tension-btn">43</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- モーダル -->
+  <div class="modal-bg">
+    <div class="wheel-card">
+      <div class="wheel-title">テンション縦</div>
+      <div class="wheel-area">
+        <div class="wheel-list">
+          <div class="wheel-item">42</div>
+          <div class="wheel-item">43</div>
+          <div class="wheel-item near">44</div>
+          <div class="wheel-item near">45</div>
+          <div class="wheel-item center">46</div>
+          <div class="wheel-item near">47</div>
+          <div class="wheel-item near">48</div>
+          <div class="wheel-item">49</div>
+          <div class="wheel-item">50</div>
+        </div>
+      </div>
+      <div class="wheel-foot">
+        <button class="wheel-reset">リセット</button>
+        <button class="wheel-ok">✓</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="legend">
+  <b>動作:</b><br>
+  ・指でホイールを上下フリック → スクロール<br>
+  ・スクロール停止後、最も近い行が中央にスナップ<br>
+  ・✓ をタップ → 中央の値で確定、ボタンに反映<br>
+  ・「リセット」 → 空 (—) に戻す<br>
+  ・背景タップ / Esc → キャンセル (元の値のまま)
+</div>
+
+<div class="legend">
+  <b>注意:</b> 自作になるため、ネイティブ select より <b>実装が増えます</b> (CSS scroll-snap で実現可能、JS は 50 行程度)。
+  iOS の時刻ピッカーと完全に同じには ならないかもしれませんが、近い見た目にします。
+</div>
+
+<div class="question">
+  この方向 (自作ホイール) で進めて良いか / 修正点 / 別案 を返してください。
+</div>
+
+</body>
+</html>

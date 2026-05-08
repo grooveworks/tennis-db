@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>S17「個別に入力」を選んだ後の挙動</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 14px;
+    background: #F2F2F7;
+    font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', sans-serif;
+    color: #202124;
+    max-width: 480px; margin: 0 auto;
+  }
+  h2 { font-size: 14px; margin: 16px 0 8px; }
+  h3 {
+    font-size: 12px; margin: 14px 0 6px;
+    padding: 4px 10px; border-radius: 6px;
+    background: #fef7e0; color: #7e5d00;
+  }
+  .panel {
+    background: #fff; border: 1px solid #e8eaed;
+    border-radius: 12px; padding: 12px; margin-bottom: 10px;
+  }
+  .head {
+    font-size: 11px; color: #80868b; font-weight: 600;
+    letter-spacing: 0.5px; text-transform: uppercase;
+    margin-bottom: 10px; display: flex; align-items: center; gap: 5px;
+  }
+  .head .num {
+    width: 18px; height: 18px; border-radius: 50%;
+    background: #007AFF; color: #fff;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 700;
+  }
+  .field { margin-bottom: 8px; }
+  .field label {
+    display: block; font-size: 11px; color: #5f6368;
+    font-weight: 500; margin-bottom: 4px;
+  }
+  .field select, .field input {
+    width: 100%; min-height: 40px; padding: 8px 10px;
+    border: 1px solid #dadce0; border-radius: 6px;
+    background: #fff; font-size: 14px; color: #202124;
+    font-family: inherit;
+  }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; }
+
+  .picker-btn-row { margin-bottom: 10px; }
+  .picker-btn-row label {
+    display: block; font-size: 11px; color: #5f6368;
+    font-weight: 500; margin-bottom: 4px;
+  }
+  .picker-btn {
+    width: 100%; min-height: 40px; padding: 8px 12px;
+    border: 1px solid #007AFF; border-radius: 6px;
+    background: #E1F0FF; color: #007AFF;
+    font-size: 13px; font-weight: 600; cursor: pointer;
+    font-family: inherit;
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    text-align: left;
+  }
+  .picker-btn .chev { color: #007AFF; font-size: 16px; flex-shrink: 0; }
+  .picker-btn .label-text {
+    flex: 1; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis;
+    white-space: normal; line-height: 1.35;
+  }
+  .picker-btn.individual {
+    background: #fff; color: #5f6368; border-color: #dadce0;
+    font-style: italic;
+  }
+  .picker-btn.individual .chev { color: #5f6368; }
+
+  .legend {
+    background: #fff; border: 1px solid #e8eaed; border-radius: 8px;
+    padding: 8px 12px; font-size: 11px; line-height: 1.5;
+    margin-bottom: 10px; color: #5f6368;
+  }
+  .legend b { color: #202124; }
+  .arrow {
+    text-align: center; color: #80868b; font-size: 18px;
+    margin: 6px 0;
+  }
+  .question {
+    background: #fce8e6; color: #a31511; border: 1px solid #a31511;
+    border-radius: 8px;
+    padding: 10px 12px; font-size: 12px; line-height: 1.7;
+    margin: 14px 0 4px;
+  }
+</style>
+</head>
+<body>
+
+<h2>S17:「個別に入力」を選んだときの動作</h2>
+
+<div class="legend">
+  <b>動作 (3 つのケース):</b><br>
+  ① 5 フィールドの値は <b>変更しない</b> (今入っている値を保持)<br>
+  ② 履歴セットボタンの表示が <b>「個別に入力」</b> に切替 (灰色・斜体)<br>
+  ③ シートが閉じる<br>
+  → 「これから個別に直す宣言」をしただけで、データは消えない
+</div>
+
+<h3>ケース A: 履歴を選んでいた状態 → 「個別に入力」を選択</h3>
+
+<div class="panel">
+  <div class="head"><span class="num">3</span>機材 <span style="margin-left:6px; font-size:9px; color:#0a5b35; font-weight:700;">タップ前</span></div>
+  <div class="picker-btn-row">
+    <label>履歴セット</label>
+    <button class="picker-btn" type="button">
+      <span class="label-text">YONEX EZONE 100 TOUR · Blast 1.25 / Tour P · 46/43</span>
+      <span class="chev">▾</span>
+    </button>
+  </div>
+  <div class="field"><label>ラケット</label><select><option selected>YONEX EZONE 100 TOUR</option></select></div>
+  <div class="grid2">
+    <div class="field"><label>縦糸</label><select><option selected>Babolat Blast 1.25</option></select></div>
+    <div class="field"><label>横糸</label><select><option selected>Yonex Poly Tour P</option></select></div>
+  </div>
+  <div class="grid2">
+    <div class="field"><label>テンション縦</label><select><option selected>46</option></select></div>
+    <div class="field"><label>テンション横</label><select><option selected>43</option></select></div>
+  </div>
+</div>
+
+<div class="arrow">↓ シートで「個別に入力」をタップ</div>
+
+<div class="panel">
+  <div class="head"><span class="num">3</span>機材 <span style="margin-left:6px; font-size:9px; color:#a31511; font-weight:700;">タップ後</span></div>
+  <div class="picker-btn-row">
+    <label>履歴セット</label>
+    <button class="picker-btn individual" type="button">
+      <span class="label-text">— 個別に入力 —</span>
+      <span class="chev">▾</span>
+    </button>
+  </div>
+  <div class="field"><label>ラケット</label><select><option selected>YONEX EZONE 100 TOUR</option></select></div>
+  <div class="grid2">
+    <div class="field"><label>縦糸</label><select><option selected>Babolat Blast 1.25</option></select></div>
+    <div class="field"><label>横糸</label><select><option selected>Yonex Poly Tour P</option></select></div>
+  </div>
+  <div class="grid2">
+    <div class="field"><label>テンション縦</label><select><option selected>46</option></select></div>
+    <div class="field"><label>テンション横</label><select><option selected>43</option></select></div>
+  </div>
+</div>
+
+<div class="legend">
+  <b>↑ ポイント:</b> 5 フィールドの値は <b>そのまま</b>。ボタンだけ「個別に入力」に切替。
+  あとはユーザーが必要なフィールドだけ手で変更すれば良い (例: 縦糸だけ違うストリングに)。
+</div>
+
+<h3>ケース B: 履歴を選んだ後、ユーザーがフィールドを 1 つ手で変えた</h3>
+
+<div class="legend" style="background:#e6f4ea; border-color:#0a5b35; color:#0a5b35;">
+  履歴セットの組合せに <b>合致しなくなった</b> ので、ボタンの表示は <b>自動で「個別に入力」</b> に切り替わります。
+  <br>(ユーザーの操作と独立した自動判定、コードで実装済)
+</div>
+
+<div class="panel">
+  <div class="head"><span class="num">3</span>機材</div>
+  <div class="picker-btn-row">
+    <label>履歴セット</label>
+    <button class="picker-btn individual" type="button">
+      <span class="label-text">— 個別に入力 —</span>
+      <span class="chev">▾</span>
+    </button>
+  </div>
+  <div class="field"><label>ラケット</label><select><option selected>YONEX EZONE 100 TOUR</option></select></div>
+  <div class="grid2">
+    <div class="field"><label>縦糸</label><select><option selected style="background:#fef7e0;">Phantom Spin 17 ← ユーザーが変更</option></select></div>
+    <div class="field"><label>横糸</label><select><option selected>Yonex Poly Tour P</option></select></div>
+  </div>
+  <div class="grid2">
+    <div class="field"><label>テンション縦</label><select><option selected>46</option></select></div>
+    <div class="field"><label>テンション横</label><select><option selected>43</option></select></div>
+  </div>
+</div>
+
+<div class="question">
+  この挙動で進めて良いか / ダメか を返してください。
+</div>
+
+</body>
+</html>

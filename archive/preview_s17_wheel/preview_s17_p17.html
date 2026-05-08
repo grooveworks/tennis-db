@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>S17 ホイール v17 (空気遠近 + 中央拡大)</title>
+<style>
+  :root {
+    --font: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', sans-serif;
+    --bg: #F2F2F7;
+    --panel: #ffffff;
+    --panel-soft: #fafafa;
+    --border: #dadce0;
+    --divider: #e8eaed;
+    --text: #202124;
+    --text-secondary: #5f6368;
+    --text-muted: #80868b;
+    --primary: #007AFF;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 14px;
+    background: var(--bg);
+    font-family: var(--font);
+    color: var(--text);
+    max-width: 760px; margin: 0 auto;
+    -webkit-font-smoothing: antialiased;
+  }
+  h2 { font-size: 16px; margin: 16px 0 8px; }
+  h3 {
+    font-size: 12px; margin: 14px 0 6px;
+    padding: 4px 10px; border-radius: 6px;
+    background: #fef7e0; color: #7e5d00;
+  }
+  .legend {
+    background: #fff; border: 1px solid var(--divider); border-radius: 8px;
+    padding: 10px 12px; font-size: 11px; line-height: 1.6;
+    margin-bottom: 12px; color: var(--text-secondary);
+  }
+  .legend b { color: var(--text); }
+  .legend code {
+    background: #f1f3f4; padding: 1px 5px; border-radius: 3px;
+    font-size: 11px;
+  }
+
+  .picker-frame {
+    width: 280px; max-width: 100%;
+    border-radius: 14px;
+    padding: 16px 14px 12px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  }
+  .picker-frame.wide { width: 320px; }
+  .picker-frame.bg-white { background: var(--panel); }
+  .picker-frame.bg-soft  { background: var(--panel-soft); }
+
+  .picker-title {
+    text-align: center;
+    font-family: var(--font);
+    color: var(--text);
+    font-weight: 700;
+    font-size: 15px;
+    margin-bottom: 10px;
+  }
+
+  .wheel-cols {
+    position: relative;
+    display: grid;
+    gap: 0;
+  }
+  .wheel-cols.cols-1 { grid-template-columns: 1fr; }
+  .wheel-cols.cols-2 { grid-template-columns: 1fr 1fr; }
+
+  /* v16 ガラス帯 (旧) */
+  .v16 .wheel-cols::before {
+    content: ""; position: absolute;
+    left: 8px; right: 8px;
+    top: calc(50% - 18px);
+    height: 36px;
+    background: rgba(120,120,128,0.15);
+    border-radius: 8px;
+    pointer-events: none;
+    z-index: 2;
+  }
+  /* v17 ガラス帯 (少し濃い、center が 36px → height も追従なし、center 大型化への対応は item 側で) */
+  .v17 .wheel-cols::before {
+    content: ""; position: absolute;
+    left: 8px; right: 8px;
+    top: calc(50% - 22px);
+    height: 44px;          /* center 32px + 上下パディング 6px */
+    background: rgba(120,120,128,0.22);
+    border-radius: 10px;
+    pointer-events: none;
+    z-index: 2;
+  }
+
+  .wheel-area {
+    position: relative;
+    height: 280px;
+    overflow: hidden;
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 12%, #000 88%, transparent 100%);
+            mask-image: linear-gradient(to bottom, transparent 0%, #000 12%, #000 88%, transparent 100%);
+  }
+  .wheel-list {
+    display: flex; flex-direction: column;
+    align-items: center;
+    transform-style: preserve-3d;
+    perspective: 1000px;
+  }
+  /* v16 では padding 14px、v17 は中央が 44px になるので調整: (280 - 44)/2 = 118 を center 上端、center 上に 3 個 (各 36px) なので padding-top = 118 - 108 = 10px */
+  .v16 .wheel-list { padding: 14px 0; }
+  .v17 .wheel-list { padding: 10px 0; }
+
+  .wheel-item {
+    flex: 0 0 36px;
+    line-height: 36px;
+    font-size: 26px;
+    font-family: var(--font);
+    font-variant-numeric: tabular-nums;
+    color: var(--text);
+    user-select: none;
+    transform-origin: center;
+    backface-visibility: hidden;
+  }
+  .wheel-item.center { opacity: 1; font-weight: 600; }
+  .wheel-item.p1 { opacity: 0.75; transform: rotateX(+20deg) scale(0.92); }
+  .wheel-item.p2 { opacity: 0.45; transform: rotateX(+40deg) scale(0.82); }
+  .wheel-item.p3 { opacity: 0.20; transform: rotateX(+60deg) scale(0.7); }
+  .wheel-item.n1 { opacity: 0.75; transform: rotateX(-20deg) scale(0.92); }
+  .wheel-item.n2 { opacity: 0.45; transform: rotateX(-40deg) scale(0.82); }
+  .wheel-item.n3 { opacity: 0.20; transform: rotateX(-60deg) scale(0.7); }
+
+  /* v17: center 拡大 + 空気遠近 (filter: blur 段階) */
+  .v17 .wheel-item {
+    flex: 0 0 36px;  /* セル高さは変えず */
+  }
+  .v17 .wheel-item.center {
+    flex: 0 0 44px;
+    line-height: 44px;
+    font-size: 32px;
+    font-weight: 700;
+  }
+  .v17 .wheel-item.p1 { filter: blur(0.3px); }
+  .v17 .wheel-item.p2 { filter: blur(0.7px); }
+  .v17 .wheel-item.p3 { filter: blur(1.2px); }
+  .v17 .wheel-item.n1 { filter: blur(0.3px); }
+  .v17 .wheel-item.n2 { filter: blur(0.7px); }
+  .v17 .wheel-item.n3 { filter: blur(1.2px); }
+
+  .annot {
+    background: #fff8e1;
+    border: 1px solid #fbbc04;
+    border-radius: 6px;
+    padding: 6px 8px;
+    font-size: 10px;
+    color: #7e5d00;
+    margin-top: 6px;
+    width: 100%;
+    line-height: 1.45;
+    max-width: 320px;
+  }
+  .annot.good {
+    background: #e6f4ea; border-color: #34a853; color: #0a5b35;
+  }
+  .annot b { font-weight: 700; }
+
+  .compare {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
+  }
+  @media (max-width: 600px) {
+    .compare { grid-template-columns: 1fr; }
+  }
+  .compare-col {
+    background: #fff; border: 1px solid var(--divider);
+    border-radius: 12px; padding: 14px 10px;
+    display: flex; flex-direction: column; align-items: center;
+    gap: 10px;
+  }
+  .ver-tag {
+    font-size: 10px; font-weight: 700;
+    padding: 3px 10px; border-radius: 12px;
+    letter-spacing: 0.04em;
+  }
+  .ver-tag.flat { background: #f1f3f4; color: #5f6368; }
+  .ver-tag.deep { background: #e6f4ea; color: #0a5b35; }
+
+  .question {
+    background: #fce8e6; color: #a31511; border: 1px solid #a31511;
+    border-radius: 8px;
+    padding: 10px 12px; font-size: 12px; line-height: 1.7;
+    margin: 14px 0 4px;
+  }
+</style>
+</head>
+<body>
+
+<h2>v16 (平坦) vs v17 (空気遠近 + 中央拡大)</h2>
+
+<div class="legend">
+  <b>v17 で追加する深度要素:</b><br>
+  ① center を <code>26px → 32px</code> に拡大 + フォント太さ 600 → 700 (中心の存在感)<br>
+  ② 遠い項目に <code>filter: blur(0.3 → 0.7 → 1.2px)</code> 段階適用 (空気遠近)<br>
+  ③ picker-frame 背景を <code>#fff → #fafafa</code> (item との微差で浮かせる)<br>
+  ④ 中央ガラス帯を <code>0.15 → 0.22</code> (少し濃くして板感)<br>
+  ⑤ ガラス帯の高さを 36 → 44 に拡張 (center 拡大に追従)
+</div>
+
+<div class="compare">
+
+  <!-- v16 -->
+  <div class="compare-col v16">
+    <span class="ver-tag flat">v16 (平坦)</span>
+    <div class="picker-frame wide bg-white">
+      <div class="picker-title">開始時刻</div>
+      <div class="wheel-cols cols-2">
+        <div class="wheel-area">
+          <div class="wheel-list">
+            <div class="wheel-item p3">7</div>
+            <div class="wheel-item p2">8</div>
+            <div class="wheel-item p1">9</div>
+            <div class="wheel-item center">10</div>
+            <div class="wheel-item n1">11</div>
+            <div class="wheel-item n2">12</div>
+            <div class="wheel-item n3">13</div>
+          </div>
+        </div>
+        <div class="wheel-area">
+          <div class="wheel-list">
+            <div class="wheel-item p3">35</div>
+            <div class="wheel-item p2">40</div>
+            <div class="wheel-item p1">45</div>
+            <div class="wheel-item center">00</div>
+            <div class="wheel-item n1">05</div>
+            <div class="wheel-item n2">10</div>
+            <div class="wheel-item n3">15</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="annot">
+      center も周辺も同サイズ、blur 無し → 立体感が薄い
+    </div>
+  </div>
+
+  <!-- v17 -->
+  <div class="compare-col v17">
+    <span class="ver-tag deep">v17 (深度追加)</span>
+    <div class="picker-frame wide bg-soft">
+      <div class="picker-title">開始時刻</div>
+      <div class="wheel-cols cols-2">
+        <div class="wheel-area">
+          <div class="wheel-list">
+            <div class="wheel-item p3">7</div>
+            <div class="wheel-item p2">8</div>
+            <div class="wheel-item p1">9</div>
+            <div class="wheel-item center">10</div>
+            <div class="wheel-item n1">11</div>
+            <div class="wheel-item n2">12</div>
+            <div class="wheel-item n3">13</div>
+          </div>
+        </div>
+        <div class="wheel-area">
+          <div class="wheel-list">
+            <div class="wheel-item p3">35</div>
+            <div class="wheel-item p2">40</div>
+            <div class="wheel-item p1">45</div>
+            <div class="wheel-item center">00</div>
+            <div class="wheel-item n1">05</div>
+            <div class="wheel-item n2">10</div>
+            <div class="wheel-item n3">15</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="annot good">
+      center 大型 + 周辺ボケ + 背景微差 → 中心が「前にある」感じ
+    </div>
+  </div>
+
+</div>
+
+<h3>v17 をフル UI で展開 (キャンセル / 完了 含む)</h3>
+
+<div style="display: flex; justify-content: center;">
+  <div class="picker-frame wide bg-soft v17">
+    <div class="picker-title">開始時刻</div>
+    <div class="wheel-cols cols-2">
+      <div class="wheel-area">
+        <div class="wheel-list">
+          <div class="wheel-item p3">7</div>
+          <div class="wheel-item p2">8</div>
+          <div class="wheel-item p1">9</div>
+          <div class="wheel-item center">10</div>
+          <div class="wheel-item n1">11</div>
+          <div class="wheel-item n2">12</div>
+          <div class="wheel-item n3">13</div>
+        </div>
+      </div>
+      <div class="wheel-area">
+        <div class="wheel-list">
+          <div class="wheel-item p3">35</div>
+          <div class="wheel-item p2">40</div>
+          <div class="wheel-item p1">45</div>
+          <div class="wheel-item center">00</div>
+          <div class="wheel-item n1">05</div>
+          <div class="wheel-item n2">10</div>
+          <div class="wheel-item n3">15</div>
+        </div>
+      </div>
+    </div>
+    <div style="display: flex; justify-content: space-between; margin-top: 14px;">
+      <button style="background:transparent; border:none; color:var(--text-secondary); font-family:var(--font); font-size:15px; padding: 6px 4px; cursor:pointer;">キャンセル</button>
+      <button style="background:var(--primary); border:none; color:#fff; font-family:var(--font); font-size:15px; font-weight:600; border-radius:10px; padding:8px 20px; cursor:pointer;">完了</button>
+    </div>
+  </div>
+</div>
+
+<div class="question">
+  v17 で進めて良いか / blur が強すぎ・弱すぎ・center サイズ調整 を返してください。
+</div>
+
+</body>
+</html>

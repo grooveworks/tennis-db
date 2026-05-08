@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>S17 ホイール v11 vs v12 (rotateX 符号修正)</title>
+<style>
+  :root {
+    --font: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', sans-serif;
+    --bg: #F2F2F7;
+    --panel: #ffffff;
+    --border: #dadce0;
+    --divider: #e8eaed;
+    --text: #202124;
+    --text-secondary: #5f6368;
+    --text-muted: #80868b;
+    --primary: #007AFF;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 14px;
+    background: var(--bg);
+    font-family: var(--font);
+    color: var(--text);
+    max-width: 760px; margin: 0 auto;
+    -webkit-font-smoothing: antialiased;
+  }
+  h2 { font-size: 16px; margin: 16px 0 8px; }
+  h3 {
+    font-size: 12px; margin: 14px 0 6px;
+    padding: 4px 10px; border-radius: 6px;
+    background: #fef7e0; color: #7e5d00;
+  }
+  .legend {
+    background: var(--panel); border: 1px solid var(--divider); border-radius: 8px;
+    padding: 10px 12px; font-size: 11px; line-height: 1.6;
+    margin-bottom: 12px; color: var(--text-secondary);
+    font-family: var(--font);
+  }
+  .legend b { color: var(--text); }
+  .legend code {
+    background: #f1f3f4; padding: 1px 5px; border-radius: 3px;
+    font-size: 11px;
+  }
+  .compare {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
+  }
+  @media (max-width: 600px) {
+    .compare { grid-template-columns: 1fr; }
+  }
+  .compare-col {
+    background: var(--panel); border: 1px solid var(--divider);
+    border-radius: 12px; padding: 14px 12px;
+    display: flex; flex-direction: column; align-items: center;
+    gap: 10px;
+  }
+  .ver-tag {
+    font-size: 10px; font-weight: 700;
+    padding: 3px 10px; border-radius: 12px;
+    letter-spacing: 0.04em;
+  }
+  .ver-tag.bad  { background: #fce8e6; color: #a31511; }
+  .ver-tag.good { background: #e6f4ea; color: #0a5b35; }
+  .ver-note {
+    font-size: 11px; color: var(--text-secondary);
+    text-align: center; line-height: 1.4;
+    min-height: 36px;
+  }
+
+  .picker-frame {
+    width: 280px; max-width: 100%;
+    border-radius: 14px;
+    padding: 16px 14px 12px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+    background: var(--panel);
+  }
+  .picker-title {
+    text-align: center;
+    font-family: var(--font);
+    color: var(--text);
+    font-weight: 700;
+    font-size: 15px;
+    margin-bottom: 10px;
+  }
+
+  .wheel-area {
+    position: relative;
+    height: 200px;
+    overflow: hidden;
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 22%, #000 78%, transparent 100%);
+            mask-image: linear-gradient(to bottom, transparent 0%, #000 22%, #000 78%, transparent 100%);
+  }
+  .wheel-area::before, .wheel-area::after {
+    content: ""; position: absolute;
+    left: 0; right: 0; height: 1px;
+    background: rgba(120,120,128,0.3);
+    pointer-events: none;
+    z-index: 2;
+  }
+  .wheel-area::before { top: calc(50% - 18px); }
+  .wheel-area::after  { top: calc(50% + 17px); }
+
+  .wheel-list {
+    display: flex; flex-direction: column;
+    align-items: center;
+    padding: 80px 0;
+    transform-style: preserve-3d;
+    perspective: 1000px;
+  }
+  .wheel-item {
+    flex: 0 0 36px;
+    line-height: 36px;
+    font-size: 26px;
+    font-family: var(--font);
+    font-variant-numeric: tabular-nums;
+    color: var(--text);
+    user-select: none;
+    transform-origin: center;
+    backface-visibility: hidden;
+  }
+  .wheel-item.center { opacity: 1; font-weight: 600; }
+
+  /* ======================================
+     v11 (旧、符号バグあり)
+        p (上) = rotateX(負)  ← BUG
+        n (下) = rotateX(正)  ← BUG
+     ====================================== */
+  .v11 .wheel-item.p1 { opacity: 0.75; transform: rotateX(-20deg) scale(0.92); }
+  .v11 .wheel-item.p2 { opacity: 0.45; transform: rotateX(-40deg) scale(0.82); }
+  .v11 .wheel-item.p3 { opacity: 0.20; transform: rotateX(-60deg) scale(0.7); }
+  .v11 .wheel-item.n1 { opacity: 0.75; transform: rotateX(+20deg) scale(0.92); }
+  .v11 .wheel-item.n2 { opacity: 0.45; transform: rotateX(+40deg) scale(0.82); }
+  .v11 .wheel-item.n3 { opacity: 0.20; transform: rotateX(+60deg) scale(0.7); }
+
+  /* ======================================
+     v12 (新、符号修正)
+        p (上) = rotateX(正) → 上端が奥へ (円筒上部を回り込む)
+        n (下) = rotateX(負) → 下端が奥へ (円筒下部を回り込む)
+     ====================================== */
+  .v12 .wheel-item.p1 { opacity: 0.75; transform: rotateX(+20deg) scale(0.92); }
+  .v12 .wheel-item.p2 { opacity: 0.45; transform: rotateX(+40deg) scale(0.82); }
+  .v12 .wheel-item.p3 { opacity: 0.20; transform: rotateX(+60deg) scale(0.7); }
+  .v12 .wheel-item.n1 { opacity: 0.75; transform: rotateX(-20deg) scale(0.92); }
+  .v12 .wheel-item.n2 { opacity: 0.45; transform: rotateX(-40deg) scale(0.82); }
+  .v12 .wheel-item.n3 { opacity: 0.20; transform: rotateX(-60deg) scale(0.7); }
+
+  .annot {
+    background: #fff8e1;
+    border: 1px solid #fbbc04;
+    border-radius: 6px;
+    padding: 6px 8px;
+    font-size: 10px;
+    color: #7e5d00;
+    margin-top: 4px;
+    width: 100%;
+    line-height: 1.45;
+  }
+  .annot.good {
+    background: #e6f4ea; border-color: #34a853; color: #0a5b35;
+  }
+  .annot b { font-weight: 700; }
+
+  .check-list {
+    background: var(--panel); border: 1px solid var(--divider); border-radius: 8px;
+    padding: 10px 14px; font-size: 11px; line-height: 1.7;
+    margin-top: 14px; color: var(--text-secondary);
+  }
+  .check-list b { color: var(--text); }
+  .check-list ul { padding-left: 18px; margin: 4px 0; }
+
+  .question {
+    background: #fce8e6; color: #a31511; border: 1px solid #a31511;
+    border-radius: 8px;
+    padding: 10px 12px; font-size: 12px; line-height: 1.7;
+    margin: 14px 0 4px;
+  }
+</style>
+</head>
+<body>
+
+<h2>v11 (バグあり) vs v12 (符号修正)</h2>
+
+<div class="legend">
+  <b>違いは 1 点のみ:</b><br>
+  ・<code>rotateX</code> の符号を反転 (p=上は正、n=下は負 が正解)<br>
+  ・perspective も 600px → <code>1000px</code> に強化 (3D 立体感アップ)<br>
+  ・他は同じ (mask gradient、上下線、scale、opacity、フォント)
+</div>
+
+<div class="compare">
+
+  <!-- v11 -->
+  <div class="compare-col">
+    <span class="ver-tag bad">v11 (旧バグ)</span>
+    <div class="ver-note">
+      上の項目が <b>下端から</b> 後退 → 不自然<br>
+      下の項目が <b>上端から</b> 後退 → 不自然
+    </div>
+    <div class="picker-frame v11">
+      <div class="picker-title">開始時刻</div>
+      <div class="wheel-area">
+        <div class="wheel-list">
+          <div class="wheel-item p3">7</div>
+          <div class="wheel-item p2">8</div>
+          <div class="wheel-item p1">9</div>
+          <div class="wheel-item center">10</div>
+          <div class="wheel-item n1">11</div>
+          <div class="wheel-item n2">12</div>
+          <div class="wheel-item n3">13</div>
+        </div>
+      </div>
+    </div>
+    <div class="annot">
+      <b>視覚的:</b> 上の数字 (7-9) の <b>下側が文字大きく / 上側が縮む</b> → 円筒というより谷折れに見える
+    </div>
+  </div>
+
+  <!-- v12 -->
+  <div class="compare-col">
+    <span class="ver-tag good">v12 (修正)</span>
+    <div class="ver-note">
+      上の項目が <b>上端から</b> 後退 (円筒上部に貼り付き)<br>
+      下の項目が <b>下端から</b> 後退 (円筒下部に貼り付き)
+    </div>
+    <div class="picker-frame v12">
+      <div class="picker-title">開始時刻</div>
+      <div class="wheel-area">
+        <div class="wheel-list">
+          <div class="wheel-item p3">7</div>
+          <div class="wheel-item p2">8</div>
+          <div class="wheel-item p1">9</div>
+          <div class="wheel-item center">10</div>
+          <div class="wheel-item n1">11</div>
+          <div class="wheel-item n2">12</div>
+          <div class="wheel-item n3">13</div>
+        </div>
+      </div>
+    </div>
+    <div class="annot good">
+      <b>視覚的:</b> 上の数字 (7-9) は <b>奥に倒れて消えていく</b>、下の数字 (11-13) も同じく奥に倒れる → 円筒が回転している錯覚
+    </div>
+  </div>
+
+</div>
+
+<h3>v12 を 2 列 (時 / 分) で展開した姿</h3>
+
+<div style="display: flex; justify-content: center;">
+  <div class="picker-frame v12" style="width: 320px;">
+    <div class="picker-title">開始時刻</div>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0; position: relative;">
+      <div class="wheel-area">
+        <div class="wheel-list">
+          <div class="wheel-item p3">7</div>
+          <div class="wheel-item p2">8</div>
+          <div class="wheel-item p1">9</div>
+          <div class="wheel-item center">10</div>
+          <div class="wheel-item n1">11</div>
+          <div class="wheel-item n2">12</div>
+          <div class="wheel-item n3">13</div>
+        </div>
+      </div>
+      <div class="wheel-area">
+        <div class="wheel-list">
+          <div class="wheel-item p3">35</div>
+          <div class="wheel-item p2">40</div>
+          <div class="wheel-item p1">45</div>
+          <div class="wheel-item center">00</div>
+          <div class="wheel-item n1">05</div>
+          <div class="wheel-item n2">10</div>
+          <div class="wheel-item n3">15</div>
+        </div>
+      </div>
+    </div>
+    <div style="display: flex; justify-content: space-between; margin-top: 14px;">
+      <button style="background:transparent; border:none; color:var(--text-secondary); font-family:var(--font); font-size:15px; padding: 6px 4px; cursor:pointer;">キャンセル</button>
+      <button style="background:var(--primary); border:none; color:#fff; font-family:var(--font); font-size:15px; font-weight:600; border-radius:10px; padding:8px 20px; cursor:pointer;">完了</button>
+    </div>
+  </div>
+</div>
+
+<div class="check-list">
+  <b>提示前に静的検証したチェックリスト (今回:)</b>
+  <ul>
+    <li>✓ <code>rotateX</code> の符号: p (上) = 正、n (下) = 負 になっているか CSS 再読</li>
+    <li>✓ <code>perspective: 1000px</code> + <code>transform-style: preserve-3d</code> が wheel-list にあるか</li>
+    <li>✓ <code>mask-image</code> の gradient が上下端透明 → 中央不透明 の順か</li>
+    <li>✓ 中央帯 (::before / ::after) の位置が center 行を挟んでいるか</li>
+    <li>✓ font-family が <code>var(--font)</code> でアプリ本体と一致しているか</li>
+    <li>✓ tabular-nums を使う場合、それが意図的 (数字位置揃え) であることを認識</li>
+  </ul>
+  これらを <b>プロト提示前に</b> 確認することを今後の手順に追加します。
+</div>
+
+<div class="question">
+  v12 で進めて良いか / まだ問題箇所あれば指摘 を返してください。
+</div>
+
+</body>
+</html>

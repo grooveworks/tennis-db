@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>S17 ホイール v9 / v10 / v11 比較</title>
+<style>
+  :root {
+    --font: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', sans-serif;
+    --bg: #F2F2F7;
+    --panel: #ffffff;
+    --border: #dadce0;
+    --divider: #e8eaed;
+    --text: #202124;
+    --text-secondary: #5f6368;
+    --text-muted: #80868b;
+    --primary: #007AFF;
+    --primary-light: #E1F0FF;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 14px;
+    background: var(--bg);
+    font-family: var(--font);
+    color: var(--text);
+    max-width: 980px; margin: 0 auto;
+    -webkit-font-smoothing: antialiased;
+  }
+  h2 { font-size: 16px; margin: 16px 0 8px; }
+  h3 {
+    font-size: 12px; margin: 14px 0 6px;
+    padding: 4px 10px; border-radius: 6px;
+    background: #fef7e0; color: #7e5d00;
+  }
+  .legend {
+    background: var(--panel); border: 1px solid var(--divider); border-radius: 8px;
+    padding: 8px 12px; font-size: 11px; line-height: 1.5;
+    margin-bottom: 10px; color: var(--text-secondary);
+    font-family: var(--font);
+  }
+  .legend b { color: var(--text); }
+
+  /* 比較レイアウト: 3 つを横並び (狭ければ縦に) */
+  .compare {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+  }
+  @media (max-width: 720px) {
+    .compare { grid-template-columns: 1fr; }
+  }
+  .compare-col {
+    background: var(--panel); border: 1px solid var(--divider);
+    border-radius: 12px; padding: 14px 12px;
+    display: flex; flex-direction: column; align-items: center;
+    gap: 10px;
+  }
+  .ver-tag {
+    font-size: 10px; font-weight: 700;
+    padding: 3px 10px; border-radius: 12px;
+    letter-spacing: 0.04em;
+  }
+  .ver-tag.v9  { background: #fce8e6; color: #a31511; }
+  .ver-tag.v10 { background: #fef7e0; color: #7e5d00; }
+  .ver-tag.v11 { background: #e6f4ea; color: #0a5b35; }
+  .ver-note {
+    font-size: 11px; color: var(--text-secondary);
+    text-align: center; line-height: 1.4;
+    min-height: 32px;
+  }
+
+  /* ========================
+     共通モーダル風枠
+     ======================== */
+  .picker-frame {
+    width: 280px; max-width: 100%;
+    border-radius: 14px;
+    padding: 16px 14px 12px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  }
+  .picker-frame.f-v9 {
+    background: rgba(247, 245, 232, 0.97);  /* クリーム旧 iOS */
+  }
+  .picker-frame.f-v10, .picker-frame.f-v11 {
+    background: var(--panel);
+  }
+  .picker-title {
+    text-align: center;
+    font-family: var(--font);
+    color: var(--text);
+    font-weight: 700;
+    font-size: 15px;
+    margin-bottom: 10px;
+  }
+
+  /* ========================
+     ホイール本体
+     ======================== */
+  .wheel-area {
+    position: relative;
+    height: 180px;
+    overflow: hidden;
+    font-family: var(--font);
+  }
+  /* 中央帯: v9/v10 = 塗りつぶし */
+  .wheel-area.fill-band::before {
+    content: ""; position: absolute;
+    left: 0; right: 0;
+    top: 50%; transform: translateY(-50%);
+    height: 36px;
+    background: rgba(120,120,128,0.18);
+    border-radius: 8px;
+    pointer-events: none;
+  }
+  /* 中央帯: v11 = 上下 1px のみ (ガラス風) */
+  .wheel-area.line-band::before,
+  .wheel-area.line-band::after {
+    content: ""; position: absolute;
+    left: 0; right: 0; height: 1px;
+    background: rgba(120,120,128,0.3);
+    pointer-events: none;
+  }
+  .wheel-area.line-band::before { top: calc(50% - 18px); }
+  .wheel-area.line-band::after  { top: calc(50% + 17px); }
+
+  /* mask gradient (v11 のみ) */
+  .wheel-area.mask-edges {
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 22%, #000 78%, transparent 100%);
+            mask-image: linear-gradient(to bottom, transparent 0%, #000 22%, #000 78%, transparent 100%);
+  }
+
+  .wheel-list {
+    display: flex; flex-direction: column;
+    align-items: center;
+    padding: 72px 0;
+    transform-style: preserve-3d;
+    perspective: 600px;
+  }
+  .wheel-item {
+    flex: 0 0 36px;
+    line-height: 36px;
+    font-size: 26px;
+    font-family: var(--font);
+    font-variant-numeric: tabular-nums;
+    color: var(--text);
+    user-select: none;
+    transition: transform 100ms;
+  }
+
+  /* v9 / v10 共通: 平面、opacity だけで深さを出していたつもり */
+  .v9-item, .v10-item {
+    opacity: 0.4;
+  }
+  .v9-item.center, .v10-item.center {
+    opacity: 1; font-weight: 600;
+  }
+  .v9-item.near, .v10-item.near {
+    opacity: 0.7;
+  }
+
+  /* v11: 3D 遠近 + scale */
+  .v11-item {
+    opacity: 0.4;
+    transform-origin: center;
+  }
+  .v11-item.center { opacity: 1; font-weight: 600; transform: rotateX(0deg) scale(1); }
+  .v11-item.n1 { opacity: 0.75; transform: rotateX(20deg) scale(0.92); }
+  .v11-item.n2 { opacity: 0.45; transform: rotateX(40deg) scale(0.82); }
+  .v11-item.n3 { opacity: 0.20; transform: rotateX(60deg) scale(0.7); }
+  .v11-item.p1 { opacity: 0.75; transform: rotateX(-20deg) scale(0.92); }
+  .v11-item.p2 { opacity: 0.45; transform: rotateX(-40deg) scale(0.82); }
+  .v11-item.p3 { opacity: 0.20; transform: rotateX(-60deg) scale(0.7); }
+
+  /* 注釈用矢印・吹き出し */
+  .annot {
+    background: #fff8e1;
+    border: 1px solid #fbbc04;
+    border-radius: 6px;
+    padding: 5px 8px;
+    font-size: 10px;
+    color: #7e5d00;
+    margin-top: 6px;
+    width: 100%;
+    line-height: 1.4;
+  }
+  .annot b { color: #5f4400; }
+
+  /* 単独セクション (v11 を実際の使用文脈で見せる) */
+  .demo-frame {
+    background: var(--panel); border:1px solid var(--divider);
+    border-radius:12px; padding:14px;
+    max-width: 480px; margin: 0 auto;
+  }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; }
+  .field { margin-bottom: 8px; }
+  .field label {
+    display: block; font-size: 11px; color: var(--text-secondary);
+    font-weight: 500; margin-bottom: 4px;
+  }
+  .time-btn {
+    width: 100%; min-height: 44px;
+    border: 1px solid var(--border); border-radius: 8px;
+    background: var(--panel);
+    font-family: var(--font);
+    cursor: pointer;
+    display: grid;
+    grid-template-columns: 24px 1fr 16px;
+    align-items: center;
+    padding: 6px 12px;
+    gap: 8px;
+  }
+  .time-btn .icon { color: var(--text-muted); font-size: 16px; }
+  .time-btn .value {
+    font-size: 18px; font-weight: 600;
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+    text-align: left;
+  }
+  .time-btn .chev {
+    color: var(--text-muted); font-size: 12px;
+    line-height: 0.8;
+  }
+  .question {
+    background: #fce8e6; color: #a31511; border: 1px solid #a31511;
+    border-radius: 8px;
+    padding: 10px 12px; font-size: 12px; line-height: 1.7;
+    margin: 14px 0 4px;
+  }
+</style>
+</head>
+<body>
+
+<h2>S17 ホイール v9 / v10 / v11 比較</h2>
+
+<div class="legend">
+  <b>3 つを横並びで比較。</b>違いは「中央帯の表現」「上下端フェード」「3D 遠近」「背景色」の 4 つに集約。
+</div>
+
+<div class="compare">
+
+  <!-- v9 -->
+  <div class="compare-col">
+    <span class="ver-tag v9">v9 (旧式)</span>
+    <div class="ver-note">クリーム背景<br>中央帯 = 塗り、平面リスト</div>
+    <div class="picker-frame f-v9">
+      <div class="picker-title">開始時刻</div>
+      <div class="wheel-area fill-band">
+        <div class="wheel-list">
+          <div class="wheel-item v9-item">7</div>
+          <div class="wheel-item v9-item near">8</div>
+          <div class="wheel-item v9-item near">9</div>
+          <div class="wheel-item v9-item center">10</div>
+          <div class="wheel-item v9-item near">11</div>
+          <div class="wheel-item v9-item near">12</div>
+          <div class="wheel-item v9-item">13</div>
+        </div>
+      </div>
+    </div>
+    <div class="annot">
+      <b>問題:</b> 背景が世代違い、中央帯がベタ塗りで重い、上下端ハードカット → 平面ぽい
+    </div>
+  </div>
+
+  <!-- v10 -->
+  <div class="compare-col">
+    <span class="ver-tag v10">v10 (中間)</span>
+    <div class="ver-note">白背景に変更<br>でも中身 (ホイール) は同じ</div>
+    <div class="picker-frame f-v10">
+      <div class="picker-title">開始時刻</div>
+      <div class="wheel-area fill-band">
+        <div class="wheel-list">
+          <div class="wheel-item v10-item">7</div>
+          <div class="wheel-item v10-item near">8</div>
+          <div class="wheel-item v10-item near">9</div>
+          <div class="wheel-item v10-item center">10</div>
+          <div class="wheel-item v10-item near">11</div>
+          <div class="wheel-item v10-item near">12</div>
+          <div class="wheel-item v10-item">13</div>
+        </div>
+      </div>
+    </div>
+    <div class="annot">
+      <b>問題:</b> 背景は直したが、ホイールは v9 と <b>変わっていない</b> → 結果「平らなセレクト」のまま
+    </div>
+  </div>
+
+  <!-- v11 -->
+  <div class="compare-col">
+    <span class="ver-tag v11">v11 (本格修正)</span>
+    <div class="ver-note">上下フェード + 3D 遠近<br>中央帯 = 上下線のみ</div>
+    <div class="picker-frame f-v11">
+      <div class="picker-title">開始時刻</div>
+      <div class="wheel-area line-band mask-edges">
+        <div class="wheel-list">
+          <div class="wheel-item v11-item p3">7</div>
+          <div class="wheel-item v11-item p2">8</div>
+          <div class="wheel-item v11-item p1">9</div>
+          <div class="wheel-item v11-item center">10</div>
+          <div class="wheel-item v11-item n1">11</div>
+          <div class="wheel-item v11-item n2">12</div>
+          <div class="wheel-item v11-item n3">13</div>
+        </div>
+      </div>
+    </div>
+    <div class="annot">
+      <b>修正:</b> 上下端 mask-image でフェード / 各項目に rotateX + scale で円筒に貼り付いた感じ / 中央は上下線のみのガラス風
+    </div>
+  </div>
+
+</div>
+
+<h3>v11 を実際の文脈 (開始時刻 + 練習時間) で見る</h3>
+
+<div class="demo-frame">
+  <div class="grid2">
+    <div class="field">
+      <label>開始時刻</label>
+      <button class="time-btn">
+        <span class="icon">🕐</span>
+        <span class="value">10:00</span>
+        <span class="chev">▴<br>▾</span>
+      </button>
+    </div>
+    <div class="field">
+      <label>練習時間</label>
+      <button class="time-btn">
+        <span class="icon">⏱</span>
+        <span class="value">2時間 30分</span>
+        <span class="chev">▴<br>▾</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<div style="height: 24px;"></div>
+
+<div class="compare" style="grid-template-columns: 1fr 1fr;">
+  <div class="compare-col">
+    <span class="ver-tag v11">v11 開始時刻ピッカー (展開)</span>
+    <div class="picker-frame f-v11">
+      <div class="picker-title">開始時刻</div>
+      <div class="wheel-area line-band mask-edges" style="height: 200px;">
+        <div class="wheel-list" style="display: grid; grid-template-columns: 1fr 1fr; padding: 80px 0;">
+          <div style="display:flex; flex-direction:column; align-items:center;">
+            <div class="wheel-item v11-item p3">7</div>
+            <div class="wheel-item v11-item p2">8</div>
+            <div class="wheel-item v11-item p1">9</div>
+            <div class="wheel-item v11-item center">10</div>
+            <div class="wheel-item v11-item n1">11</div>
+            <div class="wheel-item v11-item n2">12</div>
+            <div class="wheel-item v11-item n3">13</div>
+          </div>
+          <div style="display:flex; flex-direction:column; align-items:center;">
+            <div class="wheel-item v11-item p3">35</div>
+            <div class="wheel-item v11-item p2">40</div>
+            <div class="wheel-item v11-item p1">45</div>
+            <div class="wheel-item v11-item center">00</div>
+            <div class="wheel-item v11-item n1">05</div>
+            <div class="wheel-item v11-item n2">10</div>
+            <div class="wheel-item v11-item n3">15</div>
+          </div>
+        </div>
+      </div>
+      <div style="display: flex; justify-content: space-between; margin-top: 14px;">
+        <button style="background:transparent; border:none; color:var(--text-secondary); font-family:var(--font); font-size:15px; padding: 6px 4px; cursor:pointer;">キャンセル</button>
+        <button style="background:var(--primary); border:none; color:#fff; font-family:var(--font); font-size:15px; font-weight:600; border-radius:10px; padding:8px 20px; cursor:pointer;">完了</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="compare-col">
+    <span class="ver-tag v11">v11 練習時間ピッカー (展開)</span>
+    <div class="picker-frame f-v11">
+      <div class="picker-title">練習時間</div>
+      <div class="wheel-area line-band mask-edges" style="height: 200px;">
+        <div class="wheel-list" style="display: grid; grid-template-columns: 1fr 1fr; padding: 80px 0;">
+          <div style="display:flex; flex-direction:column; align-items:center;">
+            <div class="wheel-item v11-item p3" style="visibility:hidden;">−</div>
+            <div class="wheel-item v11-item p2" style="visibility:hidden;">−</div>
+            <div class="wheel-item v11-item p1">1</div>
+            <div class="wheel-item v11-item center">2</div>
+            <div class="wheel-item v11-item n1">3</div>
+            <div class="wheel-item v11-item n2">4</div>
+            <div class="wheel-item v11-item n3">5</div>
+          </div>
+          <div style="display:flex; flex-direction:column; align-items:center;">
+            <div class="wheel-item v11-item p3">15</div>
+            <div class="wheel-item v11-item p2">20</div>
+            <div class="wheel-item v11-item p1">25</div>
+            <div class="wheel-item v11-item center">30</div>
+            <div class="wheel-item v11-item n1">35</div>
+            <div class="wheel-item v11-item n2">40</div>
+            <div class="wheel-item v11-item n3">45</div>
+          </div>
+        </div>
+      </div>
+      <div style="text-align: center; font-size: 13px; color: var(--text-secondary); margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--divider);">
+        終了時刻 → <b style="color: var(--primary); font-variant-numeric: tabular-nums; font-size: 15px; margin-left: 4px;">12:30</b>
+      </div>
+      <div style="display: flex; justify-content: space-between; margin-top: 14px;">
+        <button style="background:transparent; border:none; color:var(--text-secondary); font-family:var(--font); font-size:15px; padding: 6px 4px; cursor:pointer;">キャンセル</button>
+        <button style="background:var(--primary); border:none; color:#fff; font-family:var(--font); font-size:15px; font-weight:600; border-radius:10px; padding:8px 20px; cursor:pointer;">完了</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="legend" style="margin-top: 14px;">
+  <b>v11 で適用した CSS (静的でも 3D 表現可):</b><br>
+  ・<code>mask-image: linear-gradient(to bottom, transparent 0%, #000 22%, #000 78%, transparent 100%)</code> = 上下端フェード<br>
+  ・<code>perspective: 600px</code> + <code>transform: rotateX(NNdeg) scale(0.X)</code> = 円筒に貼り付いた錯覚<br>
+  ・中央帯は ::before / ::after で 1px ライン 2 本のみ (塗りつぶし無し)<br>
+  ・実 React 実装ではスクロール位置に応じて 3D 角度を動的計算 (CSS は同じ式)
+</div>
+
+<div class="question">
+  v11 で進めて良いか / まだ問題箇所あれば指摘 を返してください。
+</div>
+
+</body>
+</html>

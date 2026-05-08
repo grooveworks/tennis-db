@@ -18,9 +18,11 @@ const loadSessionsFromFirestore = async (user) => {
   if (!user) return null;
   // S14: next も読込追加 (Home Current Context / Next Actions で使用)
   // S16 Phase 4-A: stringSetups を読込追加 (Manage Masters セッティング組合せ用、現状は読込のみ、UI は Phase 4-B)
-  const keys = ["tournaments", "practices", "trials", "rackets", "strings", "venues", "opponents", "next", "quickTrialCards", "stringSetups"];
+  // S17: plan を読込追加 (Plan タブ作戦室、単一オブジェクトなので save() の obj 形式で保存される)
+  const keys = ["tournaments", "practices", "trials", "rackets", "strings", "venues", "opponents", "next", "quickTrialCards", "stringSetups", "plan"];
+  const _OBJ_KEYS = new Set(["plan"]); // S17: items 配列でなく obj 単体で保存される key
   const results = {};
-  for (const k of keys) results[k] = []; // 既定値 (取得失敗時用)
+  for (const k of keys) results[k] = _OBJ_KEYS.has(k) ? {} : []; // 既定値 (plan は {}、他は [])
   try {
     // S15.5.3 fix: Chrome で Firestore get が永遠に pending になるケースで Sessions タブが
     //   「読み込み中」のまま固まる問題に対応 → 15 秒で timeout、ローカルデータで表示続行
@@ -33,7 +35,10 @@ const loadSessionsFromFirestore = async (user) => {
       if (!keys.includes(id)) return;
       const data = doc.data();
       const items = data && data.items;
-      if (Array.isArray(items)) results[id] = items;
+      const obj = data && data.obj;
+      // S17: plan 等の obj 型は obj フィールドから取得、配列型は items から
+      if (_OBJ_KEYS.has(id) && obj && typeof obj === "object") results[id] = obj;
+      else if (Array.isArray(items)) results[id] = items;
     });
     return results;
   } catch (err) {
@@ -46,6 +51,17 @@ const loadSessionsFromFirestore = async (user) => {
 // item は {name, ...} オブジェクト or 文字列の両方に対応
 const _extractName = (item) => (typeof item === "string" ? item : (item?.name || ""));
 const _extractNames = (list) => (list || []).map(_extractName).filter(Boolean);
+
+// S17 Phase 1-A: rackets / strings は status 優先度 → order ASC で sort してから name 抽出
+//   (DESIGN_SYSTEM §11.1 仕様、機材タブで並び替えた order が編集画面 Select にも反映される)
+//   reorder.js の sortByStatusAndOrder + プリセット定数を使用
+//   引退ラケット (status="retired") / 除外ストリング (status="rejected") は sort 関数で末尾に追いやられる
+const _extractRacketNames = (rackets) =>
+  sortByStatusAndOrder((rackets || []).filter(r => r && typeof r === "object"), RACKET_STATUS_PRIORITY)
+    .map(_extractName).filter(Boolean);
+const _extractStringNames = (strings) =>
+  sortByStatusAndOrder((strings || []).filter(s => s && typeof s === "object"), STRING_STATUS_PRIORITY)
+    .map(_extractName).filter(Boolean);
 
 // 大会クラス: v3 標準 7 オプション + 既存 tournament[].level から動的抽出 (重複除去)
 //   ユーザー独自のクラス名 (S 級 / 県大会 等) にも MasterField 経由で対応
@@ -133,6 +149,8 @@ function TennisDB() {
   const [opponents, setOpponents] = useState([]);
   // S14: next (Home の Current Context / Next Actions で使用)
   const [next, setNext] = useState([]);
+  // S17: plan (Plan タブ作戦室、Target / Strategy / Gear Decision の単一オブジェクト)
+  const [plan, setPlan] = useState({});
   // S15.5: quickTrialCards (試打カード式 QuickTrialMode で使用)
   const [quickTrialCards, setQuickTrialCards] = useState([]);
   const [quickTrial, setQuickTrial] = useState(false); // QuickTrialMode 表示
@@ -163,6 +181,8 @@ function TennisDB() {
     setOpponents(lsLoad(KEYS.opponents) || []);
     // S14: next もローカルから初期ロード
     setNext(lsLoad(KEYS.next) || []);
+    // S17: plan もローカルから初期ロード (単一オブジェクト、未設定時は空 {})
+    setPlan(lsLoad(KEYS.plan) || {});
     // S15.5: quickTrialCards もローカルから
     setQuickTrialCards(lsLoad(KEYS.quickTrialCards) || []);
     // S16 Phase 4-A: stringSetups もローカルから (assignDefaultOrders で order 遅延付与、in-memory 整形のみ、書き戻し無し)
@@ -194,6 +214,7 @@ function TennisDB() {
           venues:          lsLoad(KEYS.venues)          || [],
           opponents:       lsLoad(KEYS.opponents)       || [],
           next:            lsLoad(KEYS.next)            || [],
+          plan:            lsLoad(KEYS.plan)            || {},
           quickTrialCards: lsLoad(KEYS.quickTrialCards) || [],
           stringSetups:    lsLoad(KEYS.stringSetups)    || [],
         };
@@ -537,6 +558,8 @@ function TennisDB() {
             setOpponents(data.opponents || []);
             // S14: next も
             setNext(data.next || []);
+            // S17: plan も (単一オブジェクト、loadSessionsFromFirestore 内で {} 既定値)
+            setPlan(data.plan && typeof data.plan === "object" ? data.plan : {});
             // S15.5: quickTrialCards も
             setQuickTrialCards(data.quickTrialCards || []);
             // S16 Phase 4-A: stringSetups (Phase 4-A 読込のみ、UI 編集は Phase 4-B)
@@ -550,6 +573,7 @@ function TennisDB() {
             lsSave(KEYS.venues, data.venues);
             lsSave(KEYS.opponents, data.opponents);
             lsSave(KEYS.next, data.next);
+            lsSave(KEYS.plan, data.plan || {});
             lsSave(KEYS.quickTrialCards, data.quickTrialCards);
             lsSave(KEYS.stringSetups, data.stringSetups);
             toast.show("クラウドから読み込みました", "success");
@@ -576,11 +600,23 @@ function TennisDB() {
               const key = change.doc.id;
               const docData = change.doc.data() || {};
               const val = docData.items;
-              if (!Array.isArray(val)) return;
+              const objVal = docData.obj;
 
               // S16.11 F1 ガード: hasPendingWrites の自 echo は無視
               //   (closure stale 回避のため、ローカル件数比較は setX(prev=>...) 内で行う)
               if (change.doc.metadata?.hasPendingWrites === true) return;
+
+              // S17: plan は単一オブジェクト型 (obj フィールド経由、items 配列でなく)
+              //   空オブジェクト ({}) でもユーザー意図のクリア可能性があるので受け入れる
+              //   array 用の guardAndApply は使わず、シンプルに setPlan
+              if (key === "plan") {
+                const newObj = (objVal && typeof objVal === "object") ? objVal : {};
+                lsSave(key, newObj);
+                setPlan(newObj);
+                return;
+              }
+
+              if (!Array.isArray(val)) return;
 
               // F1 ガード本体: prev (現 state) と val (server) を比較して、空上書き / 急減を拒否
               //   - 拒否時は prev をそのまま返す (state 変更なし、lsSave も skip)
@@ -806,6 +842,12 @@ function TennisDB() {
         else setTrials(newItems);
         if (cascadeApplied) setTrials(newTrials);
 
+        // S17: Plan の targetTournamentId が削除対象に一致したら null にクリア
+        //   tournament 削除時のみ反応 (cascadeToPlan 内で type/item チェック)
+        const planAfter = cascadeToPlan(plan, type, item);
+        const planChanged = planAfter !== plan;
+        if (planChanged) setPlan(planAfter);
+
         // localStorage
         // Round 5 Batch C (write pattern 一貫化): save() 経由に統一
         //   旧: fbDb.collection().set({items}, {merge:false}) を直接呼んでいた → updatedAt 抜け、
@@ -813,6 +855,7 @@ function TennisDB() {
         //   新: save() 経由で _pendingWrites chain に直列化 + updatedAt 自動付与
         save(KEYS[key], newItems);
         if (cascadeApplied) save(KEYS.trials, newTrials);
+        if (planChanged) save(KEYS.plan, planAfter);
         setDetail(null);
         // toast: cascade 件数が 0 なら従来文言、>0 なら追記
         const msg = cascadeApplied
@@ -1137,6 +1180,11 @@ function TennisDB() {
     setOpponents(newList);
     save(KEYS.opponents, newList);
   };
+  // S17: Plan タブ作戦室用永続化 (save() の obj 形式で localStorage + Firestore 即時 write、debounce 全廃済 = S16.11)
+  const persistPlan = (newPlan) => {
+    setPlan(newPlan && typeof newPlan === "object" ? newPlan : {});
+    save(KEYS.plan, newPlan && typeof newPlan === "object" ? newPlan : {});
+  };
 
   // Racket Detail (slide-in)
   const handleRacketRowClick = (racket) => setRacketDetail(racket);
@@ -1339,11 +1387,12 @@ function TennisDB() {
   } else if (tab === "plan") {
     tabContent = (
       <PlanTab
-        next={next}
-        opponents={opponents}
+        plan={plan}
         tournaments={tournaments}
-        onNextUpdate={persistNext}
-        onOpponentsUpdate={persistOpponents}
+        rackets={rackets}
+        strings={strings}
+        trials={trials}
+        onPlanSave={persistPlan}
         toast={toast}
         confirm={cfm}
       />
@@ -1398,8 +1447,8 @@ function TennisDB() {
       <QuickAddModal
         open={!!quickAddType}
         type={quickAddType}
-        racketNames={_extractNames(rackets)}
-        stringNames={_extractNames(strings)}
+        racketNames={_extractRacketNames(rackets)}
+        stringNames={_extractStringNames(strings)}
         venueNames={_extractNames(venues)}
         levelNames={_extractLevels(tournaments)}
         onSave={handleQuickAddSave}
@@ -1414,8 +1463,8 @@ function TennisDB() {
           tournaments={tournaments}
           trials={trials}
           practices={practices}
-          racketNames={_extractNames(rackets)}
-          stringNames={_extractNames(strings)}
+          racketNames={_extractRacketNames(rackets)}
+          stringNames={_extractStringNames(strings)}
           venueNames={_extractNames(venues)}
           opponentNames={_extractNames(opponents)}
           levelNames={_extractLevels(tournaments)}
@@ -1535,7 +1584,8 @@ function TennisDB() {
         cards={quickTrialCards}
         setCards={persistQuickTrialCards}
         rackets={rackets}
-        stringNames={_extractNames(strings)}
+        stringNames={_extractStringNames(strings)}
+        trials={trials}
         onSaveTrial={handleQuickTrialSave}
         onClose={() => setQuickTrial(false)}
         confirm={cfm}

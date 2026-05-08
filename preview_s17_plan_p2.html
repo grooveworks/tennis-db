@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>preview_s17_plan_p2 — Plan タブ Strategy 圧縮版 (ChatGPT フィードバック反映)</title>
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css">
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/duotone/style.css">
+<style>
+  :root {
+    --bg: #f8f9fa; --panel: #ffffff; --panel2: #f1f3f4;
+    --border: #dadce0; --divider: #e8eaed;
+    --text: #202124; --textSec: #5f6368; --textMuted: #80868b;
+    --primary: #007AFF; --primaryLight: #E1F0FF;
+    --success: #0f9d58; --successLight: #e6f4ea;
+    --warning: #fbbc04; --warningLight: #fef7e0;
+    --error: #d93025; --errorLight: #fce8e6;
+    --tournamentAccent: #f9ab00; --tournamentLight: #feefc3;
+    --applePeach: #FF9500; --appleMint: #00C7BE;
+    --appleIndigo: #5856D6; --appleGray4: #C7C7CC;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Helvetica Neue", Arial, sans-serif;
+    background: #e8eaed; color: var(--text);
+    margin: 0; padding: 24px; font-size: 14px; line-height: 1.6;
+  }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  h1 + .lead { color: var(--textSec); font-size: 13px; margin-bottom: 24px; max-width: 1100px; }
+  h2 {
+    margin: 28px 0 8px; font-size: 14px; padding: 6px 12px;
+    background: #202124; color: #fff; display: inline-block; border-radius: 4px;
+  }
+  .note {
+    font-size: 12px; color: var(--textSec);
+    margin-bottom: 14px; line-height: 1.6; max-width: 1100px;
+  }
+  .note b { color: var(--text); }
+  .note code { background: var(--panel2); padding: 2px 6px; border-radius: 4px; font-size: 11px; }
+  .row { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; }
+
+  /* iPhone モック */
+  .phone {
+    width: 375px; background: var(--bg); border: 1px solid #b8babc;
+    border-radius: 24px; overflow: hidden;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+    flex-shrink: 0; display: flex; flex-direction: column;
+    height: 760px;
+  }
+  .phone .caption {
+    padding: 6px 12px; background: var(--panel);
+    border-bottom: 1px solid var(--divider);
+    font-size: 11px; color: var(--textMuted); font-weight: 600;
+  }
+  .phone .header {
+    background: rgba(255,255,255,0.94);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--divider);
+    padding: 8px 12px; display: flex; align-items: center; gap: 8px;
+    height: 44px; flex-shrink: 0;
+  }
+  .phone .header .logo {
+    font-size: 14px; font-weight: 800; color: var(--primary); flex: 1;
+  }
+  .phone .header .right-set { display: flex; align-items: center; gap: 4px; }
+  .phone .header .icon-btn {
+    width: 32px; height: 32px;
+    display: inline-flex; align-items: center; justify-content: center;
+    color: var(--textSec); background: transparent; border: none;
+    border-radius: 8px; font-size: 18px;
+  }
+  .phone .header .weather {
+    display: inline-flex; align-items: center; gap: 2px;
+    font-size: 11px; color: var(--textSec); padding: 0 4px;
+  }
+  .phone .body {
+    flex: 1; overflow: auto; padding: 14px;
+    background: var(--bg);
+  }
+  .phone .tabbar {
+    background: rgba(255,255,255,0.94);
+    backdrop-filter: blur(12px);
+    border-top: 1px solid var(--divider);
+    display: grid; grid-template-columns: repeat(5, 1fr);
+    flex-shrink: 0;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+  .phone .tabbar button {
+    background: none; border: none; padding: 8px 0; min-height: 56px;
+    display: inline-flex; flex-direction: column; align-items: center; gap: 2px;
+    color: var(--textMuted); font-size: 9px; cursor: pointer;
+  }
+  .phone .tabbar button.active { color: var(--primary); }
+  .phone .tabbar button .ph { font-size: 22px; }
+
+  /* === 大カード (radius 20) === */
+  .plan-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 14px 16px;
+    margin-bottom: 12px;
+  }
+  .plan-card .card-head {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .plan-card .card-title {
+    font-size: 13px; font-weight: 700; color: var(--text);
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .plan-card .card-title .ph { font-size: 18px; }
+  .plan-card .card-title .count {
+    font-size: 11px; color: var(--textMuted); font-weight: 400; margin-left: 4px;
+  }
+  .plan-card .card-actions { display: flex; gap: 6px; }
+  .btn-mini {
+    min-height: 30px; padding: 0 10px;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; color: var(--textSec);
+    font-size: 11px; font-weight: 600; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 4px;
+  }
+  .btn-mini.primary {
+    background: var(--primary); border-color: var(--primary); color: #fff;
+  }
+
+  /* === Target Event === */
+  .target-empty {
+    background: var(--panel2);
+    border: 1.5px dashed var(--border);
+    border-radius: 14px;
+    padding: 18px 16px; text-align: center;
+    color: var(--textMuted);
+  }
+  .target-empty .lead-msg { font-size: 13px; font-weight: 600; color: var(--textSec); margin-bottom: 4px; }
+  .target-empty .sub-msg { font-size: 11px; margin-bottom: 12px; }
+  .target-name {
+    font-size: 18px; font-weight: 700; color: var(--text);
+    line-height: 1.3; margin-bottom: 6px;
+  }
+  .target-meta {
+    display: flex; gap: 10px; flex-wrap: wrap; font-size: 11px; color: var(--textSec);
+    margin-bottom: 8px;
+  }
+  .target-meta .item { display: inline-flex; align-items: center; gap: 4px; }
+  .target-row {
+    font-size: 12px; color: var(--text); line-height: 1.5; margin-bottom: 2px;
+  }
+  .target-row .label { color: var(--textMuted); margin-right: 6px; font-size: 11px; }
+  .target-days {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 11px; font-weight: 700; color: var(--tournamentAccent);
+    background: var(--tournamentLight); padding: 3px 10px; border-radius: 12px;
+    margin-top: 6px;
+  }
+
+  /* === Strategy (圧縮版、リスト行) === */
+  .strategy-list {
+    display: flex; flex-direction: column;
+  }
+  .strategy-item {
+    display: grid;
+    grid-template-columns: 14px 1fr auto;
+    align-items: center;
+    column-gap: 8px;
+    padding: 6px 4px;
+    border-bottom: 1px dashed var(--divider);
+    font-size: 13px;
+    color: var(--text);
+    line-height: 1.45;
+    min-height: 32px;
+  }
+  .strategy-item:last-child { border-bottom: none; }
+  .strategy-item .bullet {
+    width: 5px; height: 5px; border-radius: 50%;
+    background: var(--primary); justify-self: center;
+  }
+  .strategy-item .body {
+    min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .strategy-item .row-actions {
+    display: flex; gap: 2px;
+    opacity: 0.32;
+    transition: opacity 0.15s;
+  }
+  .strategy-item:hover .row-actions { opacity: 0.85; }
+  .strategy-item .row-actions button {
+    width: 24px; height: 24px; padding: 0; background: transparent;
+    border: none; cursor: pointer; color: var(--textMuted); font-size: 13px;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .strategy-add {
+    margin-top: 8px;
+    background: transparent; border: 1px dashed var(--border);
+    border-radius: 10px; min-height: 34px; width: 100%;
+    color: var(--primary); font-size: 11px; font-weight: 600;
+    display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+    cursor: pointer; font-family: inherit;
+  }
+
+  /* === Gear Decision === */
+  .gear-tier {
+    border: 1px solid var(--border); border-radius: 14px;
+    padding: 10px 14px; margin-bottom: 6px;
+  }
+  .gear-tier.main { background: linear-gradient(135deg, rgba(255,149,0,0.06) 0%, #fff 70%); border-color: rgba(255,149,0,0.3); }
+  .gear-tier.sub { background: linear-gradient(135deg, rgba(0,199,190,0.06) 0%, #fff 70%); border-color: rgba(0,199,190,0.3); }
+  .gear-tier.pending { background: var(--panel2); }
+  .gear-tier-label {
+    font-size: 10px; font-weight: 700; letter-spacing: 0.5px;
+    margin-bottom: 3px;
+  }
+  .gear-tier.main .gear-tier-label { color: var(--applePeach); }
+  .gear-tier.sub .gear-tier-label { color: var(--appleMint); }
+  .gear-tier.pending .gear-tier-label { color: var(--textMuted); }
+  .gear-tier .racket-name {
+    font-size: 14px; font-weight: 700; color: var(--text); margin-bottom: 2px;
+  }
+  .gear-tier .setup-line {
+    font-size: 11px; color: var(--textSec); margin-bottom: 3px;
+    font-variant-numeric: tabular-nums;
+  }
+  .gear-tier .reason-line {
+    font-size: 11px; color: var(--text); line-height: 1.45;
+  }
+  .gear-tier .reason-line .label { color: var(--textMuted); margin-right: 4px; }
+  .gear-concern {
+    margin-top: 8px; padding: 8px 12px;
+    background: var(--warningLight); border: 1px solid rgba(251,188,4,0.3);
+    border-radius: 12px;
+    font-size: 11px; color: var(--text); line-height: 1.5;
+  }
+  .gear-concern .label {
+    color: #b06b00; font-weight: 700; margin-right: 4px;
+    display: inline-flex; align-items: center; gap: 3px;
+  }
+  .gear-empty-tier {
+    font-size: 11px; color: var(--textMuted); font-style: italic;
+  }
+
+  /* === 空状態時の薄表示 === */
+  .dimmed {
+    opacity: 0.45; pointer-events: none;
+  }
+  .dim-callout {
+    background: var(--primaryLight);
+    border: 1px solid rgba(0,122,255,0.25);
+    border-radius: 10px;
+    padding: 7px 10px;
+    font-size: 11px; color: var(--primary);
+    line-height: 1.5;
+    margin-bottom: 12px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .dim-callout .ph { font-size: 14px; flex-shrink: 0; }
+
+  /* === Modal === */
+  .modal-overlay {
+    position: absolute; inset: 0;
+    background: rgba(0,0,0,0.4);
+    display: flex; align-items: flex-end; justify-content: center;
+    padding-bottom: 56px;
+    z-index: 10;
+  }
+  .modal-sheet {
+    background: var(--panel);
+    border-radius: 20px 20px 0 0;
+    width: 100%; max-height: 78%;
+    padding: 16px;
+    display: flex; flex-direction: column; gap: 12px;
+    overflow: auto;
+  }
+  .modal-sheet .modal-title {
+    font-size: 15px; font-weight: 700; color: var(--text);
+    margin-bottom: 4px;
+  }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label {
+    font-size: 11px; color: var(--textMuted); font-weight: 600;
+  }
+  .field input, .field select, .field textarea {
+    background: var(--panel2);
+    border: 1px solid var(--border); border-radius: 10px;
+    padding: 10px 12px; font-size: 13px; color: var(--text);
+    font-family: inherit; width: 100%;
+  }
+  .field textarea { resize: none; min-height: 60px; }
+  .field input:focus, .field select:focus, .field textarea:focus {
+    outline: 2px solid var(--primary); outline-offset: -1px;
+    background: var(--panel);
+  }
+  .modal-actions {
+    display: flex; gap: 10px; margin-top: 6px;
+  }
+  .modal-actions .btn {
+    flex: 1; min-height: 44px; padding: 0 14px;
+    border-radius: 10px; font-size: 14px; font-weight: 700;
+    cursor: pointer; border: 1px solid var(--border);
+    background: var(--panel); color: var(--text); font-family: inherit;
+  }
+  .modal-actions .btn.primary {
+    background: var(--primary); border-color: var(--primary); color: #fff;
+  }
+
+  /* legend */
+  .legend-box {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 12px; padding: 12px 14px;
+    max-width: 1100px; margin-bottom: 16px;
+    font-size: 12px; color: var(--textSec); line-height: 1.7;
+  }
+  .legend-box ul { margin: 4px 0 0; padding-left: 20px; }
+  .diff-block {
+    background: var(--successLight); border: 1px solid rgba(15,157,88,0.3);
+    border-radius: 12px; padding: 10px 14px;
+    max-width: 1100px; margin-bottom: 16px;
+    font-size: 12px; color: var(--text); line-height: 1.6;
+  }
+  .diff-block b { color: var(--success); }
+</style>
+</head>
+<body>
+
+<h1>preview_s17_plan_p2 — Plan タブ Strategy 圧縮版</h1>
+<p class="lead">
+  ChatGPT さんのフィードバック (作戦カードが大きすぎる、ギア決定が下に押し出される) を反映した第 2 案。
+  Strategy 行をリスト密度に圧縮、編集アイコンを控えめに、Gear 見出しが 1 画面内に入るように。
+</p>
+
+<div class="diff-block">
+  <b>p1 → p2 の変更点</b>
+  <ul>
+    <li><b>Strategy Card</b>: 1 項目 1 巨大カード → リスト行 (背景なし、点線 divider、padding 半分、bullet 5px)</li>
+    <li><b>編集・削除アイコン</b>: opacity 0.55 (常時表示) → opacity 0.32 (ホバー時 0.85)、サイズ 26→24px</li>
+    <li><b>Target Card</b>: 「変更」→「大会変更」、「編集」はそのまま (目標・テーマ編集の意味)</li>
+    <li><b>ターゲット未設定時の青案内</b>: 大きい帯 → 細い 1 行 callout (「先にターゲットを設定すると、作戦・ギアを編集できます。」)</li>
+    <li><b>Gear Decision Card</b>: Strategy 圧縮の結果、最初の 1 画面内に見出しが入る配置に</li>
+  </ul>
+</div>
+
+<div class="legend-box">
+  <b>確認してほしいポイント</b>
+  <ul>
+    <li>Strategy Card の <b>密度</b> (これでメモ感が出ているか、薄すぎないか)</li>
+    <li>編集・削除アイコンの<b>控えめ度</b> (これで読む画面として成立するか)</li>
+    <li>最初の 1 画面に <b>Gear Decision の見出し</b>が入っているか (Phone A で確認)</li>
+    <li>「<b>大会変更</b>」「編集」のボタン文言で意味が伝わるか</li>
+    <li>未設定時の青案内が <b>うるさくないか</b> (Phone B で確認)</li>
+  </ul>
+</div>
+
+<div class="row">
+
+  <!-- ========================== Phone A: 通常 ========================== -->
+  <div class="phone">
+    <div class="caption">A. 通常表示 (Strategy 圧縮、Gear 見出し見える)</div>
+    <div class="header">
+      <div class="logo">Tennis<span style="color:var(--primary);">DB</span></div>
+      <div class="right-set">
+        <button class="icon-btn"><i class="ph ph-gear-six"></i></button>
+        <span class="weather"><i class="ph-fill ph-sun" style="color:var(--tournamentAccent);"></i> 22°</span>
+        <button class="icon-btn"><i class="ph ph-user-circle"></i></button>
+      </div>
+    </div>
+    <div class="body">
+
+      <!-- Target Event Card -->
+      <div class="plan-card">
+        <div class="card-head">
+          <div class="card-title">
+            <i class="ph-fill ph-trophy" style="color:var(--tournamentAccent);"></i>
+            次のターゲット
+          </div>
+          <div class="card-actions">
+            <button class="btn-mini"><i class="ph ph-arrows-clockwise"></i>大会変更</button>
+            <button class="btn-mini primary"><i class="ph ph-pencil-simple-line"></i>編集</button>
+          </div>
+        </div>
+        <div class="target-name">5/12 シングルス大会</div>
+        <div class="target-meta">
+          <span class="item"><i class="ph ph-calendar-blank"></i>2026-05-12 (火)</span>
+          <span class="item"><i class="ph ph-user"></i>シングルス</span>
+        </div>
+        <div class="target-row"><span class="label">目標</span>初戦突破</div>
+        <div class="target-row"><span class="label">テーマ</span>攻撃力を落とさず安定</div>
+        <div class="target-days"><i class="ph ph-clock-countdown"></i>残り 5 日</div>
+      </div>
+
+      <!-- Strategy Card (圧縮) -->
+      <div class="plan-card">
+        <div class="card-head">
+          <div class="card-title">
+            <i class="ph ph-notepad" style="color:var(--primary);"></i>
+            今回の作戦
+            <span class="count">4 / 5</span>
+          </div>
+        </div>
+        <div class="strategy-list">
+          <div class="strategy-item">
+            <div class="bullet"></div>
+            <div class="body">序盤はバック側で無理に打ち合わない</div>
+            <div class="row-actions">
+              <button><i class="ph ph-pencil-simple-line"></i></button>
+              <button><i class="ph ph-trash"></i></button>
+            </div>
+          </div>
+          <div class="strategy-item">
+            <div class="bullet"></div>
+            <div class="body">フォアで先に展開する</div>
+            <div class="row-actions">
+              <button><i class="ph ph-pencil-simple-line"></i></button>
+              <button><i class="ph ph-trash"></i></button>
+            </div>
+          </div>
+          <div class="strategy-item">
+            <div class="bullet"></div>
+            <div class="body">リターンはブロック気味で深さ優先</div>
+            <div class="row-actions">
+              <button><i class="ph ph-pencil-simple-line"></i></button>
+              <button><i class="ph ph-trash"></i></button>
+            </div>
+          </div>
+          <div class="strategy-item">
+            <div class="bullet"></div>
+            <div class="body">浅くなったら前に入る</div>
+            <div class="row-actions">
+              <button><i class="ph ph-pencil-simple-line"></i></button>
+              <button><i class="ph ph-trash"></i></button>
+            </div>
+          </div>
+        </div>
+        <button class="strategy-add"><i class="ph ph-plus"></i>項目を追加 (あと 1 項目)</button>
+      </div>
+
+      <!-- Gear Decision Card (見出しまでが 1 画面に入る位置) -->
+      <div class="plan-card">
+        <div class="card-head">
+          <div class="card-title">
+            <i class="ph ph-baseball" style="color:var(--applePeach);"></i>
+            今回のギア決定
+          </div>
+          <div class="card-actions">
+            <button class="btn-mini primary"><i class="ph ph-pencil-simple-line"></i>編集</button>
+          </div>
+        </div>
+        <div class="gear-tier main">
+          <div class="gear-tier-label">本命</div>
+          <div class="racket-name">EZONE 100 TOUR</div>
+          <div class="setup-line">Blast 16 × Phantom Spin / 46—43 lbs</div>
+          <div class="reason-line"><span class="label">理由</span>攻撃力の信頼感が高い、リターンで飛びすぎにくい</div>
+        </div>
+        <div class="gear-tier sub">
+          <div class="gear-tier-label">対抗</div>
+          <div class="racket-name">BOOM PRO</div>
+          <div class="setup-line">Hawk Power 16 / 43—43 lbs</div>
+          <div class="reason-line"><span class="label">理由</span>後半でも振り抜きが残る、推進力で押せる</div>
+        </div>
+        <div class="gear-tier pending">
+          <div class="gear-tier-label">保留</div>
+          <div class="gear-empty-tier">— 未設定 —</div>
+        </div>
+        <div class="gear-concern">
+          <span class="label"><i class="ph ph-warning"></i>全体の懸念</span>
+          後半に振り抜きが重くなる傾向、第 2 セット中盤での疲労管理に注意
+        </div>
+      </div>
+
+    </div>
+    <div class="tabbar">
+      <button><i class="ph ph-house"></i>ホーム</button>
+      <button><i class="ph ph-list-bullets"></i>セッション</button>
+      <button><i class="ph ph-baseball"></i>ギア</button>
+      <button class="active"><i class="ph-fill ph-notebook"></i>計画</button>
+      <button><i class="ph ph-chart-line"></i>分析</button>
+    </div>
+  </div>
+
+  <!-- ========================== Phone B: 未設定 ========================== -->
+  <div class="phone">
+    <div class="caption">B. ターゲット未設定 (callout 短縮版)</div>
+    <div class="header">
+      <div class="logo">Tennis<span style="color:var(--primary);">DB</span></div>
+      <div class="right-set">
+        <button class="icon-btn"><i class="ph ph-gear-six"></i></button>
+        <span class="weather"><i class="ph-fill ph-sun" style="color:var(--tournamentAccent);"></i> 22°</span>
+        <button class="icon-btn"><i class="ph ph-user-circle"></i></button>
+      </div>
+    </div>
+    <div class="body">
+
+      <!-- Target Empty -->
+      <div class="plan-card">
+        <div class="card-head">
+          <div class="card-title">
+            <i class="ph ph-trophy" style="color:var(--textMuted);"></i>
+            次のターゲット
+          </div>
+        </div>
+        <div class="target-empty">
+          <div class="lead-msg">次のターゲット未設定</div>
+          <div class="sub-msg">向かう大会を 1 つ選んで、作戦とギアを準備しましょう</div>
+          <button class="btn-mini primary" style="margin: 0 auto;">
+            <i class="ph ph-plus"></i>大会を選ぶ
+          </button>
+        </div>
+      </div>
+
+      <!-- Callout (短縮版) -->
+      <div class="dim-callout">
+        <i class="ph ph-info"></i>
+        先にターゲットを設定すると、作戦・ギアを編集できます。
+      </div>
+
+      <!-- Strategy Card (薄表示) -->
+      <div class="plan-card dimmed">
+        <div class="card-head">
+          <div class="card-title">
+            <i class="ph ph-notepad" style="color:var(--textMuted);"></i>
+            今回の作戦
+          </div>
+        </div>
+        <div style="text-align:center;color:var(--textMuted);font-size:12px;padding:8px 0;">
+          ターゲット設定後に作戦メモを書き出します
+        </div>
+      </div>
+
+      <!-- Gear Decision Card (薄表示) -->
+      <div class="plan-card dimmed">
+        <div class="card-head">
+          <div class="card-title">
+            <i class="ph ph-baseball" style="color:var(--textMuted);"></i>
+            今回のギア決定
+          </div>
+        </div>
+        <div style="text-align:center;color:var(--textMuted);font-size:12px;padding:8px 0;">
+          ターゲット設定後にギアを決定します
+        </div>
+      </div>
+
+    </div>
+    <div class="tabbar">
+      <button><i class="ph ph-house"></i>ホーム</button>
+      <button><i class="ph ph-list-bullets"></i>セッション</button>
+      <button><i class="ph ph-baseball"></i>ギア</button>
+      <button class="active"><i class="ph-fill ph-notebook"></i>計画</button>
+      <button><i class="ph ph-chart-line"></i>分析</button>
+    </div>
+  </div>
+
+  <!-- ========================== Phone C: Modal ========================== -->
+  <div class="phone">
+    <div class="caption">C. Target Edit Modal (Bottom sheet、変更なし)</div>
+    <div class="header">
+      <div class="logo">Tennis<span style="color:var(--primary);">DB</span></div>
+      <div class="right-set">
+        <button class="icon-btn"><i class="ph ph-gear-six"></i></button>
+        <span class="weather"><i class="ph-fill ph-sun" style="color:var(--tournamentAccent);"></i> 22°</span>
+        <button class="icon-btn"><i class="ph ph-user-circle"></i></button>
+      </div>
+    </div>
+    <div class="body" style="position: relative;">
+
+      <!-- 下に薄く Plan 画面 -->
+      <div class="plan-card" style="opacity:0.4;">
+        <div class="card-head">
+          <div class="card-title">
+            <i class="ph-fill ph-trophy" style="color:var(--tournamentAccent);"></i>
+            次のターゲット
+          </div>
+        </div>
+        <div class="target-name">5/12 シングルス大会</div>
+        <div class="target-meta">
+          <span class="item"><i class="ph ph-calendar-blank"></i>2026-05-12</span>
+          <span class="item"><i class="ph ph-user"></i>シングルス</span>
+        </div>
+      </div>
+
+      <!-- Modal -->
+      <div class="modal-overlay">
+        <div class="modal-sheet">
+          <div class="modal-title">次のターゲットを編集</div>
+
+          <div class="field">
+            <label>ターゲット大会</label>
+            <select>
+              <option>5/12 シングルス大会 (2026-05-12)</option>
+              <option>5/26 ベテランダブルス (2026-05-26)</option>
+              <option>6/9 草トー (2026-06-09)</option>
+              <option>—— 過去の大会 ——</option>
+              <option>4/29 市民大会 (2026-04-29)</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label>目標 (短く、20 字以内目安)</label>
+            <input type="text" value="初戦突破">
+          </div>
+
+          <div class="field">
+            <label>テーマ (短く、30 字以内目安)</label>
+            <input type="text" value="攻撃力を落とさず安定">
+          </div>
+
+          <div class="modal-actions">
+            <button class="btn">キャンセル</button>
+            <button class="btn primary"><i class="ph ph-check"></i> 保存</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+    <div class="tabbar">
+      <button><i class="ph ph-house"></i>ホーム</button>
+      <button><i class="ph ph-list-bullets"></i>セッション</button>
+      <button><i class="ph ph-baseball"></i>ギア</button>
+      <button class="active"><i class="ph-fill ph-notebook"></i>計画</button>
+      <button><i class="ph ph-chart-line"></i>分析</button>
+    </div>
+  </div>
+
+</div>
+
+<!-- ========================== 設計メモ ========================== -->
+<h2>設計メモ (実装前の自分用)</h2>
+<div class="note">
+  <p><b>Strategy 圧縮の数値</b>: padding 10px 12px → 6px 4px、bullet 6px → 5px、行アイコン 26px → 24px (opacity 0.32、hover 0.85)、background panel2 → 透明 (点線 divider のみ)。1 項目高さ ~50px → ~32px (約 36% 圧縮)。</p>
+  <p><b>Gear Decision の冒頭表示</b>: Phone A で Header 44 + Target 約 195 + Strategy 約 215 + 余白 = 約 460px、phone body 632px なので Gear 見出し (約 42px) は 1 画面内に収まる計算。</p>
+  <p><b>編集モード切替の検討</b> (今回 p2 では実装せず): ChatGPT 案では「編集モード時にアイコンを強調」とあった。今は常時 opacity 0.32 で hover 時 0.85、十分控えめなのでモード切替なしで様子見。 PC では hover 効くがスマホでは hover 効かないため、スマホで実機検証時に「アイコン見えにくい」となれば編集モード切替を S17.x で追加検討。</p>
+  <p><b>Target Edit Modal は変更なし</b>: 大会選択の「練習イベント」追加は S17 後 (S17.1 Practice Focus Card 着手時) に検討。</p>
+  <p><b>「大会変更」と「編集」の役割分担</b>: 「大会変更」= ターゲットの大会自体を別の大会に差し替え、「編集」= 目標・テーマだけ変更。意味の違いを明示。</p>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>S17 機材入力 改善案</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 14px;
+    background: #F2F2F7;
+    font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', sans-serif;
+    color: #202124;
+    max-width: 480px; margin: 0 auto;
+  }
+  .panel {
+    background: #fff; border: 1px solid #e8eaed;
+    border-radius: 12px; padding: 12px; margin-bottom: 10px;
+  }
+  .head {
+    font-size: 11px; color: #80868b; font-weight: 600;
+    letter-spacing: 0.5px; text-transform: uppercase;
+    margin-bottom: 10px; display: flex; align-items: center; gap: 5px;
+  }
+  .head .num {
+    width: 18px; height: 18px; border-radius: 50%;
+    background: #007AFF; color: #fff;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 700;
+  }
+  .field { margin-bottom: 8px; }
+  .field label {
+    display: block; font-size: 11px; color: #5f6368;
+    font-weight: 500; margin-bottom: 4px;
+  }
+  .field select, .field input {
+    width: 100%; min-height: 40px; padding: 8px 10px;
+    border: 1px solid #dadce0; border-radius: 6px;
+    background: #fff; font-size: 14px; color: #202124;
+    font-family: inherit;
+  }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; }
+  .new-row {
+    background: #E1F0FF; border: 1px solid #007AFF;
+    border-radius: 8px; padding: 8px 10px;
+    margin-bottom: 10px; position: relative;
+  }
+  .new-row::before {
+    content: "★ 新規"; position: absolute;
+    top: -10px; left: 8px;
+    background: #007AFF; color: #fff;
+    font-size: 9px; font-weight: 700;
+    padding: 1px 6px; border-radius: 4px;
+    letter-spacing: 0.04em;
+  }
+  .new-row label {
+    color: #0062CC; font-weight: 600;
+  }
+  .new-row select {
+    background: #fff; border-color: #007AFF;
+  }
+  h2 { font-size: 14px; margin: 16px 0 8px; color: #202124; }
+  .legend {
+    background: #fff; border: 1px solid #e8eaed; border-radius: 8px;
+    padding: 10px 12px; font-size: 12px; line-height: 1.6;
+    margin-bottom: 14px; color: #5f6368;
+  }
+  .legend b { color: #202124; }
+  .compare {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+    margin-bottom: 16px;
+  }
+  .col h3 {
+    font-size: 12px; margin: 0 0 6px;
+    padding: 4px 8px; border-radius: 4px;
+    background: #fef7e0; color: #7e5d00;
+  }
+  .col.after h3 { background: #e6f4ea; color: #0a5b35; }
+  .miniref {
+    font-size: 11px; color: #80868b;
+    padding: 2px 4px; line-height: 1.5;
+  }
+</style>
+</head>
+<body>
+<h2>S17: 機材入力 改善案 (静的プロト)</h2>
+
+<div class="legend">
+  <b>変更点 (3 つ):</b><br>
+  ① 機材の一番上に <b>「履歴セット」ドロップダウン</b> を追加 — 1 タップで 5 フィールド一括入力<br>
+  ② テンション縦/横を <b>数字入力 → ドロップダウン</b> に変更 — 直近使った値から選ぶだけ<br>
+  ③ ラケット/縦糸/横糸は変更なし (既存のドロップダウンのまま)
+</div>
+
+<div class="panel">
+  <div class="head"><span class="num">3</span>機材</div>
+
+  <!-- ★ 新規: 履歴セット -->
+  <div class="new-row">
+    <div class="field" style="margin-bottom:0">
+      <label>履歴セット (タップで一括入力)</label>
+      <select>
+        <option>— 個別に入力 —</option>
+        <option>YONEX EZONE 100 TOUR / Babolat Blast 1.25 / Yonex Poly Tour P / 46 / 43</option>
+        <option>YONEX EZONE 100 TOUR / Babolat Blast 1.25 / HEAD Hawk Touch 1.15 / 47 / 44</option>
+        <option>Prince TOUR 100 305g / Phantom Spin 17 / — / 50 / —</option>
+        <option>YONEX EZONE 98 / Babolat Blast 1.25 / Yonex Poly Tour P / 48 / 45</option>
+        <option>YONEX EZONE 100 TOUR / Phantom Spin 17 / Yonex Poly Tour P / 46 / 43</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="field">
+    <label>ラケット</label>
+    <select>
+      <option>YONEX EZONE 100 TOUR</option>
+      <option>YONEX EZONE 98</option>
+      <option>Prince TOUR 100 305g</option>
+    </select>
+  </div>
+  <div class="grid2">
+    <div class="field">
+      <label>縦糸</label>
+      <select>
+        <option>Babolat Blast 1.25</option>
+        <option>Phantom Spin 17</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>横糸</label>
+      <select>
+        <option>Yonex Poly Tour P</option>
+        <option>HEAD Hawk Touch 1.15</option>
+        <option>— 同じなら空欄 —</option>
+      </select>
+    </div>
+  </div>
+  <div class="grid2">
+    <div class="field">
+      <label>テンション縦</label>
+      <select>
+        <option>46</option>
+        <option>47</option>
+        <option>48</option>
+        <option>50</option>
+        <option>その他...</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>テンション横</label>
+      <select>
+        <option>43</option>
+        <option>44</option>
+        <option>45</option>
+        <option>その他...</option>
+      </select>
+    </div>
+  </div>
+</div>
+
+<div class="legend">
+  <b>動作 (この案だとどうなるか):</b><br>
+  ・<b>同じ機材で連続</b> → 履歴セットがデフォルトで前回値、何もしなくて良い (<b>0 タップ</b>)<br>
+  ・<b>過去使った組合せに切替</b> → 履歴セットを 1 回タップで 5 フィールド一括 (<b>1 タップ</b>)<br>
+  ・<b>テンションだけ違う</b> → 履歴セットで近い組合せ → テンション縦/横をドロップダウンで微調整 (<b>2-3 タップ</b>)<br>
+  ・<b>完全に新しい組合せ</b> → 履歴セット「個別に入力」のまま、各フィールドを個別選択
+</div>
+
+<div class="legend">
+  <b>名前の表記について:</b><br>
+  履歴セットの選択肢は <b>マスタに登録されたフル名そのまま</b> 表示します<br>
+  (前回 chip で短縮していた "EZONE 100 TOUR 46" のような表記は廃止、ドロップダウンの値とラケット欄の値が常に一致します)
+</div>
+
+<div class="legend" style="background:#fce8e6; color:#a31511; border-color:#a31511">
+  <b>確認事項 (ご判断ください):</b><br>
+  1. 上のレイアウトで <b>進めて良いか</b><br>
+  2. 履歴セットの表示形式は <b>「ラケット / 縦糸 / 横糸 / テンション縦 / テンション横」のスラッシュ区切り</b> で見やすいか (もっと短い表示が良いかなど)<br>
+  3. テンションのドロップダウン化 <b>OK か</b> (「その他...」で自由入力にも逃げられる)
+</div>
+
+</body>
+</html>

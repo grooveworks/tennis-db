@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>S17 開始時刻 + 練習時間 v10</title>
+<style>
+  :root {
+    --font: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', sans-serif;
+    --bg: #F2F2F7;
+    --panel: #ffffff;
+    --panel2: #f1f3f4;
+    --border: #dadce0;
+    --divider: #e8eaed;
+    --text: #202124;
+    --text-secondary: #5f6368;
+    --text-muted: #80868b;
+    --primary: #007AFF;
+    --primary-light: #E1F0FF;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 14px;
+    background: var(--bg);
+    font-family: var(--font);
+    color: var(--text);
+    max-width: 480px; margin: 0 auto;
+    -webkit-font-smoothing: antialiased;
+  }
+  h2 { font-size: 14px; margin: 16px 0 8px; }
+  h3 {
+    font-size: 12px; margin: 14px 0 6px;
+    padding: 4px 10px; border-radius: 6px;
+    background: #fef7e0; color: #7e5d00;
+  }
+  .field { margin-bottom: 8px; }
+  .field label {
+    display: block; font-size: 11px; color: var(--text-secondary);
+    font-weight: 500; margin-bottom: 4px;
+    font-family: var(--font);
+  }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; }
+
+  /* 時刻ボタン (回転式と分かるよう内側にホイール片りん) */
+  .time-btn {
+    width: 100%; min-height: 44px;
+    border: 1px solid var(--border); border-radius: 8px;
+    background: var(--panel);
+    font-family: var(--font);
+    cursor: pointer;
+    display: grid;
+    grid-template-columns: 24px 1fr 16px;
+    align-items: center;
+    padding: 6px 12px;
+    gap: 8px;
+    transition: border-color 150ms;
+  }
+  .time-btn:active { border-color: var(--primary); }
+  .time-btn .icon {
+    color: var(--text-muted);
+    font-size: 16px; line-height: 1;
+    display: flex; align-items: center;
+  }
+  .time-btn .value {
+    font-size: 18px; font-weight: 600;
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+    text-align: left;
+  }
+  .time-btn .value.empty {
+    font-size: 13px; font-weight: 400;
+    color: var(--text-muted);
+  }
+  .time-btn .chev {
+    color: var(--text-muted); font-size: 12px;
+    display: flex; flex-direction: column;
+    line-height: 0.7;
+  }
+  .time-btn.disabled {
+    background: var(--panel2);
+    cursor: not-allowed;
+  }
+  .time-btn.disabled .value { color: #bdc1c6; }
+
+  .preview-line {
+    font-size: 11px; color: var(--text-secondary);
+    padding: 6px 4px 0;
+    font-family: var(--font);
+  }
+  .preview-line b {
+    color: var(--primary); font-variant-numeric: tabular-nums;
+  }
+
+  /* モーダル */
+  .modal-bg {
+    position: absolute; inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(4px);
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  .wheel-card {
+    background: var(--panel);
+    border-radius: 14px;
+    padding: 20px 20px 14px;
+    width: 320px; max-width: calc(100vw - 40px);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+    font-family: var(--font);
+  }
+  .wheel-title {
+    text-align: center;
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 14px;
+    font-family: var(--font);
+    letter-spacing: -0.02em;
+  }
+
+  /* 2 列レイアウト + センター帯 */
+  .wheel-cols-wrap {
+    position: relative;
+  }
+  .wheel-cols-wrap::before {
+    content: ""; position: absolute;
+    left: 0; right: 0;
+    top: 50%; transform: translateY(-50%);
+    height: 40px;
+    background: var(--bg);
+    border-radius: 10px;
+    pointer-events: none;
+  }
+  .wheel-cols {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 0;
+    position: relative;
+  }
+  .wheel-col {
+    position: relative;
+    height: 200px;
+    overflow: hidden;
+  }
+  .wheel-list {
+    display: flex; flex-direction: column;
+    align-items: center;
+    padding: 80px 0;
+  }
+  .wheel-item {
+    flex: 0 0 40px;
+    line-height: 40px;
+    font-size: 22px;
+    color: rgba(60, 60, 67, 0.35);
+    font-variant-numeric: tabular-nums;
+    font-family: var(--font);
+    font-weight: 400;
+    letter-spacing: -0.01em;
+    user-select: none;
+  }
+  .wheel-item.center {
+    color: var(--text);
+    font-weight: 600;
+    font-size: 26px;
+  }
+  .wheel-item.near {
+    color: rgba(60, 60, 67, 0.65);
+    font-size: 24px;
+  }
+
+  /* unit ラベル (時 / 分 を 中央帯 の隣に置く) */
+  .wheel-units {
+    position: absolute;
+    top: 50%; transform: translateY(-50%);
+    pointer-events: none;
+    z-index: 2;
+    width: 100%;
+    display: grid; grid-template-columns: 1fr 1fr;
+    text-align: left;
+  }
+  .wheel-unit {
+    font-size: 13px; color: var(--text-secondary);
+    font-weight: 500;
+    padding-left: 70%;
+    line-height: 40px;
+  }
+
+  /* duration プレビュー */
+  .duration-preview {
+    text-align: center;
+    font-size: 13px; color: var(--text-secondary);
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--divider);
+    font-family: var(--font);
+  }
+  .duration-preview b {
+    color: var(--primary);
+    font-variant-numeric: tabular-nums;
+    font-size: 15px;
+    margin-left: 4px;
+  }
+
+  /* footer */
+  .wheel-foot {
+    display: flex; justify-content: space-between;
+    align-items: center;
+    margin-top: 14px;
+  }
+  .wheel-cancel {
+    background: transparent; border: none;
+    font-size: 15px; color: var(--text-secondary);
+    cursor: pointer;
+    font-family: var(--font);
+    padding: 6px 4px;
+  }
+  .wheel-confirm {
+    background: var(--primary); border: none;
+    color: #fff;
+    font-size: 15px; font-weight: 600;
+    border-radius: 10px;
+    padding: 8px 20px;
+    cursor: pointer;
+    font-family: var(--font);
+    min-height: 36px;
+    box-shadow: 0 1px 3px rgba(0,122,255,0.3);
+  }
+
+  .legend {
+    background: var(--panel); border: 1px solid var(--divider); border-radius: 8px;
+    padding: 8px 12px; font-size: 11px; line-height: 1.5;
+    margin-bottom: 10px; color: var(--text-secondary);
+    font-family: var(--font);
+  }
+  .legend b { color: var(--text); }
+  .question {
+    background: #fce8e6; color: #a31511; border: 1px solid #a31511;
+    border-radius: 8px;
+    padding: 10px 12px; font-size: 12px; line-height: 1.7;
+    margin: 14px 0 4px;
+  }
+</style>
+</head>
+<body>
+
+<h2>S17 v10: 時刻ピッカー (デザイン修正版)</h2>
+
+<div class="legend">
+  <b>v9 からの修正:</b><br>
+  ① クリーム色廃止 → 白パネル + 中央帯は薄グレーで統一<br>
+  ② ボタンに 時計アイコン + 上下三角 (▾) で 「タップ → ピッカー開く」 と分かる見た目<br>
+  ③ 全要素に `font-family: var(--font)` 明示 (システムフォント統一)<br>
+  ④ 文字サイズの階層: タイトル 17px / 中央 26px / 上下 22-24px / 補助 13px / 末尾 11px<br>
+  ⑤ 「(5分刻み)」テキスト廃止、unit ラベル「時 / 分」に集約<br>
+  ⑥ footer ボタン: 「キャンセル」 (text) + 「完了」 (青角丸) で iOS 風
+</div>
+
+<h3>状態 1: 閉じている (開始時刻 + 終了時刻 = 練習時間)</h3>
+
+<div style="background: var(--panel); border:1px solid var(--divider); border-radius:12px; padding:14px;">
+  <div class="grid2">
+    <div class="field">
+      <label>開始時刻</label>
+      <button class="time-btn">
+        <span class="icon">🕐</span>
+        <span class="value">10:00</span>
+        <span class="chev">▴<br>▾</span>
+      </button>
+    </div>
+    <div class="field">
+      <label>練習時間</label>
+      <button class="time-btn">
+        <span class="icon">⏱</span>
+        <span class="value">2時間 30分</span>
+        <span class="chev">▴<br>▾</span>
+      </button>
+    </div>
+  </div>
+  <div class="preview-line">
+    終了時刻 = <b>12:30</b> として保存
+  </div>
+</div>
+
+<h3>状態 2: 開始時刻ホイール (白パネル + システムフォント)</h3>
+
+<div style="position: relative; height: 380px; border: 2px dashed var(--text-muted); border-radius: 12px; overflow: hidden; background: var(--bg);">
+  <div class="modal-bg">
+    <div class="wheel-card">
+      <div class="wheel-title">開始時刻</div>
+      <div class="wheel-cols-wrap">
+        <div class="wheel-cols">
+          <div class="wheel-col">
+            <div class="wheel-list">
+              <div class="wheel-item">7</div>
+              <div class="wheel-item near">8</div>
+              <div class="wheel-item near">9</div>
+              <div class="wheel-item center">10</div>
+              <div class="wheel-item near">11</div>
+              <div class="wheel-item near">12</div>
+              <div class="wheel-item">13</div>
+            </div>
+          </div>
+          <div class="wheel-col">
+            <div class="wheel-list">
+              <div class="wheel-item">35</div>
+              <div class="wheel-item near">40</div>
+              <div class="wheel-item near">45</div>
+              <div class="wheel-item center">00</div>
+              <div class="wheel-item near">05</div>
+              <div class="wheel-item near">10</div>
+              <div class="wheel-item">15</div>
+            </div>
+          </div>
+        </div>
+        <div class="wheel-units">
+          <div class="wheel-unit">時</div>
+          <div class="wheel-unit">分</div>
+        </div>
+      </div>
+      <div class="wheel-foot">
+        <button class="wheel-cancel">キャンセル</button>
+        <button class="wheel-confirm">完了</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h3>状態 3: 練習時間 (=終了時刻) ホイール</h3>
+
+<div style="position: relative; height: 430px; border: 2px dashed var(--text-muted); border-radius: 12px; overflow: hidden; background: var(--bg);">
+  <div class="modal-bg">
+    <div class="wheel-card">
+      <div class="wheel-title">練習時間</div>
+      <div class="wheel-cols-wrap">
+        <div class="wheel-cols">
+          <div class="wheel-col">
+            <div class="wheel-list">
+              <div class="wheel-item">0</div>
+              <div class="wheel-item near">1</div>
+              <div class="wheel-item center">2</div>
+              <div class="wheel-item near">3</div>
+              <div class="wheel-item near">4</div>
+              <div class="wheel-item">5</div>
+              <div class="wheel-item">6</div>
+            </div>
+          </div>
+          <div class="wheel-col">
+            <div class="wheel-list">
+              <div class="wheel-item">15</div>
+              <div class="wheel-item near">20</div>
+              <div class="wheel-item near">25</div>
+              <div class="wheel-item center">30</div>
+              <div class="wheel-item near">35</div>
+              <div class="wheel-item near">40</div>
+              <div class="wheel-item">45</div>
+            </div>
+          </div>
+        </div>
+        <div class="wheel-units">
+          <div class="wheel-unit">時間</div>
+          <div class="wheel-unit">分</div>
+        </div>
+      </div>
+
+      <div class="duration-preview">
+        終了時刻 →<b>12:30</b>
+      </div>
+
+      <div class="wheel-foot">
+        <button class="wheel-cancel">キャンセル</button>
+        <button class="wheel-confirm">完了</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h3>状態 4: 開始時刻が空 (練習時間ボタン disable)</h3>
+
+<div style="background: var(--panel); border:1px solid var(--divider); border-radius:12px; padding:14px;">
+  <div class="grid2">
+    <div class="field">
+      <label>開始時刻</label>
+      <button class="time-btn">
+        <span class="icon">🕐</span>
+        <span class="value empty">タップして選択</span>
+        <span class="chev">▴<br>▾</span>
+      </button>
+    </div>
+    <div class="field">
+      <label>練習時間</label>
+      <button class="time-btn disabled">
+        <span class="icon">⏱</span>
+        <span class="value empty">先に開始時刻</span>
+        <span class="chev">▴<br>▾</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="question">
+  v10 で進めて良いか / まだダサい部分の指摘 / 別案 を返してください。
+</div>
+
+</body>
+</html>

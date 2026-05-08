@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>S17 機材入力 改善案 v2</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 14px;
+    background: #F2F2F7;
+    font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', sans-serif;
+    color: #202124;
+    max-width: 480px; margin: 0 auto;
+  }
+  .panel {
+    background: #fff; border: 1px solid #e8eaed;
+    border-radius: 12px; padding: 12px; margin-bottom: 10px;
+  }
+  .head {
+    font-size: 11px; color: #80868b; font-weight: 600;
+    letter-spacing: 0.5px; text-transform: uppercase;
+    margin-bottom: 10px; display: flex; align-items: center; gap: 5px;
+  }
+  .head .num {
+    width: 18px; height: 18px; border-radius: 50%;
+    background: #007AFF; color: #fff;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 700;
+  }
+  .field { margin-bottom: 8px; }
+  .field label {
+    display: block; font-size: 11px; color: #5f6368;
+    font-weight: 500; margin-bottom: 4px;
+  }
+  .field select, .field input {
+    width: 100%; min-height: 40px; padding: 8px 10px;
+    border: 1px solid #dadce0; border-radius: 6px;
+    background: #fff; font-size: 14px; color: #202124;
+    font-family: inherit;
+  }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; }
+  .new-row {
+    background: #E1F0FF; border: 1px solid #007AFF;
+    border-radius: 8px; padding: 8px 10px;
+    margin-bottom: 10px; position: relative;
+  }
+  .new-row::before {
+    content: "★ 新規"; position: absolute;
+    top: -10px; left: 8px;
+    background: #007AFF; color: #fff;
+    font-size: 9px; font-weight: 700;
+    padding: 1px 6px; border-radius: 4px;
+    letter-spacing: 0.04em;
+  }
+  .new-row label { color: #0062CC; font-weight: 600; }
+  .new-row select {
+    background: #fff; border-color: #007AFF;
+    text-overflow: ellipsis; white-space: nowrap; overflow: hidden;
+  }
+  h2 { font-size: 14px; margin: 16px 0 8px; color: #202124; }
+  .legend {
+    background: #fff; border: 1px solid #e8eaed; border-radius: 8px;
+    padding: 10px 12px; font-size: 12px; line-height: 1.6;
+    margin-bottom: 14px; color: #5f6368;
+  }
+  .legend b { color: #202124; }
+  .changed-tension select {
+    background: #fef9e6; border-color: #fbbc04;
+  }
+  .badge {
+    display: inline-block; font-size: 9px; font-weight: 700;
+    padding: 1px 5px; border-radius: 3px;
+    background: #fbbc04; color: #7e5d00;
+    vertical-align: middle; margin-left: 4px;
+  }
+</style>
+</head>
+<body>
+<h2>S17 v2: 機材入力 改善案 (修正版)</h2>
+
+<div class="legend">
+  <b>v1 からの変更:</b><br>
+  ① 履歴セットを <b>「日付 + 短縮形」</b> に変更 → 横長を解消<br>
+  ② テンションは <b>ネイティブ select</b> (iOS では自動で <b>回転式ピッカー</b> 表示、35〜55 + その他)<br>
+  ③ フィールドは引き続きフル名 (canonical) を表示
+</div>
+
+<div class="panel">
+  <div class="head"><span class="num">3</span>機材</div>
+
+  <!-- ★ 新規: 履歴セット (短縮表記) -->
+  <div class="new-row">
+    <div class="field" style="margin-bottom:0">
+      <label>履歴セット (タップで一括入力)</label>
+      <select>
+        <option>— 個別に入力 —</option>
+        <option>5/2  EZONE 100 TOUR  46/43  (前回)</option>
+        <option>4/28 EZONE 100 TOUR  47/44</option>
+        <option>4/15 EZONE 98        48/45</option>
+        <option>4/10 Prince TOUR 305g 50</option>
+        <option>3/30 EZONE 100 TOUR Phantom 46/43</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="field">
+    <label>ラケット</label>
+    <select>
+      <option>YONEX EZONE 100 TOUR</option>
+      <option>YONEX EZONE 98</option>
+      <option>Prince TOUR 100 305g</option>
+    </select>
+  </div>
+  <div class="grid2">
+    <div class="field">
+      <label>縦糸</label>
+      <select>
+        <option>Babolat Blast 1.25</option>
+        <option>Phantom Spin 17</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>横糸</label>
+      <select>
+        <option>Yonex Poly Tour P</option>
+        <option>HEAD Hawk Touch 1.15</option>
+        <option>— 同じなら空欄 —</option>
+      </select>
+    </div>
+  </div>
+  <div class="grid2 changed-tension">
+    <div class="field">
+      <label>テンション縦 <span class="badge">回転式ピッカー</span></label>
+      <select>
+        <option>35</option><option>36</option><option>37</option><option>38</option>
+        <option>39</option><option>40</option><option>41</option><option>42</option>
+        <option>43</option><option>44</option><option>45</option><option selected>46</option>
+        <option>47</option><option>48</option><option>49</option><option>50</option>
+        <option>51</option><option>52</option><option>53</option><option>54</option>
+        <option>55</option>
+        <option value="custom">その他...</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>テンション横 <span class="badge">回転式ピッカー</span></label>
+      <select>
+        <option>35</option><option>36</option><option>37</option><option>38</option>
+        <option>39</option><option>40</option><option>41</option><option>42</option>
+        <option selected>43</option><option>44</option><option>45</option><option>46</option>
+        <option>47</option><option>48</option><option>49</option><option>50</option>
+        <option>51</option><option>52</option><option>53</option><option>54</option>
+        <option>55</option>
+        <option value="custom">その他...</option>
+      </select>
+    </div>
+  </div>
+</div>
+
+<div class="legend">
+  <b>履歴セットの短縮ルール (確認):</b><br>
+  「日付 + ラケット末尾 2-3 語 + テンション縦/横」<br>
+  例: <code>5/2 EZONE 100 TOUR 46/43 (前回)</code><br>
+  ・ラケットの先頭メーカー名 (YONEX, Babolat 等) を省略<br>
+  ・ストリング名は履歴セットでは <b>表示しない</b> (タップ後に下のフィールドで確認)<br>
+  ・「(前回)」マークは直近 1 件のみ
+</div>
+
+<div class="legend">
+  <b>テンションの回転式ピッカー:</b><br>
+  iOS Safari では <code>&lt;select&gt;</code> をタップすると <b>自動で回転式ピッカー</b> が表示されます (時刻選択と同じ UI)<br>
+  範囲: 35 - 55 (1 ポンド刻み) + 「その他...」で自由入力<br>
+  デスクトップでは通常のドロップダウン (テスト時)
+</div>
+
+<div class="legend" style="background:#fce8e6; color:#a31511; border-color:#a31511">
+  <b>確認事項:</b><br>
+  1. 履歴セットの短縮形 (例: <code>5/2 EZONE 100 TOUR 46/43</code>) で見やすいか<br>
+  2. 「(前回)」マークが先頭にあって良いか<br>
+  3. テンション 35〜55 範囲で良いか (もっと狭い 40〜55 等の方が良いか)<br>
+  4. 「その他...」の自由入力は必要か (= 35 未満 / 55 超 が発生するか)
+</div>
+
+</body>
+</html>

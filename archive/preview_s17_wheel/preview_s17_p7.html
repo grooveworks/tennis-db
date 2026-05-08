@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>S17 履歴セット (簡素化版)</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 14px;
+    background: #F2F2F7;
+    font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', sans-serif;
+    color: #202124;
+    max-width: 480px; margin: 0 auto;
+  }
+  h2 { font-size: 14px; margin: 16px 0 8px; }
+  h3 {
+    font-size: 12px; margin: 14px 0 6px;
+    padding: 4px 10px; border-radius: 6px;
+    background: #fef7e0; color: #7e5d00;
+  }
+  .panel {
+    background: #fff; border: 1px solid #e8eaed;
+    border-radius: 12px; padding: 12px; margin-bottom: 10px;
+  }
+  .head {
+    font-size: 11px; color: #80868b; font-weight: 600;
+    letter-spacing: 0.5px; text-transform: uppercase;
+    margin-bottom: 10px; display: flex; align-items: center; gap: 5px;
+  }
+  .head .num {
+    width: 18px; height: 18px; border-radius: 50%;
+    background: #007AFF; color: #fff;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 700;
+  }
+  .field { margin-bottom: 8px; }
+  .field label {
+    display: block; font-size: 11px; color: #5f6368;
+    font-weight: 500; margin-bottom: 4px;
+  }
+  .field select, .field input {
+    width: 100%; min-height: 40px; padding: 8px 10px;
+    border: 1px solid #dadce0; border-radius: 6px;
+    background: #fff; font-size: 14px; color: #202124;
+    font-family: inherit;
+  }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; }
+
+  .picker-btn {
+    width: 100%; min-height: 36px; padding: 6px 10px;
+    border: 1px dashed #007AFF; border-radius: 6px;
+    background: #E1F0FF; color: #007AFF;
+    font-size: 12px; font-weight: 600; cursor: pointer;
+    font-family: inherit;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    margin-bottom: 8px;
+  }
+
+  .sheet-head {
+    padding: 10px 14px;
+    border-bottom: 1px solid #e8eaed;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .sheet-head .title { font-size: 13px; font-weight: 700; color: #202124; }
+  .sheet-head .close {
+    background: none; border: none; cursor: pointer;
+    color: #5f6368; font-size: 20px; padding: 0 4px;
+  }
+  .sheet-search {
+    padding: 8px 14px;
+    border-bottom: 1px solid #f1f3f4;
+    background: #fff;
+  }
+  .sheet-search input {
+    width: 100%; min-height: 36px; padding: 6px 10px;
+    border: 1px solid #dadce0; border-radius: 6px;
+    font-size: 13px; font-family: inherit;
+    background: #f8f9fa;
+  }
+  .sheet-body { flex: 1; overflow-y: auto; padding: 0; }
+  .sheet-item {
+    width: 100%; padding: 8px 12px;
+    background: none; border: none;
+    border-bottom: 1px solid #f1f3f4;
+    text-align: left; cursor: pointer;
+    font-family: inherit;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .sheet-item .check {
+    width: 16px; flex-shrink: 0;
+    color: #007AFF; font-size: 14px;
+    text-align: center;
+  }
+  .sheet-item .body { flex: 1; min-width: 0; line-height: 1.35; }
+  .sheet-item .top {
+    font-size: 13px; font-weight: 600; color: #202124;
+    word-break: break-word;
+  }
+  .sheet-item .sub {
+    font-size: 11px; color: #5f6368;
+    word-break: break-word;
+    margin-top: 1px;
+  }
+  .sheet-item .badge-prev {
+    display: inline-block; font-size: 9px; font-weight: 700;
+    padding: 1px 5px; border-radius: 3px;
+    background: #007AFF; color: #fff; margin-left: 5px;
+    letter-spacing: 0.04em; vertical-align: 1px;
+  }
+
+  .legend {
+    background: #fff; border: 1px solid #e8eaed; border-radius: 8px;
+    padding: 8px 12px; font-size: 11px; line-height: 1.5;
+    margin-bottom: 10px; color: #5f6368;
+  }
+  .legend b { color: #202124; }
+  .arrow {
+    text-align: center; color: #80868b; font-size: 18px;
+    margin: 6px 0;
+  }
+  .question {
+    background: #fce8e6; color: #a31511; border: 1px solid #a31511;
+    border-radius: 8px;
+    padding: 10px 12px; font-size: 12px; line-height: 1.7;
+    margin: 14px 0 4px;
+  }
+</style>
+</head>
+<body>
+
+<h2>S17 簡素化版: 「個別に入力」項目を廃止</h2>
+
+<div class="legend">
+  <b>変更点:</b><br>
+  ・シート内の「個別に入力」項目を <b>廃止</b><br>
+  ・シートは「過去の組合せから選ぶ」専用、選びたくなければ × で閉じる<br>
+  ・履歴セットボタンは小さくして「履歴から選ぶ」テキストだけ<br>
+  ・5 フィールドは常に編集可、ユーザーが好きにいじれる
+</div>
+
+<h3>状態 1: 機材セクション (履歴セットボタンは下部の小さいリンク風)</h3>
+
+<div class="panel">
+  <div class="head"><span class="num">3</span>機材</div>
+
+  <div class="field"><label>ラケット</label><select><option selected>YONEX EZONE 100 TOUR</option></select></div>
+  <div class="grid2">
+    <div class="field"><label>縦糸</label><select><option selected>Babolat Blast 1.25</option></select></div>
+    <div class="field"><label>横糸</label><select><option selected>Yonex Poly Tour P</option></select></div>
+  </div>
+  <div class="grid2">
+    <div class="field"><label>テンション縦</label><select><option selected>46</option></select></div>
+    <div class="field"><label>テンション横</label><select><option selected>43</option></select></div>
+  </div>
+
+  <button class="picker-btn" type="button">
+    🔁 履歴セットから選ぶ (12 件)
+  </button>
+</div>
+
+<div class="legend">
+  <b>位置の意図:</b><br>
+  ・履歴は <b>あくまで補助機能</b>。メインは 5 フィールドの直接入力<br>
+  ・補助機能なのでセクションの最下部に小さく置く
+</div>
+
+<h3>状態 2: ボタンタップで bottom sheet が開く</h3>
+
+<div style="position: relative; height: 540px; border: 2px dashed #80868b; border-radius: 12px; overflow: hidden; background: rgba(0,0,0,0.4);">
+
+  <div style="background:#fff; border-radius: 16px 16px 0 0; width: 100%; height: 100%; display: flex; flex-direction: column; position: absolute; bottom: 0; max-height: 100%;">
+    <div class="sheet-head">
+      <span class="title">履歴セットから選ぶ</span>
+      <button class="close">×</button>
+    </div>
+
+    <div class="sheet-search">
+      <input type="text" placeholder="絞り込み (ラケット名・数字など)" />
+    </div>
+
+    <div class="sheet-body">
+
+      <button class="sheet-item" style="background:#E1F0FF;">
+        <div class="check">✓</div>
+        <div class="body">
+          <div class="top">YONEX EZONE 100 TOUR<span class="badge-prev">前回</span></div>
+          <div class="sub">Babolat Blast 1.25 / Yonex Poly Tour P · 46/43</div>
+        </div>
+      </button>
+
+      <button class="sheet-item">
+        <div class="check"></div>
+        <div class="body">
+          <div class="top">YONEX EZONE 100 TOUR</div>
+          <div class="sub">Babolat Blast 1.25 / HEAD Hawk Touch 1.15 · 47/44</div>
+        </div>
+      </button>
+
+      <button class="sheet-item">
+        <div class="check"></div>
+        <div class="body">
+          <div class="top">YONEX EZONE 98</div>
+          <div class="sub">Babolat Blast 1.25 / Yonex Poly Tour P · 48/45</div>
+        </div>
+      </button>
+
+      <button class="sheet-item">
+        <div class="check"></div>
+        <div class="body">
+          <div class="top">Prince TOUR 100 305g</div>
+          <div class="sub">Phantom Spin 17 · 50</div>
+        </div>
+      </button>
+
+      <button class="sheet-item">
+        <div class="check"></div>
+        <div class="body">
+          <div class="top">YONEX EZONE 100 TOUR</div>
+          <div class="sub">Phantom Spin 17 / Yonex Poly Tour P · 46/43</div>
+        </div>
+      </button>
+
+      <button class="sheet-item">
+        <div class="check"></div>
+        <div class="body">
+          <div class="top">YONEX EZONE 98</div>
+          <div class="sub">Phantom Spin 17 / HEAD Hawk Touch 1.15 · 49/46</div>
+        </div>
+      </button>
+
+    </div>
+  </div>
+</div>
+
+<div class="legend">
+  <b>シートの動作:</b><br>
+  ・項目をタップ → 5 フィールドに反映、シート閉じる<br>
+  ・× タップ / 背景タップ → 何もせずシート閉じる (フィールドは元のまま)<br>
+  ・選びたくない場合は × で閉じればよい (= 旧「個別に入力」と同じ意味)
+</div>
+
+<h3>状態 3: ユーザーが手で 1 フィールド変えた後</h3>
+
+<div class="legend">
+  履歴セットの組合せに合致しなくなったが、特別な表示変更なし。<br>
+  履歴セットボタンは <b>「履歴から選ぶ」のまま</b>、5 フィールドは普通にユーザーの編集値が入っている。
+</div>
+
+<div class="panel">
+  <div class="head"><span class="num">3</span>機材</div>
+  <div class="field"><label>ラケット</label><select><option selected>YONEX EZONE 100 TOUR</option></select></div>
+  <div class="grid2">
+    <div class="field"><label>縦糸</label><select><option selected style="background:#fef7e0;">Phantom Spin 17 ← 変更</option></select></div>
+    <div class="field"><label>横糸</label><select><option selected>Yonex Poly Tour P</option></select></div>
+  </div>
+  <div class="grid2">
+    <div class="field"><label>テンション縦</label><select><option selected>46</option></select></div>
+    <div class="field"><label>テンション横</label><select><option selected>43</option></select></div>
+  </div>
+  <button class="picker-btn" type="button">
+    🔁 履歴セットから選ぶ (12 件)
+  </button>
+</div>
+
+<div class="question">
+  この方向で進めて良いか / 修正点 を返してください。
+</div>
+
+</body>
+</html>

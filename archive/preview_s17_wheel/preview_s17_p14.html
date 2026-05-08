@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>S17 ホイール v14 (中央帯ガラス風)</title>
+<style>
+  :root {
+    --font: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', sans-serif;
+    --bg: #F2F2F7;
+    --panel: #ffffff;
+    --border: #dadce0;
+    --divider: #e8eaed;
+    --text: #202124;
+    --text-secondary: #5f6368;
+    --text-muted: #80868b;
+    --primary: #007AFF;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 14px;
+    background: var(--bg);
+    font-family: var(--font);
+    color: var(--text);
+    max-width: 760px; margin: 0 auto;
+    -webkit-font-smoothing: antialiased;
+  }
+  h2 { font-size: 16px; margin: 16px 0 8px; }
+  h3 {
+    font-size: 12px; margin: 14px 0 6px;
+    padding: 4px 10px; border-radius: 6px;
+    background: #fef7e0; color: #7e5d00;
+  }
+  .legend {
+    background: #fff; border: 1px solid var(--divider); border-radius: 8px;
+    padding: 10px 12px; font-size: 11px; line-height: 1.6;
+    margin-bottom: 12px; color: var(--text-secondary);
+    font-family: var(--font);
+  }
+  .legend b { color: var(--text); }
+  .legend code {
+    background: #f1f3f4; padding: 1px 5px; border-radius: 3px;
+    font-size: 11px;
+  }
+  .compare {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
+  }
+  @media (max-width: 600px) {
+    .compare { grid-template-columns: 1fr; }
+  }
+  .compare-col {
+    background: #fff; border: 1px solid var(--divider);
+    border-radius: 12px; padding: 14px 12px;
+    display: flex; flex-direction: column; align-items: center;
+    gap: 10px;
+  }
+  .ver-tag {
+    font-size: 10px; font-weight: 700;
+    padding: 3px 10px; border-radius: 12px;
+    letter-spacing: 0.04em;
+  }
+  .ver-tag.old { background: #f1f3f4; color: #5f6368; }
+  .ver-tag.new { background: #e6f4ea; color: #0a5b35; }
+
+  .picker-frame {
+    width: 280px; max-width: 100%;
+    border-radius: 14px;
+    padding: 16px 14px 12px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+    background: #fff;
+  }
+  .picker-title {
+    text-align: center;
+    font-family: var(--font);
+    color: var(--text);
+    font-weight: 700;
+    font-size: 15px;
+    margin-bottom: 10px;
+  }
+
+  /* 共通: wheel-area, mask, perspective */
+  .wheel-area {
+    position: relative;
+    height: 280px;
+    overflow: hidden;
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 12%, #000 88%, transparent 100%);
+            mask-image: linear-gradient(to bottom, transparent 0%, #000 12%, #000 88%, transparent 100%);
+  }
+  .wheel-list {
+    display: flex; flex-direction: column;
+    align-items: center;
+    padding: 14px 0;
+    transform-style: preserve-3d;
+    perspective: 1000px;
+  }
+  .wheel-item {
+    flex: 0 0 36px;
+    line-height: 36px;
+    font-size: 26px;
+    font-family: var(--font);
+    font-variant-numeric: tabular-nums;
+    color: var(--text);
+    user-select: none;
+    transform-origin: center;
+    backface-visibility: hidden;
+  }
+  .wheel-item.center { opacity: 1; font-weight: 600; }
+  .wheel-item.p1 { opacity: 0.75; transform: rotateX(+20deg) scale(0.92); }
+  .wheel-item.p2 { opacity: 0.45; transform: rotateX(+40deg) scale(0.82); }
+  .wheel-item.p3 { opacity: 0.20; transform: rotateX(+60deg) scale(0.7); }
+  .wheel-item.n1 { opacity: 0.75; transform: rotateX(-20deg) scale(0.92); }
+  .wheel-item.n2 { opacity: 0.45; transform: rotateX(-40deg) scale(0.82); }
+  .wheel-item.n3 { opacity: 0.20; transform: rotateX(-60deg) scale(0.7); }
+
+  /* ======================================
+     v13: 上下 1px ライン (枠だけ)
+     ====================================== */
+  .v13 .wheel-area::before, .v13 .wheel-area::after {
+    content: ""; position: absolute;
+    left: 0; right: 0; height: 1px;
+    background: rgba(120,120,128,0.3);
+    pointer-events: none;
+    z-index: 2;
+  }
+  .v13 .wheel-area::before { top: calc(50% - 18px); }
+  .v13 .wheel-area::after  { top: calc(50% + 17px); }
+
+  /* ======================================
+     v14: ガラス風 (中央 36px に半透明グレー + 微細な上下ハイライト)
+        - rgba(120,120,128,0.15) で薄いガラス感
+        - 内側ハイライト (上端 1px の白) + 下端 hairline
+        - 角丸 8px で少し iOS ぽく
+     ====================================== */
+  .v14 .wheel-area::before {
+    content: ""; position: absolute;
+    left: 8px; right: 8px;
+    top: calc(50% - 18px);
+    height: 36px;
+    background: rgba(120,120,128,0.15);
+    border-radius: 8px;
+    box-shadow:
+      inset 0 0.5px 0 rgba(255,255,255,0.6),
+      inset 0 -0.5px 0 rgba(120,120,128,0.18);
+    pointer-events: none;
+    z-index: 2;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+
+  .annot {
+    background: #fff8e1;
+    border: 1px solid #fbbc04;
+    border-radius: 6px;
+    padding: 6px 8px;
+    font-size: 10px;
+    color: #7e5d00;
+    margin-top: 4px;
+    width: 100%;
+    line-height: 1.45;
+  }
+  .annot.good {
+    background: #e6f4ea; border-color: #34a853; color: #0a5b35;
+  }
+  .annot b { font-weight: 700; }
+
+  .question {
+    background: #fce8e6; color: #a31511; border: 1px solid #a31511;
+    border-radius: 8px;
+    padding: 10px 12px; font-size: 12px; line-height: 1.7;
+    margin: 14px 0 4px;
+  }
+</style>
+</head>
+<body>
+
+<h2>v13 (上下線) vs v14 (ガラス風中央帯)</h2>
+
+<div class="legend">
+  <b>変更点 (中央帯のみ):</b><br>
+  ・v13: 上下 1px ハイライン (枠だけ、中は透明)<br>
+  ・v14: <code>rgba(120,120,128,0.15)</code> の薄いガラス + 内側に上端 1px の白ハイライト + 角丸 8px + <code>backdrop-filter: blur(8px)</code><br>
+  ・テキスト (10) は両方とも太字 + 左右色強調なしで統一
+</div>
+
+<div class="compare">
+
+  <!-- v13 -->
+  <div class="compare-col">
+    <span class="ver-tag old">v13 (上下線)</span>
+    <div class="picker-frame v13">
+      <div class="picker-title">開始時刻</div>
+      <div class="wheel-area">
+        <div class="wheel-list">
+          <div class="wheel-item p3">7</div>
+          <div class="wheel-item p2">8</div>
+          <div class="wheel-item p1">9</div>
+          <div class="wheel-item center">10</div>
+          <div class="wheel-item n1">11</div>
+          <div class="wheel-item n2">12</div>
+          <div class="wheel-item n3">13</div>
+        </div>
+      </div>
+    </div>
+    <div class="annot">
+      上下に hairline の枠だけ。中央帯は透明 (背景白がそのまま見える)
+    </div>
+  </div>
+
+  <!-- v14 -->
+  <div class="compare-col">
+    <span class="ver-tag new">v14 (ガラス風)</span>
+    <div class="picker-frame v14">
+      <div class="picker-title">開始時刻</div>
+      <div class="wheel-area">
+        <div class="wheel-list">
+          <div class="wheel-item p3">7</div>
+          <div class="wheel-item p2">8</div>
+          <div class="wheel-item p1">9</div>
+          <div class="wheel-item center">10</div>
+          <div class="wheel-item n1">11</div>
+          <div class="wheel-item n2">12</div>
+          <div class="wheel-item n3">13</div>
+        </div>
+      </div>
+    </div>
+    <div class="annot good">
+      薄いガラスバー (角丸 8px、上端ハイライト + 下端 hairline、blur(8px))。<b>選択中の行が乗っている板</b> 感が出る
+    </div>
+  </div>
+
+</div>
+
+<h3>v14 を 2 列 (時 / 分) で展開</h3>
+
+<div style="display: flex; justify-content: center;">
+  <div class="picker-frame v14" style="width: 320px;">
+    <div class="picker-title">開始時刻</div>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0;">
+      <div class="wheel-area">
+        <div class="wheel-list">
+          <div class="wheel-item p3">7</div>
+          <div class="wheel-item p2">8</div>
+          <div class="wheel-item p1">9</div>
+          <div class="wheel-item center">10</div>
+          <div class="wheel-item n1">11</div>
+          <div class="wheel-item n2">12</div>
+          <div class="wheel-item n3">13</div>
+        </div>
+      </div>
+      <div class="wheel-area">
+        <div class="wheel-list">
+          <div class="wheel-item p3">35</div>
+          <div class="wheel-item p2">40</div>
+          <div class="wheel-item p1">45</div>
+          <div class="wheel-item center">00</div>
+          <div class="wheel-item n1">05</div>
+          <div class="wheel-item n2">10</div>
+          <div class="wheel-item n3">15</div>
+        </div>
+      </div>
+    </div>
+    <div style="display: flex; justify-content: space-between; margin-top: 14px;">
+      <button style="background:transparent; border:none; color:var(--text-secondary); font-family:var(--font); font-size:15px; padding: 6px 4px; cursor:pointer;">キャンセル</button>
+      <button style="background:var(--primary); border:none; color:#fff; font-family:var(--font); font-size:15px; font-weight:600; border-radius:10px; padding:8px 20px; cursor:pointer;">完了</button>
+    </div>
+  </div>
+</div>
+
+<div class="question">
+  v14 で進めて良いか / ガラスを濃く/薄く / 別案 を返してください。
+</div>
+
+</body>
+</html>

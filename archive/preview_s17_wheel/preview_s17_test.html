@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>S17 ホイール 単独テスト (ログイン不要)</title>
+<script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
+<style>
+  body { margin: 0; padding: 14px; background: #F2F2F7; font-family: -apple-system, sans-serif; max-width: 480px; margin: 0 auto; }
+  h2 { font-size: 14px; }
+  .panel { background: #fff; border: 1px solid #e8eaed; border-radius: 12px; padding: 12px; margin-bottom: 10px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; }
+</style>
+</head>
+<body>
+<h2>S17.5 ホイール 単独テスト</h2>
+
+<div id="root"></div>
+
+<script type="text/babel" data-presets="env,react">
+const {useState, useEffect, useRef, useMemo} = React;
+
+const font = "-apple-system, BlinkMacSystemFont, 'Hiragino Sans', sans-serif";
+const C = {
+  bg:"#F2F2F7", panel:"#ffffff", panel2:"#f1f3f4", border:"#dadce0", divider:"#e8eaed",
+  text:"#202124", textSecondary:"#5f6368", textMuted:"#80868b",
+  primary:"#007AFF", primaryLight:"#E1F0FF", error:"#d93025",
+};
+
+// minimal Icon for caret-up-down (Phosphor SVG)
+function Icon({ name, size = 16, color = "currentColor" }) {
+  return React.createElement("i", {
+    className: `ph ph-${name}`,
+    style: { fontSize: size, color, lineHeight: 1, display: "inline-flex" }
+  });
+}
+
+// ▼ _NumWheel.jsx の中身を以下に貼り付け (動作確認用) ▼
+
+const _WHEEL_ITEM_H = 36;
+const _WHEEL_CENTER_H = 44;
+const _WHEEL_AREA_H = 280;
+const _WHEEL_PAD = 122;
+
+function _WheelColumn({ items, value, onChange }) {
+  const ref = useRef(null);
+  const initialIdx = useMemo(() => {
+    const idx = items.findIndex(it => String(it.value) === String(value));
+    return idx >= 0 ? idx : 0;
+  }, [items, value]);
+  const [selectedIdx, setSelectedIdx] = useState(initialIdx);
+
+  useEffect(() => {
+    if (ref.current) {
+      ref.current.scrollTop = initialIdx * _WHEEL_ITEM_H;
+      setSelectedIdx(initialIdx);
+    }
+  }, [initialIdx]);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    let endTimer = null;
+    const onScroll = () => {
+      const idx = Math.round(el.scrollTop / _WHEEL_ITEM_H);
+      const clamped = Math.max(0, Math.min(items.length - 1, idx));
+      setSelectedIdx(clamped);
+      clearTimeout(endTimer);
+      endTimer = setTimeout(() => {
+        const i = Math.round(el.scrollTop / _WHEEL_ITEM_H);
+        const c = Math.max(0, Math.min(items.length - 1, i));
+        const target = c * _WHEEL_ITEM_H;
+        if (Math.abs(el.scrollTop - target) > 0.5) {
+          el.scrollTo({ top: target, behavior: "smooth" });
+        }
+        setSelectedIdx(c);
+        if (onChange) onChange(items[c].value);
+      }, 130);
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      clearTimeout(endTimer);
+      el.removeEventListener("scroll", onScroll);
+    };
+  }, [items, onChange]);
+
+  return (
+    <div ref={ref} style={{
+      position: "relative", height: _WHEEL_AREA_H,
+      overflowY: "scroll", scrollbarWidth: "none",
+      WebkitOverflowScrolling: "touch",
+      WebkitMaskImage: "linear-gradient(to bottom, transparent 0%, #000 12%, #000 88%, transparent 100%)",
+      maskImage: "linear-gradient(to bottom, transparent 0%, #000 12%, #000 88%, transparent 100%)",
+    }}>
+      <div style={{
+        display: "flex", flexDirection: "column", alignItems: "center",
+        padding: `${_WHEEL_PAD}px 0`,
+        transformStyle: "preserve-3d",
+        perspective: "1000px",
+      }}>
+        {items.map((it, i) => {
+          const dist = i - selectedIdx;
+          const absDist = Math.abs(dist);
+          const isCenter = dist === 0;
+          const opacity = isCenter ? 1 : absDist === 1 ? 0.75 : absDist === 2 ? 0.45 : absDist === 3 ? 0.20 : 0.05;
+          const scale = isCenter ? 1 : absDist === 1 ? 0.92 : absDist === 2 ? 0.82 : absDist === 3 ? 0.7 : 0.55;
+          const rot = dist === 0 ? 0 : (dist < 0 ? +1 : -1) * Math.min(absDist, 3) * 20;
+          const blur = absDist === 0 ? 0 : absDist === 1 ? 0.3 : absDist === 2 ? 0.7 : absDist === 3 ? 1.2 : 1.6;
+          return (
+            <div key={it.value} style={{
+              flex: `0 0 ${_WHEEL_ITEM_H}px`,
+              lineHeight: `${_WHEEL_ITEM_H}px`,
+              fontSize: isCenter ? 32 : 26,
+              fontFamily: font,
+              fontVariantNumeric: "tabular-nums",
+              color: C.text,
+              fontWeight: isCenter ? 700 : 400,
+              opacity,
+              transform: `rotateX(${rot}deg) scale(${scale})`,
+              transformOrigin: "center",
+              filter: blur > 0 ? `blur(${blur}px)` : "none",
+              userSelect: "none",
+              backfaceVisibility: "hidden",
+              transition: "opacity 100ms, transform 100ms, filter 100ms",
+            }}>
+              {it.label}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function _WheelModal({ title, children, onConfirm, onReset, onClose, twoCol }) {
+  return (
+    <div onClick={(e) => { if (e.target === e.currentTarget) onConfirm(); }} style={{
+      position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      zIndex: 1300, padding: 16,
+    }}>
+      <div onClick={(e) => e.stopPropagation()} style={{
+        background: "#fafafa", borderRadius: 14, padding: "20px 20px 14px",
+        width: 320, maxWidth: "calc(100vw - 32px)",
+        boxShadow: "0 8px 32px rgba(0,0,0,0.18)", fontFamily: font,
+      }}>
+        <div style={{ textAlign: "center", fontWeight: 700, fontSize: 15, color: C.text, marginBottom: 10 }}>
+          {title}
+        </div>
+        <div style={{
+          position: "relative",
+          display: "grid",
+          gridTemplateColumns: twoCol ? "1fr 1fr" : "1fr",
+          gap: 0,
+        }}>
+          {children}
+          <div style={{
+            position: "absolute", left: 8, right: 8,
+            top: "50%", transform: "translateY(-50%)",
+            height: _WHEEL_CENTER_H,
+            background: "rgba(120,120,128,0.22)",
+            borderRadius: 10, pointerEvents: "none", zIndex: 2,
+          }} />
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 14 }}>
+          <button type="button" onClick={onReset || onClose} style={{
+            background: "transparent", border: "none", color: C.textSecondary,
+            fontSize: 15, padding: "6px 4px", cursor: "pointer", fontFamily: font,
+          }}>
+            {onReset ? "リセット" : "キャンセル"}
+          </button>
+          <button type="button" onClick={onConfirm} style={{
+            background: C.primary, border: "none", color: "#fff",
+            fontSize: 15, fontWeight: 600, borderRadius: 10,
+            padding: "8px 20px", cursor: "pointer", fontFamily: font,
+            minHeight: 36, boxShadow: "0 1px 3px rgba(0,122,255,0.3)",
+          }}>完了</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function _WheelButton({ label, icon, displayValue, onClick, disabled }) {
+  const empty = !displayValue;
+  return (
+    <div style={{ marginBottom: 8 }}>
+      {label && <label style={{ display: "block", fontSize: 11, color: C.textSecondary, fontWeight: 500, marginBottom: 4 }}>{label}</label>}
+      <button type="button" onClick={disabled ? undefined : onClick} disabled={disabled} style={{
+        width: "100%", minHeight: 44, padding: "6px 12px",
+        border: `1px solid ${C.border}`, borderRadius: 8,
+        background: disabled ? C.panel2 : C.panel,
+        fontFamily: font, cursor: disabled ? "not-allowed" : "pointer",
+        display: "flex", alignItems: "center", gap: 10,
+      }}>
+        {icon && <Icon name={icon} size={18} color={C.textSecondary} />}
+        <span style={{
+          flex: 1, fontSize: empty ? 13 : 18,
+          fontWeight: empty ? 400 : 600,
+          color: empty ? C.textMuted : (disabled ? "#bdc1c6" : C.text),
+          fontVariantNumeric: "tabular-nums", textAlign: "left",
+        }}>
+          {displayValue || "タップして選択"}
+        </span>
+        <Icon name="caret-up-down" size={14} color={C.textMuted} />
+      </button>
+    </div>
+  );
+}
+
+function _NumWheel({ label, icon, value, min, max, step = 1, unit = "", onChange }) {
+  const [open, setOpen] = useState(false);
+  const cur = (value == null ? "" : String(value)).trim();
+  const items = useMemo(() => {
+    const arr = [];
+    for (let i = min; i <= max; i += step) arr.push({ value: String(i), label: String(i) });
+    if (cur && !arr.find(a => a.value === cur)) arr.unshift({ value: cur, label: cur });
+    return arr;
+  }, [min, max, step, cur]);
+  const [draft, setDraft] = useState(cur);
+  const display = cur ? `${cur}${unit}` : "";
+  const handleOpen = () => {
+    setDraft(cur || items[Math.floor(items.length / 2)]?.value || "");
+    setOpen(true);
+  };
+  const handleConfirm = () => { onChange(draft); setOpen(false); };
+  return (
+    <>
+      <_WheelButton label={label} icon={icon} displayValue={display} onClick={handleOpen} />
+      {open && (
+        <_WheelModal title={label} onConfirm={handleConfirm} onReset={() => { onChange(""); setOpen(false); }} onClose={() => setOpen(false)}>
+          <_WheelColumn items={items} value={draft} onChange={setDraft} />
+        </_WheelModal>
+      )}
+    </>
+  );
+}
+
+function _TimeWheel({ label, value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const cur = (value || "").trim();
+  const [h, m] = useMemo(() => {
+    const parts = cur.split(":");
+    const hh = parseInt(parts[0], 10);
+    const mm = parseInt(parts[1], 10);
+    return [
+      isNaN(hh) ? 10 : Math.max(0, Math.min(23, hh)),
+      isNaN(mm) ? 0  : Math.max(0, Math.min(55, Math.round(mm / 5) * 5)),
+    ];
+  }, [cur]);
+  const [draftH, setDraftH] = useState(h);
+  const [draftM, setDraftM] = useState(m);
+  const hourItems = useMemo(() => Array.from({length:24}, (_,i)=>({ value: i, label: String(i) })), []);
+  const minItems = useMemo(() => Array.from({length:12}, (_,i)=>({ value: i*5, label: String(i*5).padStart(2, "0") })), []);
+  const handleOpen = () => { setDraftH(h); setDraftM(m); setOpen(true); };
+  const handleConfirm = () => {
+    const out = `${String(draftH).padStart(2, "0")}:${String(draftM).padStart(2, "0")}`;
+    onChange(out); setOpen(false);
+  };
+  return (
+    <>
+      <_WheelButton label={label} icon="clock" displayValue={cur} onClick={handleOpen} />
+      {open && (
+        <_WheelModal title={label} twoCol onConfirm={handleConfirm} onReset={() => { onChange(""); setOpen(false); }} onClose={() => setOpen(false)}>
+          <_WheelColumn items={hourItems} value={draftH} onChange={setDraftH} />
+          <_WheelColumn items={minItems} value={draftM} onChange={setDraftM} />
+        </_WheelModal>
+      )}
+    </>
+  );
+}
+
+function App() {
+  const [tension, setTension] = useState("46");
+  const [temp, setTemp] = useState("22");
+  const [time, setTime] = useState("10:00");
+  return (
+    <div>
+      <div className="panel">
+        <div style={{ fontWeight: 600, marginBottom: 10 }}>テスト用フォーム (アイコン + 背景タップ確定)</div>
+        <_TimeWheel label="開始時刻" value={time} onChange={setTime} />
+        <div className="grid2">
+          <_NumWheel label="気温" icon="thermometer-simple" value={temp} min={-5} max={40} unit="℃" onChange={setTemp} />
+          <_NumWheel label="テンション縦" icon="gauge" value={tension} min={35} max={55} onChange={setTension} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
+</script>
+</body>
+</html>

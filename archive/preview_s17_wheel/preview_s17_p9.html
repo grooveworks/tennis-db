@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>S17 開始時刻 + 練習時間 ホイール</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 14px;
+    background: #F2F2F7;
+    font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', sans-serif;
+    color: #202124;
+    max-width: 480px; margin: 0 auto;
+  }
+  h2 { font-size: 14px; margin: 16px 0 8px; }
+  h3 {
+    font-size: 12px; margin: 14px 0 6px;
+    padding: 4px 10px; border-radius: 6px;
+    background: #fef7e0; color: #7e5d00;
+  }
+  .field { margin-bottom: 8px; }
+  .field label {
+    display: block; font-size: 11px; color: #5f6368;
+    font-weight: 500; margin-bottom: 4px;
+  }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; }
+
+  .time-btn {
+    width: 100%; min-height: 44px; padding: 8px 10px;
+    border: 1px solid #dadce0; border-radius: 6px;
+    background: #fff; font-size: 16px; color: #202124;
+    font-family: inherit; cursor: pointer;
+    text-align: center; font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .time-btn.empty { color: #80868b; font-weight: 400; font-size: 14px; }
+  .time-btn.disabled { background: #f1f3f4; color: #bdc1c6; cursor: not-allowed; }
+
+  .modal-bg {
+    position: absolute; inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  .wheel-card {
+    background: rgba(247, 245, 232, 0.97);
+    border-radius: 16px;
+    padding: 16px 20px;
+    width: 320px; max-width: calc(100vw - 40px);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+  }
+  .wheel-title {
+    text-align: center; font-size: 12px; color: #5f6368;
+    font-weight: 600; margin-bottom: 8px;
+  }
+
+  /* 2-column layout */
+  .wheel-cols {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    position: relative;
+  }
+  .wheel-col {
+    position: relative;
+    height: 200px;
+    overflow: hidden;
+  }
+  .wheel-col::before {
+    content: "";
+    position: absolute;
+    left: 0; right: 0;
+    top: 50%; transform: translateY(-50%);
+    height: 36px;
+    background: rgba(120, 120, 120, 0.18);
+    border-radius: 8px;
+    pointer-events: none;
+  }
+  .wheel-col-label {
+    text-align: center; font-size: 10px; color: #80868b;
+    margin-top: 4px;
+  }
+  .wheel-list {
+    display: flex; flex-direction: column;
+    align-items: center;
+    padding: 82px 0;
+  }
+  .wheel-item {
+    flex: 0 0 36px;
+    line-height: 36px;
+    font-size: 26px;
+    color: rgba(60,60,67,0.4);
+    font-variant-numeric: tabular-nums;
+    font-weight: 400;
+  }
+  .wheel-item.center {
+    color: #202124;
+    font-weight: 600;
+  }
+  .wheel-item.near {
+    color: rgba(60,60,67,0.7);
+  }
+
+  /* 終了時刻プレビュー (duration ピッカー内) */
+  .duration-preview {
+    text-align: center; font-size: 11px; color: #5f6368;
+    background: rgba(120,120,128,0.10);
+    border-radius: 8px;
+    padding: 6px 10px;
+    margin-top: 6px;
+  }
+  .duration-preview b {
+    color: #007AFF; font-variant-numeric: tabular-nums;
+    font-size: 13px;
+  }
+
+  .wheel-foot {
+    display: flex; justify-content: space-between;
+    align-items: center; margin-top: 12px;
+  }
+  .wheel-reset {
+    background: rgba(120,120,128,0.16);
+    border: none; border-radius: 14px;
+    padding: 8px 16px; font-size: 13px;
+    color: #007AFF; font-weight: 500; cursor: pointer;
+    font-family: inherit;
+  }
+  .wheel-ok {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: #007AFF; border: none; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 18px;
+    box-shadow: 0 2px 6px rgba(0,122,255,0.4);
+  }
+
+  .legend {
+    background: #fff; border: 1px solid #e8eaed; border-radius: 8px;
+    padding: 8px 12px; font-size: 11px; line-height: 1.5;
+    margin-bottom: 10px; color: #5f6368;
+  }
+  .legend b { color: #202124; }
+  .question {
+    background: #fce8e6; color: #a31511; border: 1px solid #a31511;
+    border-radius: 8px;
+    padding: 10px 12px; font-size: 12px; line-height: 1.7;
+    margin: 14px 0 4px;
+  }
+</style>
+</head>
+<body>
+
+<h2>S17: 開始時刻 + 練習時間 自作ホイール</h2>
+
+<div class="legend">
+  <b>仕様:</b><br>
+  ① 開始時刻: 2 列ホイール (時 0-23 / 分 0,5,10...55)、内部 "HH:MM"<br>
+  ② 終了時刻: <b>練習時間 (=duration) で選択</b>。2 列ホイール (時 0-6 / 分 0,5,10...55)。<br>
+  ③ 確定時、内部で <b>endTime = startTime + duration</b> を計算して "HH:MM" で保存<br>
+  ④ 開始時刻が空なら終了時刻はタップ無効化
+</div>
+
+<h3>状態 1: 閉じている (開始時刻入力後)</h3>
+
+<div style="background:#fff; border:1px solid #e8eaed; border-radius:12px; padding:12px;">
+  <div class="grid2">
+    <div class="field">
+      <label>開始時刻</label>
+      <button class="time-btn">10:00</button>
+    </div>
+    <div class="field">
+      <label>練習時間 (終了時刻)</label>
+      <button class="time-btn">2時間 30分</button>
+    </div>
+  </div>
+  <div style="font-size: 11px; color: #5f6368; padding: 6px 4px 0;">
+    終了時刻 = <b style="color:#007AFF; font-variant-numeric:tabular-nums;">12:30</b> として保存
+  </div>
+</div>
+
+<h3>状態 2: 開始時刻ピッカー (2 列: 時 / 分)</h3>
+
+<div style="position: relative; height: 360px; border: 2px dashed #80868b; border-radius: 12px; overflow: hidden; background: #F2F2F7;">
+  <div class="modal-bg">
+    <div class="wheel-card">
+      <div class="wheel-title">開始時刻</div>
+      <div class="wheel-cols">
+        <div>
+          <div class="wheel-col">
+            <div class="wheel-list">
+              <div class="wheel-item">7</div>
+              <div class="wheel-item near">8</div>
+              <div class="wheel-item near">9</div>
+              <div class="wheel-item center">10</div>
+              <div class="wheel-item near">11</div>
+              <div class="wheel-item near">12</div>
+              <div class="wheel-item">13</div>
+            </div>
+          </div>
+          <div class="wheel-col-label">時</div>
+        </div>
+        <div>
+          <div class="wheel-col">
+            <div class="wheel-list">
+              <div class="wheel-item">35</div>
+              <div class="wheel-item near">40</div>
+              <div class="wheel-item near">45</div>
+              <div class="wheel-item center">00</div>
+              <div class="wheel-item near">05</div>
+              <div class="wheel-item near">10</div>
+              <div class="wheel-item">15</div>
+            </div>
+          </div>
+          <div class="wheel-col-label">分 (5分刻み)</div>
+        </div>
+      </div>
+      <div class="wheel-foot">
+        <button class="wheel-reset">リセット</button>
+        <button class="wheel-ok">✓</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h3>状態 3: 練習時間 (=終了時刻) ピッカー (2 列: 時間 / 分)</h3>
+
+<div style="position: relative; height: 410px; border: 2px dashed #80868b; border-radius: 12px; overflow: hidden; background: #F2F2F7;">
+  <div class="modal-bg">
+    <div class="wheel-card">
+      <div class="wheel-title">練習時間</div>
+      <div class="wheel-cols">
+        <div>
+          <div class="wheel-col">
+            <div class="wheel-list">
+              <div class="wheel-item">0</div>
+              <div class="wheel-item near">1</div>
+              <div class="wheel-item center">2</div>
+              <div class="wheel-item near">3</div>
+              <div class="wheel-item near">4</div>
+              <div class="wheel-item">5</div>
+              <div class="wheel-item">6</div>
+            </div>
+          </div>
+          <div class="wheel-col-label">時間</div>
+        </div>
+        <div>
+          <div class="wheel-col">
+            <div class="wheel-list">
+              <div class="wheel-item">15</div>
+              <div class="wheel-item near">20</div>
+              <div class="wheel-item near">25</div>
+              <div class="wheel-item center">30</div>
+              <div class="wheel-item near">35</div>
+              <div class="wheel-item near">40</div>
+              <div class="wheel-item">45</div>
+            </div>
+          </div>
+          <div class="wheel-col-label">分 (5分刻み)</div>
+        </div>
+      </div>
+
+      <!-- 確定後の終了時刻プレビュー -->
+      <div class="duration-preview">
+        終了時刻 → <b>12:30</b> (開始 10:00 + 2時間30分)
+      </div>
+
+      <div class="wheel-foot">
+        <button class="wheel-reset">リセット</button>
+        <button class="wheel-ok">✓</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h3>状態 4: 開始時刻が空のとき (終了時刻ボタン disable)</h3>
+
+<div style="background:#fff; border:1px solid #e8eaed; border-radius:12px; padding:12px;">
+  <div class="grid2">
+    <div class="field">
+      <label>開始時刻</label>
+      <button class="time-btn empty">タップして選択</button>
+    </div>
+    <div class="field">
+      <label>練習時間</label>
+      <button class="time-btn disabled">先に開始時刻を入力</button>
+    </div>
+  </div>
+</div>
+
+<div class="legend">
+  <b>動作 (具体的に):</b><br>
+  ・<b>開始時刻 10:00</b> → 内部 startTime = "10:00"<br>
+  ・<b>練習時間 2時間 30分</b> → 内部 endTime = "12:30" (= 10:00 + 2:30)<br>
+  ・既存データで endTime が 1 分刻み (例 "12:31") の場合: 開いた時の初期表示は丸めず「2時間 31分 (5分刻みでない値あり)」と表示するか、保存時に endTime を上書きするか<br>
+  ・私の案: <b>既存値はそのまま保持</b>、ピッカー初期位置は最も近い 5 分刻みに丸めて表示。ユーザーが ✓ で確定したら 5 分刻みで上書き。リセットで空に。
+</div>
+
+<div class="question">
+  <b>確認 (3 点):</b><br>
+  1. このレイアウト (開始=時刻、終了=練習時間) で <b>進めて良いか</b><br>
+  2. 練習時間ホイール内の「終了時刻 → 12:30」プレビューが見える形で良いか<br>
+  3. 開始時刻が空のとき終了時刻を disable にする方針で良いか
+</div>
+
+</body>
+</html>

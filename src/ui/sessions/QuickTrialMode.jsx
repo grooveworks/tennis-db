@@ -92,12 +92,14 @@ const _qtmStringOpts = (stringNames) => {
 };
 
 // ── 本体
-function QuickTrialMode({ open, cards, setCards, rackets, stringNames, onSaveTrial, onClose, confirm, toast }) {
+function QuickTrialMode({ open, cards, setCards, rackets, stringNames, trials, onSaveTrial, onClose, confirm, toast }) {
   const [selected, setSelected] = useState(null);
   const [adding, setAdding] = useState(false);
   const [addF, setAddF] = useState({ racket: "", stringMain: "", stringCross: "", tensionMain: "", tensionCross: "" });
   const [eval_, setEval] = useState(_qtmFreshEval);
   const [touched, setTouched] = useState(() => new Set());
+  // S17 Phase 1-B: 過去の試打から選ぶ Modal の表示制御
+  const [showFromTrial, setShowFromTrial] = useState(false);
 
   // S15.5.2 fix: popstate handler で eval_/touched の最新値を参照するため Ref で tracking
   const evalRef = useRef(eval_);
@@ -172,8 +174,8 @@ function QuickTrialMode({ open, cards, setCards, rackets, stringNames, onSaveTri
   const racketsByName = new Map();
   (rackets || []).forEach(r => { if (r && r.name) racketsByName.set(r.name, r); });
 
-  // 追加可能なラケット (retired を除外)
-  const activeRackets = (rackets || []).filter(r => r && r.status !== "retired" && r.name);
+  // 追加可能なラケット (retired を除外、S17 Phase 1-A で status 優先度 → order ASC sort 追加)
+  const activeRackets = sortByStatusAndOrder((rackets || []).filter(r => r && r.status !== "retired" && r.name), RACKET_STATUS_PRIORITY);
 
   // 現在の eval/touched を card に書き戻す (関数形式で stale closure 回避)
   const persistCurrentEval = () => {
@@ -236,6 +238,26 @@ function QuickTrialMode({ open, cards, setCards, rackets, stringNames, onSaveTri
       },
       { title: "カード削除の確認", yesLabel: "削除", yesVariant: "danger", icon: "trash-2" }
     );
+  };
+
+  // S17 Phase 1-B (再設計、2026-05-08): 過去の試打 (trials[]) から 1 タップで新カード作成
+  //   経緯: 当初「カード→カード複製」を実装したが、試打ノートは使い切り設計 (S15.5) で
+  //         空一覧が通常状態 → カード→カード複製は導線が成立しない、とユーザー指摘
+  //   新設計: 新規追加フォーム上に「過去の試打から」ボタン → trials[] 一覧モーダル → タップで自動入力
+  //   評価・メモは初期化、id は genId、用途: 過去のあの試打に立ち戻って再試打したい時の起点
+  const handleAddFromTrial = (tr) => {
+    if (!tr) return;
+    const newCard = {
+      id: genId(),
+      racket: tr.racketName || "",
+      stringMain: tr.stringMain || "",
+      stringCross: tr.stringCross || "",
+      tensionMain: tr.tensionMain || "",
+      tensionCross: tr.tensionCross || "",
+    };
+    setCards([...(cards || []), newCard]);
+    setShowFromTrial(false);
+    if (toast) toast.show("過去の試打から新カードを追加しました", "success");
   };
 
   const setRating = (key, val) => {
@@ -546,17 +568,33 @@ function QuickTrialMode({ open, cards, setCards, rackets, stringNames, onSaveTri
 
         {/* 追加 (フォーム or ボタン) */}
         {!adding ? (
-          <button
-            onClick={() => setAdding(true)}
-            style={{
-              width: "100%", background: C.panel, border: `1px dashed ${C.border}`,
-              borderRadius: 14, padding: 14, fontSize: 14, fontWeight: 500, color: C.textSecondary,
-              cursor: "pointer", fontFamily: font, minHeight: 56,
-              display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
-            }}
-          >
-            <Icon name="plus" size={18} color={C.textSecondary} /> 追加
-          </button>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <button
+              onClick={() => setAdding(true)}
+              style={{
+                width: "100%", background: C.panel, border: `1px dashed ${C.border}`,
+                borderRadius: 14, padding: 14, fontSize: 14, fontWeight: 500, color: C.textSecondary,
+                cursor: "pointer", fontFamily: font, minHeight: 56,
+                display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
+              }}
+            >
+              <Icon name="plus" size={18} color={C.textSecondary} /> 新規入力で追加
+            </button>
+            {/* S17 Phase 1-B (再設計): 過去の試打から 1 タップで作成 */}
+            {(trials || []).length > 0 && (
+              <button
+                onClick={() => setShowFromTrial(true)}
+                style={{
+                  width: "100%", background: C.primaryLight, border: `1px solid ${C.primary}`,
+                  borderRadius: 14, padding: 12, fontSize: 13, fontWeight: 600, color: C.primary,
+                  cursor: "pointer", fontFamily: font, minHeight: 48,
+                  display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
+                }}
+              >
+                <Icon name="history" size={16} color={C.primary} /> 過去の試打から選ぶ
+              </button>
+            )}
+          </div>
         ) : (
           <div style={{
             background: C.panel, border: `1px solid ${C.border}`,
@@ -596,20 +634,19 @@ function QuickTrialMode({ open, cards, setCards, rackets, stringNames, onSaveTri
                 {(stringNames || []).map(n => n ? <option key={"sc-" + n} value={n}>{n}</option> : null)}
               </select>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 10 }}>
-              <input
-                value={addF.tensionMain}
-                onChange={(e) => setAddF(p => ({ ...p, tensionMain: e.target.value }))}
-                placeholder="縦テンション (例: 48)"
-                inputMode="decimal"
-                style={{ ..._qtmInputStyle, marginBottom: 0 }}
+            {/* S17 Phase 1 wheel 拡張: テンション input → NumWheel に統一 (機材タブ TrialEditForm 等と完全整合: gap "0 10px"、label「テンション縦/テンション横」) */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px", marginBottom: 10 }}>
+              <NumWheel
+                label="テンション縦"
+                value={addF.tensionMain || ""}
+                min={35} max={55} step={1}
+                onChange={(v) => setAddF(p => ({ ...p, tensionMain: v }))}
               />
-              <input
-                value={addF.tensionCross}
-                onChange={(e) => setAddF(p => ({ ...p, tensionCross: e.target.value }))}
-                placeholder="横テンション (同じなら空欄)"
-                inputMode="decimal"
-                style={{ ..._qtmInputStyle, marginBottom: 0 }}
+              <NumWheel
+                label="テンション横"
+                value={addF.tensionCross || ""}
+                min={35} max={55} step={1}
+                onChange={(v) => setAddF(p => ({ ...p, tensionCross: v }))}
               />
             </div>
             <div style={{ display: "flex", gap: 8 }}>
@@ -637,6 +674,82 @@ function QuickTrialMode({ open, cards, setCards, rackets, stringNames, onSaveTri
           </div>
         )}
       </div>
+
+      {/* S17 Phase 1-B (再設計): 過去の試打から選ぶ Modal (Bottom sheet)
+          trials[] を date desc で sort、直近 50 件を表示。
+          行タップで racket + main + cross + tension を新カードに自動入力 (評価は初期化)。 */}
+      {showFromTrial && (
+        <div
+          onClick={() => setShowFromTrial(false)}
+          style={{
+            position: "fixed", inset: 0, zIndex: 1000,
+            background: "rgba(0,0,0,0.4)",
+            display: "flex", alignItems: "flex-end", justifyContent: "center",
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: C.panel, borderRadius: "20px 20px 0 0",
+              width: "100%", maxWidth: 600, maxHeight: "75%", overflow: "auto",
+              padding: 16, paddingBottom: 32, fontFamily: font,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: C.text }}>過去の試打から選ぶ</div>
+              <button
+                onClick={() => setShowFromTrial(false)}
+                aria-label="閉じる"
+                style={{
+                  width: 32, height: 32, padding: 0, background: "transparent", border: "none",
+                  color: C.textMuted, cursor: "pointer", borderRadius: 6,
+                  display: "inline-flex", alignItems: "center", justifyContent: "center",
+                }}
+              >
+                <Icon name="x" size={20} />
+              </button>
+            </div>
+            {(() => {
+              const sorted = (trials || [])
+                .slice()
+                .filter(t => t && t.racketName)
+                .sort((a, b) => (b.date || "").localeCompare(a.date || ""))
+                .slice(0, 50);
+              if (sorted.length === 0) {
+                return (
+                  <div style={{ textAlign: "center", color: C.textMuted, padding: "24px 0", fontSize: 13 }}>
+                    過去の試打が見つかりません
+                  </div>
+                );
+              }
+              return sorted.map(tr => {
+                const stringInfo = [tr.stringMain, tr.stringCross].filter(Boolean).join(" / ");
+                const tensionInfo = [tr.tensionMain, tr.tensionCross].filter(Boolean).join(" / ");
+                return (
+                  <button
+                    key={tr.id}
+                    onClick={() => handleAddFromTrial(tr)}
+                    style={{
+                      width: "100%", background: C.panel, border: `1px solid ${C.border}`,
+                      borderRadius: 12, padding: "10px 14px", marginBottom: 6,
+                      cursor: "pointer", fontFamily: font, textAlign: "left",
+                      display: "block", color: C.text,
+                    }}
+                  >
+                    <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 2, fontVariantNumeric: "tabular-nums" }}>
+                      {tr.date || "(日付不明)"}
+                    </div>
+                    <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 2 }}>{tr.racketName}</div>
+                    <div style={{ fontSize: 11, color: C.textSecondary }}>
+                      {stringInfo || "(糸 未指定)"}{tensionInfo && ` / ${tensionInfo}`}
+                    </div>
+                  </button>
+                );
+              });
+            })()}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

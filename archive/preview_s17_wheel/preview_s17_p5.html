@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>S17 履歴セット (12 件のケース)</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 14px;
+    background: #F2F2F7;
+    font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', sans-serif;
+    color: #202124;
+    max-width: 480px; margin: 0 auto;
+  }
+  h2 { font-size: 14px; margin: 16px 0 8px; }
+  h3 {
+    font-size: 12px; margin: 14px 0 6px;
+    padding: 4px 10px; border-radius: 6px;
+    background: #fef7e0; color: #7e5d00;
+  }
+  .legend {
+    background: #fff; border: 1px solid #e8eaed; border-radius: 8px;
+    padding: 8px 12px; font-size: 11px; line-height: 1.5;
+    margin-bottom: 10px; color: #5f6368;
+  }
+  .legend b { color: #202124; }
+
+  .sheet-head {
+    padding: 10px 14px;
+    border-bottom: 1px solid #e8eaed;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .sheet-head .title { font-size: 13px; font-weight: 700; color: #202124; }
+  .sheet-head .close {
+    background: none; border: none; cursor: pointer;
+    color: #5f6368; font-size: 20px; padding: 0 4px;
+  }
+
+  /* 検索入力 */
+  .sheet-search {
+    padding: 8px 14px;
+    border-bottom: 1px solid #f1f3f4;
+    background: #fff;
+  }
+  .sheet-search input {
+    width: 100%; min-height: 36px; padding: 6px 10px;
+    border: 1px solid #dadce0; border-radius: 6px;
+    font-size: 13px; font-family: inherit;
+    background: #f8f9fa;
+  }
+
+  .sheet-body {
+    flex: 1; overflow-y: auto;
+    padding: 0;
+    /* スクロール領域を可視化するため最大高さ制限 */
+  }
+
+  /* compact item */
+  .sheet-item {
+    width: 100%; padding: 8px 12px;
+    background: none; border: none;
+    border-bottom: 1px solid #f1f3f4;
+    text-align: left; cursor: pointer;
+    font-family: inherit;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .sheet-item:last-child { border-bottom: none; }
+  .sheet-item.current { background: #E1F0FF; }
+  .sheet-item .check {
+    width: 16px; flex-shrink: 0;
+    color: #007AFF; font-size: 14px;
+    text-align: center;
+  }
+  .sheet-item .body { flex: 1; min-width: 0; line-height: 1.35; }
+  .sheet-item .top {
+    font-size: 13px; font-weight: 600; color: #202124;
+    word-break: break-word;
+  }
+  .sheet-item .sub {
+    font-size: 11px; color: #5f6368;
+    word-break: break-word;
+    margin-top: 1px;
+  }
+  .sheet-item .badge-prev {
+    display: inline-block; font-size: 9px; font-weight: 700;
+    padding: 1px 5px; border-radius: 3px;
+    background: #007AFF; color: #fff; margin-left: 5px;
+    letter-spacing: 0.04em; vertical-align: 1px;
+  }
+  .sheet-item.individual .top { color: #80868b; font-style: italic; }
+
+  .question {
+    background: #fce8e6; color: #a31511; border: 1px solid #a31511;
+    border-radius: 8px;
+    padding: 10px 12px; font-size: 12px; line-height: 1.7;
+    margin: 14px 0 4px;
+  }
+</style>
+</head>
+<body>
+
+<h2>S17: 履歴セットが 12 件あるケース</h2>
+
+<div class="legend">
+  <b>仕様提案:</b><br>
+  ① 件数に上限を設けない (全ての重複なし組合せを表示)<br>
+  ② 並びは <b>直近使用が上</b> (date 降順)<br>
+  ③ シート上部に <b>絞り込み入力</b> (ラケット名や数字で絞れる、空欄なら全件)<br>
+  ④ 「個別に入力」は最下部に固定
+</div>
+
+<h3>シートを開いた状態 (12 件、スクロール可)</h3>
+
+<div style="position: relative; height: 600px; border: 2px dashed #80868b; border-radius: 12px; overflow: hidden; background: rgba(0,0,0,0.4);">
+
+  <div style="background:#fff; border-radius: 16px 16px 0 0; width: 100%; height: 100%; display: flex; flex-direction: column; position: absolute; bottom: 0; max-height: 100%;">
+    <div class="sheet-head">
+      <span class="title">履歴セットを選択 (12 件)</span>
+      <button class="close">×</button>
+    </div>
+
+    <div class="sheet-search">
+      <input type="text" placeholder="絞り込み (ラケット名・数字など)" />
+    </div>
+
+    <div class="sheet-body">
+
+      <button class="sheet-item current">
+        <div class="check">✓</div>
+        <div class="body">
+          <div class="top">YONEX EZONE 100 TOUR<span class="badge-prev">前回</span></div>
+          <div class="sub">Babolat Blast 1.25 / Yonex Poly Tour P · 46/43</div>
+        </div>
+      </button>
+
+      <button class="sheet-item">
+        <div class="check"></div>
+        <div class="body">
+          <div class="top">YONEX EZONE 100 TOUR</div>
+          <div class="sub">Babolat Blast 1.25 / HEAD Hawk Touch 1.15 · 47/44</div>
+        </div>
+      </button>
+
+      <button class="sheet-item">
+        <div class="check"></div>
+        <div class="body">
+          <div class="top">YONEX EZONE 98</div>
+          <div class="sub">Babolat Blast 1.25 / Yonex Poly Tour P · 48/45</div>
+        </div>
+      </button>
+
+      <button class="sheet-item">
+        <div class="check"></div>
+        <div class="body">
+          <div class="top">Prince TOUR 100 305g</div>
+          <div class="sub">Phantom Spin 17 · 50</div>
+        </div>
+      </button>
+
+      <button class="sheet-item">
+        <div class="check"></div>
+        <div class="body">
+          <div class="top">YONEX EZONE 100 TOUR</div>
+          <div class="sub">Phantom Spin 17 / Yonex Poly Tour P · 46/43</div>
+        </div>
+      </button>
+
+      <button class="sheet-item">
+        <div class="check"></div>
+        <div class="body">
+          <div class="top">YONEX EZONE 98</div>
+          <div class="sub">Phantom Spin 17 / HEAD Hawk Touch 1.15 · 49/46</div>
+        </div>
+      </button>
+
+      <button class="sheet-item">
+        <div class="check"></div>
+        <div class="body">
+          <div class="top">Babolat Pure Aero 98</div>
+          <div class="sub">RPM Blast 1.25 / Pacific X Force 1.25 · 51/48</div>
+        </div>
+      </button>
+
+      <button class="sheet-item">
+        <div class="check"></div>
+        <div class="body">
+          <div class="top">YONEX EZONE 100 TOUR</div>
+          <div class="sub">Babolat Blast 1.25 · 45/45</div>
+        </div>
+      </button>
+
+      <button class="sheet-item">
+        <div class="check"></div>
+        <div class="body">
+          <div class="top">YONEX EZONE 98</div>
+          <div class="sub">Phantom Spin 17 · 47</div>
+        </div>
+      </button>
+
+      <button class="sheet-item">
+        <div class="check"></div>
+        <div class="body">
+          <div class="top">Wilson Blade 98 v9</div>
+          <div class="sub">Luxilon ALU Power 125 / Sensation 17 · 50/47</div>
+        </div>
+      </button>
+
+      <button class="sheet-item">
+        <div class="check"></div>
+        <div class="body">
+          <div class="top">Prince TOUR 100 305g</div>
+          <div class="sub">Tour Bite 17 / Phantom Spin 17 · 52/50</div>
+        </div>
+      </button>
+
+      <button class="sheet-item">
+        <div class="check"></div>
+        <div class="body">
+          <div class="top">YONEX EZONE 100 TOUR</div>
+          <div class="sub">Phantom Spin 17 / HEAD Hawk Touch 1.15 · 48/45</div>
+        </div>
+      </button>
+
+      <button class="sheet-item individual">
+        <div class="check"></div>
+        <div class="body">
+          <div class="top">— 個別に入力 —</div>
+        </div>
+      </button>
+
+    </div>
+  </div>
+</div>
+
+<div class="legend">
+  <b>絞り込み動作 (例):</b><br>
+  ・「EZONE 98」と入力 → ラケット名に EZONE 98 を含む 3 件のみ表示<br>
+  ・「46」と入力 → テンションに 46 を含む 3 件のみ表示<br>
+  ・空欄 → 全 12 件表示
+</div>
+
+<div class="question">
+  進めて良いか / ダメか / 修正点 を返してください。
+</div>
+
+</body>
+</html>

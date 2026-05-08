@@ -1,618 +1,1135 @@
-// PlanTab — 計画タブ (S17 初実装)
+// PlanTab — 計画タブ (S17 新規実装、作戦室方向 = Decision Companion)
 //
-// 役割 (REQUIREMENTS_v4 F3):
-//   F3.1 Next Actions: 短期 TODO + 優先度 + 期限。完了トグル / 編集 / 削除
-//   F3.2 対戦相手管理: 名前 + 特徴 + 戦績 (戦績は tournaments[] から自動集計)
-//   F3.3 試合・練習計画: 将来 (現 Stage では実装しない)
+// 役割 (REQUIREMENTS_v4 F3 の S17 再定義):
+//   Plan = 「次の試合・練習に向けて何を準備するか」を 1 画面で確認・編集する作戦室
+//   Sessions (過去事実) / Gear (道具情報) / Home (直近予定) と被らない、意思決定中心
 //
-// データ:
-//   - next   = [{ id, label, detail, category, priority, dueDate, done }]
-//             (Home NextActions / GearTab Open Questions と共通 state)
-//   - opponents = [{ id, name, hand?, style?, note? }]
-//             (Master 候補としても tournaments の対戦相手 Select で参照)
+// 経緯: 旧 PlanTab (Next Actions + 対戦相手シンプル一覧) は archive/legacy_planTab/ へ git mv 退避済 (2026-05-07)
+//       ChatGPT レビュー 3 回経由でユーザー承認 (preview_s17_plan_p1 → p2 → p3)
+//       詳細は DECISIONS_v4.md S17 節 / WIREFRAMES_v4.md §2.9 参照
 //
-// UX 方針 (CLAUDE.md R4):
-//   - スマホ片手親指で完結 (新規追加 → モーダル → 一行ずつ快適入力)
-//   - 進行中フィルタを default、完了/全件はチップ切替
-//   - 優先度 dot は Home と同じ色ルール (赤=7日以内、橙=継続、灰=低/参考)
+// データモデル (Firestore: users/{uid}/data/plan、単一オブジェクト):
+//   plan = {
+//     targetTournamentId: null | string,   // tournaments[].id
+//     targetGoal: "",                      // 短文 (20 字推奨、maxLength 30)
+//     targetTheme: "",                     // 短文 (30 字推奨、maxLength 50)
+//     strategy: [],                        // string[] 最大 5、各 maxLength 80 (30-40 字推奨)
+//     gearChoice: {
+//       main:    { racketId, stringMainId, stringCrossId, tension, reason },  // 必須段
+//       sub:     { ... },                                                      // 任意段
+//       pending: { ... },                                                      // 任意段
+//       concern: "",                                                           // 全体懸念 (140 字目安、maxLength 200)
+//     }
+//   }
+//
+// UX 規律 (preview_s17_plan_p3 ベース):
+//   - Target 未設定時、Strategy / Gear カードは opacity 0.45 + 上部 callout で誘導
+//   - Strategy 行は line-clamp 2 行、3 行目以降省略記号
+//   - 編集・削除アイコンは opacity 0.42 (PC hover 時 0.9)
+//   - 件数表記は全角括弧「（4/5）」
+//   - Bottom sheet モーダル、auto-save (S15.5.9 標準)、focus trap (S16 Round 5 Phase 1 標準)
+//   - 過去日になっても自動削除しない (暗黙確定禁止 / `feedback_data_destruction_2026_05_03.md` 準拠)
 
-const _PLAN_PRIORITY_OPTIONS = [
-  { v: "最高", color: "#FF3B30" },
-  { v: "高",   color: "#FF9500" },
-  { v: "中",   color: "#FFCC00" },
-  { v: "低",   color: "#C7C7CC" },
-  { v: "参考", color: "#8E8E93" },
-];
-const _PLAN_PRIORITY_ORDER = { "最高": 1, "高": 2, "中": 3, "低": 4, "参考": 5 };
-const _PLAN_CATEGORY_OPTIONS = ["練習", "試合", "機材", "コンディション", "その他"];
+const _PLAN_MAX_STRATEGY = 5;
+const _PLAN_STRATEGY_MAX_LEN = 80;
+const _PLAN_GOAL_MAX_LEN = 30;
+const _PLAN_THEME_MAX_LEN = 50;
+const _PLAN_CONCERN_MAX_LEN = 200;
 
-// 優先度 dot 色 (NextActions.jsx と同ルール)
-const _planDotColor = (n, todayIso) => {
-  if (n.priority === "低" || n.category === "参考") return "#C7C7CC";
-  if (n.dueDate) {
-    const due = normDate(n.dueDate);
-    if (due) {
-      const a = new Date(due).getTime();
-      const b = new Date(todayIso).getTime();
-      const days = Math.round((a - b) / (1000 * 60 * 60 * 24));
-      if (days < 0) return "#FF3B30"; // 期限切れ
-      if (days <= 7) return "#FF3B30";
-    }
-  }
-  if (n.priority === "最高") return "#FF3B30";
-  return "#FF9500";
-};
-
-// 期限ラベル
-const _planDueLabel = (dueDate, todayIso) => {
-  if (!dueDate) return null;
-  const due = normDate(dueDate);
-  if (!due) return null;
-  const a = new Date(due).getTime();
+// ── 残り日数計算 (今日 - target 日付、負なら過去)
+const _planDaysRemaining = (targetDateIso, todayIso) => {
+  if (!targetDateIso) return null;
+  const a = new Date(targetDateIso).getTime();
   const b = new Date(todayIso).getTime();
-  const days = Math.round((a - b) / (1000 * 60 * 60 * 24));
-  if (days < 0) return `${Math.abs(days)} 日超過`;
-  if (days === 0) return "今日まで";
-  if (days <= 7) return `${days} 日後まで`;
-  return `${due} まで`;
+  if (isNaN(a) || isNaN(b)) return null;
+  return Math.round((a - b) / (1000 * 60 * 60 * 24));
 };
 
-function _PlanCheckCircle({ checked, onClick }) {
-  if (checked) {
-    return (
-      <button
-        type="button"
-        onClick={onClick}
-        aria-label="完了済 (タップで未完了に戻す)"
-        style={{
-          width: 26, height: 26, borderRadius: 13,
-          background: C.primary, border: "none",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          flexShrink: 0, cursor: "pointer", padding: 0,
-        }}
-      >
-        <Icon name="check" size={14} color="#fff" />
-      </button>
-    );
-  }
+// ── 残り日数ラベル
+const _planDaysLabel = (days) => {
+  if (days === null || days === undefined) return null;
+  if (days < 0) return `${Math.abs(days)} 日経過`;
+  if (days === 0) return "本日";
+  return `残り ${days} 日`;
+};
+
+// ── 大会形式ラベル (fixture の値は singles/doubles/mixed の複数形、v2/v3 旧 single/double にも互換)
+const _planTournamentTypeLabel = (t) => {
+  if (!t || !t.type) return "";
+  const lower = String(t.type).toLowerCase();
+  if (lower.startsWith("single")) return "シングルス";
+  if (lower.startsWith("double")) return "ダブルス";
+  if (lower.startsWith("mixed")) return "ミックス";
+  return t.type;
+};
+
+// ── 文字数の警告レベル (Strategy 入力カウンタ用)
+const _planCounterLevel = (len, recommended, max) => {
+  if (len > max) return "danger";
+  if (len > recommended) return "warn";
+  return "normal";
+};
+
+// ── ターゲット未設定時の callout
+function _PlanCallout({ message }) {
+  return (
+    <div style={{
+      background: C.primaryLight,
+      border: `1px solid rgba(0,122,255,0.25)`,
+      borderRadius: 10,
+      padding: "7px 10px",
+      fontSize: 11,
+      color: C.primary,
+      lineHeight: 1.5,
+      marginBottom: 12,
+      display: "flex",
+      alignItems: "center",
+      gap: 6,
+      fontFamily: font,
+    }}>
+      <Icon name="info" size={14} />
+      <span>{message}</span>
+    </div>
+  );
+}
+
+// ── Mini ボタン (Card 右上の操作)
+function _PlanMiniBtn({ onClick, primary, icon, children }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      aria-label="未完了 (タップで完了)"
       style={{
-        width: 26, height: 26, borderRadius: 13,
-        background: C.panel, border: `1.5px solid ${C.appleGray4}`,
-        flexShrink: 0, cursor: "pointer", padding: 0,
+        minHeight: 30,
+        padding: "0 10px",
+        background: primary ? C.primary : C.panel,
+        border: `1px solid ${primary ? C.primary : C.border}`,
+        borderRadius: 8,
+        color: primary ? "#fff" : C.textSecondary,
+        fontSize: 11,
+        fontWeight: 600,
+        cursor: "pointer",
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 4,
+        fontFamily: font,
       }}
-    />
+    >
+      {icon && <Icon name={icon} size={12} color={primary ? "#fff" : C.textSecondary} />}
+      {children}
+    </button>
   );
 }
 
-// ── 個別アクション行
-function _PlanActionRow({ item, todayIso, onToggle, onEdit, onDelete }) {
-  const dot = _planDotColor(item, todayIso);
-  const dueLabel = _planDueLabel(item.dueDate, todayIso);
-  const meta = dueLabel || item.category || "継続課題";
-  return (
-    <div style={{
-      display: "flex", alignItems: "flex-start", gap: 10,
-      padding: "12px 14px",
-      background: C.panel,
-      border: `1px solid ${C.border}`,
-      borderRadius: RADIUS.row,
-      marginBottom: 8,
-      opacity: item.done ? 0.55 : 1,
-    }}>
-      {/* check circle (左) */}
-      <div style={{ paddingTop: 1 }}>
-        <_PlanCheckCircle checked={!!item.done} onClick={() => onToggle(item.id)} />
-      </div>
-      {/* body (タップで編集) */}
-      <button
-        type="button"
-        onClick={() => onEdit(item)}
-        style={{
-          flex: 1, minWidth: 0, padding: 0, background: "none", border: "none",
-          textAlign: "left", cursor: "pointer", fontFamily: font,
-        }}
-      >
+// ===================================================================
+// Target Event Card (次のターゲット)
+// ===================================================================
+
+function _PlanTargetCard({ plan, tournaments, todayIso, onEdit, onChange }) {
+  const tid = plan?.targetTournamentId || null;
+  const target = tid ? (tournaments || []).find(t => t && t.id === tid) : null;
+
+  // 未設定 (空状態)
+  if (!target) {
+    return (
+      <div style={_planCardStyle()}>
+        <div style={_planCardHead()}>
+          <div style={_planCardTitle()}>
+            <Icon name="trophy" size={18} color={C.textMuted} />
+            次のターゲット
+          </div>
+        </div>
         <div style={{
-          display: "flex", alignItems: "center", gap: 6, marginBottom: 3,
+          background: C.panel2,
+          border: `1.5px dashed ${C.border}`,
+          borderRadius: 14,
+          padding: "18px 16px",
+          textAlign: "center",
+          color: C.textMuted,
         }}>
-          <div style={{ width: 7, height: 7, borderRadius: "50%", background: dot, flexShrink: 0 }} />
-          <div style={{
-            fontSize: 14, fontWeight: 600, color: C.text, lineHeight: 1.3,
-            textDecoration: item.done ? "line-through" : "none",
-            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-          }}>
-            {item.label || "(無題)"}
+          <div style={{ fontSize: 13, fontWeight: 600, color: C.textSecondary, marginBottom: 4 }}>
+            次のターゲット未設定
           </div>
-        </div>
-        {(item.detail || meta) && (
-          <div style={{ fontSize: 11, color: C.textMuted, marginLeft: 13, lineHeight: 1.4 }}>
-            {item.detail ? item.detail : meta}
-            {item.detail && meta && <span style={{ color: C.textMuted, marginLeft: 8 }}>· {meta}</span>}
+          <div style={{ fontSize: 11, marginBottom: 12 }}>
+            向かう大会を 1 つ選んで、作戦とギアを準備しましょう
           </div>
-        )}
-      </button>
-      {/* 削除ボタン (右) */}
-      <button
-        type="button"
-        onClick={(e) => { e.stopPropagation(); onDelete(item); }}
-        aria-label="削除"
-        style={{
-          width: 32, height: 32, padding: 0,
-          display: "flex", alignItems: "center", justifyContent: "center",
-          background: "transparent", border: "none", borderRadius: 6,
-          cursor: "pointer", flexShrink: 0,
-        }}
-      >
-        <Icon name="trash-2" size={16} color={C.textMuted} />
-      </button>
-    </div>
-  );
-}
-
-// ── アクション編集 Modal (新規/編集共用)
-function _PlanActionEditModal({ open, initial, onSave, onClose }) {
-  const [form, setForm] = useState(initial || {});
-  useEffect(() => { setForm(initial || {}); }, [initial?.id, open]);
-  if (!open) return null;
-  const isNew = !initial?.id;
-  const valid = (form.label || "").trim().length > 0;
-  return (
-    <Modal open={open} onClose={onClose} title={isNew ? "アクションを追加" : "アクションを編集"}>
-      <Input
-        label="タイトル"
-        value={form.label || ""}
-        onChange={(v) => setForm({ ...form, label: v })}
-        required
-        placeholder="例: 火曜練習で Boom Pro を試す"
-      />
-      <Textarea
-        label="詳細 (任意)"
-        value={form.detail || ""}
-        onChange={(v) => setForm({ ...form, detail: v })}
-        placeholder="背景や具体的な確認事項"
-        rows={3}
-      />
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-        <Select
-          label="優先度"
-          value={form.priority || "中"}
-          onChange={(v) => setForm({ ...form, priority: v })}
-          options={_PLAN_PRIORITY_OPTIONS.map(p => p.v)}
-        />
-        <Select
-          label="カテゴリ"
-          value={form.category || ""}
-          onChange={(v) => setForm({ ...form, category: v })}
-          options={["", ..._PLAN_CATEGORY_OPTIONS]}
-        />
-      </div>
-      <Input
-        label="期限 (任意)"
-        type="date"
-        value={form.dueDate || ""}
-        onChange={(v) => setForm({ ...form, dueDate: v })}
-      />
-      <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
-        <button
-          onClick={onClose}
-          style={{
-            flex: "0 0 100px", minHeight: 44, padding: "0 14px",
-            background: C.panel, border: `1px solid ${C.border}`, borderRadius: 8,
-            color: C.text, fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: font,
-          }}
-        >キャンセル</button>
-        <button
-          onClick={() => valid && onSave({ ...form, label: form.label.trim() }, isNew)}
-          disabled={!valid}
-          style={{
-            flex: 1, minHeight: 44, padding: "0 14px",
-            background: valid ? C.primary : C.panel2,
-            border: `1px solid ${valid ? C.primary : C.border}`, borderRadius: 8,
-            color: valid ? "#fff" : C.textMuted,
-            fontSize: 15, fontWeight: 700,
-            cursor: valid ? "pointer" : "not-allowed", fontFamily: font,
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-          }}
-        >
-          <Icon name="check" size={16} color={valid ? "#fff" : C.textMuted} />
-          保存
-        </button>
-      </div>
-    </Modal>
-  );
-}
-
-// ── 対戦相手 編集 Modal
-function _PlanOpponentEditModal({ open, initial, onSave, onClose }) {
-  const [form, setForm] = useState(initial || {});
-  useEffect(() => { setForm(initial || {}); }, [initial?.id, open]);
-  if (!open) return null;
-  const isNew = !initial?.id;
-  const valid = (form.name || "").trim().length > 0;
-  return (
-    <Modal open={open} onClose={onClose} title={isNew ? "対戦相手を追加" : "対戦相手を編集"}>
-      <Input
-        label="名前"
-        value={form.name || ""}
-        onChange={(v) => setForm({ ...form, name: v })}
-        required
-      />
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-        <Select
-          label="利き手"
-          value={form.hand || ""}
-          onChange={(v) => setForm({ ...form, hand: v })}
-          options={["", "右", "左"]}
-        />
-        <Select
-          label="バック"
-          value={form.style || ""}
-          onChange={(v) => setForm({ ...form, style: v })}
-          options={["", "片手", "両手"]}
-        />
-      </div>
-      <Textarea
-        label="特徴 / メモ"
-        value={form.note || ""}
-        onChange={(v) => setForm({ ...form, note: v })}
-        placeholder="得意ショット、苦手パターン、過去の対戦印象 等"
-        rows={4}
-      />
-      <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
-        <button
-          onClick={onClose}
-          style={{
-            flex: "0 0 100px", minHeight: 44, padding: "0 14px",
-            background: C.panel, border: `1px solid ${C.border}`, borderRadius: 8,
-            color: C.text, fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: font,
-          }}
-        >キャンセル</button>
-        <button
-          onClick={() => valid && onSave({ ...form, name: form.name.trim() }, isNew)}
-          disabled={!valid}
-          style={{
-            flex: 1, minHeight: 44, padding: "0 14px",
-            background: valid ? C.primary : C.panel2,
-            border: `1px solid ${valid ? C.primary : C.border}`, borderRadius: 8,
-            color: valid ? "#fff" : C.textMuted,
-            fontSize: 15, fontWeight: 700,
-            cursor: valid ? "pointer" : "not-allowed", fontFamily: font,
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-          }}
-        >
-          <Icon name="check" size={16} color={valid ? "#fff" : C.textMuted} />
-          保存
-        </button>
-      </div>
-    </Modal>
-  );
-}
-
-// ── 対戦相手 1 行
-function _PlanOpponentRow({ opponent, stats, onEdit, onDelete }) {
-  return (
-    <div style={{
-      display: "flex", alignItems: "flex-start", gap: 10,
-      padding: "12px 14px",
-      background: C.panel,
-      border: `1px solid ${C.border}`,
-      borderRadius: RADIUS.row,
-      marginBottom: 8,
-    }}>
-      <button
-        type="button"
-        onClick={() => onEdit(opponent)}
-        style={{
-          flex: 1, minWidth: 0, padding: 0, background: "none", border: "none",
-          textAlign: "left", cursor: "pointer", fontFamily: font,
-        }}
-      >
-        <div style={{ fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 3 }}>
-          {opponent.name}
-          {(opponent.hand || opponent.style) && (
-            <span style={{ fontSize: 11, color: C.textMuted, marginLeft: 8, fontWeight: 400 }}>
-              {[opponent.hand && `${opponent.hand}利き`, opponent.style && `バック${opponent.style}`].filter(Boolean).join(" / ")}
-            </span>
-          )}
+          <_PlanMiniBtn primary onClick={onChange} icon="plus">大会を選ぶ</_PlanMiniBtn>
         </div>
-        <div style={{ fontSize: 11, color: C.textMuted, lineHeight: 1.4 }}>
-          {stats.total > 0 ? (
-            <span>
-              戦績 {stats.win}勝 {stats.loss}敗
-              {stats.lastDate && <span style={{ marginLeft: 8 }}>· 最終 {stats.lastDate}</span>}
-            </span>
-          ) : (
-            <span>対戦履歴なし</span>
-          )}
-        </div>
-        {opponent.note && (
-          <div style={{ fontSize: 11, color: C.textSecondary, marginTop: 4, lineHeight: 1.4,
-            overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box",
-            WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
-            {opponent.note}
-          </div>
-        )}
-      </button>
-      <button
-        type="button"
-        onClick={(e) => { e.stopPropagation(); onDelete(opponent); }}
-        aria-label="削除"
-        style={{
-          width: 32, height: 32, padding: 0,
-          display: "flex", alignItems: "center", justifyContent: "center",
-          background: "transparent", border: "none", borderRadius: 6,
-          cursor: "pointer", flexShrink: 0,
-        }}
-      >
-        <Icon name="trash-2" size={16} color={C.textMuted} />
-      </button>
-    </div>
-  );
-}
-
-// ── 対戦相手の戦績集計 (tournaments[].matches[].opponent と name で部分一致)
-function _computeOpponentStats(name, tournaments) {
-  const _name = (name || "").trim();
-  if (!_name) return { win: 0, loss: 0, total: 0, lastDate: null };
-  let win = 0, loss = 0, lastDate = null;
-  for (const t of (tournaments || [])) {
-    if (!t || !Array.isArray(t.matches)) continue;
-    for (const m of t.matches) {
-      if (!m) continue;
-      const opp1 = (m.opponent || "").trim();
-      const opp2 = (m.opponent2 || "").trim();
-      if (opp1 !== _name && opp2 !== _name) continue;
-      // H-9 (Phase A 監査): _normalizeMatchResult で表記揺れ吸収
-      const _r = _normalizeMatchResult(m.result);
-      if (_r === "win") win++;
-      else if (_r === "loss") loss++;
-      else continue;
-      if (t.date && (!lastDate || t.date > lastDate)) lastDate = t.date;
-    }
+      </div>
+    );
   }
-  return { win, loss, total: win + loss, lastDate };
-}
 
-function PlanTab({
-  next, opponents, tournaments,
-  onNextUpdate, onOpponentsUpdate,
-  toast, confirm,
-}) {
-  const todayIso = today();
-  const [filter, setFilter] = useState("active"); // "active" | "done" | "all"
-  const [editTarget, setEditTarget] = useState(null); // null=閉、{}=新規、{id,...}=編集
-  const [oppEditTarget, setOppEditTarget] = useState(null);
-
-  const allActions = next || [];
-  const totalCount = allActions.length;
-  const activeCount = allActions.filter(n => n && !n.done).length;
-  const doneCount = totalCount - activeCount;
-
-  const visibleActions = useMemo(() => {
-    let list = allActions.slice();
-    if (filter === "active") list = list.filter(n => n && !n.done);
-    else if (filter === "done") list = list.filter(n => n && n.done);
-    // 並び: done は末尾、active 内は priority → dueDate
-    list.sort((a, b) => {
-      const ad = a.done ? 1 : 0, bd = b.done ? 1 : 0;
-      if (ad !== bd) return ad - bd;
-      const ap = _PLAN_PRIORITY_ORDER[a.priority] || 99;
-      const bp = _PLAN_PRIORITY_ORDER[b.priority] || 99;
-      if (ap !== bp) return ap - bp;
-      const adue = a.dueDate || "9999-99-99";
-      const bdue = b.dueDate || "9999-99-99";
-      if (adue !== bdue) return adue < bdue ? -1 : 1;
-      return 0;
-    });
-    return list;
-  }, [allActions, filter]);
-
-  // 並び替え済 opponents (戦績件数で降順、未対戦は名前順)
-  const sortedOpponents = useMemo(() => {
-    return (opponents || []).slice().sort((a, b) => {
-      const sa = _computeOpponentStats(a.name, tournaments);
-      const sb = _computeOpponentStats(b.name, tournaments);
-      if (sa.total !== sb.total) return sb.total - sa.total;
-      return (a.name || "").localeCompare(b.name || "");
-    });
-  }, [opponents, tournaments]);
-
-  const handleToggle = (id) => {
-    const updated = allActions.map(n => n && n.id === id ? { ...n, done: !n.done } : n);
-    onNextUpdate(updated);
-  };
-  const handleAddNew = () => setEditTarget({});
-  const handleEdit = (item) => setEditTarget(item);
-  const handleSave = (item, isNew) => {
-    if (isNew) {
-      const created = { id: genId(), priority: "中", done: false, ...item };
-      onNextUpdate([...allActions, created]);
-      toast.show("アクションを追加しました", "success");
-    } else {
-      const updated = allActions.map(n => n && n.id === item.id ? { ...n, ...item } : n);
-      onNextUpdate(updated);
-      toast.show("アクションを更新しました", "success");
-    }
-    setEditTarget(null);
-  };
-  const handleDelete = (item) => {
-    confirm.ask(
-      `「${item.label || "(無題)"}」を削除しますか？`,
-      () => {
-        onNextUpdate(allActions.filter(n => n && n.id !== item.id));
-        toast.show("削除しました", "info");
-      },
-      { title: "アクションを削除", yesLabel: "削除", noLabel: "キャンセル", yesVariant: "danger" }
-    );
-  };
-
-  const handleOppAdd = () => setOppEditTarget({});
-  const handleOppEdit = (opp) => setOppEditTarget(opp);
-  const handleOppSave = (item, isNew) => {
-    if (isNew) {
-      const created = { id: genId(), ...item };
-      onOpponentsUpdate([...(opponents || []), created]);
-      toast.show("対戦相手を追加しました", "success");
-    } else {
-      const updated = (opponents || []).map(o => o && o.id === item.id ? { ...o, ...item } : o);
-      onOpponentsUpdate(updated);
-      toast.show("対戦相手を更新しました", "success");
-    }
-    setOppEditTarget(null);
-  };
-  const handleOppDelete = (opp) => {
-    confirm.ask(
-      `「${opp.name}」を削除しますか？\n(過去の試合記録は残ります)`,
-      () => {
-        onOpponentsUpdate((opponents || []).filter(o => o && o.id !== opp.id));
-        toast.show("削除しました", "info");
-      },
-      { title: "対戦相手を削除", yesLabel: "削除", noLabel: "キャンセル", yesVariant: "danger" }
-    );
-  };
+  // 設定済
+  const days = _planDaysRemaining(target.date, todayIso);
+  const daysLabel = _planDaysLabel(days);
+  const isPast = days !== null && days < 0;
+  const typeLabel = _planTournamentTypeLabel(target);
 
   return (
-    <div style={{ padding: "12px 14px 24px", overflow: "auto", flex: 1 }}>
-      {/* === Section 1: Next Actions === */}
-      <div style={{
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        marginBottom: 10,
-      }}>
-        <div style={{ fontSize: 15, fontWeight: 700, color: C.text, display: "inline-flex", alignItems: "center", gap: 6 }}>
-          <Icon name="flag" size={18} color={C.textSecondary} />
-          次のアクション
-          <span style={{ fontSize: 11, color: C.textMuted, fontWeight: 400, marginLeft: 4 }}>
-            {activeCount} / {totalCount}
-          </span>
+    <div style={_planCardStyle()}>
+      <div style={_planCardHead()}>
+        <div style={_planCardTitle()}>
+          <Icon name="trophy" size={18} color={C.tournamentAccent} />
+          次のターゲット
         </div>
-        <button
-          onClick={handleAddNew}
-          aria-label="アクションを追加"
+        <div style={{ display: "flex", gap: 6 }}>
+          <_PlanMiniBtn onClick={onChange} icon="refresh">大会変更</_PlanMiniBtn>
+          <_PlanMiniBtn primary onClick={onEdit} icon="edit">編集</_PlanMiniBtn>
+        </div>
+      </div>
+      <div style={{ fontSize: 18, fontWeight: 700, color: C.text, lineHeight: 1.3, marginBottom: 6 }}>
+        {target.name || "(名称未設定)"}
+      </div>
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", fontSize: 11, color: C.textSecondary, marginBottom: 8 }}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+          <Icon name="calendar" size={12} />
+          {target.date || "日付未設定"}
+        </span>
+        {typeLabel && (
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+            <Icon name="user" size={12} />
+            {typeLabel}
+          </span>
+        )}
+        {target.level && (
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+            <Icon name="medal" size={12} />
+            {target.level}
+          </span>
+        )}
+      </div>
+      {plan.targetGoal && (
+        <div style={{ fontSize: 12, color: C.text, lineHeight: 1.5, marginBottom: 2 }}>
+          <span style={{ color: C.textMuted, marginRight: 6, fontSize: 11 }}>目標</span>
+          {plan.targetGoal}
+        </div>
+      )}
+      {plan.targetTheme && (
+        <div style={{ fontSize: 12, color: C.text, lineHeight: 1.5, marginBottom: 2 }}>
+          <span style={{ color: C.textMuted, marginRight: 6, fontSize: 11 }}>テーマ</span>
+          {plan.targetTheme}
+        </div>
+      )}
+      {daysLabel && (
+        <div style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 4,
+          fontSize: 11,
+          fontWeight: 700,
+          color: isPast ? C.error : C.tournamentAccent,
+          background: isPast ? C.errorLight : C.tournamentLight,
+          padding: "3px 10px",
+          borderRadius: 12,
+          marginTop: 6,
+          fontVariantNumeric: "tabular-nums",
+        }}>
+          <Icon name="clock" size={12} color={isPast ? C.error : C.tournamentAccent} />
+          {daysLabel}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ===================================================================
+// Target Edit Modal (大会変更 + 目標・テーマ編集)
+// ===================================================================
+
+function _PlanTargetEditModal({ open, plan, tournaments, todayIso, onSave, onClose }) {
+  const [form, setForm] = useState({});
+  useEffect(() => {
+    if (open) {
+      setForm({
+        targetTournamentId: plan?.targetTournamentId || "",
+        targetGoal: plan?.targetGoal || "",
+        targetTheme: plan?.targetTheme || "",
+      });
+    }
+  }, [open, plan?.targetTournamentId, plan?.targetGoal, plan?.targetTheme]);
+
+  // 大会候補を未来順 → 過去順で sort (Rules of Hooks: early return より前で全 hook を呼ぶ)
+  const sorted = useMemo(() => {
+    const all = (tournaments || []).filter(t => t && t.id);
+    const future = [], past = [];
+    for (const t of all) {
+      const d = t.date || "";
+      if (d >= todayIso) future.push(t);
+      else past.push(t);
+    }
+    future.sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+    past.sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+    return { future, past };
+  }, [tournaments, todayIso]);
+
+  if (!open) return null;
+
+  const valid = !!form.targetTournamentId;
+
+  return (
+    <Modal open={open} onClose={onClose} title="次のターゲットを編集">
+      <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 12 }}>
+        <label style={{ fontSize: 11, color: C.textMuted, fontWeight: 600 }}>ターゲット大会</label>
+        <select
+          value={form.targetTournamentId || ""}
+          onChange={(e) => setForm({ ...form, targetTournamentId: e.target.value })}
           style={{
-            display: "flex", alignItems: "center", gap: 4,
-            minHeight: 36, padding: "0 12px",
-            background: C.primary, border: "none", borderRadius: 8,
-            color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: font,
+            background: C.panel2,
+            border: `1px solid ${C.border}`,
+            borderRadius: 10,
+            padding: "10px 12px",
+            fontSize: 13,
+            color: C.text,
+            fontFamily: font,
+            width: "100%",
+            boxSizing: "border-box",
+            WebkitAppearance: "none",
+            appearance: "none",
           }}
         >
-          <Icon name="plus" size={14} color="#fff" />
-          追加
+          <option value="">— 選択してください —</option>
+          {sorted.future.length > 0 && (
+            <optgroup label="今後の大会">
+              {sorted.future.map(t => (
+                <option key={t.id} value={t.id}>
+                  {t.date || "日付未設定"} {t.name || "(名称未設定)"}
+                </option>
+              ))}
+            </optgroup>
+          )}
+          {sorted.past.length > 0 && (
+            <optgroup label="過去の大会 (振り返り用)">
+              {sorted.past.map(t => (
+                <option key={t.id} value={t.id}>
+                  {t.date || "日付未設定"} {t.name || "(名称未設定)"}
+                </option>
+              ))}
+            </optgroup>
+          )}
+        </select>
+      </div>
+
+      <Input
+        label={`目標 (短く、${20} 字以内推奨)`}
+        value={form.targetGoal || ""}
+        onChange={(v) => setForm({ ...form, targetGoal: v.slice(0, _PLAN_GOAL_MAX_LEN) })}
+        placeholder="例: 初戦突破"
+      />
+
+      <Input
+        label={`テーマ (短く、${30} 字以内推奨)`}
+        value={form.targetTheme || ""}
+        onChange={(v) => setForm({ ...form, targetTheme: v.slice(0, _PLAN_THEME_MAX_LEN) })}
+        placeholder="例: 攻撃力を落とさず安定"
+      />
+
+      <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
+        <button
+          onClick={onClose}
+          style={_planModalBtn(false)}
+        >キャンセル</button>
+        <button
+          onClick={() => valid && onSave({
+            targetTournamentId: form.targetTournamentId,
+            targetGoal: (form.targetGoal || "").trim(),
+            targetTheme: (form.targetTheme || "").trim(),
+          })}
+          disabled={!valid}
+          style={_planModalBtn(true, valid)}
+        >
+          <Icon name="check" size={16} color={valid ? "#fff" : C.textMuted} />
+          保存
         </button>
       </div>
+    </Modal>
+  );
+}
 
-      {/* フィルタチップ */}
-      <div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap" }}>
-        {[
-          { v: "active", label: `進行中 ${activeCount}` },
-          { v: "done",   label: `完了 ${doneCount}` },
-          { v: "all",    label: `全件 ${totalCount}` },
-        ].map(opt => {
-          const active = filter === opt.v;
-          return (
-            <button
-              key={opt.v}
-              onClick={() => setFilter(opt.v)}
-              style={{
-                minHeight: 32, padding: "0 12px",
-                background: active ? C.primary : C.panel,
-                border: `1px solid ${active ? C.primary : C.border}`, borderRadius: 16,
-                color: active ? "#fff" : C.textSecondary,
-                fontSize: 12, fontWeight: 600,
-                cursor: "pointer", fontFamily: font,
-              }}
-            >{opt.label}</button>
-          );
-        })}
+// ===================================================================
+// Strategy Card (今回の作戦)
+// ===================================================================
+
+function _PlanStrategyCard({ strategy, dimmed, onAdd, onEditItem, onDeleteItem }) {
+  const list = Array.isArray(strategy) ? strategy : [];
+  const count = list.length;
+  const titleColor = dimmed ? C.textMuted : C.primary;
+
+  return (
+    <div style={{ ..._planCardStyle(), ..._planDimmedStyle(dimmed) }}>
+      <div style={_planCardHead()}>
+        <div style={_planCardTitle()}>
+          <Icon name="clipboard-text" size={18} color={titleColor} />
+          今回の作戦
+          {!dimmed && (
+            <span style={{ fontSize: 12, color: C.textMuted, fontWeight: 500, marginLeft: 2 }}>
+              （{count}/{_PLAN_MAX_STRATEGY}）
+            </span>
+          )}
+        </div>
       </div>
 
-      {/* アクション一覧 */}
-      {visibleActions.length === 0 ? (
-        <div style={{
-          background: C.panel, border: `1px dashed ${C.border}`, borderRadius: RADIUS.card,
-          padding: "32px 14px", textAlign: "center", color: C.textMuted, fontSize: 13,
-          marginBottom: 24,
-        }}>
-          {filter === "active" ? "進行中のアクションはありません" :
-           filter === "done"   ? "完了したアクションはありません" :
-                                 "アクションがまだありません。「追加」から始めましょう"}
+      {dimmed ? (
+        <div style={{ textAlign: "center", color: C.textMuted, fontSize: 12, padding: "8px 0" }}>
+          ターゲット設定後に作戦メモを書き出します
+        </div>
+      ) : list.length === 0 ? (
+        <div style={{ textAlign: "center", color: C.textMuted, fontSize: 12, padding: "16px 0" }}>
+          まだ作戦がありません。試合中に見返すメモを短く書き出しましょう
         </div>
       ) : (
-        <div style={{ marginBottom: 24 }}>
-          {visibleActions.map(item => (
-            <_PlanActionRow
-              key={item.id}
-              item={item}
-              todayIso={todayIso}
-              onToggle={handleToggle}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
+        <div style={{ display: "flex", flexDirection: "column" }}>
+          {list.map((text, idx) => (
+            <_PlanStrategyRow
+              key={idx}
+              text={text}
+              isLast={idx === list.length - 1}
+              onEdit={() => onEditItem(idx, text)}
+              onDelete={() => onDeleteItem(idx, text)}
             />
           ))}
         </div>
       )}
 
-      {/* === Section 2: 対戦相手 === */}
-      <div style={{
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        marginBottom: 10, marginTop: 8,
-      }}>
-        <div style={{ fontSize: 15, fontWeight: 700, color: C.text, display: "inline-flex", alignItems: "center", gap: 6 }}>
-          <Icon name="users" size={18} color={C.textSecondary} />
-          対戦相手
-          <span style={{ fontSize: 11, color: C.textMuted, fontWeight: 400, marginLeft: 4 }}>
-            {(opponents || []).length}
-          </span>
-        </div>
+      {!dimmed && count < _PLAN_MAX_STRATEGY && (
         <button
-          onClick={handleOppAdd}
-          aria-label="対戦相手を追加"
+          onClick={onAdd}
           style={{
-            display: "flex", alignItems: "center", gap: 4,
-            minHeight: 36, padding: "0 12px",
-            background: C.primary, border: "none", borderRadius: 8,
-            color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: font,
+            marginTop: 8,
+            background: "transparent",
+            border: `1px dashed ${C.border}`,
+            borderRadius: 10,
+            minHeight: 34,
+            width: "100%",
+            color: C.primary,
+            fontSize: 11,
+            fontWeight: 600,
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 4,
+            cursor: "pointer",
+            fontFamily: font,
           }}
         >
-          <Icon name="plus" size={14} color="#fff" />
-          追加
+          <Icon name="plus" size={12} color={C.primary} />
+          項目を追加 (あと {_PLAN_MAX_STRATEGY - count} 項目)
+        </button>
+      )}
+    </div>
+  );
+}
+
+function _PlanStrategyRow({ text, isLast, onEdit, onDelete }) {
+  const [hover, setHover] = useState(false);
+  return (
+    <div
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        display: "grid",
+        gridTemplateColumns: "14px 1fr auto",
+        alignItems: "flex-start",
+        columnGap: 8,
+        padding: "7px 4px",
+        borderBottom: isLast ? "none" : `1px dashed ${C.divider}`,
+        fontSize: 13,
+        color: C.text,
+        lineHeight: 1.5,
+        minHeight: 32,
+      }}
+    >
+      <div style={{
+        width: 5, height: 5, borderRadius: "50%",
+        background: C.primary, justifySelf: "center", marginTop: 8,
+      }} />
+      <div style={{
+        minWidth: 0,
+        display: "-webkit-box",
+        WebkitLineClamp: 2,
+        WebkitBoxOrient: "vertical",
+        overflow: "hidden",
+        wordBreak: "break-word",
+      }}>
+        {text}
+      </div>
+      <div style={{
+        display: "flex", gap: 2,
+        opacity: hover ? 0.9 : 0.42,
+        transition: "opacity 0.15s",
+        alignSelf: "center",
+      }}>
+        <button
+          onClick={onEdit}
+          aria-label="編集"
+          style={_planRowIconBtn()}
+        >
+          <Icon name="edit" size={13} color={C.textMuted} />
+        </button>
+        <button
+          onClick={onDelete}
+          aria-label="削除"
+          style={_planRowIconBtn()}
+        >
+          <Icon name="trash-2" size={13} color={C.textMuted} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ===================================================================
+// Strategy Edit Modal (1 項目編集、新規/既存共用)
+// ===================================================================
+
+function _PlanStrategyEditModal({ open, initialText, isNew, onSave, onClose }) {
+  const [text, setText] = useState("");
+  useEffect(() => {
+    if (open) setText(initialText || "");
+  }, [open, initialText]);
+  if (!open) return null;
+  const trimmed = text.trim();
+  const valid = trimmed.length > 0 && trimmed.length <= _PLAN_STRATEGY_MAX_LEN;
+  const len = text.length;
+  const level = _planCounterLevel(len, 40, _PLAN_STRATEGY_MAX_LEN);
+  const counterColor = level === "danger" ? C.error : level === "warn" ? C.warning : C.textMuted;
+
+  return (
+    <Modal open={open} onClose={onClose} title={isNew ? "作戦を追加" : "作戦を編集"}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <label style={{ fontSize: 11, color: C.textMuted, fontWeight: 600 }}>
+          作戦文 (試合中に見返せる短文、推奨 30〜40 字)
+        </label>
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value.slice(0, _PLAN_STRATEGY_MAX_LEN))}
+          placeholder="例: 序盤はバック側で無理に打ち合わない"
+          rows={3}
+          style={{
+            background: C.panel2,
+            border: `1px solid ${C.border}`,
+            borderRadius: 10,
+            padding: "10px 12px",
+            fontSize: 14,
+            color: C.text,
+            fontFamily: font,
+            width: "100%",
+            boxSizing: "border-box",
+            resize: "none",
+            lineHeight: 1.5,
+            WebkitAppearance: "none",
+            appearance: "none",
+          }}
+        />
+        <div style={{
+          fontSize: 11,
+          color: counterColor,
+          fontFamily: font,
+          fontVariantNumeric: "tabular-nums",
+          textAlign: "right",
+          marginTop: 2,
+        }}>
+          {len} / {_PLAN_STRATEGY_MAX_LEN} {level === "danger" ? "(長すぎ)" : level === "warn" ? "(やや長い)" : ""}
+        </div>
+      </div>
+
+      <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
+        <button onClick={onClose} style={_planModalBtn(false)}>キャンセル</button>
+        <button
+          onClick={() => valid && onSave(trimmed)}
+          disabled={!valid}
+          style={_planModalBtn(true, valid)}
+        >
+          <Icon name="check" size={16} color={valid ? "#fff" : C.textMuted} />
+          保存
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+// ===================================================================
+// Gear Decision Card (今回のギア決定)
+// ===================================================================
+
+function _PlanGearCard({ gearChoice, rackets, strings, dimmed, onEdit }) {
+  const gc = gearChoice || {};
+  const titleColor = dimmed ? C.textMuted : C.applePeach;
+
+  return (
+    <div style={{ ..._planCardStyle(), ..._planDimmedStyle(dimmed) }}>
+      <div style={_planCardHead()}>
+        <div style={_planCardTitle()}>
+          <Icon name="trophy" size={18} color={titleColor} />
+          今回のギア決定
+        </div>
+        {!dimmed && (
+          <_PlanMiniBtn primary onClick={onEdit} icon="edit">編集</_PlanMiniBtn>
+        )}
+      </div>
+
+      {dimmed ? (
+        <div style={{ textAlign: "center", color: C.textMuted, fontSize: 12, padding: "8px 0" }}>
+          ターゲット設定後にギアを決定します
+        </div>
+      ) : (
+        <>
+          <_PlanGearTier label="本命" tone="main" data={gc.main} rackets={rackets} strings={strings} required />
+          <_PlanGearTier label="対抗" tone="sub" data={gc.sub} rackets={rackets} strings={strings} />
+          <_PlanGearTier label="保留" tone="pending" data={gc.pending} rackets={rackets} strings={strings} />
+          {gc.concern && gc.concern.trim() && (
+            <div style={{
+              marginTop: 8,
+              padding: "8px 12px",
+              background: C.warningLight,
+              border: `1px solid rgba(251,188,4,0.3)`,
+              borderRadius: 12,
+              fontSize: 11,
+              color: C.text,
+              lineHeight: 1.5,
+            }}>
+              <span style={{ color: "#b06b00", fontWeight: 700, marginRight: 4, display: "inline-flex", alignItems: "center", gap: 3 }}>
+                <Icon name="alert-triangle" size={12} color="#b06b00" />
+                全体の懸念
+              </span>
+              {gc.concern}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function _PlanGearTier({ label, tone, data, rackets, strings, required }) {
+  const racket = (rackets || []).find(r => r && r.id === data?.racketId);
+  const stringMain = (strings || []).find(s => s && s.id === data?.stringMainId);
+  const stringCross = (strings || []).find(s => s && s.id === data?.stringCrossId);
+
+  // tone 別の color / bg
+  const toneStyles = {
+    main: { labelColor: C.applePeach, bg: `linear-gradient(135deg, rgba(255,149,0,0.06) 0%, #fff 70%)`, border: `rgba(255,149,0,0.3)` },
+    sub:  { labelColor: C.appleMint,  bg: `linear-gradient(135deg, rgba(0,199,190,0.06) 0%, #fff 70%)`,  border: `rgba(0,199,190,0.3)` },
+    pending: { labelColor: C.textMuted, bg: C.panel2, border: C.border },
+  };
+  const t = toneStyles[tone] || toneStyles.pending;
+
+  const isEmpty = !racket && !data?.racketId;
+
+  return (
+    <div style={{
+      border: `1px solid ${t.border}`,
+      borderRadius: 14,
+      padding: "10px 14px",
+      marginBottom: 6,
+      background: t.bg,
+    }}>
+      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 0.5, color: t.labelColor, marginBottom: 3 }}>
+        {label}
+      </div>
+      {isEmpty ? (
+        <div style={{ fontSize: 11, color: C.textMuted, fontStyle: "italic" }}>
+          {required ? "(本命未設定)" : "— 未設定 —"}
+        </div>
+      ) : (
+        <>
+          <div style={{ fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 2 }}>
+            {racket?.name || "(削除済ラケット)"}
+          </div>
+          {(() => {
+            // S17 Phase 1 wheel 拡張: tensionMain/tensionCross 優先表示、旧 tension 文字列は後方互換 fallback
+            const tDisplay = [data?.tensionMain, data?.tensionCross].filter(Boolean).join("/") || data?.tension || "";
+            if (!stringMain && !stringCross && !tDisplay) return null;
+            return (
+              <div style={{ fontSize: 11, color: C.textSecondary, marginBottom: 3, fontVariantNumeric: "tabular-nums" }}>
+                {stringMain?.name || "(縦糸未設定)"}
+                {stringCross && stringCross.id !== stringMain?.id ? ` × ${stringCross.name}` : ""}
+                {tDisplay && ` / ${tDisplay} lbs`}
+              </div>
+            );
+          })()}
+          {data?.reason && (
+            <div style={{ fontSize: 11, color: C.text, lineHeight: 1.45 }}>
+              <span style={{ color: C.textMuted, marginRight: 4 }}>理由</span>
+              {data.reason}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ===================================================================
+// Gear Decision Edit Modal (3 段同時編集)
+// ===================================================================
+
+function _PlanGearEditModal({ open, gearChoice, rackets, strings, trials, onSave, onClose }) {
+  const [form, setForm] = useState({});
+  // S17 Phase 1 (Q2): 過去のセットから 1 タップ流し込み Modal の対象段 (null=閉、"main"/"sub"/"pending"=該当段に流し込む)
+  const [loadFromTrialTier, setLoadFromTrialTier] = useState(null);
+  useEffect(() => {
+    if (open) {
+      setForm({
+        main:    { ...(gearChoice?.main || {}) },
+        sub:     { ...(gearChoice?.sub || {}) },
+        pending: { ...(gearChoice?.pending || {}) },
+        concern: gearChoice?.concern || "",
+      });
+    }
+  }, [open, gearChoice]);
+  if (!open) return null;
+
+  // S17 Phase 1-A: 引退ラケット / 除外ストリングを除外 + status 優先度 → order ASC で sort
+  //   (DESIGN_SYSTEM §11.1、機材タブ Reorder Mode の並び順をここでも反映)
+  const racketOpts = sortByStatusAndOrder((rackets || []).filter(r => r && r.status !== "retired"), RACKET_STATUS_PRIORITY);
+  const stringOpts = sortByStatusAndOrder((strings || []).filter(s => s && s.status !== "rejected"), STRING_STATUS_PRIORITY);
+
+  // 本命のみ必須
+  const valid = !!form.main?.racketId;
+
+  const updateTier = (tier, key, value) => {
+    setForm(prev => ({ ...prev, [tier]: { ...(prev[tier] || {}), [key]: value } }));
+  };
+
+  // S17 Phase 1 (Q2): 過去 trial から該当段に 1 タップ流し込み
+  //   trial の name (racketName / stringMain / stringCross) を master の id に変換
+  //   master に該当が無ければ null (ユーザーは別途 master 追加が必要)、tension は string そのまま
+  //   reason は維持 (既に書いていれば上書きしない)
+  const handleApplyTrialToTier = (tr, tier) => {
+    if (!tr || !tier) return;
+    const racket = (rackets || []).find(r => r && r.name === tr.racketName);
+    const stringMain = (strings || []).find(s => s && s.name === tr.stringMain);
+    const stringCross = (strings || []).find(s => s && s.name === tr.stringCross);
+    setForm(prev => ({
+      ...prev,
+      [tier]: {
+        ...(prev[tier] || {}),
+        racketId:      racket?.id || null,
+        stringMainId:  stringMain?.id || null,
+        stringCrossId: stringCross?.id || null,
+        tensionMain:   tr.tensionMain || "",
+        tensionCross:  tr.tensionCross || "",
+        // reason は維持 (上書きしない)
+      },
+    }));
+    setLoadFromTrialTier(null);
+  };
+
+  return (
+    <Modal open={open} onClose={onClose} title="今回のギア決定を編集">
+      {["main", "sub", "pending"].map(tier => {
+        const labelMap = { main: "本命 (必須)", sub: "対抗 (任意)", pending: "保留 (任意)" };
+        const data = form[tier] || {};
+        return (
+          <div key={tier} style={{
+            border: `1px solid ${C.border}`,
+            borderRadius: 12,
+            padding: "10px 12px",
+            marginBottom: 10,
+          }}>
+            {/* S17 Phase 1 (Q2): 段ヘッダー + 「過去のセットから」ボタン (trials があれば表示) */}
+            <div style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              marginBottom: 8, gap: 8,
+            }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: C.textSecondary }}>
+                {labelMap[tier]}
+              </div>
+              {(trials || []).length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setLoadFromTrialTier(tier)}
+                  style={{
+                    minHeight: 28, padding: "0 10px",
+                    background: C.primaryLight,
+                    border: `1px solid ${C.primary}`,
+                    borderRadius: 6,
+                    color: C.primary,
+                    fontSize: 11, fontWeight: 600,
+                    cursor: "pointer",
+                    display: "inline-flex", alignItems: "center", gap: 4,
+                    fontFamily: font,
+                    flexShrink: 0,
+                  }}
+                >
+                  <Icon name="history" size={12} color={C.primary} />
+                  過去のセットから
+                </button>
+              )}
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <_PlanGearSelect
+                label="ラケット"
+                value={data.racketId || ""}
+                onChange={(v) => updateTier(tier, "racketId", v || null)}
+                options={racketOpts}
+                emptyLabel="— 選択してください —"
+              />
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                <_PlanGearSelect
+                  label="縦糸"
+                  value={data.stringMainId || ""}
+                  onChange={(v) => updateTier(tier, "stringMainId", v || null)}
+                  options={stringOpts}
+                  emptyLabel="— 未選択 —"
+                />
+                <_PlanGearSelect
+                  label="横糸"
+                  value={data.stringCrossId || ""}
+                  onChange={(v) => updateTier(tier, "stringCrossId", v || null)}
+                  options={stringOpts}
+                  emptyLabel="— 未選択 —"
+                />
+              </div>
+              {/* S17 Phase 1 wheel 拡張: tension 単一 input → tensionMain/tensionCross の 2 NumWheel に分割 (機材タブ TrialEditForm 等と完全整合: gap "0 10px"、label「テンション縦/テンション横」) */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>
+                <NumWheel
+                  label="テンション縦"
+                  value={data.tensionMain || ""}
+                  min={35} max={55} step={1}
+                  onChange={(v) => updateTier(tier, "tensionMain", v)}
+                />
+                <NumWheel
+                  label="テンション横"
+                  value={data.tensionCross || ""}
+                  min={35} max={55} step={1}
+                  onChange={(v) => updateTier(tier, "tensionCross", v)}
+                />
+              </div>
+              <Input
+                label="採用理由 (短く)"
+                value={data.reason || ""}
+                onChange={(v) => updateTier(tier, "reason", v.slice(0, 120))}
+                placeholder={tier === "main" ? "攻撃力の信頼感が高い" : "(任意)"}
+              />
+            </div>
+          </div>
+        );
+      })}
+
+      <Textarea
+        label={`全体の懸念 (140 字目安)`}
+        value={form.concern || ""}
+        onChange={(v) => setForm({ ...form, concern: v.slice(0, _PLAN_CONCERN_MAX_LEN) })}
+        placeholder="例: 後半に振り抜きが重くなる傾向"
+        rows={3}
+      />
+
+      <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
+        <button onClick={onClose} style={_planModalBtn(false)}>キャンセル</button>
+        <button
+          onClick={() => valid && onSave({
+            main:    form.main || {},
+            sub:     form.sub || {},
+            pending: form.pending || {},
+            concern: (form.concern || "").trim(),
+          })}
+          disabled={!valid}
+          style={_planModalBtn(true, valid)}
+        >
+          <Icon name="check" size={16} color={valid ? "#fff" : C.textMuted} />
+          保存
         </button>
       </div>
 
-      {sortedOpponents.length === 0 ? (
-        <div style={{
-          background: C.panel, border: `1px dashed ${C.border}`, borderRadius: RADIUS.card,
-          padding: "24px 14px", textAlign: "center", color: C.textMuted, fontSize: 13,
-        }}>
-          対戦相手がまだ登録されていません
+      {/* S17 Phase 1 (Q2): 過去のセットから 1 タップ流し込み Bottom sheet
+          段ヘッダーの「過去のセットから」ボタンタップで開く、trial 行タップで該当段に流し込み (name → id 変換) */}
+      {loadFromTrialTier && (
+        <div
+          onClick={() => setLoadFromTrialTier(null)}
+          style={{
+            position: "fixed", inset: 0, zIndex: 2500,
+            background: "rgba(0,0,0,0.4)",
+            display: "flex", alignItems: "flex-end", justifyContent: "center",
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: C.panel, borderRadius: "20px 20px 0 0",
+              width: "100%", maxWidth: 600, maxHeight: "75%", overflow: "auto",
+              padding: 16, paddingBottom: 32, fontFamily: font,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: C.text }}>
+                {loadFromTrialTier === "main" ? "本命" : loadFromTrialTier === "sub" ? "対抗" : "保留"} に流し込むセットを選ぶ
+              </div>
+              <button
+                onClick={() => setLoadFromTrialTier(null)}
+                aria-label="閉じる"
+                style={{
+                  width: 32, height: 32, padding: 0, background: "transparent", border: "none",
+                  color: C.textMuted, cursor: "pointer", borderRadius: 6,
+                  display: "inline-flex", alignItems: "center", justifyContent: "center",
+                }}
+              >
+                <Icon name="x" size={20} />
+              </button>
+            </div>
+            {(() => {
+              const sorted = (trials || [])
+                .slice()
+                .filter(t => t && t.racketName)
+                .sort((a, b) => (b.date || "").localeCompare(a.date || ""))
+                .slice(0, 50);
+              if (sorted.length === 0) {
+                return (
+                  <div style={{ textAlign: "center", color: C.textMuted, padding: "24px 0", fontSize: 13 }}>
+                    過去の試打が見つかりません
+                  </div>
+                );
+              }
+              return sorted.map(tr => {
+                const stringInfo = [tr.stringMain, tr.stringCross].filter(Boolean).join(" / ");
+                const tensionInfo = [tr.tensionMain, tr.tensionCross].filter(Boolean).join(" / ");
+                return (
+                  <button
+                    key={tr.id}
+                    onClick={() => handleApplyTrialToTier(tr, loadFromTrialTier)}
+                    style={{
+                      width: "100%", background: C.panel, border: `1px solid ${C.border}`,
+                      borderRadius: 12, padding: "10px 14px", marginBottom: 6,
+                      cursor: "pointer", fontFamily: font, textAlign: "left",
+                      display: "block", color: C.text,
+                    }}
+                  >
+                    <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 2, fontVariantNumeric: "tabular-nums" }}>
+                      {tr.date || "(日付不明)"}
+                    </div>
+                    <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 2 }}>{tr.racketName}</div>
+                    <div style={{ fontSize: 11, color: C.textSecondary }}>
+                      {stringInfo || "(糸 未指定)"}{tensionInfo && ` / ${tensionInfo}`}
+                    </div>
+                  </button>
+                );
+              });
+            })()}
+          </div>
         </div>
-      ) : (
-        sortedOpponents.map(opp => (
-          <_PlanOpponentRow
-            key={opp.id}
-            opponent={opp}
-            stats={_computeOpponentStats(opp.name, tournaments)}
-            onEdit={handleOppEdit}
-            onDelete={handleOppDelete}
-          />
-        ))
+      )}
+    </Modal>
+  );
+}
+
+function _PlanGearSelect({ label, value, onChange, options, emptyLabel }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      <label style={{ fontSize: 11, color: C.textMuted, fontWeight: 600 }}>{label}</label>
+      <select
+        value={value || ""}
+        onChange={(e) => onChange(e.target.value)}
+        style={{
+          background: C.panel2,
+          border: `1px solid ${C.border}`,
+          borderRadius: 10,
+          padding: "10px 12px",
+          fontSize: 13,
+          color: C.text,
+          fontFamily: font,
+          width: "100%",
+          boxSizing: "border-box",
+          WebkitAppearance: "none",
+          appearance: "none",
+        }}
+      >
+        <option value="">{emptyLabel}</option>
+        {options.map(opt => (
+          <option key={opt.id} value={opt.id}>{opt.name}</option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+// ===================================================================
+// 共通スタイル helper
+// ===================================================================
+
+function _planCardStyle() {
+  return {
+    background: C.panel,
+    border: `1px solid ${C.border}`,
+    borderRadius: 20,
+    padding: "14px 16px",
+    marginBottom: 12,
+  };
+}
+function _planCardHead() {
+  return {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  };
+}
+function _planCardTitle() {
+  return {
+    fontSize: 13,
+    fontWeight: 700,
+    color: C.text,
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    fontFamily: font,
+  };
+}
+function _planDimmedStyle(dimmed) {
+  return dimmed ? { opacity: 0.45, pointerEvents: "none" } : {};
+}
+function _planRowIconBtn() {
+  return {
+    width: 24, height: 24, padding: 0,
+    background: "transparent", border: "none",
+    cursor: "pointer",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontFamily: font,
+  };
+}
+function _planModalBtn(primary, enabled) {
+  const isEnabled = enabled !== false;
+  return {
+    flex: primary ? 1 : "0 0 100px",
+    minHeight: 44,
+    padding: "0 14px",
+    background: primary ? (isEnabled ? C.primary : C.panel2) : C.panel,
+    border: `1px solid ${primary ? (isEnabled ? C.primary : C.border) : C.border}`,
+    borderRadius: 10,
+    color: primary ? (isEnabled ? "#fff" : C.textMuted) : C.text,
+    fontSize: primary ? 15 : 14,
+    fontWeight: 700,
+    cursor: isEnabled ? "pointer" : "not-allowed",
+    fontFamily: font,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  };
+}
+
+// ===================================================================
+// PlanTab 本体
+// ===================================================================
+
+function PlanTab({ plan, tournaments, rackets, strings, trials, onPlanSave, toast, confirm }) {
+  const todayIso = today();
+  const safePlan = plan && typeof plan === "object" ? plan : {};
+  const tid = safePlan.targetTournamentId || null;
+  const targetSet = !!tid && (tournaments || []).some(t => t && t.id === tid);
+
+  // モーダル状態
+  const [targetEditOpen, setTargetEditOpen] = useState(false);
+  const [strategyEditTarget, setStrategyEditTarget] = useState(null); // null=閉、{idx,text} or {idx:-1, text:""}=新規
+  const [gearEditOpen, setGearEditOpen] = useState(false);
+
+  // ── Target Edit ハンドラ
+  const handleTargetEdit = () => setTargetEditOpen(true);
+  const handleTargetChange = () => setTargetEditOpen(true);
+  const handleTargetSave = (next) => {
+    onPlanSave({ ...safePlan, ...next });
+    setTargetEditOpen(false);
+    toast.show("ターゲットを保存しました", "success");
+  };
+
+  // ── Strategy ハンドラ
+  const handleStrategyAdd = () => setStrategyEditTarget({ idx: -1, text: "" });
+  const handleStrategyEditItem = (idx, text) => setStrategyEditTarget({ idx, text });
+  const handleStrategyDeleteItem = (idx, text) => {
+    confirm.ask(
+      `「${(text || "").slice(0, 30)}${(text || "").length > 30 ? "…" : ""}」を削除しますか？`,
+      () => {
+        const list = Array.isArray(safePlan.strategy) ? safePlan.strategy : [];
+        const newList = list.filter((_, i) => i !== idx);
+        onPlanSave({ ...safePlan, strategy: newList });
+        toast.show("作戦を削除しました", "info");
+      },
+      { title: "作戦を削除", yesLabel: "削除", noLabel: "キャンセル", yesVariant: "danger" }
+    );
+  };
+  const handleStrategySave = (text) => {
+    const list = Array.isArray(safePlan.strategy) ? safePlan.strategy : [];
+    const target = strategyEditTarget;
+    let newList;
+    if (target && target.idx >= 0) {
+      newList = list.map((s, i) => i === target.idx ? text : s);
+    } else {
+      newList = [...list, text].slice(0, _PLAN_MAX_STRATEGY);
+    }
+    onPlanSave({ ...safePlan, strategy: newList });
+    setStrategyEditTarget(null);
+    toast.show(target && target.idx >= 0 ? "作戦を更新しました" : "作戦を追加しました", "success");
+  };
+
+  // ── Gear ハンドラ
+  const handleGearEdit = () => setGearEditOpen(true);
+  const handleGearSave = (gearChoice) => {
+    onPlanSave({ ...safePlan, gearChoice });
+    setGearEditOpen(false);
+    toast.show("ギア決定を保存しました", "success");
+  };
+
+  const dimmed = !targetSet;
+
+  return (
+    <div style={{ padding: "12px 14px 24px", overflow: "auto", flex: 1 }}>
+      {/* === 1. Target Event Card === */}
+      <_PlanTargetCard
+        plan={safePlan}
+        tournaments={tournaments}
+        todayIso={todayIso}
+        onEdit={handleTargetEdit}
+        onChange={handleTargetChange}
+      />
+
+      {/* === ターゲット未設定時の callout === */}
+      {dimmed && (
+        <_PlanCallout message="先にターゲットを設定すると、作戦・ギアを編集できます。" />
       )}
 
-      <_PlanActionEditModal
-        open={!!editTarget}
-        initial={editTarget}
-        onSave={handleSave}
-        onClose={() => setEditTarget(null)}
+      {/* === 2. Strategy Card === */}
+      <_PlanStrategyCard
+        strategy={safePlan.strategy}
+        dimmed={dimmed}
+        onAdd={handleStrategyAdd}
+        onEditItem={handleStrategyEditItem}
+        onDeleteItem={handleStrategyDeleteItem}
       />
-      <_PlanOpponentEditModal
-        open={!!oppEditTarget}
-        initial={oppEditTarget}
-        onSave={handleOppSave}
-        onClose={() => setOppEditTarget(null)}
+
+      {/* === 3. Gear Decision Card === */}
+      <_PlanGearCard
+        gearChoice={safePlan.gearChoice}
+        rackets={rackets}
+        strings={strings}
+        dimmed={dimmed}
+        onEdit={handleGearEdit}
+      />
+
+      {/* === Modals === */}
+      <_PlanTargetEditModal
+        open={targetEditOpen}
+        plan={safePlan}
+        tournaments={tournaments}
+        todayIso={todayIso}
+        onSave={handleTargetSave}
+        onClose={() => setTargetEditOpen(false)}
+      />
+      <_PlanStrategyEditModal
+        open={!!strategyEditTarget}
+        initialText={strategyEditTarget?.text || ""}
+        isNew={strategyEditTarget?.idx === -1}
+        onSave={handleStrategySave}
+        onClose={() => setStrategyEditTarget(null)}
+      />
+      <_PlanGearEditModal
+        open={gearEditOpen}
+        gearChoice={safePlan.gearChoice}
+        rackets={rackets}
+        strings={strings}
+        trials={trials}
+        onSave={handleGearSave}
+        onClose={() => setGearEditOpen(false)}
       />
     </div>
   );

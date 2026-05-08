@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="refresh" content="60">
+<title>S17 進捗ダッシュボード</title>
+<style>
+  :root {
+    --bg: #f8f9fa; --panel: #ffffff;
+    --border: #dadce0; --divider: #e8eaed;
+    --text: #202124; --textSec: #5f6368; --textMuted: #80868b;
+    --primary: #007AFF; --primaryLight: #E1F0FF;
+    --success: #0f9d58; --warning: #fbbc04; --error: #d93025;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg); color: var(--text);
+    margin: 0; padding: 16px; font-size: 13px; line-height: 1.5;
+  }
+  h1 {
+    font-size: 18px; margin: 0 0 4px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .updated { font-size: 11px; color: var(--textMuted); margin-bottom: 16px; }
+  .section { margin-bottom: 20px; }
+  .section h2 {
+    font-size: 14px; margin: 0 0 8px;
+    padding: 4px 10px; background: #202124; color: #fff;
+    display: inline-block; border-radius: 4px; font-weight: 700;
+  }
+
+  .pending {
+    background: #fef7e0; border: 1px solid rgba(251,188,4,0.3);
+    border-radius: 10px; padding: 10px 12px;
+    margin-bottom: 16px;
+  }
+  .pending .lbl { font-size: 10px; font-weight: 700; color: #b06b00; margin-bottom: 2px; }
+
+  .pill {
+    display: inline-flex; align-items: center; gap: 3px;
+    padding: 1px 6px; border-radius: 6px;
+    font-size: 10px; font-weight: 700; white-space: nowrap;
+  }
+  .pill.done { background: rgba(15,157,88,0.15); color: var(--success); }
+  .pill.doing { background: rgba(251,188,4,0.15); color: #b06b00; }
+  .pill.todo { background: rgba(128,134,139,0.15); color: var(--textMuted); }
+  .pill.pending { background: rgba(217,48,37,0.15); color: var(--error); }
+
+  .phase-card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 12px; padding: 12px 14px; margin-bottom: 8px;
+  }
+  .phase-card .head {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .phase-card .label { font-size: 13px; font-weight: 700; }
+  .phase-card .items { display: flex; flex-direction: column; gap: 4px; }
+  .phase-card .item {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 8px; font-size: 12px; color: var(--textSec); padding-left: 8px;
+  }
+  .phase-card .item .name { flex: 1; min-width: 0; }
+
+  .backlog {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 12px; overflow: hidden;
+  }
+  .backlog .row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 12px;
+    border-bottom: 1px dashed var(--divider);
+    font-size: 12px;
+  }
+  .backlog .row:last-child { border-bottom: none; }
+  .backlog .id {
+    width: 22px; height: 22px;
+    background: #f1f3f4; border-radius: 6px;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700; color: var(--textSec);
+    flex-shrink: 0;
+  }
+  .backlog .name { flex: 1; min-width: 0; color: var(--text); }
+  .backlog .phase { font-size: 10px; color: var(--textMuted); flex-shrink: 0; }
+
+  .changelog {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 12px; overflow: hidden;
+  }
+  .changelog .row {
+    padding: 8px 12px;
+    border-bottom: 1px dashed var(--divider);
+    font-size: 12px; line-height: 1.5;
+  }
+  .changelog .row:last-child { border-bottom: none; }
+  .changelog .ts {
+    font-size: 10px; color: var(--textMuted);
+    font-variant-numeric: tabular-nums; margin-bottom: 2px;
+  }
+  .changelog .row.warn { background: rgba(251,188,4,0.06); }
+  .changelog .row.error { background: rgba(217,48,37,0.05); }
+
+  .footer {
+    margin-top: 24px; padding-top: 12px;
+    border-top: 1px solid var(--divider);
+    font-size: 11px; color: var(--textMuted);
+  }
+</style>
+</head>
+<body>
+
+<h1>📊 S17 進捗ダッシュボード</h1>
+<div class="updated">最終更新: 2026-05-08 21:15 / バージョン v4.6.5-S17 / 60 秒毎に自動 reload</div>
+
+<!-- 次に決めて欲しい -->
+<div class="pending">
+  <div class="lbl">✅ 次のチェック</div>
+  <div>Phase 1 完了状態 (wheel picker 拡張も含む) を本番モード (<code>http://localhost:8080/v4/index.html</code>) で確認してください。OK なら Phase 1 全体を 1 push にまとめます。</div>
+</div>
+
+<!-- Phase 一覧 -->
+<div class="section">
+  <h2>🔧 Phase 一覧 (5 + メタ)</h2>
+
+  <div class="phase-card">
+    <div class="head">
+      <span class="label">Phase 1 健全化</span>
+      <span class="pill done">✅ 完了 (検証待ち)</span>
+    </div>
+    <div class="items">
+      <div class="item"><span class="name">ストリング Select 順序反映 (5 ファイル)</span><span class="pill done">✅ 完了</span></div>
+      <div class="item"><span class="name">試打カード「過去から選ぶ」</span><span class="pill done">✅ 完了</span></div>
+      <div class="item"><span class="name">wheel picker 拡張 (QuickTrialMode + Plan Gear)</span><span class="pill done">✅ 完了</span></div>
+    </div>
+  </div>
+
+  <div class="phase-card">
+    <div class="head">
+      <span class="label">Phase 2 master 管理 UI</span>
+      <span class="pill todo">⏳ 着手前</span>
+    </div>
+    <div class="items">
+      <div class="item"><span class="name">stringSetups (セッティング組合せ) CRUD UI</span><span class="pill todo">⏳</span></div>
+      <div class="item"><span class="name">venues (会場) master 管理 UI</span><span class="pill todo">⏳</span></div>
+      <div class="item"><span class="name">引退ラケット archive UI</span><span class="pill todo">⏳</span></div>
+    </div>
+  </div>
+
+  <div class="phase-card">
+    <div class="head">
+      <span class="label">Phase 3 Racket Board reorder UI</span>
+      <span class="pill todo">⏳ 着手前</span>
+    </div>
+    <div class="items">
+      <div class="item"><span class="name">status 内 order 編集 UI</span><span class="pill todo">⏳</span></div>
+    </div>
+  </div>
+
+  <div class="phase-card">
+    <div class="head">
+      <span class="label">Phase 4 Plan 本体仕上げ</span>
+      <span class="pill todo">⏳ 着手前</span>
+    </div>
+    <div class="items">
+      <div class="item"><span class="name">Plan Gear Decision クイック選択 (試打カード / 直近大会 / stringSetups から 1 タップ)</span><span class="pill todo">⏳</span></div>
+      <div class="item"><span class="name">Plan の wheel picker 適用</span><span class="pill todo">⏳</span></div>
+    </div>
+  </div>
+
+  <div class="phase-card">
+    <div class="head">
+      <span class="label">Phase 5 Plan ↔ Home 連携</span>
+      <span class="pill todo">⏳ 着手前</span>
+    </div>
+    <div class="items">
+      <div class="item"><span class="name">Home 課題行クリックで Plan へ遷移</span><span class="pill todo">⏳</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- 積み残し -->
+<div class="section">
+  <h2>📋 積み残し (9 件)</h2>
+  <div class="backlog">
+    <div class="row"><span class="id">1</span><span class="name">stringSetups CRUD UI</span><span class="phase">phase2</span><span class="pill todo">⏳</span></div>
+    <div class="row"><span class="id">2</span><span class="name">試打カードを 1 タップで作成</span><span class="phase">phase1</span><span class="pill done">✅</span></div>
+    <div class="row"><span class="id">3</span><span class="name">ストリング Select の順序反映</span><span class="phase">phase1</span><span class="pill done">✅</span></div>
+    <div class="row"><span class="id">4</span><span class="name">wheel picker の全体展開</span><span class="phase">phase1</span><span class="pill done">✅</span></div>
+    <div class="row"><span class="id">5</span><span class="name">Plan Gear Decision のクイック選択 (過去のセットから 1 タップ)</span><span class="phase">phase1</span><span class="pill done">✅</span></div>
+    <div class="row"><span class="id">6</span><span class="name">venues (会場) master 管理 UI</span><span class="phase">phase2</span><span class="pill todo">⏳</span></div>
+    <div class="row"><span class="id">7</span><span class="name">Racket Board の reorder UI</span><span class="phase">phase3</span><span class="pill todo">⏳</span></div>
+    <div class="row"><span class="id">8</span><span class="name">Home 課題行クリック対応</span><span class="phase">phase5</span><span class="pill todo">⏳</span></div>
+    <div class="row"><span class="id">9</span><span class="name">引退ラケット archive UI</span><span class="phase">phase2</span><span class="pill todo">⏳</span></div>
+  </div>
+</div>
+
+<!-- 変更履歴 -->
+<div class="section">
+  <h2>📜 変更履歴 (新 → 旧、最新 8 件)</h2>
+  <div class="changelog">
+    <div class="row">
+      <div class="ts">2026-05-08 21:15</div>
+      <div><b>Phase 1 (Q2): ラケットセット 1 タップ選択 完了</b>: Plan Gear Edit Modal の各段 (本命/対抗/保留) ヘッダーに「📋 過去のセットから」ボタン追加 → タップで Bottom sheet で trial 一覧 (date desc 50 件) → 行タップで該当段に流し込み (name → id 変換、tension はそのまま、reason は維持)。これで積み残し #5 完了 (元 Phase 4 → Phase 1 格上げ、APP_VERSION → 4.6.5-S17)</div>
+    </div>
+    <div class="row warn">
+      <div class="ts">2026-05-08 20:50</div>
+      <div><b>修正: wheel picker 機材タブ整合</b>: ユーザー指摘「ホイールピッカーの位置を変えた」を受けて、QuickTrialMode と PlanTab Gear Edit の両方で tension wheel の gap "8" → "0 10px"、label「縦テンション/横テンション」→「テンション縦/テンション横」に修正 (TrialEditForm 等の既存形式と完全一致、APP_VERSION → 4.6.4-S17)</div>
+    </div>
+    <div class="row">
+      <div class="ts">2026-05-08 20:30</div>
+      <div><b>Phase 1 wheel picker 拡張 完了</b>: QuickTrialMode の tension input → NumWheel 化 / Plan Gear Decision の tension 単一文字列 → tensionMain/tensionCross の 2 NumWheel 分割 (機材タブ・他編集画面と整合)。後方互換: 旧 tension 文字列がある plan データは表示 fallback で対応 (APP_VERSION → 4.6.3-S17)</div>
+    </div>
+    <div class="row error">
+      <div class="ts">2026-05-08 20:00</div>
+      <div><b>失敗 → revert</b>: Phase 1.5 進捗バナーをアプリ本体に実装してしまい、ユーザーから「コードを汚すな」「実際の検証ができない」と指摘 → 即 revert (3 ファイル削除 + app.jsx 巻き戻し + APP_VERSION 4.6.3-S17 → 4.6.2-S17)。本来は Claude Code preview パネルで開く静的 HTML (= この progress.html) を作るべきだった</div>
+    </div>
+    <div class="row">
+      <div class="ts">2026-05-08 19:00</div>
+      <div>wheel picker の Phase 1 拡張を検討 (元 Phase 4 → Phase 1 に格上げ) — ユーザー判断待ち</div>
+    </div>
+    <div class="row">
+      <div class="ts">2026-05-08 18:30</div>
+      <div>試打カード機能を再設計: 「カード→カード複製」を廃止し「過去の試打から選ぶ」を新設 (案 A 採用、APP_VERSION → 4.6.2-S17)。経緯: 試打ノートは使い切り設計で空一覧が通常状態、カード→カード複製では導線成立しないとユーザー指摘</div>
+    </div>
+    <div class="row">
+      <div class="ts">2026-05-08 17:00</div>
+      <div>Phase 1-A 完了: ストリング Select 順序反映 (5 ファイル) + active を STRING_STATUS_PRIORITY に追加 (APP_VERSION → 4.6.1-S17)</div>
+    </div>
+    <div class="row warn">
+      <div class="ts">2026-05-08 15:00</div>
+      <div>S17 拡張: 積み残し 1〜9 の 5 Phase 消化計画決定 (memory <code>feedback_no_postpone.md</code> 規律確立)</div>
+    </div>
+    <div class="row">
+      <div class="ts">2026-05-08 13:00</div>
+      <div>Plan タブ初期実装で「機材タブの登録方法に準拠してない」「試打カード活用なし」とユーザー指摘 → push 中止、健全化先行へ方向転換</div>
+    </div>
+    <div class="row">
+      <div class="ts">2026-05-07</div>
+      <div>S17 着手: Plan タブ作戦室方向 (3 カード = Target / Strategy / Gear Decision)、PlanTab.jsx 新規実装、APP_VERSION → 4.6.0-S17</div>
+    </div>
+  </div>
+</div>
+
+<div class="footer">
+  このページは進捗確認専用の静的 HTML です。アプリ本体 (v4/index.html) には影響しません。<br>
+  Claude が各 Phase 進行ごとに本ファイルを直接 Edit、ユーザーは Claude Code preview パネルで <code>http://localhost:8081/progress.html</code> を開いて参照。
+</div>
+
+</body>
+</html>

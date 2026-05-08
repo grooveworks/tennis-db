@@ -64,5 +64,6 @@ const sortByStatusAndOrder=(list,statusPriority)=>{
 
 // status 優先度プリセット（S16 racket / string で使う）
 const RACKET_STATUS_PRIORITY={active:0,sub:1,candidate:2,considering:3,support:4,retired:5};
-const STRING_STATUS_PRIORITY={confirmed:0,good:1,testing:2,candidate:3,hold:4,rejected:5};
+// S17 Phase 1-A: active (主力) を最優先に追加 (実データに status="active" の strings があるため、これが無いと末尾 fallback で違和感)
+const STRING_STATUS_PRIORITY={active:0,confirmed:1,good:2,testing:3,candidate:4,hold:5,rejected:6};
 const SETUP_STATUS_PRIORITY={active:0,archived:1};

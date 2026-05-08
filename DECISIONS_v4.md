@@ -462,6 +462,146 @@ Practice Detail (S10、後続リファクタ):
 
 ---
 
+### S17 (Plan タブ — 作戦室方向、既存実装の方針転換) 着手中
+
+**経緯 (2026-05-07)**:
+
+S17 着手時、既存 `src/ui/plan/PlanTab.jsx` は「Next Actions 一覧 + 対戦相手シンプル一覧」構成だったが、ユーザー実運用 (50 名超対戦相手 / 草トーは事前に相手不明 / 大会後にしか相手判明しない) との整合が弱く凍結状態。ChatGPT レビュー経由で **「Plan = 作戦室 (Decision Companion)」** へ方向転換。既存実装は `archive/legacy_planTab/` に git mv 退避 (履歴保持)。
+
+**Plan タブ役割 (確定)**:
+
+「次の試合・練習に向けて何を準備するか」を 1 画面で確認・編集する作戦室。Sessions (過去事実) / Gear (道具情報) / Home (直近予定) と被らない、**意思決定中心** のタブ。
+
+**3 カード構成 (S17 初期実装)**:
+
+1. **Target Event Card** (次のターゲット): 大会選択 + 目標 + テーマ + 残り日数
+2. **Strategy Card** (今回の作戦): 試合中に見返す作戦メモ最大 5 項目
+3. **Gear Decision Card** (今回のギア決定): 本命 / 対抗 / 保留 + 全体の懸念
+
+**preview 経緯 (preview_s17_plan_p1 → p2 → p3、ChatGPT レビュー 2 回経由でユーザー承認)**:
+
+| preview | 主な変更 | 結果 |
+|---|---|---|
+| p1 | 初期 3 カード案 | ChatGPT 1 回目: Strategy Card が縦に大きすぎ・Gear が下に押し出される指摘 |
+| p2 | Strategy 圧縮 (1 項目 50→32px、約 36%) / アイコン opacity 0.32 / ボタン文言「大会変更」「編集」/ callout 短縮 | Gear 見出し 1 画面 IN 達成、ChatGPT 2 回目で軽微な調整指示 |
+| p3 | Strategy 2 行許容 + 3 行省略 / アイコン 0.42 / 件数表記「（4/5）」 | ChatGPT 最終 OK、実装着手の確定 preview |
+
+**読みやすさ vs Gear 見出し配置 のトレードオフ判断 (方針 A 採用)**:
+
+- 短文 Strategy 中心なら Gear 見出しは 1 画面に入る
+- 長文 Strategy 混在では Gear 見出しが下に押し出される
+- 採用方針: **Strategy 読みやすさを優先、Gear 見出しの常時 1 画面表示は強制しない**
+- 代わりに Strategy 入力規律で短文化を促す (下記)
+- 違反: Gear 見出し 1 画面表示を強制すると、Strategy 行高をさらに削る → p3 の改善が後退
+
+**Strategy 入力規律**:
+
+- 推奨文字数: 30〜40 字 (試合中に見返せる短文)
+- 長くても: 50〜60 字
+- 上限: maxLength=80 (システム制限)
+- 編集モーダルに文字数カウンタ表示 (0-40 通常 / 41-60 注意 / 61-80 長すぎ警告色)
+- 違反: 80 字を推奨値として扱うと長文化が進み、p3 の読みやすさが崩れる
+
+**新データモデル (S17 用、Firestore `users/{uid}/data/plan` 単一オブジェクト)**:
+
+```js
+plan = {
+  targetTournamentId: null | string,   // tournaments[].id 参照、null = 未設定
+  targetTheme: "",                     // 短文 (30 字以内目安)
+  targetGoal: "",                      // 短文 (20 字以内目安)
+  strategy: [],                        // string[]、最大 5 項目、各 80 字まで
+  gearChoice: {
+    main:    { racketId, stringMainId, stringCrossId, tension, reason },  // 必須段
+    sub:     { racketId, stringMainId, stringCrossId, tension, reason },  // 任意段 (空なら表示時非表示)
+    pending: { racketId, stringMainId, stringCrossId, tension, reason },  // 任意段
+    concern: "",                       // 全体懸念、140 字以内目安
+  },
+}
+```
+
+- `targetTournamentId` が null = 「次のターゲット未設定」(Strategy / Gear カードは薄表示 + 上部に callout で誘導)
+- 過去日になっても **自動削除しない** (暗黙確定禁止 / `feedback_data_destruction_2026_05_03.md` 準拠)
+- ラケット master を Gear で rename / archive すると `gearChoice` の選択も追従 (id ベース参照)
+
+**UI 規律 (DESIGN_SYSTEM 補強)**:
+
+- カード = 大カード (radius 20px)
+- Strategy 行 = 点線 divider (背景色なし)、line-clamp 2 行、3 行目省略記号
+- アイコン (編集・削除) = opacity 0.42、hover 時 0.9
+- 件数表示 = 全角括弧「（4/5）」
+- Bottom sheet モーダル (S15 / S15.5 と同型)、auto-save 標準 (S15.5.9)
+- focus trap 標準 (S16 Round 5 UI Phase 1)
+
+**既存実装の処理 (確定済、2026-05-07 実施済)**:
+
+- `src/ui/plan/PlanTab.jsx` → `archive/legacy_planTab/PlanTab.jsx` に git mv 退避
+- `next` state は維持: Home Next Actions 表示と Gear Open Questions (`category="gear"` フィルタ) で継続使用
+- `opponents` data は維持: S17.3 (Opponent DB) で新 schema (aliases / status / tags / strategyNote / createdFromMatchId / lastPlayedAt) へ遅延 migration
+- DESIGN_SYSTEM_v4.md §11.7 「Plan Next Actions に Reorder Mode 適用」(S17 当初予定) は **保留**: Plan が Next Actions セクションを持たない方向に変わったため、§11.7 表は S17.3 完了時に再評価
+
+**S17 後の追加予定 (現 Stage では実装しない、文書化のみ)**:
+
+| カード / 機能 | 想定 Stage | 内容 |
+|---|---|---|
+| Practice Focus Card | S17.1 | 次回練習テーマ最大 3 件、Sessions の練習記録と将来連動 |
+| Pre-match Checklist | S17.2 | 大会前準備チェック 6 項目程度 (使用ラケット決定 / 張り上げ / 予備 / 補給 / 集合時間 / テーマ確認) |
+| Opponent DB (対戦相手管理) | S17.3 | 50 名超対戦相手の検索・絞り込み・未整理キュー・aliases 統合・status 4 段階 (unreviewed / normal / important / archived)・タグ。Plan タブには「整理状況」(未整理 N 件 / 要対策 N 名) のみ表示、本体は専用サブ画面 |
+
+**AI 機能の段階導入計画 (S17.1 以降、設計確定済 / 実装は S17 後)**:
+
+- **方針**: AI は「考える主役」ではなく「整理・補助」役。決定はユーザー、AI 提案は採用前にユーザー確認 (採用 / 編集して採用 / 破棄 の 3 択、自動保存禁止)
+- **段階導入順 (優先度順)**:
+  1. **Strategy AI 整理** (S17.x 最優先): ユーザー長文メモ → AI が最大 5 項目に短文化
+  2. **Strategy AI 提案** (続く): 直近 Sessions から AI が作戦案 5 件提案
+  3. **Gear AI チェック**: 本命 / 対抗 / 保留 の良い点・注意点を短く整理 (リスク確認)
+  4. **大会後 → 次回 Plan 生成**: 大会記録から次回練習テーマ・作戦テーマを生成
+- **AI 出力ルール**: Strategy ≤ 5 件 / 1 項目 30 字以内 / 抽象論禁止 / 試合中に見返せる短文 / ユーザー編集可 / 自動保存禁止 / 不安を増やす表現を避ける
+- **API キー実装方式**: 既存 `functions/index.js` (Cloud Functions、Anthropic Claude Haiku 経由要約、HANDOFF §9) を流用、フロントに API キーを置かない (ChatGPT レビューで案 B 相当として確認)。新エンドポイント (例: `planAssist`) を追加、Plan 入力 + 直近 Sessions を渡して整理結果を返す
+- **UI**: AI ボタンは各カード右上の小さい [AI 提案] / [AI チェック]、結果は Bottom sheet で 採用 / 編集して採用 / 破棄
+
+**実機検証で確認したい点 (S17 push 前のユーザー検証手順)**:
+
+- アイコン opacity 0.42 が明るい屋外で十分見えるか (ダメなら編集 0.48 / 削除 0.42 の段階分けに後続調整)
+- 2 行折り返し時の行間とベースラインが自然か
+- 長文混在ケースで「読めるが長すぎる」と感じないか (感じたら入力規律を厳しめに調整)
+- ターゲット未設定 → 大会選択 → Target 設定 → Strategy 編集 → Gear 編集 のフルサイクルが破綻しないか
+- 設定済みのターゲット大会が過去日になった場合、表示は維持されるか (自動削除されないこと)
+- Firestore 即時 write が効いているか (S15.5.3 の Chrome Background Throttling 対策と同パターン、debounce bypass)
+
+**スコープ外 (S17 では実装しない)**:
+
+- ❌ Practice Focus Card (S17.1 で対応)
+- ❌ Pre-match Checklist (S17.2 で対応)
+- ❌ Opponent DB / 対戦相手管理 (S17.3 で対応、50 名超前提の大規模設計)
+- ❌ AI 機能 (S17.x 以降で段階導入)
+- ❌ Reorder Mode (Strategy 5 項目以下のため不要)
+- ❌ ターゲット候補の「重要練習」拡張 (S17.1 検討)
+- ❌ 大会終了通知 (Home 経由、将来 Stage)
+
+**積み残し消化計画 (2026-05-08 ユーザー指示で確定、memory `feedback_no_postpone.md` 規律)**:
+
+S17 push 前検証中に、ユーザーが「過去 Stage で『後で』と棚上げされたまま消化されていない既存機能を、新 Plan タブが活かしていない」と指摘。Plan タブを実用にするには既存機能の健全化が先。push 中止 → 5 Phase で全 9 件消化に方針転換。
+
+| Phase | 内容 | 含む積み残し | APP_VERSION | 状態 |
+|---|---|---|---|---|
+| 1 | 既存機能の健全化 | ストリング Select 順序反映 (5 ファイル) / 試打カード 1 タップ複製 / wheel picker 既存抜け補完 (QuickAddModal 等) | `4.6.1-S17` | 着手前 |
+| 2 | Master 管理 UI 群 | stringSetups CRUD UI / venues master CRUD UI / 引退ラケット archive UI | `4.7.0-S17` | 着手前 |
+| 3 | Racket Board reorder UI | DESIGN_SYSTEM §11.7 仕様の status 内 order 編集実装 | `4.7.1-S17` | 着手前 |
+| 4 | Plan 本体仕上げ | Plan Gear Decision のクイック選択 (試打カード / 直近大会 / stringSetups から 1 タップ) + Plan の wheel picker 適用 | `4.8.0-S17` | 着手前 |
+| 5 | Plan ↔ Home 連携 | Home Current Context の「課題」行タップで Plan Strategy へ | `4.8.1-S17` | 着手前 |
+
+**経緯**: Plan タブ初期実装 (preview_p1〜p3 + ChatGPT 3 回レビュー) で個別 Select / wheel なし / 順序反映なしで実装、ユーザー検証時に「試打カードや stringSetups や 機材タブの並び順や wheel picker が活かされていない」と指摘 → Claude が過去 Stage で「Phase X で実装予定」と書きながら放置していた積み残し 5+α 件が露呈 → 「後で」禁止規律 (memory `feedback_no_postpone.md`) を確立、5 Phase で全消化決定。
+
+**各 Phase 開始時**:
+- 着手前: スコープと触るファイルを提示 → ユーザー OK
+- 実装後: `http://localhost:8080/v4/index.html` で動作確認 → ユーザー OK
+- push 前: commit message ドラフト → ユーザー OK
+- push 後: 次 Phase の着手前確認に進む
+
+**全 Phase 完了時**: HANDOFF を S17 完了状態に更新、ROADMAP の S17 を ✅ にして次 Stage (S18 Insights 凍結解除 or S19 インポート) へ。
+
+---
+
 ## このファイルの更新
 
 - Stage 完了時に該当節を追記

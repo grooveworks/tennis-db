@@ -108,6 +108,27 @@ function applyCascadeToTrials(trials, affectedTrials) {
   });
 }
 
+// ── S17: Plan の targetTournamentId が削除対象大会に一致した場合、null にした新 plan を返す
+//
+// 引数:
+//   plan: 現 plan オブジェクト (なければ {} で OK、不正値も {} 扱い)
+//   type: "tournament" | "practice" | "match" | "trial" (tournament のみ反応)
+//   item: 削除対象 (tournament obj、id を持つ)
+//
+// 戻り値: 更新後の plan (一致時) または元の plan (不一致時)、副作用なし純関数
+//
+// 役割:
+//   Sessions の大会を削除した時に Plan の Target が孤児にならないよう、id クリアする
+//   targetGoal / targetTheme / strategy / gearChoice は保持 (ターゲットだけ未設定に戻す)
+//   ユーザーは Plan タブで「大会変更」して別の大会を選び直すか、空状態のまま運用する
+function cascadeToPlan(plan, type, item) {
+  const _plan = (plan && typeof plan === "object" && !Array.isArray(plan)) ? plan : {};
+  if (type !== "tournament" || !item || !item.id) return _plan;
+  if (_plan.targetTournamentId !== item.id) return _plan;
+  // ターゲット大会が削除されたので targetTournamentId を null に (他フィールドは保持)
+  return { ..._plan, targetTournamentId: null };
+}
+
 // ── ConfirmDialog 本文用の文言を生成 (UI 文言を 1 箇所に集約、preview_s13 と一致)
 //
 // type に応じた種別ラベルを埋め込み、count が 0 なら追加文言を出さない。
