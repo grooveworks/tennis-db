@@ -26,6 +26,7 @@ function HomeTab({
   onQuickAdd,
   onCardClick,
   onMainRacketClick,
+  onTaskClick,
 }) {
   // DayPanel: 選択日 (iso) を内部 state で持つ。null なら閉
   const [dayPanelIso, setDayPanelIso] = useState(null);
@@ -60,6 +61,7 @@ function HomeTab({
         next={next}
         onCardClick={onCardClick}
         onMainRacketClick={onMainRacketClick}
+        onTaskClick={onTaskClick}
       />
 
       {/* 2. 今週サマリー */}

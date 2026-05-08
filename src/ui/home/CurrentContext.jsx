@@ -101,7 +101,7 @@ function _CtxRow({ keyText, val, sub, status, statusKind, onClick }) {
   );
 }
 
-function CurrentContext({ tournaments = [], practices = [], trials = [], next = [], onCardClick, onMainRacketClick }) {
+function CurrentContext({ tournaments = [], practices = [], trials = [], next = [], onCardClick, onMainRacketClick, onTaskClick }) {
   const todayIso = today();
 
   // 1. 次の大会
@@ -196,10 +196,11 @@ function CurrentContext({ tournaments = [], practices = [], trials = [], next = 
         onClick={upcomingTournament && onCardClick ? () => onCardClick("tournament", upcomingTournament) : null}
       />
 
-      {/* 2. 課題 (S17 Plan タブ未実装、リンクなし) */}
+      {/* 2. 課題 → Plan タブへ遷移 (S17 Phase 5) */}
       <_CtxRow
         keyText="課題"
         val={topTask ? topTask.label || "(無題)" : "未設定"}
+        onClick={topTask && onTaskClick ? () => onTaskClick(topTask) : null}
       />
 
       {/* 3. 主力 → Sessions タブをそのラケットでフィルタした一覧へ */}

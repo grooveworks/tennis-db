@@ -112,7 +112,7 @@
 <body>
 
 <h1>📊 S17 進捗ダッシュボード</h1>
-<div class="updated">最終更新: 2026-05-09 04:00 / バージョン v4.7.2-S17 / 60 秒毎に自動 reload</div>
+<div class="updated">最終更新: 2026-05-09 05:30 / バージョン v4.7.4-S17 / 60 秒毎に自動 reload</div>
 
 <!-- 次に決めて欲しい -->
 <div class="pending" style="background:#e6f4ea;border-color:rgba(15,157,88,0.3)">
@@ -193,10 +193,10 @@
   <div class="phase-card">
     <div class="head">
       <span class="label">Phase 5 Plan ↔ Home 連携</span>
-      <span class="pill todo">⏳ 着手前</span>
+      <span class="pill done">✅ 完了 (push 待ち / v4.7.4-S17)</span>
     </div>
     <div class="items">
-      <div class="item"><span class="name">Home 課題行クリックで Plan へ遷移</span><span class="pill todo">⏳</span></div>
+      <div class="item"><span class="name">Home 課題行クリックで Plan へ遷移</span><span class="pill done">✅</span></div>
     </div>
   </div>
 </div>
@@ -212,7 +212,7 @@
     <div class="row"><span class="id">5</span><span class="name">Plan Gear Decision のクイック選択 (過去のセットから 1 タップ)</span><span class="phase">phase1</span><span class="pill done">✅</span></div>
     <div class="row"><span class="id">6</span><span class="name">venues (会場) master 管理 UI</span><span class="phase">phase2</span><span class="pill done">✅</span></div>
     <div class="row"><span class="id">7</span><span class="name">Racket Board の reorder UI</span><span class="phase">phase3</span><span class="pill todo">⏳</span></div>
-    <div class="row"><span class="id">8</span><span class="name">Home 課題行クリック対応</span><span class="phase">phase5</span><span class="pill todo">⏳</span></div>
+    <div class="row"><span class="id">8</span><span class="name">Home 課題行クリック対応</span><span class="phase">phase5</span><span class="pill done">✅</span></div>
     <div class="row"><span class="id">9</span><span class="name">引退ラケット archive UI</span><span class="phase">phase2</span><span class="pill done">✅</span></div>
   </div>
 </div>
@@ -222,9 +222,21 @@
   <h2>📜 変更履歴 (新 → 旧、最新 8 件)</h2>
   <div class="changelog">
     <div class="row" style="background:rgba(15,157,88,0.06)">
+      <div class="ts">2026-05-09 05:30</div>
+      <div>
+        <b>Phase 5 完了 (v4.7.4-S17、push 待ち)</b>: Home タブの「課題」行 (CurrentContext._CtxRow keyText="課題") にクリックハンドラを追加 → Plan タブ (作戦室 = Target / Strategy / Gear Decision の 3 カード) へ tab 切替で遷移。実装は最小: <code>app.jsx</code> に <code>handleTaskClick = () => setTab("plan")</code> を追加、HomeTab → CurrentContext に <code>onTaskClick</code> prop を流通、<code>_CtxRow</code> の onClick で発火。dev mode で Home → 課題行 click → 作戦室の 3 カード (次のターゲット / 今回の作戦 / 今回のギア決定) が即表示されることを検証済。
+      </div>
+    </div>
+    <div class="row" style="background:rgba(15,157,88,0.06)">
+      <div class="ts">2026-05-09 05:00</div>
+      <div>
+        <b>Phase 3.5b 修繕 (v4.7.3-S17、push 済 f3893e5)</b>: Phase 3.5 の戻る挙動修繕で残っていた「Period → Session → 戻るで一覧まで飛ぶ」不具合を消化。<code>handlePeriodSessionClick</code> から強制 close を削除し 3 階層維持、SessionDetail に "gear-session" state を渡して RacketDetail / PeriodDetail の popstate で「自階層 + 子階層」維持判定に拡張。検証で 4 階層戻り (Session → Period → Racket → Gear root) を全部確認。
+      </div>
+    </div>
+    <div class="row" style="background:rgba(15,157,88,0.06)">
       <div class="ts">2026-05-09 04:00</div>
       <div>
-        <b>Phase 3.5 健全化 完了 (v4.7.2-S17、push 待ち)</b>:
+        <b>Phase 3.5 健全化 完了 (v4.7.2-S17、push 済 b6155f6)</b>:
         Phase 3 が過去 commit 742d8b2 で既に実装済と判明 (Gear タブ「並び替え」リンク + ▲▼ + 「完了」)。
         代わりにユーザー報告の不具合 2 件を消化 —
         (1) RacketEditModal のストリング/テンションを他 form と統一: <code>currentString/currentTension</code> 1 フィールドの単純 Input → SetupPickerButton + Combobox×2 (縦糸/横糸) + NumWheel×2 (テンション縦/横) に置換。新スキーマ <code>currentStringMain/Cross</code>, <code>currentTensionMain/Cross</code> 4 フィールド (戦略 2: 新書込・旧 touch せず・読込時 fallback、V2/V3 不具合時のみ運用に整合)。共通ヘルパ <code>src/domain/racket_string_compat.js</code> 新設、<code>RacketDetailView</code> / <code>GearTab</code> の表示も新ヘルパに置換。

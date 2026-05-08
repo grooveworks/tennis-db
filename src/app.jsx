@@ -959,6 +959,9 @@ function TennisDB() {
     setFilterFromHome(true);
     setTab("sessions");
   };
+
+  // S17 Phase 5: Home の「課題」行クリックで Plan タブへ遷移 (作戦室 = Strategy カードを含む 3 カード)
+  const handleTaskClick = () => setTab("plan");
   // S16 Issue 1: tab が sessions から離れた時、filterFromHome なら自動解除
   useEffect(() => {
     if (tab !== "sessions" && filterFromHome) {
@@ -1503,6 +1506,7 @@ function TennisDB() {
         onQuickAdd={handleHomeQuickAdd}
         onCardClick={handleCardClick}
         onMainRacketClick={handleMainRacketClick}
+        onTaskClick={handleTaskClick}
       />
     );
   } else if (tab === "gear") {

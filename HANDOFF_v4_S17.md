@@ -6,9 +6,9 @@
 
 ## 0. 現バージョン / 直近の commit
 
-- **APP_VERSION**: `v4.7.2-S17` (`src/core/01_constants.js`)
-- **直近 push**: `a2d884f` (v4 S17 Phase 2: Master Cleanup 抜本対応 + esbuild build 修繕)
-- **次 push 予定**: v4.7.2-S17 = Phase 3.5 健全化 (本セッションの作業成果、commit 直前)
+- **APP_VERSION**: `v4.7.4-S17` (`src/core/01_constants.js`)
+- **直近 push**: `f3893e5` (v4 S17 Phase 3.5b: PeriodDetail → SessionDetail → 戻るで一覧まで飛ぶ不具合修繕)
+- **次 push 予定**: v4.7.4-S17 = Phase 5 (#8 Home 課題行クリック対応)
 
 ---
 
@@ -19,9 +19,10 @@
 | Phase 1 | 既存機能健全化 + Plan タブ作戦室実装 (積み残し #2/#3/#4/#5) | ✅ push 済 (a830827, v4.6.5) |
 | Phase 2 | Master Cleanup 抜本対応 + master 管理 UI (#1/#6/#9) + esbuild build 修繕 | ✅ push 済 (a2d884f, v4.7.1) |
 | Phase 3 | Racket Board reorder UI (#7) | ✅ 過去 commit 742d8b2 で実装済と判明 |
-| Phase 3.5 | 健全化 (ユーザー報告不具合 2 件) | ✅ 完了 (push 直前, v4.7.2) |
+| Phase 3.5 | 健全化 (ラケット編集 4 フィールド統一 / 戻るバグ 1) | ✅ push 済 (b6155f6, v4.7.2) |
+| Phase 3.5b | 戻るバグ 2 (Period → Session → 戻るで一覧まで飛ぶ) | ✅ push 済 (f3893e5, v4.7.3) |
+| Phase 5 | Plan ↔ Home 連携 (#8 Home 課題行クリック) | ✅ 完了 (push 直前, v4.7.4) |
 | Phase 4 | Plan 本体仕上げ (Gear Decision クイック選択 / wheel picker 適用) | ⏳ 着手前 |
-| Phase 5 | Plan ↔ Home 連携 (#8 Home 課題行クリック) | ⏳ 着手前 |
 
 ---
 
