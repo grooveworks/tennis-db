@@ -158,7 +158,13 @@ function RacketDetailView({
   useEffect(() => {
     if (!open) return;
     try { window.history.pushState({ tdb: "gear-detail" }, ""); } catch (_) {}
-    const handler = () => { const fn = onCloseRef.current; if (fn) fn(); };
+    // S17 Phase 3.5 不具合修繕: 子階層 (PeriodDetailView 等) の popstate 発火時、自分の階層が
+    // まだ history に残っているなら閉じない (e.state.tdb === "gear-detail" は自分の state)。
+    // これがないと PeriodDetail の戻るで RacketDetail も同時に閉じてラケット一覧まで戻る。
+    const handler = (e) => {
+      if (e && e.state && e.state.tdb === "gear-detail") return;
+      const fn = onCloseRef.current; if (fn) fn();
+    };
     window.addEventListener("popstate", handler);
     return () => window.removeEventListener("popstate", handler);
   }, [open, racket?.id]);
@@ -287,8 +293,8 @@ function RacketDetailView({
         {/* 2. Current Setting */}
         <_SecCard icon="gear-six" title="現在のセッティング">
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 12px" }}>
-            <_KV k="ストリング" v={racket.currentString} />
-            <_KV k="テンション" v={racket.currentTension} />
+            <_KV k="ストリング" v={formatRacketStringDisplay(racket)} />
+            <_KV k="テンション" v={formatRacketTensionDisplay(racket)} />
             <_KV k="フェイス" v={racket.face} />
             <_KV k="ビーム" v={racket.beam} />
             <_KV k="フレーム重量" v={racket.weight} />

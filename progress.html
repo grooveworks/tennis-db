@@ -112,12 +112,18 @@
 <body>
 
 <h1>📊 S17 進捗ダッシュボード</h1>
-<div class="updated">最終更新: 2026-05-09 00:30 / バージョン v4.6.5-S17 (Phase 1 で維持) / 60 秒毎に自動 reload</div>
+<div class="updated">最終更新: 2026-05-09 04:00 / バージョン v4.7.2-S17 / 60 秒毎に自動 reload</div>
 
 <!-- 次に決めて欲しい -->
-<div class="pending">
-  <div class="lbl">⚠️ 次セッション最優先</div>
-  <div><b>組み立て方 (build) の修繕</b> — Phase 2 ビルド (911 KB) で iPhone Safari / Chrome ともに 5 分以上ロード = 試合運用できない。原因は「ブラウザに毎回組み立て直させる」現在の方式の限界。<b>機能追加 (Phase 2 / 3 / 4 / 5) を進める前に、必ず組み立て方を直す</b>。Phase 2 のコードは src/ に残してあるので、土台修繕後に再ビルドで復活する。</div>
+<div class="pending" style="background:#e6f4ea;border-color:rgba(15,157,88,0.3)">
+  <div class="lbl" style="color:#0f9d58">✅ 直近の成果</div>
+  <div>
+    <b>Phase 3 = 過去 commit 742d8b2 で実装済と判明</b> (Gear タブ「並び替え」リンク + ▲▼ + 「完了」、status 内 reorder 完全動作)。
+    代わりに <b>Phase 3.5 健全化</b> (= ユーザー報告の不具合 2 件) を着手:
+    (1) RacketEditModal のストリング/テンションが他 form (試打/練習/大会) と一貫性なし → SetupPicker + Combobox×2 + NumWheel×2 で統一、
+    (2) 張り替え履歴 (PeriodDetailView) から戻ると ラケット詳細を飛び越してラケット一覧まで戻る不具合 → popstate handler に自階層チェックを追加。
+    データ仕様: V4 を主運用、V2/V3 は不具合時のみ → 戦略 2 (新 4 フィールド書込・旧 1 フィールドは touch しない・読込時 fallback)。
+  </div>
 </div>
 
 <!-- Phase 一覧 -->
@@ -138,23 +144,38 @@
 
   <div class="phase-card">
     <div class="head">
-      <span class="label">Phase 2 master 管理 UI</span>
-      <span class="pill pending">⏸ 保留 (土台修繕後に再ビルド)</span>
+      <span class="label">Phase 2 master 管理 UI + Master Cleanup 抜本対応</span>
+      <span class="pill done">✅ 完了 (push 済 a2d884f)</span>
     </div>
     <div class="items">
-      <div class="item"><span class="name">stringSetups (セッティング組合せ) CRUD UI</span><span class="pill done">✅ 完了</span></div>
-      <div class="item"><span class="name">venues (会場) master 管理 UI</span><span class="pill done">✅ 完了</span></div>
-      <div class="item"><span class="name">引退ラケット archive UI</span><span class="pill done">✅ 完了</span></div>
+      <div class="item"><span class="name">stringSetups (セッティング組合せ) CRUD UI</span><span class="pill done">✅</span></div>
+      <div class="item"><span class="name">venues (会場) master 管理 UI</span><span class="pill done">✅</span></div>
+      <div class="item"><span class="name">引退ラケット archive UI</span><span class="pill done">✅</span></div>
+      <div class="item"><span class="name">Master Cleanup 汎用機能 (汎用純関数 + 共通 UI)</span><span class="pill done">✅</span></div>
+      <div class="item"><span class="name">SetupPickerButton (3 編集 form で stringSetups 1 タップ流し込み)</span><span class="pill done">✅</span></div>
+      <div class="item"><span class="name">build 修繕 (esbuild 事前 transpile、Babel CDN 撤去)</span><span class="pill done">✅</span></div>
     </div>
   </div>
 
   <div class="phase-card">
     <div class="head">
       <span class="label">Phase 3 Racket Board reorder UI</span>
-      <span class="pill todo">⏳ 着手前</span>
+      <span class="pill done">✅ 過去 commit で実装済 (742d8b2)</span>
     </div>
     <div class="items">
-      <div class="item"><span class="name">status 内 order 編集 UI</span><span class="pill todo">⏳</span></div>
+      <div class="item"><span class="name">status 内 order 編集 UI (Gear タブ「並び替え」+ ▲▼ + 「完了」)</span><span class="pill done">✅</span></div>
+    </div>
+  </div>
+
+  <div class="phase-card">
+    <div class="head">
+      <span class="label">Phase 3.5 健全化 (ユーザー報告不具合 2 件)</span>
+      <span class="pill done">✅ 完了 (push 待ち / v4.7.2-S17)</span>
+    </div>
+    <div class="items">
+      <div class="item"><span class="name">RacketEditModal のストリング/テンションを他 form と統一 (SetupPicker + Combobox×2 + NumWheel×2)</span><span class="pill done">✅</span></div>
+      <div class="item"><span class="name">PeriodDetailView から戻ると RacketDetail も同時に閉じる不具合 (popstate handler 自階層チェック)</span><span class="pill done">✅</span></div>
+      <div class="item"><span class="name">Racket スキーマ 4 フィールド化 (戦略 2: 新書込・旧 touch せず・読込時 fallback)</span><span class="pill done">✅</span></div>
     </div>
   </div>
 
@@ -200,9 +221,27 @@
 <div class="section">
   <h2>📜 変更履歴 (新 → 旧、最新 8 件)</h2>
   <div class="changelog">
+    <div class="row" style="background:rgba(15,157,88,0.06)">
+      <div class="ts">2026-05-09 04:00</div>
+      <div>
+        <b>Phase 3.5 健全化 完了 (v4.7.2-S17、push 待ち)</b>:
+        Phase 3 が過去 commit 742d8b2 で既に実装済と判明 (Gear タブ「並び替え」リンク + ▲▼ + 「完了」)。
+        代わりにユーザー報告の不具合 2 件を消化 —
+        (1) RacketEditModal のストリング/テンションを他 form と統一: <code>currentString/currentTension</code> 1 フィールドの単純 Input → SetupPickerButton + Combobox×2 (縦糸/横糸) + NumWheel×2 (テンション縦/横) に置換。新スキーマ <code>currentStringMain/Cross</code>, <code>currentTensionMain/Cross</code> 4 フィールド (戦略 2: 新書込・旧 touch せず・読込時 fallback、V2/V3 不具合時のみ運用に整合)。共通ヘルパ <code>src/domain/racket_string_compat.js</code> 新設、<code>RacketDetailView</code> / <code>GearTab</code> の表示も新ヘルパに置換。
+        (2) <code>PeriodDetailView</code> から戻ると <code>RacketDetailView</code> も同時に閉じてラケット一覧まで戻る不具合: popstate handler が両方発火していたため、<code>e.state.tdb</code> で「自階層がまだ history に残っているなら閉じない」チェックを追加。
+      </div>
+    </div>
+    <div class="row" style="background:rgba(15,157,88,0.06)">
+      <div class="ts">2026-05-09 02:30</div>
+      <div><b>Phase 3 着手 (後に既実装と判明)</b>: Racket Board reorder UI に着手 → 過去 commit 742d8b2 で実装済と判明、Phase 3.5 健全化に方向転換。</div>
+    </div>
+    <div class="row" style="background:rgba(15,157,88,0.06)">
+      <div class="ts">2026-05-09 02:00</div>
+      <div><b>Phase 2 push 完了 + iPhone ロード問題解決 (commit a2d884f / v4.7.1-S17)</b>: 真犯人は <code>@babel/standalone</code> のブラウザ側 transpile。<b>build.ps1 を esbuild 事前 transpile に切替</b> (PC で JSX → JS 変換 + minify、ブラウザは直接実行) → ビルドサイズ 911 KB → 521 KB、iPhone ロード 5 分以上 → 数秒に復帰。検証: Phase 1 src + esbuild → iPhone OK / Phase 2 src + esbuild → iPhone OK の二段切り分けで Babel 真犯人確定 (Phase 2 のコード自体は無罪)。Phase 2 機能 (Master Cleanup 抜本対応 / SetupPickerButton / Gear 折りたたみ / 編集 form 整合) を本番投入。</div>
+    </div>
     <div class="row error">
       <div class="ts">2026-05-09 00:30</div>
-      <div><b>Phase 2 を保留 (土台修繕後に再着手)</b>: Phase 2 ビルド (911 KB) で iPhone Safari / Chrome ともに 5 分以上ロード = 試合運用できない。原因は「ブラウザに毎回アプリを組み立て直させる」現在の build 方式 (Phase 1 で 864 KB ぎりぎり、Phase 2 で限界突破)。俯瞰判断: 機能追加を進める前に build 方式の根本修繕が必要。v4/index.html を Phase 1 状態 (commit a830827、4.6.5-S17) に git checkout で復元、Phase 2 の src/ 変更は working tree に保持 (土台修繕後に再ビルドで復活)。<b>次セッション最優先タスク = 組み立て方の修繕</b>。</div>
+      <div><b>(過去) Phase 2 を一時保留</b>: Phase 2 ビルド (911 KB) で iPhone Safari / Chrome ともに 5 分以上ロード = 試合運用できない。原因は「ブラウザに毎回アプリを組み立て直させる」現在の build 方式 (Phase 1 で 864 KB ぎりぎり、Phase 2 で限界突破)。俯瞰判断: 機能追加を進める前に build 方式の根本修繕が必要 → 上記 02:00 の修繕で解決済。</div>
     </div>
     <div class="row">
       <div class="ts">2026-05-08 23:30</div>
@@ -261,7 +300,7 @@
 
 <div class="footer">
   このページは進捗確認専用の静的 HTML です。アプリ本体 (v4/index.html) には影響しません。<br>
-  Claude が各 Phase 進行ごとに本ファイルを直接 Edit、ユーザーは Claude Code preview パネルで <code>http://localhost:8081/progress.html</code> を開いて参照。
+  Claude が各 Phase 進行ごとに本ファイルを直接 Edit、ユーザーは Claude Code preview パネル (<b>「Tennis DB Progress」タブ = port 8082</b>) で参照。Dev Server の preview からも <code>/progress.html</code> で開けます。
 </div>
 
 </body>

@@ -90,11 +90,17 @@ function _CurrentSetupCard({ racket, usage }) {
       <div style={{ fontSize: 18, fontWeight: 800, color: C.text, lineHeight: 1.3, marginBottom: 2 }}>
         {racket.name || "(無名)"}
       </div>
-      {(racket.currentString || racket.currentTension) && (
-        <div style={{ fontSize: 12, color: C.textSecondary, marginBottom: 8 }}>
-          {[racket.currentString, racket.currentTension].filter(Boolean).join(" / ")}
-        </div>
-      )}
+      {(() => {
+        // S17 Phase 3.5: 新 4 フィールド優先・旧 1 フィールド fallback (formatRacketXxxDisplay 統一)
+        const sd = formatRacketStringDisplay(racket);
+        const td = formatRacketTensionDisplay(racket);
+        if (!sd && !td) return null;
+        return (
+          <div style={{ fontSize: 12, color: C.textSecondary, marginBottom: 8 }}>
+            {[sd, td].filter(Boolean).join(" / ")}
+          </div>
+        );
+      })()}
       <div style={{
         display: "flex", gap: 14,
         paddingTop: 10,
@@ -201,7 +207,12 @@ function _RacketRow({ racket, onClick, reorderMode, onMoveUp, onMoveDown, isFirs
           </span>
         </div>
         <div style={{ fontSize: 11, color: C.textSecondary, lineHeight: 1.4 }}>
-          {[racket.currentString, racket.currentTension].filter(Boolean).join(" / ") || (racket.role || "")}
+          {(() => {
+            // S17 Phase 3.5: 新 4 フィールド優先・旧 fallback、空なら role
+            const sd = formatRacketStringDisplay(racket);
+            const td = formatRacketTensionDisplay(racket);
+            return [sd, td].filter(Boolean).join(" / ") || (racket.role || "");
+          })()}
         </div>
         {showNextCheck && !reorderMode && (
           <div style={{

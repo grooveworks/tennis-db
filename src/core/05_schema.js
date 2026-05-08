@@ -141,8 +141,14 @@ const SCHEMA={
     {key:"beam",label:"ビーム",type:"text"},
     {key:"weight",label:"フレーム重量",type:"text"},
     {key:"balance",label:"フレームバランス",type:"text"},
-    {key:"currentString",label:"現在のストリング",type:"text"},
-    {key:"currentTension",label:"現在のテンション",type:"text"},
+    // S17 Phase 3.5: 旧 1 フィールド形式 (V2/V3 互換、表示時 fallback で残す)
+    {key:"currentString",label:"現在のストリング (旧)",type:"text"},
+    {key:"currentTension",label:"現在のテンション (旧)",type:"text"},
+    // S17 Phase 3.5: 新 4 フィールド形式 (試打/練習/大会 form と統一)
+    {key:"currentStringMain",label:"現在のストリング縦",type:"text"},
+    {key:"currentStringCross",label:"現在のストリング横",type:"text"},
+    {key:"currentTensionMain",label:"現在のテンション縦",type:"number"},
+    {key:"currentTensionCross",label:"現在のテンション横",type:"number"},
     {key:"note",label:"メモ",type:"textarea",combinable:true},
     {key:"decisionKeep",label:"継続理由",type:"textarea",combinable:true},
     {key:"decisionWorry",label:"不安点",type:"textarea",combinable:true},

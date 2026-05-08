@@ -1,7 +1,11 @@
 // RacketEditModal — ラケットの追加・編集 (V2 互換 + S15.5.9 auto-save 標準方針)
 //
 // 編集対象 (SCHEMA: src/core/05_schema.js の racket type):
-//   基本: name / role / status / face / beam / weight / balance / currentString / currentTension / note
+//   基本: name / role / status / face / beam / weight / balance / note
+//   現在のセッティング (S17 Phase 3.5 で 4 フィールド化、試打/練習/大会 form と整合):
+//     currentStringMain / currentStringCross / currentTensionMain / currentTensionCross
+//     UI は SetupPickerButton + Combobox(MasterField) × 2 + NumWheel × 2 (TrialEditForm と同 pattern)
+//     旧 1 フィールド (currentString / currentTension) は touch しない (V3 で読まれた時の互換)
 //   Decision Notes: decisionKeep / decisionWorry / decisionNext (3 つの textarea)
 //   nextCheck: 候補・検討中時のみ表示する 1 行 (例: 「次: 5/12 大会で実戦投入確認」)
 //   measurements / order: ここでは触らない (measurements は Detail から、order は親が維持)
@@ -35,13 +39,26 @@ const _clearRacketDraft = (id) => {
   try { localStorage.removeItem(_racketDraftKey(id)); } catch (_) {}
 };
 
-function RacketEditModal({ open, item, onSave, onClose, onDelete, confirm, toast }) {
+function RacketEditModal({ open, item, onSave, onClose, onDelete, confirm, toast, stringSetups, stringNames }) {
   const isNew = !item || !item.id;
   // 起動時 draft 復元 (S15.5.9 標準)
   const [form, setForm] = useState({});
   const [dirty, setDirty] = useState(false);
   const [restored, setRestored] = useState(false);
   const [error, setError] = useState("");
+
+  // S17 Phase 3.5: 既存 racket を form に積む時、新 4 フィールドが空なら旧 1 フィールドから fallback で埋める
+  // (UI は新 4 フィールドだけ触る、旧 1 フィールドは touch しないので保存時は新だけ書かれる)
+  const _hydrateForm = (src) => {
+    const next = { ...src };
+    const sPair = getRacketString(src);
+    const tPair = getRacketTension(src);
+    if (!next.currentStringMain && sPair.main) next.currentStringMain = sPair.main;
+    if (!next.currentStringCross && sPair.cross) next.currentStringCross = sPair.cross;
+    if (!next.currentTensionMain && tPair.main) next.currentTensionMain = tPair.main;
+    if (!next.currentTensionCross && tPair.cross) next.currentTensionCross = tPair.cross;
+    return next;
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -51,7 +68,7 @@ function RacketEditModal({ open, item, onSave, onClose, onDelete, confirm, toast
       if (draft) {
         setForm(draft); setDirty(true); setRestored(true);
       } else {
-        setForm({ ...item }); setDirty(false); setRestored(false);
+        setForm(_hydrateForm(item)); setDirty(false); setRestored(false);
       }
     } else {
       // 新規: id を即座に発行 (auto-save の draft key に使う)
@@ -59,7 +76,8 @@ function RacketEditModal({ open, item, onSave, onClose, onDelete, confirm, toast
         id: genId(),
         name: "", role: "", status: "candidate",
         face: "", beam: "", weight: "", balance: "",
-        currentString: "", currentTension: "",
+        currentStringMain: "", currentStringCross: "",
+        currentTensionMain: "", currentTensionCross: "",
         note: "",
         decisionKeep: "", decisionWorry: "", decisionNext: "",
         nextCheck: "",
@@ -169,9 +187,28 @@ function RacketEditModal({ open, item, onSave, onClose, onDelete, confirm, toast
         <Input label="ビーム" value={form.beam} onChange={update("beam")} placeholder="例: 26mm" />
         <Input label="フレーム重量" value={form.weight} onChange={update("weight")} placeholder="例: 307g" />
         <Input label="フレームバランス" value={form.balance} onChange={update("balance")} placeholder="例: 310mm" />
-        <Input label="現在のストリング" value={form.currentString} onChange={update("currentString")} placeholder="例: Blast 1.25 / PTP 1.25" />
-        <Input label="現在のテンション" value={form.currentTension} onChange={update("currentTension")} placeholder="例: 43p" />
       </div>
+
+      {/* S17 Phase 3.5: 現在のセッティング — 試打/練習/大会 form と同 pattern (SetupPicker + 縦糸/横糸 + テンション縦/横) */}
+      <div style={{ marginTop: 12, marginBottom: 6, fontSize: 11, fontWeight: 700, color: C.textSecondary, textTransform: "uppercase", letterSpacing: 0.04 }}>
+        現在のセッティング
+      </div>
+      <SetupPickerButton
+        stringSetups={stringSetups}
+        onApply={(m, c) => {
+          setForm(prev => ({ ...prev, currentStringMain: m, currentStringCross: c }));
+          setDirty(true);
+        }}
+      />
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>
+        <MasterField label="縦糸" value={form.currentStringMain || ""} onChange={update("currentStringMain")} masterValues={stringNames || []} placeholder="-- 縦糸を選択 --" />
+        <MasterField label="横糸" value={form.currentStringCross || ""} onChange={update("currentStringCross")} masterValues={stringNames || []} placeholder="-- 同じなら空欄 --" />
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>
+        <NumWheel label="テンション縦" value={form.currentTensionMain || ""} min={35} max={55} step={1} onChange={(v) => { setForm(prev => ({ ...prev, currentTensionMain: v })); setDirty(true); }} />
+        <NumWheel label="テンション横" value={form.currentTensionCross || ""} min={35} max={55} step={1} onChange={(v) => { setForm(prev => ({ ...prev, currentTensionCross: v })); setDirty(true); }} />
+      </div>
+
       <Textarea label="メモ" value={form.note} onChange={update("note")} placeholder="フレーム特性、試打履歴など..." rows={3} />
       <div style={{ marginTop: 14, marginBottom: 6, fontSize: 11, fontWeight: 700, color: C.textSecondary, textTransform: "uppercase", letterSpacing: 0.04 }}>
         判断メモ

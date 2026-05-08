@@ -1741,6 +1741,7 @@ function TennisDB() {
         onSessionClick={handlePeriodSessionClick}
       />
       {/* S16 Phase 4-B: Racket 編集 Modal (auto-save 付き V2 互換) */}
+      {/* S17 Phase 3.5: stringSetups + stringNames を渡す (現在のセッティング 4 フィールド統一 UI) */}
       <RacketEditModal
         open={!!racketEditTarget}
         item={racketEditTarget}
@@ -1749,6 +1750,8 @@ function TennisDB() {
         onClose={handleRacketEditClose}
         confirm={cfm}
         toast={toast}
+        stringSetups={stringSetups}
+        stringNames={_extractStringNames(strings)}
       />
       {/* S16 Phase 4-B: 実測値編集 Modal (ネスト) */}
       <MeasurementEditModal

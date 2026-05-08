@@ -84,7 +84,11 @@ function PeriodDetailView({ open, period, racket, tournaments, practices, trials
   useEffect(() => {
     if (!open) return;
     try { window.history.pushState({ tdb: "gear-period" }, ""); } catch (_) {}
-    const handler = () => { const fn = onCloseRef.current; if (fn) fn(); };
+    // S17 Phase 3.5: ネスト modal の popstate 発火時、自分の階層がまだ history に残っているなら閉じない
+    const handler = (e) => {
+      if (e && e.state && e.state.tdb === "gear-period") return;
+      const fn = onCloseRef.current; if (fn) fn();
+    };
     window.addEventListener("popstate", handler);
     return () => window.removeEventListener("popstate", handler);
   }, [open, period?.startDate]);
