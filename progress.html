@@ -112,17 +112,14 @@
 <body>
 
 <h1>📊 S17 進捗ダッシュボード</h1>
-<div class="updated">最終更新: 2026-05-09 05:30 / バージョン v4.7.4-S17 / 60 秒毎に自動 reload</div>
+<div class="updated">最終更新: 2026-05-09 07:30 / バージョン v4.7.5-S17 (S17 全 Phase 完了) / 60 秒毎に自動 reload</div>
 
 <!-- 次に決めて欲しい -->
 <div class="pending" style="background:#e6f4ea;border-color:rgba(15,157,88,0.3)">
-  <div class="lbl" style="color:#0f9d58">✅ 直近の成果</div>
+  <div class="lbl" style="color:#0f9d58">✅ S17 全 Phase 完了</div>
   <div>
-    <b>Phase 3 = 過去 commit 742d8b2 で実装済と判明</b> (Gear タブ「並び替え」リンク + ▲▼ + 「完了」、status 内 reorder 完全動作)。
-    代わりに <b>Phase 3.5 健全化</b> (= ユーザー報告の不具合 2 件) を着手:
-    (1) RacketEditModal のストリング/テンションが他 form (試打/練習/大会) と一貫性なし → SetupPicker + Combobox×2 + NumWheel×2 で統一、
-    (2) 張り替え履歴 (PeriodDetailView) から戻ると ラケット詳細を飛び越してラケット一覧まで戻る不具合 → popstate handler に自階層チェックを追加。
-    データ仕様: V4 を主運用、V2/V3 は不具合時のみ → 戦略 2 (新 4 フィールド書込・旧 1 フィールドは touch しない・読込時 fallback)。
+    <b>v4.7.5-S17 で S17 完了 (積み残し 9 件 全消化、push 待ち)</b>。Phase 1 健全化 + Plan 作戦室、Phase 2 master 管理 + esbuild build 修繕、Phase 3 (過去 commit 実装済確認)、Phase 3.5/3.5b 健全化 (ラケット 4 フィールド統一・戻るバグ 2 件)、Phase 5 Home → Plan 連携、Phase 4 Plan Gear クイック選択 (試打 + 大会 mix)。<br>
+    <b>Phase 4 で発覚した bundle 限界:</b> 526 KB で iPhone WebKit JIT が deopt → 525 KB 以下を維持する制約発見、B 案 (segment 切替なし、mix リスト) で 525.6 KB に収め解決。次 Stage で build 方式の code splitting を検討するべき (memory <code>feedback_iphone_build_priority.md</code> の長期課題)。
   </div>
 </div>
 
@@ -182,11 +179,11 @@
   <div class="phase-card">
     <div class="head">
       <span class="label">Phase 4 Plan 本体仕上げ</span>
-      <span class="pill todo">⏳ 着手前</span>
+      <span class="pill done">✅ 完了 (push 待ち / v4.7.5-S17)</span>
     </div>
     <div class="items">
-      <div class="item"><span class="name">Plan Gear Decision クイック選択 (試打カード / 直近大会 / stringSetups から 1 タップ)</span><span class="pill todo">⏳</span></div>
-      <div class="item"><span class="name">Plan の wheel picker 適用</span><span class="pill todo">⏳</span></div>
+      <div class="item"><span class="name">Plan Gear Decision クイック選択 (試打 + 大会 mix リスト、stringSetups は対象外でユーザー確定)</span><span class="pill done">✅</span></div>
+      <div class="item"><span class="name">Plan の wheel picker 適用</span><span class="pill done">✅ Phase 1 で実施済</span></div>
     </div>
   </div>
 
@@ -222,9 +219,18 @@
   <h2>📜 変更履歴 (新 → 旧、最新 8 件)</h2>
   <div class="changelog">
     <div class="row" style="background:rgba(15,157,88,0.06)">
+      <div class="ts">2026-05-09 07:30</div>
+      <div>
+        <b>Phase 4 完了 (v4.7.5-S17、push 待ち、B 案 = 縮小実装で bundle 限界回避)</b>:
+        Plan Gear Decision の段ヘッダー「過去から」ボタン → Bottom sheet で <b>試打 + 大会 を時系列 mix した 1 リスト</b> 表示 (行頭 📜/🏆 で区別)。stringSetups は対象外 (ユーザー確定)。
+        <br>
+        <b>build 限界エピソード</b>: 当初実装 (案 B 通り segment 切替) は bundle 526.4 KB → iPhone で「読み込みに時間がかかる、反応しない」レベルの重さ発覚 (memory <code>feedback_iphone_build_priority.md</code>)。直前 push (v4.7.4) は 525.4 KB で軽く、+1 KB の差で iPhone WebKit JIT deopt と推測。A 案 (コード手動最小化) で -258 byte しか削れず効果なし → B 案 (segment 撤廃 = code 量を構造的に削減) で 525.6 KB に収めて再検証 → iPhone 軽い確認。次 Stage で build 方式 code splitting 検討必要。
+      </div>
+    </div>
+    <div class="row" style="background:rgba(15,157,88,0.06)">
       <div class="ts">2026-05-09 05:30</div>
       <div>
-        <b>Phase 5 完了 (v4.7.4-S17、push 待ち)</b>: Home タブの「課題」行 (CurrentContext._CtxRow keyText="課題") にクリックハンドラを追加 → Plan タブ (作戦室 = Target / Strategy / Gear Decision の 3 カード) へ tab 切替で遷移。実装は最小: <code>app.jsx</code> に <code>handleTaskClick = () => setTab("plan")</code> を追加、HomeTab → CurrentContext に <code>onTaskClick</code> prop を流通、<code>_CtxRow</code> の onClick で発火。dev mode で Home → 課題行 click → 作戦室の 3 カード (次のターゲット / 今回の作戦 / 今回のギア決定) が即表示されることを検証済。
+        <b>Phase 5 完了 (v4.7.4-S17、push 済 a0b57b6)</b>: Home タブの「課題」行 (CurrentContext._CtxRow keyText="課題") にクリックハンドラを追加 → Plan タブ (作戦室 = Target / Strategy / Gear Decision の 3 カード) へ tab 切替で遷移。実装は最小: <code>app.jsx</code> に <code>handleTaskClick = () => setTab("plan")</code> を追加、HomeTab → CurrentContext に <code>onTaskClick</code> prop を流通、<code>_CtxRow</code> の onClick で発火。dev mode で Home → 課題行 click → 作戦室の 3 カード (次のターゲット / 今回の作戦 / 今回のギア決定) が即表示されることを検証済。
       </div>
     </div>
     <div class="row" style="background:rgba(15,157,88,0.06)">

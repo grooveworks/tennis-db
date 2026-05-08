@@ -663,10 +663,11 @@ function _PlanGearTier({ label, tone, data, rackets, strings, required }) {
 // Gear Decision Edit Modal (3 段同時編集)
 // ===================================================================
 
-function _PlanGearEditModal({ open, gearChoice, rackets, strings, trials, onSave, onClose }) {
+function _PlanGearEditModal({ open, gearChoice, rackets, strings, trials, tournaments, onSave, onClose }) {
   const [form, setForm] = useState({});
-  // S17 Phase 1 (Q2): 過去のセットから 1 タップ流し込み Modal の対象段 (null=閉、"main"/"sub"/"pending"=該当段に流し込む)
-  const [loadFromTrialTier, setLoadFromTrialTier] = useState(null);
+  // S17 Phase 4: 過去から 1 タップ流し込み Bottom sheet の対象段 (null=閉)
+  //   試打/大会を時系列 mix で 1 リスト表示 (各行先頭にアイコンで区別、segment 切替なし = bundle 軽量化)
+  const [loadFromTier, setLoadFromTier] = useState(null);
   useEffect(() => {
     if (open) {
       setForm({
@@ -695,11 +696,13 @@ function _PlanGearEditModal({ open, gearChoice, rackets, strings, trials, onSave
   //   trial の name (racketName / stringMain / stringCross) を master の id に変換
   //   master に該当が無ければ null (ユーザーは別途 master 追加が必要)、tension は string そのまま
   //   reason は維持 (既に書いていれば上書きしない)
-  const handleApplyTrialToTier = (tr, tier) => {
-    if (!tr || !tier) return;
-    const racket = (rackets || []).find(r => r && r.name === tr.racketName);
-    const stringMain = (strings || []).find(s => s && s.name === tr.stringMain);
-    const stringCross = (strings || []).find(s => s && s.name === tr.stringCross);
+  // S17 Phase 4: trial / tournament いずれもフィールド命名は同 (racketName / stringMain / stringCross / tensionMain / tensionCross)
+  // 統一 handler で source 別の data.matches も取れる構造にしておく
+  const handleApplyPastToTier = (src, tier) => {
+    if (!src || !tier) return;
+    const racket = (rackets || []).find(r => r && r.name === src.racketName);
+    const stringMain = (strings || []).find(s => s && s.name === src.stringMain);
+    const stringCross = (strings || []).find(s => s && s.name === src.stringCross);
     setForm(prev => ({
       ...prev,
       [tier]: {
@@ -707,12 +710,12 @@ function _PlanGearEditModal({ open, gearChoice, rackets, strings, trials, onSave
         racketId:      racket?.id || null,
         stringMainId:  stringMain?.id || null,
         stringCrossId: stringCross?.id || null,
-        tensionMain:   tr.tensionMain || "",
-        tensionCross:  tr.tensionCross || "",
+        tensionMain:   src.tensionMain || "",
+        tensionCross:  src.tensionCross || "",
         // reason は維持 (上書きしない)
       },
     }));
-    setLoadFromTrialTier(null);
+    setLoadFromTier(null);
   };
 
   return (
@@ -727,7 +730,8 @@ function _PlanGearEditModal({ open, gearChoice, rackets, strings, trials, onSave
             padding: "10px 12px",
             marginBottom: 10,
           }}>
-            {/* S17 Phase 1 (Q2): 段ヘッダー + 「過去のセットから」ボタン (trials があれば表示) */}
+            {/* S17 Phase 4: 段ヘッダー + 「過去から」1 ボタン (trials/tournaments いずれかがあれば表示)。
+                  シート内で 試打 / 大会 segment 切替 (シート高さ固定で外形不動) */}
             <div style={{
               display: "flex", alignItems: "center", justifyContent: "space-between",
               marginBottom: 8, gap: 8,
@@ -735,10 +739,10 @@ function _PlanGearEditModal({ open, gearChoice, rackets, strings, trials, onSave
               <div style={{ fontSize: 11, fontWeight: 700, color: C.textSecondary }}>
                 {labelMap[tier]}
               </div>
-              {(trials || []).length > 0 && (
+              {((trials || []).length > 0 || (tournaments || []).length > 0) && (
                 <button
                   type="button"
-                  onClick={() => setLoadFromTrialTier(tier)}
+                  onClick={() => setLoadFromTier(tier)}
                   style={{
                     minHeight: 28, padding: "0 10px",
                     background: C.primaryLight,
@@ -753,7 +757,7 @@ function _PlanGearEditModal({ open, gearChoice, rackets, strings, trials, onSave
                   }}
                 >
                   <Icon name="history" size={12} color={C.primary} />
-                  過去のセットから
+                  過去から
                 </button>
               )}
             </div>
@@ -832,82 +836,56 @@ function _PlanGearEditModal({ open, gearChoice, rackets, strings, trials, onSave
         </button>
       </div>
 
-      {/* S17 Phase 1 (Q2): 過去のセットから 1 タップ流し込み Bottom sheet
-          段ヘッダーの「過去のセットから」ボタンタップで開く、trial 行タップで該当段に流し込み (name → id 変換) */}
-      {loadFromTrialTier && (
-        <div
-          onClick={() => setLoadFromTrialTier(null)}
-          style={{
+      {/* S17 Phase 4 (B 案): 試打 + 大会 mix で 1 リスト、segment 切替なし (bundle 軽量化のため Phase 1 と同サイズ目標) */}
+      {loadFromTier && (() => {
+        const ts = (trials || []).filter(t => t && t.racketName).map(t => ({ ...t, _kind: "trial" }));
+        const tn = (tournaments || []).filter(t => t && t.racketName).map(t => ({ ...t, _kind: "tour" }));
+        const sorted = ts.concat(tn).sort((a, b) => (b.date || "").localeCompare(a.date || "")).slice(0, 50);
+        const tierLabel = loadFromTier === "main" ? "本命" : loadFromTier === "sub" ? "対抗" : "保留";
+        return (
+          <div onClick={() => setLoadFromTier(null)} style={{
             position: "fixed", inset: 0, zIndex: 2500,
             background: "rgba(0,0,0,0.4)",
             display: "flex", alignItems: "flex-end", justifyContent: "center",
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
+          }}>
+            <div onClick={(e) => e.stopPropagation()} style={{
               background: C.panel, borderRadius: "20px 20px 0 0",
               width: "100%", maxWidth: 600, maxHeight: "75%", overflow: "auto",
               padding: 16, paddingBottom: 32, fontFamily: font,
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-              <div style={{ fontSize: 16, fontWeight: 700, color: C.text }}>
-                {loadFromTrialTier === "main" ? "本命" : loadFromTrialTier === "sub" ? "対抗" : "保留"} に流し込むセットを選ぶ
-              </div>
-              <button
-                onClick={() => setLoadFromTrialTier(null)}
-                aria-label="閉じる"
-                style={{
+            }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                <div style={{ fontSize: 16, fontWeight: 700, color: C.text }}>{tierLabel} に流し込むセットを選ぶ</div>
+                <button onClick={() => setLoadFromTier(null)} aria-label="閉じる" style={{
                   width: 32, height: 32, padding: 0, background: "transparent", border: "none",
                   color: C.textMuted, cursor: "pointer", borderRadius: 6,
                   display: "inline-flex", alignItems: "center", justifyContent: "center",
-                }}
-              >
-                <Icon name="x" size={20} />
-              </button>
-            </div>
-            {(() => {
-              const sorted = (trials || [])
-                .slice()
-                .filter(t => t && t.racketName)
-                .sort((a, b) => (b.date || "").localeCompare(a.date || ""))
-                .slice(0, 50);
-              if (sorted.length === 0) {
+                }}><Icon name="x" size={20} /></button>
+              </div>
+              {sorted.length === 0 ? (
+                <div style={{ textAlign: "center", color: C.textMuted, padding: "24px 0", fontSize: 13 }}>過去のセットが見つかりません</div>
+              ) : sorted.map(it => {
+                const isT = it._kind === "tour";
+                const sInfo = [it.stringMain, it.stringCross].filter(Boolean).join(" / ");
+                const tInfo = [it.tensionMain, it.tensionCross].filter(Boolean).join(" / ");
                 return (
-                  <div style={{ textAlign: "center", color: C.textMuted, padding: "24px 0", fontSize: 13 }}>
-                    過去の試打が見つかりません
-                  </div>
-                );
-              }
-              return sorted.map(tr => {
-                const stringInfo = [tr.stringMain, tr.stringCross].filter(Boolean).join(" / ");
-                const tensionInfo = [tr.tensionMain, tr.tensionCross].filter(Boolean).join(" / ");
-                return (
-                  <button
-                    key={tr.id}
-                    onClick={() => handleApplyTrialToTier(tr, loadFromTrialTier)}
-                    style={{
-                      width: "100%", background: C.panel, border: `1px solid ${C.border}`,
-                      borderRadius: 12, padding: "10px 14px", marginBottom: 6,
-                      cursor: "pointer", fontFamily: font, textAlign: "left",
-                      display: "block", color: C.text,
-                    }}
-                  >
+                  <button key={it._kind + ":" + it.id} onClick={() => handleApplyPastToTier(it, loadFromTier)} style={{
+                    width: "100%", background: C.panel, border: `1px solid ${C.border}`,
+                    borderRadius: 12, padding: "10px 14px", marginBottom: 6,
+                    cursor: "pointer", fontFamily: font, textAlign: "left",
+                    display: "block", color: C.text,
+                  }}>
                     <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 2, fontVariantNumeric: "tabular-nums" }}>
-                      {tr.date || "(日付不明)"}
+                      {isT ? "🏆" : "📜"} {it.date || "(日付不明)"}{isT && it.name ? ` · ${it.name}` : ""}{isT && it.overallResult ? ` · ${it.overallResult}` : ""}
                     </div>
-                    <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 2 }}>{tr.racketName}</div>
-                    <div style={{ fontSize: 11, color: C.textSecondary }}>
-                      {stringInfo || "(糸 未指定)"}{tensionInfo && ` / ${tensionInfo}`}
-                    </div>
+                    <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 2 }}>{it.racketName}</div>
+                    <div style={{ fontSize: 11, color: C.textSecondary }}>{sInfo || "(糸 未指定)"}{tInfo && ` / ${tInfo}`}</div>
                   </button>
                 );
-              });
-            })()}
+              })}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </Modal>
   );
 }
@@ -1128,6 +1106,7 @@ function PlanTab({ plan, tournaments, rackets, strings, trials, onPlanSave, toas
         rackets={rackets}
         strings={strings}
         trials={trials}
+        tournaments={tournaments}
         onSave={handleGearSave}
         onClose={() => setGearEditOpen(false)}
       />

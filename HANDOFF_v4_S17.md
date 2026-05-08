@@ -6,13 +6,13 @@
 
 ## 0. 現バージョン / 直近の commit
 
-- **APP_VERSION**: `v4.7.4-S17` (`src/core/01_constants.js`)
-- **直近 push**: `f3893e5` (v4 S17 Phase 3.5b: PeriodDetail → SessionDetail → 戻るで一覧まで飛ぶ不具合修繕)
-- **次 push 予定**: v4.7.4-S17 = Phase 5 (#8 Home 課題行クリック対応)
+- **APP_VERSION**: `v4.7.5-S17` (`src/core/01_constants.js`)
+- **直近 push**: `a0b57b6` (v4 S17 Phase 5: Home 課題行 → Plan タブ遷移)
+- **次 push 予定**: v4.7.5-S17 = Phase 4 (B 案、試打 + 大会 mix リスト) → S17 全 Phase 完了
 
 ---
 
-## 1. S17 完了状況
+## 1. S17 完了状況 (積み残し 9 件 全消化 ✓)
 
 | Phase | 内容 | 状態 |
 |---|---|---|
@@ -21,8 +21,19 @@
 | Phase 3 | Racket Board reorder UI (#7) | ✅ 過去 commit 742d8b2 で実装済と判明 |
 | Phase 3.5 | 健全化 (ラケット編集 4 フィールド統一 / 戻るバグ 1) | ✅ push 済 (b6155f6, v4.7.2) |
 | Phase 3.5b | 戻るバグ 2 (Period → Session → 戻るで一覧まで飛ぶ) | ✅ push 済 (f3893e5, v4.7.3) |
-| Phase 5 | Plan ↔ Home 連携 (#8 Home 課題行クリック) | ✅ 完了 (push 直前, v4.7.4) |
-| Phase 4 | Plan 本体仕上げ (Gear Decision クイック選択 / wheel picker 適用) | ⏳ 着手前 |
+| Phase 5 | Plan ↔ Home 連携 (#8 Home 課題行クリック) | ✅ push 済 (a0b57b6, v4.7.4) |
+| Phase 4 | Plan 本体仕上げ (Gear Decision クイック選択 = 試打 + 大会 mix リスト) | ✅ 完了 (push 直前, v4.7.5) |
+
+---
+
+## 2. Phase 4 で発覚した bundle 限界 (次 Stage 検討事項)
+
+iPhone WebKit JIT は **bundle 525 KB 前後で deopt する閾値** がある模様:
+- v4.7.4 (Phase 5 push 後): 525.4 KB → iPhone 軽い ✓
+- v4.7.5 当初実装 (Phase 4 完全版、segment 切替): 526.4 KB → iPhone 「読み込みに時間がかかる、反応しない」レベルの重さ
+- v4.7.5 縮小実装 (Phase 4 B 案、segment 撤廃 mix リスト): 525.6 KB → iPhone 軽い ✓
+
+S18 以降で機能追加すると **再び 525 KB を超えて再発リスク**。memory `feedback_iphone_build_priority.md` 「機能追加より build 方式の修繕を最優先」 → S18 以降で **build 方式の code splitting** (起動時 core のみ、Plan/Gear などは lazy load) を検討するべき。
 
 ---
 
@@ -73,12 +84,10 @@
 
 ## 4. 残積み残し
 
-| ID | 内容 | 想定 Phase | 規模 |
-|---|---|---|---|
-| #5 (一部) | Plan Gear Decision の wheel picker 適用 (機材タブ wheel と整合) | Phase 4 | 中 |
-| #8 | Home 課題行クリックで Plan へ遷移 | Phase 5 | 小 |
+S17 積み残し 9 件は全て消化。次 Stage (S18 以降) の検討事項:
 
-Phase 4 / 5 着手は次セッション以降、ユーザー承認後。
+- **build 方式の code splitting** (上記「2. bundle 限界」参照、機能追加で 525 KB を再び超えると iPhone deopt の再発リスク)
+- ROADMAP の S18 (元 Insights 凍結解除) 以降の本来計画
 
 ---
 
