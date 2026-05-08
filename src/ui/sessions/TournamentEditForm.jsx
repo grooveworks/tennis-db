@@ -77,7 +77,7 @@ function _visibilityToggle({ value, onChange }) {
   );
 }
 
-function TournamentEditForm({ form, errors = {}, onChange, confirm, toast, racketNames = [], stringNames = [], venueNames = [], opponentNames = [], levelNames = [], trials = [], tournaments = [], practices = [] }) {
+function TournamentEditForm({ form, errors = {}, onChange, confirm, toast, racketNames = [], stringNames = [], venueNames = [], opponentNames = [], levelNames = [], stringSetups = [], trials = [], tournaments = [], practices = [] }) {
   const set = (k, v) => onChange({ ...form, [k]: v });
   const matches = Array.isArray(form.matches) ? form.matches : [];
   const wins = matches.filter(m => m.result === "勝利").length;
@@ -172,6 +172,8 @@ function TournamentEditForm({ form, errors = {}, onChange, confirm, toast, racke
       <div style={{ background: C.panel, border: `1px solid ${C.divider}`, borderRadius: 12, padding: 12, marginBottom: 10 }}>
         <_sectionHead num="3" label="機材" />
         <MasterField label="ラケット" value={form.racketName || ""} onChange={(v) => set("racketName", v)} masterValues={racketNames} placeholder="-- ラケットを選択 --" />
+        {/* S17 Phase 2 #4: stringSetups 活用 (master のセッティング組合せから 1 タップで縦糸/横糸を流し込む) */}
+        <SetupPickerButton stringSetups={stringSetups} onApply={(m, c) => { set("stringMain", m); set("stringCross", c); }} />
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>
           <MasterField label="縦糸" value={form.stringMain || ""} onChange={(v) => set("stringMain", v)} masterValues={stringNames} placeholder="-- 縦糸を選択 --" />
           <MasterField label="横糸" value={form.stringCross || ""} onChange={(v) => set("stringCross", v)} masterValues={stringNames} placeholder="-- 同じなら空欄 --" />

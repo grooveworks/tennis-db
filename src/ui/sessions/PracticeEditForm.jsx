@@ -124,7 +124,7 @@ function _peVisibility({ value, onChange }) {
   );
 }
 
-function PracticeEditForm({ form, errors = {}, onChange, racketNames = [], stringNames = [], venueNames = [], opponentNames = [], tournaments = [], practices = [], trials = [], confirm }) {
+function PracticeEditForm({ form, errors = {}, onChange, racketNames = [], stringNames = [], venueNames = [], opponentNames = [], stringSetups = [], tournaments = [], practices = [], trials = [], confirm }) {
   // S16.11 UX5: 履歴セット picker
   const recentSetups = useMemo(
     () => _computeRecentSetups(tournaments, practices, trials),
@@ -233,6 +233,8 @@ function PracticeEditForm({ form, errors = {}, onChange, racketNames = [], strin
       <div style={{ background: C.panel, border: `1px solid ${C.divider}`, borderRadius: 12, padding: 12, marginBottom: 10 }}>
         <_peSectionHead num="3" label="機材" />
         <MasterField label="ラケット" value={form.racketName || ""} onChange={(v) => set("racketName", v)} masterValues={racketNames} placeholder="-- ラケットを選択 --" />
+        {/* S17 Phase 2 #4: stringSetups 活用 (master のセッティング組合せから 1 タップで縦糸/横糸を流し込む) */}
+        <SetupPickerButton stringSetups={stringSetups} onApply={(m, c) => { set("stringMain", m); set("stringCross", c); }} />
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>
           <MasterField label="縦糸" value={form.stringMain || ""} onChange={(v) => set("stringMain", v)} masterValues={stringNames} placeholder="-- 縦糸を選択 --" />
           <MasterField label="横糸" value={form.stringCross || ""} onChange={(v) => set("stringCross", v)} masterValues={stringNames} placeholder="-- 同じなら空欄 --" />

@@ -361,7 +361,12 @@ function _isGearRelatedNext(item, rackets, strings) {
 
 function GearTab({
   rackets, strings, stringSetups, trials, tournaments, practices, next,
+  venues,
   onStringsUpdate, onStringEdit, onStringAdd,
+  onSetupsUpdate, onSetupEdit, onSetupAdd,
+  onVenueEdit, onVenueAdd, onVenuesBulkImport,
+  onRetiredRacketEdit,
+  onCleanupStart,
   onRacketRowClick, onRacketAdd, onRacketsReorder,
   onCardClick,
   toast,
@@ -584,12 +589,33 @@ function GearTab({
         onUpdate={onStringsUpdate}
         onEdit={onStringEdit}
         onAdd={onStringAdd}
+        onCleanupStart={onCleanupStart}
         toast={toast}
       />
 
-      {/* セッティング組合せ + 引退ラケット は Phase 4-D で実装 */}
-      <_GearPlaceholderCard icon="stack" title="セッティング組合せ" stage="Phase 4-D" />
-      <_GearPlaceholderCard icon="archive" title="引退ラケット" stage="Phase 4-D" />
+      {/* S17 Phase 2 #1: セッティング組合せ CRUD UI (Phase 4-D 予定だった機能を消化) */}
+      <SetupsSection
+        stringSetups={stringSetups}
+        onUpdate={onSetupsUpdate}
+        onEdit={onSetupEdit}
+        onAdd={onSetupAdd}
+        toast={toast}
+      />
+
+      {/* S17 Phase 2 #6: 会場 (venues) master 管理 UI */}
+      <VenuesSection
+        venues={venues}
+        onEdit={onVenueEdit}
+        onAdd={onVenueAdd}
+        onBulkImport={onVenuesBulkImport}
+        onCleanupStart={onCleanupStart}
+      />
+
+      {/* S17 Phase 2 #9: 引退ラケット archive UI (WIREFRAMES §2.8.4 で記載されていた未実装セクション) */}
+      <RetiredRacketsSection
+        rackets={rackets}
+        onEdit={onRetiredRacketEdit}
+      />
     </div>
   );
 }

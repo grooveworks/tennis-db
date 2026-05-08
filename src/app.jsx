@@ -158,6 +158,12 @@ function TennisDB() {
   const [stringSetups, setStringSetups] = useState([]);
   // S16 Phase 4-A: Gear タブ Strings 編集 Modal の対象 (null=閉じている、{}=新規追加、{id,...}=編集)
   const [stringEditTarget, setStringEditTarget] = useState(null);
+  // S17 Phase 2 #1: stringSetups (セッティング組合せ) 編集 Modal の対象
+  const [setupEditTarget, setSetupEditTarget] = useState(null);
+  // S17 Phase 2 #6: venues (会場) 編集 Modal の対象 (文字列 = 既存編集、""=新規追加、null=閉)
+  const [venueEditTarget, setVenueEditTarget] = useState(null);
+  // S17 Phase 2 抜本対応: Master Cleanup Modal の対象 (null=閉、{ masterType, sourceName })
+  const [cleanupTarget, setCleanupTarget] = useState(null);
   // S16 Phase 4-B: Racket Detail (slide-in) と Racket / Measurement の編集 Modal
   const [racketDetail, setRacketDetail] = useState(null);     // 開いている racket オブジェクト or null
   const [racketEditTarget, setRacketEditTarget] = useState(null); // null=閉、{}=新規、{id,..}=編集
@@ -1165,6 +1171,138 @@ function TennisDB() {
     toast.show("ストリングを削除しました", "info");
   };
 
+  // S17 Phase 2 #1: stringSetups (セッティング組合せ) CRUD
+  const persistStringSetups = (newList) => {
+    const ordered = assignDefaultOrders(newList);
+    setStringSetups(ordered);
+    save(KEYS.stringSetups, ordered);
+  };
+  const handleStringSetupsUpdate = (newList) => persistStringSetups(newList);
+  const handleSetupEdit = (item) => setSetupEditTarget(item || {});
+  const handleSetupAdd = () => setSetupEditTarget({});
+  const handleSetupEditClose = () => setSetupEditTarget(null);
+  const handleSetupSave = (item, isNew) => {
+    if (isNew) {
+      const maxOrder = (stringSetups || []).reduce((m, s) => Math.max(m, typeof s.order === "number" ? s.order : -1), -1);
+      const next = { ...item, order: maxOrder + 1 };
+      persistStringSetups([...(stringSetups || []), next]);
+      toast.show("セッティングを追加しました", "success");
+    } else {
+      const existing = (stringSetups || []).find(s => s.id === item.id);
+      const next = { ...item, order: typeof existing?.order === "number" ? existing.order : item.order };
+      persistStringSetups((stringSetups || []).map(s => s.id === item.id ? next : s));
+      toast.show("セッティングを更新しました", "success");
+    }
+    setSetupEditTarget(null);
+  };
+  const handleSetupDelete = (id) => {
+    persistStringSetups((stringSetups || []).filter(s => s.id !== id));
+    setSetupEditTarget(null);
+    toast.show("セッティングを削除しました", "info");
+  };
+
+  // S17 Phase 2 #6: venues (会場) master CRUD (文字列 array で運用、互換性維持)
+  const persistVenues = (newList) => {
+    setVenues(newList);
+    save(KEYS.venues, newList);
+  };
+  const handleVenueEdit = (name) => setVenueEditTarget(name || "");
+  const handleVenueAdd = () => setVenueEditTarget("");  // "" = 新規追加
+  const handleVenueEditClose = () => setVenueEditTarget(null);
+  const handleVenueSave = (newName, oldName, isNew) => {
+    if (isNew) {
+      // 新規追加 (重複チェックは Modal 側、ここでは push のみ)
+      persistVenues([...(venues || []), newName]);
+      toast.show("会場を追加しました", "success");
+    } else {
+      // 編集: oldName を newName に置換 (文字列 array / オブジェクト混在に対応)
+      const updated = (venues || []).map(v => {
+        if (typeof v === "string") return v === oldName ? newName : v;
+        if (v && v.name === oldName) return { ...v, name: newName };
+        return v;
+      });
+      persistVenues(updated);
+      toast.show("会場を更新しました", "success");
+    }
+    setVenueEditTarget(null);
+  };
+  const handleVenueDelete = (name) => {
+    const updated = (venues || []).filter(v => {
+      const vName = typeof v === "string" ? v : (v?.name || "");
+      return vName !== name;
+    });
+    persistVenues(updated);
+    setVenueEditTarget(null);
+    toast.show("会場を削除しました", "info");
+  };
+
+  // S17 Phase 2 #2: 使用中の会場を一括 master 化 (tournaments/practices/trials の venue を集めて未登録を追加)
+  const handleVenuesBulkImport = () => {
+    const collected = new Set();
+    [...(tournaments || []), ...(practices || []), ...(trials || [])].forEach(s => {
+      if (s && s.venue && typeof s.venue === "string") {
+        const trimmed = s.venue.trim();
+        if (trimmed) collected.add(trimmed);
+      }
+    });
+    const existing = new Set((venues || []).map(v => typeof v === "string" ? v : (v?.name || "")).filter(Boolean));
+    const toAdd = [...collected].filter(name => !existing.has(name));
+    if (toAdd.length === 0) {
+      toast.show("追加する会場はありません (既に全部登録済)", "info");
+      return;
+    }
+    persistVenues([...(venues || []), ...toAdd]);
+    toast.show(`${toAdd.length} 件の会場を追加しました`, "success");
+  };
+
+  // S17 Phase 2 抜本対応: Master Cleanup (汎用マージ・置換、master_cleanup.js の純関数を呼ぶ)
+  const handleCleanupStart = (masterType, sourceName) => {
+    setCleanupTarget({ masterType, sourceName });
+  };
+  const handleCleanupClose = () => setCleanupTarget(null);
+  const handleCleanupConfirm = (sourceName, targetName, selectedIdsByCollection) => {
+    if (!cleanupTarget) return;
+    const masterType = cleanupTarget.masterType;
+    // 1. 各 collection に applyCleanup を実行
+    const updated = applyCleanupAll(
+      { tournaments: tournaments || [], practices: practices || [], trials: trials || [] },
+      masterType,
+      sourceName,
+      targetName,
+      selectedIdsByCollection
+    );
+    // 2. それぞれ state + Firestore 即時 write
+    if (updated.tournaments) { setTournaments(updated.tournaments); save(KEYS.tournaments, updated.tournaments); }
+    if (updated.practices)   { setPractices(updated.practices);     save(KEYS.practices, updated.practices); }
+    if (updated.trials)      { setTrials(updated.trials);           save(KEYS.trials, updated.trials); }
+    // 3. master から sourceName を削除
+    if (masterType === "venue") {
+      persistVenues((venues || []).filter(v => {
+        const n = typeof v === "string" ? v : (v?.name || "");
+        return n !== sourceName;
+      }));
+    } else if (masterType === "racketName") {
+      persistRackets((rackets || []).filter(r => r && r.name !== sourceName));
+    } else if (masterType === "stringMain" || masterType === "stringCross") {
+      persistStrings((strings || []).filter(s => s && s.name !== sourceName));
+    }
+    // (opponent / level は master 管理 UI 自体が無いので master 削除はスキップ、collection 置換のみ)
+    setCleanupTarget(null);
+    toast.show(`「${sourceName}」を「${targetName}」に統合しました`, "success");
+  };
+
+  // master 種別から target 候補リストを取得 (cleanup modal に渡す)
+  const cleanupAvailableTargets = useMemo(() => {
+    if (!cleanupTarget) return [];
+    const t = cleanupTarget.masterType;
+    if (t === "venue") {
+      return (venues || []).map(v => typeof v === "string" ? v : (v?.name || "")).filter(Boolean);
+    }
+    if (t === "racketName") return (rackets || []).map(r => r?.name).filter(Boolean);
+    if (t === "stringMain" || t === "stringCross") return (strings || []).map(s => s?.name).filter(Boolean);
+    return [];
+  }, [cleanupTarget, venues, rackets, strings]);
+
   // S16 Phase 4-B: Racket 永続化 (F-A3 で save() に統一、直列化済)
   const persistRackets = (newList) => {
     setRackets(newList);
@@ -1382,6 +1520,15 @@ function TennisDB() {
         onRacketsReorder={persistRackets}
         onCardClick={handleCardClick}
         toast={toast}
+        venues={venues}
+        onSetupsUpdate={handleStringSetupsUpdate}
+        onSetupEdit={handleSetupEdit}
+        onSetupAdd={handleSetupAdd}
+        onVenueEdit={handleVenueEdit}
+        onVenueAdd={handleVenueAdd}
+        onVenuesBulkImport={handleVenuesBulkImport}
+        onRetiredRacketEdit={handleRacketEdit}
+        onCleanupStart={handleCleanupStart}
       />
     );
   } else if (tab === "plan") {
@@ -1468,6 +1615,7 @@ function TennisDB() {
           venueNames={_extractNames(venues)}
           opponentNames={_extractNames(opponents)}
           levelNames={_extractLevels(tournaments)}
+          stringSetups={stringSetups}
           onClose={handleDetailClose}
           onEdit={handleEdit}
           onEditCancel={handleEditCancel}
@@ -1529,6 +1677,40 @@ function TennisDB() {
         onDelete={handleStringDelete}
         onClose={handleStringEditClose}
         confirm={cfm}
+      />
+      {/* S17 Phase 2 #1: セッティング組合せ編集 Modal */}
+      <SetupEditModal
+        open={!!setupEditTarget}
+        item={setupEditTarget}
+        stringNames={_extractStringNames(strings)}
+        onSave={handleSetupSave}
+        onDelete={handleSetupDelete}
+        onClose={handleSetupEditClose}
+        confirm={cfm}
+      />
+      {/* S17 Phase 2 #6: 会場編集 Modal */}
+      <VenueEditModal
+        open={venueEditTarget !== null}
+        item={venueEditTarget}
+        allVenues={venues}
+        tournaments={tournaments}
+        practices={practices}
+        trials={trials}
+        onSave={handleVenueSave}
+        onDelete={handleVenueDelete}
+        onMerge={(name) => handleCleanupStart("venue", name)}
+        onClose={handleVenueEditClose}
+        confirm={cfm}
+      />
+      {/* S17 Phase 2 抜本対応: Master Cleanup Modal (汎用、master 種別を props で切替) */}
+      <MasterCleanupModal
+        open={!!cleanupTarget}
+        masterType={cleanupTarget?.masterType}
+        sourceName={cleanupTarget?.sourceName}
+        availableTargets={cleanupAvailableTargets}
+        collectionsByKey={{ tournaments, practices, trials }}
+        onConfirm={handleCleanupConfirm}
+        onClose={handleCleanupClose}
       />
       {/* S16 Phase 4-B: Racket Detail (slide-in、6 セクション + 履歴) */}
       <RacketDetailView

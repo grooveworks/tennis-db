@@ -15,7 +15,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-functions-compat.js"></script>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-<script src="https://unpkg.com/@babel/standalone@7.23.9/babel.min.js"></script>
+<!-- S17 build 修繕 (2026-05-09): @babel/standalone CDN 削除、esbuild で事前 transpile (iPhone のロード時間激減) -->
 <!-- S13.5: Lucide UMD → Phosphor web font に差し替え (DESIGN_SYSTEM_v4.md §5 / §10.5) -->
 <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
 <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/duotone/style.css">
@@ -42,5 +42,4 @@ input,select,textarea,button{font-family:inherit}
 }
 </style>
 </head><body><div id="root"></div>
-<script>(function(){var w=console.warn;console.warn=function(){if(arguments[0]&&typeof arguments[0]==='string'&&arguments[0].indexOf('Babel')!==-1)return;w.apply(console,arguments);}})();</script>
-<script type="text/babel">
+<script>

@@ -112,12 +112,12 @@
 <body>
 
 <h1>📊 S17 進捗ダッシュボード</h1>
-<div class="updated">最終更新: 2026-05-08 21:15 / バージョン v4.6.5-S17 / 60 秒毎に自動 reload</div>
+<div class="updated">最終更新: 2026-05-09 00:30 / バージョン v4.6.5-S17 (Phase 1 で維持) / 60 秒毎に自動 reload</div>
 
 <!-- 次に決めて欲しい -->
 <div class="pending">
-  <div class="lbl">✅ 次のチェック</div>
-  <div>Phase 1 完了状態 (wheel picker 拡張も含む) を本番モード (<code>http://localhost:8080/v4/index.html</code>) で確認してください。OK なら Phase 1 全体を 1 push にまとめます。</div>
+  <div class="lbl">⚠️ 次セッション最優先</div>
+  <div><b>組み立て方 (build) の修繕</b> — Phase 2 ビルド (911 KB) で iPhone Safari / Chrome ともに 5 分以上ロード = 試合運用できない。原因は「ブラウザに毎回組み立て直させる」現在の方式の限界。<b>機能追加 (Phase 2 / 3 / 4 / 5) を進める前に、必ず組み立て方を直す</b>。Phase 2 のコードは src/ に残してあるので、土台修繕後に再ビルドで復活する。</div>
 </div>
 
 <!-- Phase 一覧 -->
@@ -139,12 +139,12 @@
   <div class="phase-card">
     <div class="head">
       <span class="label">Phase 2 master 管理 UI</span>
-      <span class="pill todo">⏳ 着手前</span>
+      <span class="pill pending">⏸ 保留 (土台修繕後に再ビルド)</span>
     </div>
     <div class="items">
-      <div class="item"><span class="name">stringSetups (セッティング組合せ) CRUD UI</span><span class="pill todo">⏳</span></div>
-      <div class="item"><span class="name">venues (会場) master 管理 UI</span><span class="pill todo">⏳</span></div>
-      <div class="item"><span class="name">引退ラケット archive UI</span><span class="pill todo">⏳</span></div>
+      <div class="item"><span class="name">stringSetups (セッティング組合せ) CRUD UI</span><span class="pill done">✅ 完了</span></div>
+      <div class="item"><span class="name">venues (会場) master 管理 UI</span><span class="pill done">✅ 完了</span></div>
+      <div class="item"><span class="name">引退ラケット archive UI</span><span class="pill done">✅ 完了</span></div>
     </div>
   </div>
 
@@ -184,15 +184,15 @@
 <div class="section">
   <h2>📋 積み残し (9 件)</h2>
   <div class="backlog">
-    <div class="row"><span class="id">1</span><span class="name">stringSetups CRUD UI</span><span class="phase">phase2</span><span class="pill todo">⏳</span></div>
+    <div class="row"><span class="id">1</span><span class="name">stringSetups CRUD UI</span><span class="phase">phase2</span><span class="pill done">✅</span></div>
     <div class="row"><span class="id">2</span><span class="name">試打カードを 1 タップで作成</span><span class="phase">phase1</span><span class="pill done">✅</span></div>
     <div class="row"><span class="id">3</span><span class="name">ストリング Select の順序反映</span><span class="phase">phase1</span><span class="pill done">✅</span></div>
     <div class="row"><span class="id">4</span><span class="name">wheel picker の全体展開</span><span class="phase">phase1</span><span class="pill done">✅</span></div>
     <div class="row"><span class="id">5</span><span class="name">Plan Gear Decision のクイック選択 (過去のセットから 1 タップ)</span><span class="phase">phase1</span><span class="pill done">✅</span></div>
-    <div class="row"><span class="id">6</span><span class="name">venues (会場) master 管理 UI</span><span class="phase">phase2</span><span class="pill todo">⏳</span></div>
+    <div class="row"><span class="id">6</span><span class="name">venues (会場) master 管理 UI</span><span class="phase">phase2</span><span class="pill done">✅</span></div>
     <div class="row"><span class="id">7</span><span class="name">Racket Board の reorder UI</span><span class="phase">phase3</span><span class="pill todo">⏳</span></div>
     <div class="row"><span class="id">8</span><span class="name">Home 課題行クリック対応</span><span class="phase">phase5</span><span class="pill todo">⏳</span></div>
-    <div class="row"><span class="id">9</span><span class="name">引退ラケット archive UI</span><span class="phase">phase2</span><span class="pill todo">⏳</span></div>
+    <div class="row"><span class="id">9</span><span class="name">引退ラケット archive UI</span><span class="phase">phase2</span><span class="pill done">✅</span></div>
   </div>
 </div>
 
@@ -200,6 +200,22 @@
 <div class="section">
   <h2>📜 変更履歴 (新 → 旧、最新 8 件)</h2>
   <div class="changelog">
+    <div class="row error">
+      <div class="ts">2026-05-09 00:30</div>
+      <div><b>Phase 2 を保留 (土台修繕後に再着手)</b>: Phase 2 ビルド (911 KB) で iPhone Safari / Chrome ともに 5 分以上ロード = 試合運用できない。原因は「ブラウザに毎回アプリを組み立て直させる」現在の build 方式 (Phase 1 で 864 KB ぎりぎり、Phase 2 で限界突破)。俯瞰判断: 機能追加を進める前に build 方式の根本修繕が必要。v4/index.html を Phase 1 状態 (commit a830827、4.6.5-S17) に git checkout で復元、Phase 2 の src/ 変更は working tree に保持 (土台修繕後に再ビルドで復活)。<b>次セッション最優先タスク = 組み立て方の修繕</b>。</div>
+    </div>
+    <div class="row">
+      <div class="ts">2026-05-08 23:30</div>
+      <div><b>Phase 2 抜本対応 完了 (ただし build サイズ問題で保留)</b>: ユーザー指摘「会場だけでなく master 全体の整理機能が必要」を受けて Master Cleanup 機能を新規実装 — 汎用純関数 (domain/master_cleanup.js)、共通 UI (MasterCleanupModal.jsx、個別チェック式 + 中身プレビュー、master 種別を props で切替)、各 Section に「整理」ボタン (VenuesSection / StringsSection)。+ 補完 4 件 — VenueEditModal に削除影響件数表示 / 「使用中の会場を取り込み」ボタン / 3 セクション折りたたみ / SetupPickerButton (3 編集画面で stringSetups から 1 タップ流し込み)。コードは src/ に保持、土台修繕後に再ビルドで復活 (一時 APP_VERSION 4.7.1-S17 だったが Phase 1 状態に巻き戻し)</div>
+    </div>
+    <div class="row">
+      <div class="ts">2026-05-08 22:30</div>
+      <div><b>Phase 2 master 管理 UI 群 完了</b>: 過去 Stage で「後で」棚上げされた 3 件を消化 — #1 stringSetups CRUD (SetupsSection + SetupEditModal、status active/archived + 並び替え) / #6 venues master (VenuesSection + VenueEditModal、文字列 array 互換 + 重複チェック) / #9 引退ラケット archive (RetiredRacketsSection、行タップで status 復帰可能)。GearTab の Manage Masters セクションに 3 セクション追加、Phase 4-D placeholder 撤去 (APP_VERSION → 4.7.0-S17、Y up)</div>
+    </div>
+    <div class="row">
+      <div class="ts">2026-05-08 21:50</div>
+      <div><b>Phase 1 全体 push 完了</b>: commit a830827 / origin/main 反映 / GitHub Pages deploy 進行中 (v4.6.5-S17、32 files / +10629 / -1122)。launch.json は gitignored で git 管理外、Tennis DB Progress server (port 8082) はローカル設定のみ</div>
+    </div>
     <div class="row">
       <div class="ts">2026-05-08 21:15</div>
       <div><b>Phase 1 (Q2): ラケットセット 1 タップ選択 完了</b>: Plan Gear Edit Modal の各段 (本命/対抗/保留) ヘッダーに「📋 過去のセットから」ボタン追加 → タップで Bottom sheet で trial 一覧 (date desc 50 件) → 行タップで該当段に流し込み (name → id 変換、tension はそのまま、reason は維持)。これで積み残し #5 完了 (元 Phase 4 → Phase 1 格上げ、APP_VERSION → 4.6.5-S17)</div>

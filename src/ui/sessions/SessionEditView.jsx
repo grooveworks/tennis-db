@@ -37,7 +37,7 @@ const _clearSessionDraft = (type, id) => {
   try { localStorage.removeItem(_sessionDraftKey(type, id)); } catch (_) {}
 };
 
-function SessionEditView({ type, session, practices, tournaments, trials, racketNames, stringNames, venueNames, opponentNames, levelNames, onCancel, onSave, confirm, toast }) {
+function SessionEditView({ type, session, practices, tournaments, trials, racketNames, stringNames, venueNames, opponentNames, levelNames, stringSetups, onCancel, onSave, confirm, toast }) {
   // S15.5.9: 起動時に下書きがあれば優先 (Safari 破棄 / 戻る誤操作からの復元)
   const [form, setForm] = useState(() => {
     if (!session?.id) return { ...session };
@@ -176,6 +176,7 @@ function SessionEditView({ type, session, practices, tournaments, trials, racket
           <TournamentEditForm
             form={form} errors={errors} onChange={handleChange}
             racketNames={racketNames} stringNames={stringNames} venueNames={venueNames} opponentNames={opponentNames} levelNames={levelNames}
+            stringSetups={stringSetups}
             trials={trials} tournaments={tournaments} practices={practices}
             confirm={confirm} toast={toast}
           />
@@ -185,6 +186,7 @@ function SessionEditView({ type, session, practices, tournaments, trials, racket
             form={form} errors={errors} onChange={handleChange}
             racketNames={racketNames} stringNames={stringNames} venueNames={venueNames}
             opponentNames={opponentNames}
+            stringSetups={stringSetups}
             tournaments={tournaments} practices={practices} trials={trials}
             confirm={confirm}
           />
@@ -194,6 +196,7 @@ function SessionEditView({ type, session, practices, tournaments, trials, racket
             form={form} errors={errors} onChange={handleChange}
             practices={practices} tournaments={tournaments} trials={trials}
             racketNames={racketNames} stringNames={stringNames} venueNames={venueNames}
+            stringSetups={stringSetups}
           />
         )}
       </div>

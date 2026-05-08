@@ -23,7 +23,7 @@ const _STK_LABELS = {
   rejected:  "除外",
 };
 
-function StringsSection({ strings, onUpdate, onEdit, onAdd, toast }) {
+function StringsSection({ strings, onUpdate, onEdit, onAdd, onCleanupStart, toast }) {
   const [reorderMode, setReorderMode] = useState(false);
   const [showAll, setShowAll] = useState(false);
 
@@ -173,7 +173,7 @@ function StringsSection({ strings, onUpdate, onEdit, onAdd, toast }) {
                 padding: "11px 14px",
                 marginBottom: 8,
                 display: "grid",
-                gridTemplateColumns: reorderMode ? "auto 1fr auto" : "auto 1fr auto auto",
+                gridTemplateColumns: reorderMode ? "auto 1fr auto" : (onCleanupStart ? "auto 1fr auto auto auto" : "auto 1fr auto auto"),
                 gap: 10,
                 alignItems: "center",
                 cursor: reorderMode ? "default" : "pointer",
@@ -195,12 +195,29 @@ function StringsSection({ strings, onUpdate, onEdit, onAdd, toast }) {
                   {_STK_LABELS[s.status] || "—"}{s.note ? " · " + s.note : ""}
                 </div>
               </div>
-              {/* 通常モード: 数量 + 編集アイコン */}
+              {/* 通常モード: 数量 + 整理ボタン + 編集アイコン */}
               {!reorderMode && (
                 <>
                   <div style={{ fontSize: 11, color: C.textMuted, whiteSpace: "nowrap" }}>
                     {s.qty || "—"}
                   </div>
+                  {/* S17 Phase 2 抜本対応: 整理 (マージ) ボタン */}
+                  {onCleanupStart && (
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); onCleanupStart("stringMain", s.name); }}
+                      aria-label="他のストリングと整理 (マージ)"
+                      title="他のストリングと整理 (マージ)"
+                      style={{
+                        width: 28, height: 28, padding: 0,
+                        display: "inline-flex", alignItems: "center", justifyContent: "center",
+                        background: "transparent", border: "none", color: C.textMuted,
+                        cursor: "pointer", borderRadius: 6,
+                      }}
+                    >
+                      <Icon name="git-merge" size={14} />
+                    </button>
+                  )}
                   <Icon name="caret-right" size={16} color={C.textMuted} />
                 </>
               )}
