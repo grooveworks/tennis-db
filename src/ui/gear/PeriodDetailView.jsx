@@ -84,9 +84,11 @@ function PeriodDetailView({ open, period, racket, tournaments, practices, trials
   useEffect(() => {
     if (!open) return;
     try { window.history.pushState({ tdb: "gear-period" }, ""); } catch (_) {}
-    // S17 Phase 3.5: ネスト modal の popstate 発火時、自分の階層がまだ history に残っているなら閉じない
+    // S17 Phase 3.5 / 3.5b 不具合修繕: 自分の階層 (gear-period) または子階層 (gear-session) なら閉じない。
+    // これにより SessionDetail (gear 経由) を閉じても PeriodDetail はキープされる。
+    const _PERIOD_KEEP_OPEN_TDB = ["gear-period", "gear-session"];
     const handler = (e) => {
-      if (e && e.state && e.state.tdb === "gear-period") return;
+      if (e && e.state && _PERIOD_KEEP_OPEN_TDB.indexOf(e.state.tdb) >= 0) return;
       const fn = onCloseRef.current; if (fn) fn();
     };
     window.addEventListener("popstate", handler);

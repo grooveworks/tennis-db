@@ -1393,10 +1393,15 @@ function TennisDB() {
   };
   const handlePeriodDetailClose = () => setPeriodDetail(null);
   // Period Detail 内の session カードタップで、そのセッションの SessionDetailView を開く
+  // S17 Phase 3.5b 修繕: 旧版は setPeriodDetail(null) + setRacketDetail(null) で強制 close → 戻るで一覧まで飛ぶ問題
+  //   新版: 3 階層 (Racket → Period → Session) を維持したまま重ねる。pushState は "gear-session" で区別。
+  //   z-index: SessionDetailView 100 / Racket・Period 50 で重ね順は問題なし (TabBar 60)。
+  //   注意: handleCardClick(type, item, "gear-session") のような optional 引数経由はやめる。
+  //   esbuild の minify が trivial wrapper を inline 化してリテラル引数を落とすことがあるため、
+  //   ここで直接 setDetail + pushState を呼ぶ ("gear-session" を inline で確実に push する)。
   const handlePeriodSessionClick = (type, item) => {
-    setPeriodDetail(null);
-    setRacketDetail(null); // racket detail も閉じる (深いネストを避ける)
-    handleCardClick(type, item);
+    setDetail({ type, session: item, mode: "detail" });
+    try { window.history.pushState({ tdb: "gear-session" }, ""); } catch(_) {}
   };
 
   // Measurement (racket.measurements[] のネスト編集)

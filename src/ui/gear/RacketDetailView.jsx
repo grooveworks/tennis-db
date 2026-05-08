@@ -158,11 +158,12 @@ function RacketDetailView({
   useEffect(() => {
     if (!open) return;
     try { window.history.pushState({ tdb: "gear-detail" }, ""); } catch (_) {}
-    // S17 Phase 3.5 不具合修繕: 子階層 (PeriodDetailView 等) の popstate 発火時、自分の階層が
-    // まだ history に残っているなら閉じない (e.state.tdb === "gear-detail" は自分の state)。
-    // これがないと PeriodDetail の戻るで RacketDetail も同時に閉じてラケット一覧まで戻る。
+    // S17 Phase 3.5 / 3.5b 不具合修繕: popstate 発火時、自分の階層 (gear-detail)
+    // または子階層 (gear-period / gear-session) が現在の state なら、自分はまだ history に残っている → 閉じない。
+    // これがないと: 子階層から戻った瞬間に親 (RacketDetail) まで一緒に閉じてラケット一覧まで飛ぶ問題が発生。
+    const _RACKET_KEEP_OPEN_TDB = ["gear-detail", "gear-period", "gear-session"];
     const handler = (e) => {
-      if (e && e.state && e.state.tdb === "gear-detail") return;
+      if (e && e.state && _RACKET_KEEP_OPEN_TDB.indexOf(e.state.tdb) >= 0) return;
       const fn = onCloseRef.current; if (fn) fn();
     };
     window.addEventListener("popstate", handler);
