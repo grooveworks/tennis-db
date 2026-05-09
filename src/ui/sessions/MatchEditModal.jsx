@@ -84,7 +84,7 @@ function _meRatingRow({ label, value, onChange }) {
   );
 }
 
-function MatchEditModal({ open, match, trnType, tournament, racketNames = [], stringNames = [], opponentNames = [], recentSetups = [], confirm, onSave, onClose }) {
+function MatchEditModal({ open, match, trnType, tournament, racketNames = [], stringNames = [], opponentNames = [], recentSetups = [], confirm, onSave, onClose, planResetPhrase = "" }) {
   const trapRef = useFocusTrap(open); // Round 5: a11y focus trap
   // リク 30-e (S16): 試合形式を解決 (form.format > tournament.matchFormat > default)
   //   form (state) を見ることで「変更」ボタン操作時に即座に効く。useMemo はキャッシュ。
@@ -426,7 +426,7 @@ function MatchEditModal({ open, match, trnType, tournament, racketNames = [], st
           {/* ゲーム単位記録 (F1.4.1)、S15.5.9 で onChange を dirty 追跡型に変更
               リク 30-e Phase A: matchEnded prop で試合終了状態を伝達
               リク 30-e Phase B: format prop で TB 状態検知 (6-6 / 1-1) */}
-          <GameTracker match={form} onChange={handleGameTrackerChange} confirm={confirm} matchEnded={matchEnded} format={effectiveFormat} />
+          <GameTracker match={form} onChange={handleGameTrackerChange} confirm={confirm} matchEnded={matchEnded} format={effectiveFormat} resetPhrase={planResetPhrase} />
         </div>
 
         {/* ③ コンディション (メンタル / フィジカル) */}

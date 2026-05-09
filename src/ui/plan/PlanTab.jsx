@@ -14,6 +14,7 @@
 //     targetGoal: "",                      // 短文 (20 字推奨、maxLength 30)
 //     targetTheme: "",                     // 短文 (30 字推奨、maxLength 50)
 //     strategy: [],                        // string[] 最大 5、各 maxLength 80 (30-40 字推奨)
+//     resetPhrase: "",                     // 試合中チェンジオーバー用リセット文 (1〜2 行、maxLength 80) S17.x ChatGPT 整理で追加
 //     gearChoice: {
 //       main:    { racketId, stringMainId, stringCrossId, tension, reason },  // 必須段
 //       sub:     { ... },                                                      // 任意段
@@ -21,6 +22,12 @@
 //       concern: "",                                                           // 全体懸念 (140 字目安、maxLength 200)
 //     }
 //   }
+//
+// Reset Phrase の役割 (ChatGPT 整理 / WIREFRAMES §2.9.5b):
+//   試合中はゲームピッカー (GameTracker) を見るので、Plan の作戦を直接読まない。
+//   チェンジオーバーで「次の 2 ゲーム」に集中するための短文 (= リセット文) を
+//   Plan で事前作成し、GameTracker のチェンジオーバーカードに表示する。
+//   例: 「リターン深く。バックで我慢しすぎない。」「次の 2 ゲーム: スコアを切る / まず深さ」
 //
 // UX 規律 (preview_s17_plan_p3 ベース):
 //   - Target 未設定時、Strategy / Gear カードは opacity 0.45 + 上部 callout で誘導
@@ -35,6 +42,7 @@ const _PLAN_STRATEGY_MAX_LEN = 80;
 const _PLAN_GOAL_MAX_LEN = 30;
 const _PLAN_THEME_MAX_LEN = 50;
 const _PLAN_CONCERN_MAX_LEN = 200;
+const _PLAN_RESET_MAX_LEN = 80; // Reset Phrase: チェンジオーバー用 (1〜2 行に収まる目安)
 
 // ── 残り日数計算 (今日 - target 日付、負なら過去)
 const _planDaysRemaining = (targetDateIso, todayIso) => {
@@ -548,6 +556,108 @@ function _PlanStrategyEditModal({ open, initialText, isNew, onSave, onClose }) {
 }
 
 // ===================================================================
+// Reset Phrase Card (S17.x ChatGPT 整理: 試合中チェンジオーバー用)
+//   試合中はゲームピッカー (GameTracker) が主、Plan の長文作戦は読まない。
+//   チェンジオーバーで「次の 2 ゲーム」に集中するための短文 (1〜2 行) を Plan で作成し、
+//   GameTracker のチェンジオーバーカードで表示する。
+//   例: 「リターン深く。バックで我慢しすぎない。」「スコアを切る / まず深さ」
+// ===================================================================
+
+function _PlanResetCard({ resetPhrase, dimmed, onEdit }) {
+  const titleColor = dimmed ? C.textMuted : C.appleMint;
+  const hasContent = !!(resetPhrase || "").trim();
+  return (
+    <div style={{ ..._planCardStyle(), ..._planDimmedStyle(dimmed) }}>
+      <div style={_planCardHead()}>
+        <div style={_planCardTitle()}>
+          <Icon name="repeat" size={18} color={titleColor} />
+          チェンジオーバーで戻る
+        </div>
+        {!dimmed && (
+          <_PlanMiniBtn primary onClick={onEdit} icon="edit">{hasContent ? "編集" : "作成"}</_PlanMiniBtn>
+        )}
+      </div>
+      {dimmed ? (
+        <div style={{ textAlign: "center", color: C.textMuted, fontSize: 12, padding: "8px 0" }}>
+          ターゲット設定後にリセット文を作成します
+        </div>
+      ) : hasContent ? (
+        <div style={{
+          fontSize: 13, lineHeight: 1.55, color: C.text, whiteSpace: "pre-wrap",
+          padding: "8px 12px", background: "rgba(0,199,190,0.06)",
+          border: "1px solid rgba(0,199,190,0.25)", borderRadius: 12,
+        }}>
+          {resetPhrase}
+        </div>
+      ) : (
+        <div style={{ textAlign: "center", color: C.textMuted, fontSize: 12, padding: "8px 0", lineHeight: 1.5 }}>
+          試合中のチェンジオーバーで自分を戻す短文を作成しましょう<br />
+          <span style={{ fontSize: 11, color: C.textMuted, opacity: 0.7 }}>例: 「リターン深く。バックで我慢しすぎない。」</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function _PlanResetEditModal({ open, initialText, onSave, onClose }) {
+  const [text, setText] = useState(initialText || "");
+  useEffect(() => { if (open) setText(initialText || ""); }, [open, initialText]);
+  if (!open) return null;
+  const len = text.length;
+  const level = _planCounterLevel(len, 60, _PLAN_RESET_MAX_LEN);
+  const counterColor = level === "danger" ? C.error : (level === "warn" ? "#b06b00" : C.textMuted);
+  const handleSave = () => {
+    const trimmed = (text || "").trim();
+    onSave(trimmed);
+  };
+  return (
+    <div onClick={onClose} style={{
+      position: "fixed", inset: 0, zIndex: 1100,
+      background: "rgba(0,0,0,0.4)",
+      display: "flex", alignItems: "flex-end", justifyContent: "center",
+    }}>
+      <div onClick={(e) => e.stopPropagation()} style={{
+        background: C.panel, borderRadius: "20px 20px 0 0",
+        width: "100%", maxWidth: 600,
+        padding: 16, paddingBottom: 32, fontFamily: font,
+      }}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 12 }}>
+          チェンジオーバーで戻る短文
+        </div>
+        <div style={{ fontSize: 11, color: C.textSecondary, marginBottom: 8, lineHeight: 1.5 }}>
+          試合中のチェンジオーバー (GameTracker のリセット地点) で表示される文。<br />
+          1〜2 行 (60 字以内推奨)、長文は試合中に読めません。
+        </div>
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value.slice(0, _PLAN_RESET_MAX_LEN))}
+          placeholder="例: リターン深く。バックで我慢しすぎない。"
+          rows={3}
+          style={{
+            width: "100%", boxSizing: "border-box",
+            border: `1px solid ${C.border}`, borderRadius: 8,
+            padding: "10px 12px", fontSize: 14, fontFamily: font,
+            background: C.panel, color: C.text, resize: "vertical",
+            minHeight: 80,
+          }}
+        />
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6, marginBottom: 12 }}>
+          <span style={{ fontSize: 11, color: counterColor, fontVariantNumeric: "tabular-nums" }}>
+            {len} / {_PLAN_RESET_MAX_LEN} 字
+          </span>
+        </div>
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <button onClick={onClose} style={_planModalBtn(false, true)}>キャンセル</button>
+          <button onClick={handleSave} style={_planModalBtn(true, true)}>
+            <Icon name="check" size={16} color="#fff" />保存
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ===================================================================
 // Gear Decision Card (今回のギア決定)
 // ===================================================================
 
@@ -1001,6 +1111,7 @@ function PlanTab({ plan, tournaments, rackets, strings, trials, onPlanSave, toas
   const [targetEditOpen, setTargetEditOpen] = useState(false);
   const [strategyEditTarget, setStrategyEditTarget] = useState(null); // null=閉、{idx,text} or {idx:-1, text:""}=新規
   const [gearEditOpen, setGearEditOpen] = useState(false);
+  const [resetEditOpen, setResetEditOpen] = useState(false);
 
   // ── Target Edit ハンドラ
   const handleTargetEdit = () => setTargetEditOpen(true);
@@ -1042,6 +1153,11 @@ function PlanTab({ plan, tournaments, rackets, strings, trials, onPlanSave, toas
 
   // ── Gear ハンドラ
   const handleGearEdit = () => setGearEditOpen(true);
+  const handleResetSave = (txt) => {
+    onPlanSave({ ...safePlan, resetPhrase: (txt || "").slice(0, _PLAN_RESET_MAX_LEN) });
+    setResetEditOpen(false);
+  };
+
   const handleGearSave = (gearChoice) => {
     onPlanSave({ ...safePlan, gearChoice });
     setGearEditOpen(false);
@@ -1073,6 +1189,13 @@ function PlanTab({ plan, tournaments, rackets, strings, trials, onPlanSave, toas
         onAdd={handleStrategyAdd}
         onEditItem={handleStrategyEditItem}
         onDeleteItem={handleStrategyDeleteItem}
+      />
+
+      {/* === 2.5 Reset Phrase Card (S17.x ChatGPT 整理で追加: 試合中チェンジオーバー用) === */}
+      <_PlanResetCard
+        resetPhrase={safePlan.resetPhrase || ""}
+        dimmed={dimmed}
+        onEdit={() => setResetEditOpen(true)}
       />
 
       {/* === 3. Gear Decision Card === */}
@@ -1109,6 +1232,12 @@ function PlanTab({ plan, tournaments, rackets, strings, trials, onPlanSave, toas
         tournaments={tournaments}
         onSave={handleGearSave}
         onClose={() => setGearEditOpen(false)}
+      />
+      <_PlanResetEditModal
+        open={resetEditOpen}
+        initialText={safePlan.resetPhrase || ""}
+        onSave={handleResetSave}
+        onClose={() => setResetEditOpen(false)}
       />
     </div>
   );

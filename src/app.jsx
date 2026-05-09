@@ -1631,6 +1631,7 @@ function TennisDB() {
           opponentNames={_extractNames(opponents)}
           levelNames={_extractLevels(tournaments)}
           stringSetups={stringSetups}
+          planResetPhrase={(plan && plan.resetPhrase) || ""}
           onClose={handleDetailClose}
           onEdit={handleEdit}
           onEditCancel={handleEditCancel}

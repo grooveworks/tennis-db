@@ -74,7 +74,7 @@ function _gtGameLogRow({ index, game, runningScore, onEdit }) {
 }
 
 // ── CO 表示行 (記録済) — タップで再編集
-function _gtChangeoverRow({ co, onEdit }) {
+function _gtChangeoverRow({ co, onEdit, resetPhrase }) {
   const mentalColor = co.mental >= 4 ? "#0a5b35" : co.mental >= 3 ? "#7e5d00" : "#a31511";
   const physicalColor = co.physical >= 4 ? "#0a5b35" : co.physical >= 3 ? "#7e5d00" : "#a31511";
   return (
@@ -104,6 +104,18 @@ function _gtChangeoverRow({ co, onEdit }) {
         </span>
         {co.note && <span style={{ color: C.textSecondary, fontStyle: "italic", fontWeight: 500 }}>「{co.note}」</span>}
       </div>
+      {/* S17.x ChatGPT 整理: Plan の resetPhrase をチェンジオーバーカードに表示 (= 試合中の戻る場所) */}
+      {(resetPhrase || "").trim() && (
+        <div style={{
+          marginTop: 6, padding: "6px 8px",
+          background: "rgba(0,199,190,0.10)", borderLeft: `3px solid ${C.appleMint}`,
+          borderRadius: 4, fontSize: 12, color: C.text, lineHeight: 1.5,
+          whiteSpace: "pre-wrap",
+        }} onClick={(e) => e.stopPropagation()}>
+          <span style={{ color: C.appleMint, fontWeight: 700, marginRight: 4 }}>次の 2 ゲーム:</span>
+          {resetPhrase}
+        </div>
+      )}
     </div>
   );
 }
@@ -310,7 +322,7 @@ function _gtCOModal({ open, initial, onSave, onSkip, onDelete, onClose, isEditMo
 //     - 通常 TB (6-6): 7 ポイント先取・差 2、勝者 + 負けた側ポイント を入力
 //     - マッチ TB (1-1 で 10pt): 10 ポイント先取、同上
 //     - 入力された loser ポイントは tbDetails に保存し、setScores の表示を装飾 ("7-6(5)" / "10-7")
-function GameTracker({ match, onChange, confirm, matchEnded, format }) {
+function GameTracker({ match, onChange, confirm, matchEnded, format, resetPhrase }) {
   const games = Array.isArray(match.games) ? match.games : [];
   const changeovers = Array.isArray(match.changeovers) ? match.changeovers : [];
   const setScores = Array.isArray(match.setScores) ? match.setScores : [];
@@ -596,6 +608,7 @@ function GameTracker({ match, onChange, confirm, matchEnded, format }) {
                   key={`co-${row.afterGame}`}
                   co={row.co}
                   onEdit={() => setEditing({ ...row.co })}
+                  resetPhrase={resetPhrase}
                 />
               );
             }
@@ -616,6 +629,11 @@ function GameTracker({ match, onChange, confirm, matchEnded, format }) {
                 title="タップで CO を記録"
               >
                 ⟳ チェンジオーバー（{row.afterGame} ゲーム後・未記録、タップで追加）
+                {(resetPhrase || "").trim() && (
+                  <span style={{ marginLeft: "auto", color: C.appleMint, fontWeight: 600, fontSize: 11 }}>
+                    リセット文あり →
+                  </span>
+                )}
               </div>
             );
           })}

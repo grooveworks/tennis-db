@@ -112,14 +112,16 @@
 <body>
 
 <h1>📊 S17 進捗ダッシュボード</h1>
-<div class="updated">最終更新: 2026-05-09 13:00 / バージョン v4.7.7-S17 (棚上げ解消 + バグ修繕 + ESM build) / 60 秒毎に自動 reload</div>
+<div class="updated">最終更新: 2026-05-09 14:30 / バージョン v4.7.8-S17 (Plan Reset Phrase + GameTracker 連動) / 60 秒毎に自動 reload</div>
 
 <!-- 次に決めて欲しい -->
-<div class="pending" style="background:#fff8e1;border-color:rgba(251,188,4,0.4)">
-  <div class="lbl" style="color:#7e5d00">⚠️ 残課題: Plan タブ草案からの未実装機能</div>
+<div class="pending" style="background:#e6f4ea;border-color:rgba(15,157,88,0.3)">
+  <div class="lbl" style="color:#0f9d58">✅ 直近の成果 — Plan タブ「リセット文」追加</div>
   <div>
-    本セッションで <b>4.7.7-S17 push</b> (棚上げ解消 = MatchDetailView 新規 / バグ修繕 = MatchEditModal validation・MasterField Combobox / ESM build 化で iPhone JIT 余裕 511 KB)。<br>
-    ただし <b>Plan タブ草案 (preview_s17_p* 系 + ChatGPT レビュー経由) で決定した機能が全て実装されていない</b> とユーザー指摘。push 後に WIREFRAMES_v4.md §2.9 + DECISIONS_v4.md S17 + preview HTML 群から未実装機能を洗い出し → 順次着手 (先送りしない)。
+    <b>v4.7.8-S17 push 候補</b> (= ChatGPT 整理経由でユーザー承認済): 「Plan で考える / GameTracker で戻る / Changeover で次の 2 ゲームに集中する」 設計思想を実装。<br>
+    Plan タブに <b>Reset Phrase Card</b> 新規 (Strategy と Gear の間)、編集 modal で 80 字以内の試合中リセット文を作成。<br>
+    GameTracker の各チェンジオーバーカードに「次の 2 ゲーム: 〜」 で自動表示 (記録済 CO 行 = 本文表示、未記録行 = 「リセット文あり →」ヒント)。<br>
+    <b>残未実装</b> (今後): AI 段階 1 (Strategy AI 整理) / AI 段階 2 (Reset Phrase AI 生成) / S17.1 Practice Focus / S17.2 Pre-match Checklist / S17.3 Opponent DB。
   </div>
 </div>
 
@@ -219,9 +221,21 @@
   <h2>📜 変更履歴 (新 → 旧、最新 8 件)</h2>
   <div class="changelog">
     <div class="row" style="background:rgba(15,157,88,0.06)">
+      <div class="ts">2026-05-09 14:30</div>
+      <div>
+        <b>v4.7.8-S17 (push 候補) — Plan Reset Phrase + GameTracker 連動</b>:
+        ChatGPT 整理経由で「Plan で考える / GameTracker で戻る / Changeover で次の 2 ゲームに集中する」 設計思想を実装。
+        Plan タブに「チェンジオーバーで戻る」カード新規 (Strategy と Gear の間)、編集 modal (80 字以内、試合中に読める短文)、Plan データモデルに <code>resetPhrase</code> フィールド追加。
+        GameTracker の各チェンジオーバー行に <code>resetPhrase</code> 表示 (記録済 CO 行 = 「次の 2 ゲーム: 〜」 本文、未記録行 = 「リセット文あり →」 ヒント)。
+        Plan → SessionDetailView → MatchEditModal → GameTracker の chain で <code>planResetPhrase</code> を流す。
+        <b>検証</b>: dev mode で Plan Reset Card 表示 / 編集 modal / 保存で localStorage 反映 / GameTracker での未記録 CO 行のヒント表示確認。
+        記録済 CO 行の本文表示は fixture data の changeovers が偶数 afterGame で GameTracker の奇数自動発動と不整合のため自動目視不可、bundle 内 chain で実装担保。
+      </div>
+    </div>
+    <div class="row" style="background:rgba(15,157,88,0.06)">
       <div class="ts">2026-05-09 13:00</div>
       <div>
-        <b>v4.7.7-S17 (push 候補)</b>: 4 つの修繕を 1 push に集約。
+        <b>v4.7.7-S17 (push 済 cbe8cad) — 棚上げ解消 + バグ修繕 + ESM build</b>: 4 つの修繕を 1 push に集約。
         (1) <b>棚上げ解消</b>: 試合 (match) の閲覧専用 view が無く、TournamentDetail の matches 行 click が「次 Stage で実装予定」 toast 出すだけだった件 (本日のデータ消失事故の根本原因) → <code>MatchDetailView.jsx</code> 新規、SessionDetailView の onMatchClick を MatchDetailView 起動に変更、編集ボタンで MatchEditModal、削除 confirm、popstate 自階層チェック。
         (2) <b>戻るバグ修繕</b>: MatchDetailView から戻ると SessionDetailView も同時に閉じる (Phase 3.5b と同種のバグ) → app.jsx Sessions popstate listener に「detail / match-detail」維持判定を追加。
         (3) <b>MatchEditModal バグ修繕</b>: validation を opponent/result 必須から「相手名/結果/ゲーム のいずれか 1 つ」 に緩和 (= データ消失事故防止)、保存 disabled 時の inline 警告、コンディション 5 ボタン iPhone 画面内に収まるレイアウト (minWidth 40→32, gap 6→4, 右側数値 span 削除)。
