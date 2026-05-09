@@ -44,6 +44,13 @@ const _PLAN_THEME_MAX_LEN = 50;
 const _PLAN_CONCERN_MAX_LEN = 200;
 const _PLAN_RESET_MAX_LEN = 80; // Reset Phrase: チェンジオーバー用 (1〜2 行に収まる目安)
 
+// S17.x feature flag: AI 機能 (Strategy AI 整理 / Reset Phrase AI 生成) の表示制御
+//   ChatGPT 整理 (= Player Model / Core Profile / Generated Defaults を先に整備してから AI 連携) を受けて
+//   現在 false にして AI ボタンと AI Modal の render を skip。
+//   Cloud Functions (planAssist) は未 deploy のため、true にしても deploy しないと NOT_FOUND エラー。
+//   関連 state / handler / import (aiOrganizeStrategy / aiGenerateResetPhrase) は維持 (= 復帰時 1 行で再有効)。
+const _PLAN_AI_ENABLED = false;
+
 // ── 残り日数計算 (今日 - target 日付、負なら過去)
 const _planDaysRemaining = (targetDateIso, todayIso) => {
   if (!targetDateIso) return null;
@@ -374,7 +381,7 @@ function _PlanStrategyCard({ strategy, dimmed, onAdd, onEditItem, onDeleteItem, 
             </span>
           )}
         </div>
-        {!dimmed && (
+        {!dimmed && _PLAN_AI_ENABLED && (
           <_PlanMiniBtn onClick={onAiOrganize} icon="sparkle">AI 整理</_PlanMiniBtn>
         )}
       </div>
@@ -578,7 +585,9 @@ function _PlanResetCard({ resetPhrase, dimmed, onEdit, onAiGenerate }) {
         </div>
         {!dimmed && (
           <div style={{ display: "inline-flex", gap: 6 }}>
-            <_PlanMiniBtn onClick={onAiGenerate} icon="sparkle">AI 生成</_PlanMiniBtn>
+            {_PLAN_AI_ENABLED && (
+              <_PlanMiniBtn onClick={onAiGenerate} icon="sparkle">AI 生成</_PlanMiniBtn>
+            )}
             <_PlanMiniBtn primary onClick={onEdit} icon="edit">{hasContent ? "編集" : "作成"}</_PlanMiniBtn>
           </div>
         )}
@@ -1457,21 +1466,25 @@ function PlanTab({ plan, tournaments, rackets, strings, trials, onPlanSave, toas
         onSave={handleResetSave}
         onClose={() => setResetEditOpen(false)}
       />
-      <_PlanAiOrganizeModal
-        open={aiOrganizeOpen}
-        onAdopt={handleAiOrganizeAdopt}
-        onClose={() => setAiOrganizeOpen(false)}
-        toast={toast}
-      />
-      <_PlanAiResetGenModal
-        open={aiResetGenOpen}
-        strategy={safePlan.strategy || []}
-        targetGoal={safePlan.targetGoal || ""}
-        targetTheme={safePlan.targetTheme || ""}
-        onAdopt={handleAiResetAdopt}
-        onClose={() => setAiResetGenOpen(false)}
-        toast={toast}
-      />
+      {_PLAN_AI_ENABLED && (
+        <_PlanAiOrganizeModal
+          open={aiOrganizeOpen}
+          onAdopt={handleAiOrganizeAdopt}
+          onClose={() => setAiOrganizeOpen(false)}
+          toast={toast}
+        />
+      )}
+      {_PLAN_AI_ENABLED && (
+        <_PlanAiResetGenModal
+          open={aiResetGenOpen}
+          strategy={safePlan.strategy || []}
+          targetGoal={safePlan.targetGoal || ""}
+          targetTheme={safePlan.targetTheme || ""}
+          onAdopt={handleAiResetAdopt}
+          onClose={() => setAiResetGenOpen(false)}
+          toast={toast}
+        />
+      )}
     </div>
   );
 }
