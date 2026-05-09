@@ -112,16 +112,17 @@
 <body>
 
 <h1>📊 S17 進捗ダッシュボード</h1>
-<div class="updated">最終更新: 2026-05-10 / バージョン v4.7.11-S17 (Phase A1: v2 profile 移植) / 60 秒毎に自動 reload</div>
+<div class="updated">最終更新: 2026-05-10 / バージョン v4.7.11-S17 (Phase A1 push 済、次セッションで code splitting 段階 1) / 60 秒毎に自動 reload</div>
 
 <!-- 次に決めて欲しい -->
-<div class="pending" style="background:#e6f4ea;border-color:rgba(15,157,88,0.3)">
-  <div class="lbl" style="color:#0f9d58">✅ 直近の成果 — Plan タブ「リセット文」追加</div>
+<div class="pending" style="background:#fff8e1;border-color:rgba(251,188,4,0.4)">
+  <div class="lbl" style="color:#7e5d00">🔧 次セッション最初のタスク = Code Splitting 段階 1</div>
   <div>
-    <b>v4.7.8-S17 push 候補</b> (= ChatGPT 整理経由でユーザー承認済): 「Plan で考える / GameTracker で戻る / Changeover で次の 2 ゲームに集中する」 設計思想を実装。<br>
-    Plan タブに <b>Reset Phrase Card</b> 新規 (Strategy と Gear の間)、編集 modal で 80 字以内の試合中リセット文を作成。<br>
-    GameTracker の各チェンジオーバーカードに「次の 2 ゲーム: 〜」 で自動表示 (記録済 CO 行 = 本文表示、未記録行 = 「リセット文あり →」ヒント)。<br>
-    <b>残未実装</b> (今後): AI 段階 1 (Strategy AI 整理) / AI 段階 2 (Reset Phrase AI 生成) / S17.1 Practice Focus / S17.2 Pre-match Checklist / S17.3 Opponent DB。
+    <b>v4.7.11-S17 push 済</b> (commit 8fed399、= Phase A1 v2 profile 移植 完了)。Phase B (Plan Carry Over) を試作したら bundle 528.9 KB で iPhone JIT deopt 閾値越え → 退避 (stash@{0})。<br>
+    3 者議論 (ユーザー / ChatGPT / Claude Code) で確定: <b>機能追加より先に build 方式の根本対処 = code splitting</b>。<br>
+    段階 1 = <b>PlanTab だけ heavy 化</b> (= 外部ファイル v4/bundle-heavy.js、必要時に動的 script tag 読み込み)。詳細は HANDOFF_v4_S17.md §3 参照。<br>
+    厳守ルール: defer は無効・on-demand 読み込み / React 二重バンドル禁止 / GameTracker・MatchEditModal は core 維持。<br>
+    完了基準: core 450 KB 未満。達成後 stash@{0} Phase B を resume → push。
   </div>
 </div>
 
