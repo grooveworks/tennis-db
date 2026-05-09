@@ -151,6 +151,10 @@ function TennisDB() {
   const [next, setNext] = useState([]);
   // S17: plan (Plan タブ作戦室、Target / Strategy / Gear Decision の単一オブジェクト)
   const [plan, setPlan] = useState({});
+  // S17.x Phase A1 (2026-05-10、3 者議論): profile (= AI が参照する Player Model コア情報)
+  //   v2 profile を v4 に移植した単一オブジェクト。Phase A1 はデータ移植のみ、UI は Phase A2。
+  //   normalizeProfile() で v2/v4 自動判別、racket/stringing は除外、gearPolicy 新規。
+  const [profile, setProfile] = useState(null);
   // S15.5: quickTrialCards (試打カード式 QuickTrialMode で使用)
   const [quickTrialCards, setQuickTrialCards] = useState([]);
   const [quickTrial, setQuickTrial] = useState(false); // QuickTrialMode 表示
@@ -189,6 +193,8 @@ function TennisDB() {
     setNext(lsLoad(KEYS.next) || []);
     // S17: plan もローカルから初期ロード (単一オブジェクト、未設定時は空 {})
     setPlan(lsLoad(KEYS.plan) || {});
+    // S17.x Phase A1: profile も localStorage から (v2/v4 自動判別 + racket/stringing 除外)
+    setProfile(normalizeProfile(lsLoad(KEYS.profile)));
     // S15.5: quickTrialCards もローカルから
     setQuickTrialCards(lsLoad(KEYS.quickTrialCards) || []);
     // S16 Phase 4-A: stringSetups もローカルから (assignDefaultOrders で order 遅延付与、in-memory 整形のみ、書き戻し無し)
@@ -566,6 +572,9 @@ function TennisDB() {
             setNext(data.next || []);
             // S17: plan も (単一オブジェクト、loadSessionsFromFirestore 内で {} 既定値)
             setPlan(data.plan && typeof data.plan === "object" ? data.plan : {});
+            // S17.x Phase A1: profile も Firestore から (v2/v4 自動判別、racket/stringing 除外)
+            //   v2 形式の場合は v4 形式に変換して state に保持。書き戻しは Phase A2 で UI 経由のみ。
+            setProfile(normalizeProfile(data.profile));
             // S15.5: quickTrialCards も
             setQuickTrialCards(data.quickTrialCards || []);
             // S16 Phase 4-A: stringSetups (Phase 4-A 読込のみ、UI 編集は Phase 4-B)

@@ -180,6 +180,8 @@ const SCHEMA={
     {key:"current",label:"現行フラグ",type:"boolean"},
     {key:"note",label:"メモ",type:"textarea",combinable:true},
   ],
+  // S17.x Phase A1 (2026-05-10、3 者議論): profile スキーマは Phase A2 (= UI 復活時) で追加
+  // Phase A1 はデータ移植のみ、SCHEMA[type] 参照不要のため bundle 増を避ける目的で空で開始
 };
 
 // ── 自動生成（SCHEMA から派生、手動管理禁止）─────
