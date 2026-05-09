@@ -357,7 +357,7 @@ function _PlanTargetEditModal({ open, plan, tournaments, todayIso, onSave, onClo
 // Strategy Card (今回の作戦)
 // ===================================================================
 
-function _PlanStrategyCard({ strategy, dimmed, onAdd, onEditItem, onDeleteItem }) {
+function _PlanStrategyCard({ strategy, dimmed, onAdd, onEditItem, onDeleteItem, onAiOrganize }) {
   const list = Array.isArray(strategy) ? strategy : [];
   const count = list.length;
   const titleColor = dimmed ? C.textMuted : C.primary;
@@ -374,6 +374,9 @@ function _PlanStrategyCard({ strategy, dimmed, onAdd, onEditItem, onDeleteItem }
             </span>
           )}
         </div>
+        {!dimmed && (
+          <_PlanMiniBtn onClick={onAiOrganize} icon="sparkle">AI 整理</_PlanMiniBtn>
+        )}
       </div>
 
       {dimmed ? (
@@ -563,7 +566,7 @@ function _PlanStrategyEditModal({ open, initialText, isNew, onSave, onClose }) {
 //   例: 「リターン深く。バックで我慢しすぎない。」「スコアを切る / まず深さ」
 // ===================================================================
 
-function _PlanResetCard({ resetPhrase, dimmed, onEdit }) {
+function _PlanResetCard({ resetPhrase, dimmed, onEdit, onAiGenerate }) {
   const titleColor = dimmed ? C.textMuted : C.appleMint;
   const hasContent = !!(resetPhrase || "").trim();
   return (
@@ -574,7 +577,10 @@ function _PlanResetCard({ resetPhrase, dimmed, onEdit }) {
           チェンジオーバーで戻る
         </div>
         {!dimmed && (
-          <_PlanMiniBtn primary onClick={onEdit} icon="edit">{hasContent ? "編集" : "作成"}</_PlanMiniBtn>
+          <div style={{ display: "inline-flex", gap: 6 }}>
+            <_PlanMiniBtn onClick={onAiGenerate} icon="sparkle">AI 生成</_PlanMiniBtn>
+            <_PlanMiniBtn primary onClick={onEdit} icon="edit">{hasContent ? "編集" : "作成"}</_PlanMiniBtn>
+          </div>
         )}
       </div>
       {dimmed ? (
@@ -651,6 +657,198 @@ function _PlanResetEditModal({ open, initialText, onSave, onClose }) {
           <button onClick={handleSave} style={_planModalBtn(true, true)}>
             <Icon name="check" size={16} color="#fff" />保存
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ===================================================================
+// AI Modals (S17.x 段階 1+2、Cloud Functions planAssist 経由)
+// ===================================================================
+
+// 段階 1: Strategy AI 整理 — 長文メモ → 5 項目以内に短文化
+function _PlanAiOrganizeModal({ open, onAdopt, onClose, toast }) {
+  const [longText, setLongText] = useState("");
+  const [items, setItems] = useState([]);  // AI 結果候補
+  const [picked, setPicked] = useState({}); // { idx: bool }
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    if (open) { setLongText(""); setItems([]); setPicked({}); setBusy(false); setError(""); }
+  }, [open]);
+  if (!open) return null;
+  const handleRun = async () => {
+    setError(""); setBusy(true);
+    try {
+      const result = await aiOrganizeStrategy(longText);
+      setItems(result);
+      const pickAll = {};
+      result.forEach((_, i) => { pickAll[i] = true; });
+      setPicked(pickAll);
+    } catch (e) {
+      setError(e?.message || "AI 接続に失敗しました");
+    } finally {
+      setBusy(false);
+    }
+  };
+  const adoptCount = Object.values(picked).filter(Boolean).length;
+  const handleAdoptClick = () => {
+    const adopted = items.filter((_, i) => picked[i]);
+    if (adopted.length === 0) { if (toast) toast.show("採用する項目を選んでください", "warning"); return; }
+    onAdopt(adopted);
+  };
+  return (
+    <div onClick={onClose} style={{
+      position: "fixed", inset: 0, zIndex: 1100,
+      background: "rgba(0,0,0,0.4)",
+      display: "flex", alignItems: "flex-end", justifyContent: "center",
+    }}>
+      <div onClick={(e) => e.stopPropagation()} style={{
+        background: C.panel, borderRadius: "20px 20px 0 0",
+        width: "100%", maxWidth: 600, maxHeight: "85%", overflowY: "auto",
+        padding: 16, paddingBottom: 32, fontFamily: font,
+      }}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 4, display: "inline-flex", alignItems: "center", gap: 6 }}>
+          <Icon name="sparkle" size={16} color={C.primary} />AI で作戦を整理
+        </div>
+        <div style={{ fontSize: 11, color: C.textSecondary, marginBottom: 10, lineHeight: 1.5 }}>
+          長めの作戦メモを 5 項目以内 (各 30 字以内) に短文化します。<br />
+          採用前にユーザー確認、自動保存はしません。
+        </div>
+        {items.length === 0 ? (
+          <>
+            <textarea
+              value={longText}
+              onChange={(e) => setLongText(e.target.value.slice(0, 4000))}
+              placeholder="作戦メモを長文で入力 (例: 序盤はバックで打ち合わない、フォアで先に展開、リターンはブロックで深さ優先...)"
+              rows={6}
+              disabled={busy}
+              style={{
+                width: "100%", boxSizing: "border-box",
+                border: `1px solid ${C.border}`, borderRadius: 8,
+                padding: "10px 12px", fontSize: 13, fontFamily: font,
+                background: busy ? C.panel2 : C.panel, color: C.text, resize: "vertical",
+                minHeight: 120,
+              }}
+            />
+            <div style={{ fontSize: 11, color: C.textMuted, marginTop: 4, marginBottom: 10 }}>
+              {longText.length} 文字 (30 字以上必要)
+            </div>
+            {error && (
+              <div style={{ background: C.errorLight, color: C.error, padding: "8px 10px", borderRadius: 8, fontSize: 12, marginBottom: 10 }}>
+                {error}
+              </div>
+            )}
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button onClick={onClose} style={_planModalBtn(false, true)} disabled={busy}>キャンセル</button>
+              <button onClick={handleRun} style={_planModalBtn(true, longText.trim().length >= 30 && !busy)} disabled={busy || longText.trim().length < 30}>
+                <Icon name="sparkle" size={14} color="#fff" />{busy ? "整理中…" : "整理する"}
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div style={{ fontSize: 12, color: C.textSecondary, marginBottom: 10 }}>
+              AI が {items.length} 項目に整理しました。採用するものをチェックして「採用」してください。<br />
+              編集が必要なら、採用後に各行をタップで個別編集できます。
+            </div>
+            {items.map((item, i) => (
+              <label key={i} style={{
+                display: "flex", alignItems: "flex-start", gap: 8,
+                padding: "10px 12px", marginBottom: 4,
+                background: picked[i] ? C.primaryLight : C.panel2,
+                border: `1px solid ${picked[i] ? C.primary : C.border}`,
+                borderRadius: 8, cursor: "pointer",
+              }}>
+                <input type="checkbox" checked={!!picked[i]} onChange={(e) => setPicked(p => ({ ...p, [i]: e.target.checked }))}
+                  style={{ width: 18, height: 18, accentColor: C.primary, marginTop: 2, flexShrink: 0 }} />
+                <span style={{ fontSize: 13, color: C.text, lineHeight: 1.5 }}>{item}</span>
+              </label>
+            ))}
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 14 }}>
+              <button onClick={onClose} style={_planModalBtn(false, true)}>破棄</button>
+              <button onClick={() => { setItems([]); setPicked({}); }} style={_planModalBtn(false, true)}>もう一度</button>
+              <button onClick={handleAdoptClick} style={_planModalBtn(true, adoptCount > 0)} disabled={adoptCount === 0}>
+                <Icon name="check" size={14} color="#fff" />{adoptCount} 項目を採用
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// 段階 2: Reset Phrase AI 生成 — 既存 strategy + targetGoal/Theme から試合中リセット文 1 つ
+function _PlanAiResetGenModal({ open, strategy, targetGoal, targetTheme, onAdopt, onClose, toast }) {
+  const [resultText, setResultText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    if (!open) return;
+    setResultText(""); setError(""); setBusy(true);
+    aiGenerateResetPhrase(strategy, targetGoal, targetTheme)
+      .then(txt => { setResultText(txt); setBusy(false); })
+      .catch(e => { setError(e?.message || "AI 接続に失敗しました"); setBusy(false); });
+  }, [open]);
+  if (!open) return null;
+  const handleAdopt = () => {
+    const t = (resultText || "").trim();
+    if (!t) { if (toast) toast.show("リセット文が空です", "warning"); return; }
+    onAdopt(t);
+  };
+  return (
+    <div onClick={onClose} style={{
+      position: "fixed", inset: 0, zIndex: 1100,
+      background: "rgba(0,0,0,0.4)",
+      display: "flex", alignItems: "flex-end", justifyContent: "center",
+    }}>
+      <div onClick={(e) => e.stopPropagation()} style={{
+        background: C.panel, borderRadius: "20px 20px 0 0",
+        width: "100%", maxWidth: 600,
+        padding: 16, paddingBottom: 32, fontFamily: font,
+      }}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 4, display: "inline-flex", alignItems: "center", gap: 6 }}>
+          <Icon name="sparkle" size={16} color={C.appleMint} />AI でリセット文を生成
+        </div>
+        <div style={{ fontSize: 11, color: C.textSecondary, marginBottom: 10, lineHeight: 1.5 }}>
+          現在の作戦 {strategy.length} 項目 + 目標・テーマから、試合中チェンジオーバー用の短文を 1 つ生成します。
+        </div>
+        {busy ? (
+          <div style={{ textAlign: "center", padding: "30px 0", fontSize: 13, color: C.textSecondary }}>
+            生成中…
+          </div>
+        ) : error ? (
+          <div style={{ background: C.errorLight, color: C.error, padding: "10px 12px", borderRadius: 8, fontSize: 12, marginBottom: 10 }}>
+            {error}
+          </div>
+        ) : (
+          <>
+            <textarea
+              value={resultText}
+              onChange={(e) => setResultText(e.target.value.slice(0, _PLAN_RESET_MAX_LEN))}
+              rows={3}
+              style={{
+                width: "100%", boxSizing: "border-box",
+                border: `1px solid ${C.border}`, borderRadius: 8,
+                padding: "10px 12px", fontSize: 14, fontFamily: font,
+                background: C.panel, color: C.text, resize: "vertical",
+                minHeight: 80,
+              }}
+            />
+            <div style={{ fontSize: 11, color: C.textMuted, marginTop: 4, marginBottom: 10 }}>
+              {resultText.length} / {_PLAN_RESET_MAX_LEN} 字 (編集してから採用可)
+            </div>
+          </>
+        )}
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <button onClick={onClose} style={_planModalBtn(false, true)}>破棄</button>
+          {!busy && !error && resultText && (
+            <button onClick={handleAdopt} style={_planModalBtn(true, true)}>
+              <Icon name="check" size={14} color="#fff" />採用
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -1112,6 +1310,9 @@ function PlanTab({ plan, tournaments, rackets, strings, trials, onPlanSave, toas
   const [strategyEditTarget, setStrategyEditTarget] = useState(null); // null=閉、{idx,text} or {idx:-1, text:""}=新規
   const [gearEditOpen, setGearEditOpen] = useState(false);
   const [resetEditOpen, setResetEditOpen] = useState(false);
+  // S17.x AI 段階 1+2 (Strategy AI 整理 / Reset Phrase AI 生成)
+  const [aiOrganizeOpen, setAiOrganizeOpen] = useState(false);
+  const [aiResetGenOpen, setAiResetGenOpen] = useState(false);
 
   // ── Target Edit ハンドラ
   const handleTargetEdit = () => setTargetEditOpen(true);
@@ -1158,6 +1359,21 @@ function PlanTab({ plan, tournaments, rackets, strings, trials, onPlanSave, toas
     setResetEditOpen(false);
   };
 
+  // AI 整理 結果採用: 既存 strategy に追加 (上限 5 項目)
+  const handleAiOrganizeAdopt = (items) => {
+    if (!Array.isArray(items) || items.length === 0) return;
+    const existing = Array.isArray(safePlan.strategy) ? safePlan.strategy : [];
+    const merged = [...existing, ...items].slice(0, _PLAN_MAX_STRATEGY);
+    onPlanSave({ ...safePlan, strategy: merged });
+    setAiOrganizeOpen(false);
+  };
+  // AI 生成 結果採用: resetPhrase に直接セット
+  const handleAiResetAdopt = (txt) => {
+    if (!txt) return;
+    onPlanSave({ ...safePlan, resetPhrase: (txt || "").slice(0, _PLAN_RESET_MAX_LEN) });
+    setAiResetGenOpen(false);
+  };
+
   const handleGearSave = (gearChoice) => {
     onPlanSave({ ...safePlan, gearChoice });
     setGearEditOpen(false);
@@ -1189,6 +1405,7 @@ function PlanTab({ plan, tournaments, rackets, strings, trials, onPlanSave, toas
         onAdd={handleStrategyAdd}
         onEditItem={handleStrategyEditItem}
         onDeleteItem={handleStrategyDeleteItem}
+        onAiOrganize={() => setAiOrganizeOpen(true)}
       />
 
       {/* === 2.5 Reset Phrase Card (S17.x ChatGPT 整理で追加: 試合中チェンジオーバー用) === */}
@@ -1196,6 +1413,7 @@ function PlanTab({ plan, tournaments, rackets, strings, trials, onPlanSave, toas
         resetPhrase={safePlan.resetPhrase || ""}
         dimmed={dimmed}
         onEdit={() => setResetEditOpen(true)}
+        onAiGenerate={() => setAiResetGenOpen(true)}
       />
 
       {/* === 3. Gear Decision Card === */}
@@ -1238,6 +1456,21 @@ function PlanTab({ plan, tournaments, rackets, strings, trials, onPlanSave, toas
         initialText={safePlan.resetPhrase || ""}
         onSave={handleResetSave}
         onClose={() => setResetEditOpen(false)}
+      />
+      <_PlanAiOrganizeModal
+        open={aiOrganizeOpen}
+        onAdopt={handleAiOrganizeAdopt}
+        onClose={() => setAiOrganizeOpen(false)}
+        toast={toast}
+      />
+      <_PlanAiResetGenModal
+        open={aiResetGenOpen}
+        strategy={safePlan.strategy || []}
+        targetGoal={safePlan.targetGoal || ""}
+        targetTheme={safePlan.targetTheme || ""}
+        onAdopt={handleAiResetAdopt}
+        onClose={() => setAiResetGenOpen(false)}
+        toast={toast}
       />
     </div>
   );

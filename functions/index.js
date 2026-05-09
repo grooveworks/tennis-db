@@ -36,6 +36,118 @@ function _styleHint(fieldType) {
   }
 }
 
+// ===================================================================
+// planAssist: Plan タブの AI 補助 (S17.x 段階 1+2)
+//   mode = "organizeStrategy"   : 長文メモ → 5 項目 (各 30 字以内) に短文化
+//   mode = "generateResetPhrase": strategy[] + 目標/テーマ → チェンジオーバー用リセット文 1 つ
+//   設計方針 (DECISIONS S17 + ChatGPT 整理):
+//     - AI は補助役、決定はユーザー (採用 / 編集して採用 / 破棄)
+//     - 不安を増やす表現を避ける、抽象論禁止
+//     - 試合中に読める短文 (= iPhone 1〜2 行)
+// ===================================================================
+exports.planAssist = onCall(
+  {
+    secrets: [ANTHROPIC_API_KEY],
+    region: "asia-northeast1",
+    timeoutSeconds: 30,
+    memory: "256MiB",
+    cors: true,
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "ログインが必要です");
+    }
+    const mode = String(request.data?.mode || "").trim();
+    const client = new Anthropic({ apiKey: ANTHROPIC_API_KEY.value() });
+
+    if (mode === "organizeStrategy") {
+      const longText = String(request.data?.longText || "").trim();
+      if (longText.length < 30) {
+        throw new HttpsError("invalid-argument", "メモが短すぎます (30 字以上)");
+      }
+      const clipped = longText.slice(0, 4000);
+      const prompt = [
+        "次のテニス試合の作戦メモを、試合中に見返せる短文 5 項目以内に整理してください。",
+        "ルール (厳守):",
+        "- 日本語",
+        "- 1 項目 30 文字以内",
+        "- 5 項目以内 (重要度順、足りなければそれ以下でOK)",
+        "- 各項目は 1 行で完結",
+        "- 試合中に汗を拭きながら一瞥で読める短さ",
+        "- 抽象論や定型句は省く",
+        "- 不安を増やす表現を避ける",
+        "- 番号 (1. 2. ...) や bullet (・) を付けない、本文のみ",
+        "- 出力は項目を改行で区切る (1 項目 = 1 行)",
+        "",
+        "元のメモ:",
+        clipped,
+      ].join("\n");
+      let items = [];
+      try {
+        const response = await client.messages.create({
+          model: "claude-haiku-4-5",
+          max_tokens: 500,
+          messages: [{ role: "user", content: prompt }],
+        });
+        const block = (response.content || []).find(b => b.type === "text");
+        const text = (block?.text || "").trim();
+        items = text.split(/\r?\n/).map(s => s.trim()).filter(Boolean).slice(0, 5);
+      } catch (err) {
+        console.error("Anthropic API error (organizeStrategy):", err?.message || err);
+        throw new HttpsError("internal", "Strategy 整理に失敗しました", err?.message);
+      }
+      if (items.length === 0) throw new HttpsError("internal", "AI 出力が空でした");
+      return { items, original: longText };
+    }
+
+    if (mode === "generateResetPhrase") {
+      const strategy = Array.isArray(request.data?.strategy) ? request.data.strategy : [];
+      const targetGoal = String(request.data?.targetGoal || "").trim();
+      const targetTheme = String(request.data?.targetTheme || "").trim();
+      if (strategy.length === 0) {
+        throw new HttpsError("invalid-argument", "Strategy 項目が空です");
+      }
+      const promptLines = [
+        "次の試合作戦から、試合中のチェンジオーバーで自分を戻すための短文を 1 つ作ってください。",
+        "ルール (厳守):",
+        "- 日本語",
+        "- 60 文字以内 (絶対に超えないこと)",
+        "- 1〜2 行に収まる長さ",
+        "- 「次の 2 ゲーム」 に集中するための言葉",
+        "- 試合中に汗を拭きながら一瞥で読める短さ",
+        "- 抽象論禁止、具体的な動作 / 意識",
+        "- 不安を増やす表現を避ける",
+        "- 余計な前置き (「リセット文:」など) は付けない、本文のみ",
+        "",
+      ];
+      if (targetGoal) promptLines.push(`目標: ${targetGoal}`);
+      if (targetTheme) promptLines.push(`テーマ: ${targetTheme}`);
+      promptLines.push("作戦:");
+      strategy.forEach(s => promptLines.push(`- ${s}`));
+      const prompt = promptLines.join("\n");
+      let resetPhrase = "";
+      try {
+        const response = await client.messages.create({
+          model: "claude-haiku-4-5",
+          max_tokens: 200,
+          messages: [{ role: "user", content: prompt }],
+        });
+        const block = (response.content || []).find(b => b.type === "text");
+        resetPhrase = (block?.text || "").trim();
+      } catch (err) {
+        console.error("Anthropic API error (generateResetPhrase):", err?.message || err);
+        throw new HttpsError("internal", "リセット文生成に失敗しました", err?.message);
+      }
+      if (!resetPhrase) throw new HttpsError("internal", "AI 出力が空でした");
+      // 60 字以内に丸める (AI が超えた場合の保険)
+      if (resetPhrase.length > 80) resetPhrase = resetPhrase.slice(0, 80);
+      return { resetPhrase };
+    }
+
+    throw new HttpsError("invalid-argument", "Unknown mode: " + mode);
+  }
+);
+
 exports.summarizeMemo = onCall(
   {
     secrets: [ANTHROPIC_API_KEY],
