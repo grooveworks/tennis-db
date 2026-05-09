@@ -225,6 +225,9 @@ function SessionDetailView({ type, session, mode = "detail", tournaments, trials
   // リク 30-a: 大会詳細から直接「+ 試合を追加」する用の Match Modal state
   //   { match: blankMatch+defaults } | null
   const [addMatchState, setAddMatchState] = useState(null);
+  // S17: 試合の閲覧専用 view (棚上げ解消) + 既存試合の編集用 state
+  const [matchDetailTarget, setMatchDetailTarget] = useState(null);
+  const [matchEditTarget, setMatchEditTarget] = useState(null);
   const reduced = typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   // リク 30-a: 履歴セット picker 用 (TournamentEditForm と同じロジック)
@@ -295,6 +298,24 @@ function SessionDetailView({ type, session, mode = "detail", tournaments, trials
     const updated = { ...session, matches: [...(Array.isArray(session.matches) ? session.matches : []), newMatch] };
     if (onSave) onSave(type, updated);
     setAddMatchState(null);
+  }, [session, type, onSave]);
+
+  // S17: 既存 match の編集保存 (matches を id で map replace)
+  const handleEditMatchSave = useCallback((updatedMatch) => {
+    if (!session || !updatedMatch || !updatedMatch.id) return;
+    const list = Array.isArray(session.matches) ? session.matches : [];
+    const updated = { ...session, matches: list.map(m => m.id === updatedMatch.id ? updatedMatch : m) };
+    if (onSave) onSave(type, updated);
+    setMatchEditTarget(null);
+  }, [session, type, onSave]);
+
+  // S17: 既存 match の削除 (matches から filter)
+  const handleDeleteMatch = useCallback((targetMatch) => {
+    if (!session || !targetMatch) return;
+    const list = Array.isArray(session.matches) ? session.matches : [];
+    const updated = { ...session, matches: list.filter(m => m.id !== targetMatch.id) };
+    if (onSave) onSave(type, updated);
+    setMatchDetailTarget(null);
   }, [session, type, onSave]);
 
   // linked セッション算出
@@ -383,7 +404,7 @@ function SessionDetailView({ type, session, mode = "detail", tournaments, trials
         {type === "tournament" && (
           <TournamentDetail
             session={session}
-            onMatchClick={() => toast.show("試合詳細は次 Stage で実装予定", "info")}
+            onMatchClick={(m) => setMatchDetailTarget(m)}
             onAddMatch={handleAddMatchClick}
           />
         )}
@@ -448,6 +469,36 @@ function SessionDetailView({ type, session, mode = "detail", tournaments, trials
           confirm={confirm}
           onSave={handleAddMatchSave}
           onClose={() => setAddMatchState(null)}
+        />
+      )}
+
+      {/* S17: 試合 閲覧専用 view (= 棚上げ解消、データ消失事故防止) */}
+      {type === "tournament" && (
+        <MatchDetailView
+          open={!!matchDetailTarget}
+          match={matchDetailTarget}
+          tournament={session}
+          confirm={confirm}
+          onClose={() => setMatchDetailTarget(null)}
+          onEdit={(m) => { setMatchDetailTarget(null); setMatchEditTarget(m); }}
+          onDelete={handleDeleteMatch}
+        />
+      )}
+
+      {/* S17: 既存試合 編集用 MatchEditModal (新規追加用 addMatchState とは別 state) */}
+      {matchEditTarget && type === "tournament" && (
+        <MatchEditModal
+          open={true}
+          match={matchEditTarget}
+          trnType={session?.type}
+          tournament={session}
+          racketNames={racketNames}
+          stringNames={stringNames}
+          opponentNames={opponentNames}
+          recentSetups={recentSetups}
+          confirm={confirm}
+          onSave={handleEditMatchSave}
+          onClose={() => setMatchEditTarget(null)}
         />
       )}
     </div>

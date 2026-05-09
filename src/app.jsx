@@ -719,8 +719,14 @@ function TennisDB() {
   };
 
   // S13: ブラウザ戻る / 左端スワイプ で詳細を閉じる (popstate listener)
+  // S17 修繕: 子階層 (MatchDetailView 等) の戻るで SessionDetailView も同時に閉じてた問題。
+  //   現 history.state が「自階層 (detail) または子階層 (match-detail)」なら維持、それ以外で閉じる。
   useEffect(() => {
-    const onPop = () => setDetail(null);
+    const _SESSIONS_KEEP_OPEN = ["detail", "match-detail"];
+    const onPop = (e) => {
+      if (e && e.state && _SESSIONS_KEEP_OPEN.indexOf(e.state.tdb) >= 0) return;
+      setDetail(null);
+    };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, []);

@@ -56,11 +56,12 @@ const _clearMatchDraft = (id) => {
 };
 
 // rating row (5 ボタン) — 編集フォーム共通スタイル
+// S17: iPhone 375px ではみ出る不具合修繕 (右の数値 span 削除 + ボタン詰める)
 function _meRatingRow({ label, value, onChange }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
-      <span style={{ fontSize: 12, color: C.textSecondary, fontWeight: 500, minWidth: 88 }}>{label}</span>
-      <div style={{ display: "flex", gap: 6, flex: 1, minWidth: 0 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+      <span style={{ fontSize: 12, color: C.textSecondary, fontWeight: 500, minWidth: 64 }}>{label}</span>
+      <div style={{ display: "flex", gap: 4, flex: 1, minWidth: 0 }}>
         {[1, 2, 3, 4, 5].map((n) => {
           const on = value === n;
           return (
@@ -69,7 +70,7 @@ function _meRatingRow({ label, value, onChange }) {
               type="button"
               onClick={() => onChange(n)}
               style={{
-                flex: 1, minWidth: 40, minHeight: 36, padding: "6px 0",
+                flex: 1, minWidth: 32, minHeight: 36, padding: "6px 0",
                 borderRadius: 6, border: `1px solid ${on ? C.primary : C.border}`,
                 background: on ? C.primary : C.panel,
                 color: on ? "#fff" : C.textSecondary,
@@ -79,7 +80,6 @@ function _meRatingRow({ label, value, onChange }) {
           );
         })}
       </div>
-      <span style={{ fontSize: 11, color: C.textMuted, fontVariantNumeric: "tabular-nums", minWidth: 28, textAlign: "right" }}>{value || "—"}</span>
     </div>
   );
 }
@@ -141,13 +141,15 @@ function MatchEditModal({ open, match, trnType, tournament, racketNames = [], st
   }, [dirty, confirm, onClose, form]);
 
   // S15.5.9: 保存ボタン (下書きクリア + 親に渡す)
-  // S16.11 F5: 必須項目 validation (空 form 保存防止) — opponent と result が必須
-  //   - 空の場合は保存ボタン無効化 + toast 警告
+  // S17: 必須項目を「opponent + result」から「いずれか + games」に緩和。
+  //   理由: 試合中にゲームスコアだけ付けて保存したい場面で「相手名/結果未入力で保存できない+データ消失」事故が発生
+  //   新仕様: opponent / result / games[] のいずれか 1 つ以上に入力があれば valid
   const _isMatchValid = (f) => {
     if (!f) return false;
-    if (!(f.opponent || "").trim()) return false;
-    if (!(f.result || "").trim()) return false;
-    return true;
+    const hasOpponent = (f.opponent || "").trim();
+    const hasResult = (f.result || "").trim();
+    const hasGames = Array.isArray(f.games) && f.games.length > 0;
+    return !!(hasOpponent || hasResult || hasGames);
   };
   const handleSaveClick = useCallback(() => {
     if (!_isMatchValid(form)) {
@@ -489,6 +491,18 @@ function MatchEditModal({ open, match, trnType, tournament, racketNames = [], st
         <Textarea label="総括" value={form.note || ""} onChange={(v) => set("note", v)} placeholder="この試合で学んだこと..." />
 
         {/* アクション */}
+        {/* S17: 保存 disabled の理由を inline で見せる (= ユーザーが「効かない」と感じる事故防止) */}
+        {!_isMatchValid(form) && (
+          <div style={{
+            marginTop: 12, padding: "8px 12px",
+            background: C.warningLight, border: "1px solid rgba(251,188,4,0.3)",
+            borderRadius: 8, fontSize: 11, color: "#7e5d00", lineHeight: 1.5,
+            display: "flex", alignItems: "flex-start", gap: 6,
+          }}>
+            <Icon name="info" size={13} color="#7e5d00" style={{ flexShrink: 0, marginTop: 1 }} />
+            <span>相手名・結果・ゲーム のいずれか 1 つ以上を入力すると保存できます。</span>
+          </div>
+        )}
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 14 }}>
           <button
             type="button"
@@ -503,7 +517,7 @@ function MatchEditModal({ open, match, trnType, tournament, racketNames = [], st
             type="button"
             onClick={handleSaveClick}
             disabled={!_isMatchValid(form)}
-            title={_isMatchValid(form) ? "保存" : "対戦相手と結果は必須です"}
+            title={_isMatchValid(form) ? "保存" : "相手名・結果・ゲーム のいずれか 1 つ以上を入力してください"}
             style={{
               minHeight: 44, padding: "10px 20px", borderRadius: 8,
               border: "none",

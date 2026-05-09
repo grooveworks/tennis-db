@@ -112,14 +112,14 @@
 <body>
 
 <h1>📊 S17 進捗ダッシュボード</h1>
-<div class="updated">最終更新: 2026-05-09 07:30 / バージョン v4.7.5-S17 (S17 全 Phase 完了) / 60 秒毎に自動 reload</div>
+<div class="updated">最終更新: 2026-05-09 13:00 / バージョン v4.7.7-S17 (棚上げ解消 + バグ修繕 + ESM build) / 60 秒毎に自動 reload</div>
 
 <!-- 次に決めて欲しい -->
-<div class="pending" style="background:#e6f4ea;border-color:rgba(15,157,88,0.3)">
-  <div class="lbl" style="color:#0f9d58">✅ S17 全 Phase 完了</div>
+<div class="pending" style="background:#fff8e1;border-color:rgba(251,188,4,0.4)">
+  <div class="lbl" style="color:#7e5d00">⚠️ 残課題: Plan タブ草案からの未実装機能</div>
   <div>
-    <b>v4.7.5-S17 で S17 完了 (積み残し 9 件 全消化、push 待ち)</b>。Phase 1 健全化 + Plan 作戦室、Phase 2 master 管理 + esbuild build 修繕、Phase 3 (過去 commit 実装済確認)、Phase 3.5/3.5b 健全化 (ラケット 4 フィールド統一・戻るバグ 2 件)、Phase 5 Home → Plan 連携、Phase 4 Plan Gear クイック選択 (試打 + 大会 mix)。<br>
-    <b>Phase 4 で発覚した bundle 限界:</b> 526 KB で iPhone WebKit JIT が deopt → 525 KB 以下を維持する制約発見、B 案 (segment 切替なし、mix リスト) で 525.6 KB に収め解決。次 Stage で build 方式の code splitting を検討するべき (memory <code>feedback_iphone_build_priority.md</code> の長期課題)。
+    本セッションで <b>4.7.7-S17 push</b> (棚上げ解消 = MatchDetailView 新規 / バグ修繕 = MatchEditModal validation・MasterField Combobox / ESM build 化で iPhone JIT 余裕 511 KB)。<br>
+    ただし <b>Plan タブ草案 (preview_s17_p* 系 + ChatGPT レビュー経由) で決定した機能が全て実装されていない</b> とユーザー指摘。push 後に WIREFRAMES_v4.md §2.9 + DECISIONS_v4.md S17 + preview HTML 群から未実装機能を洗い出し → 順次着手 (先送りしない)。
   </div>
 </div>
 
@@ -219,9 +219,21 @@
   <h2>📜 変更履歴 (新 → 旧、最新 8 件)</h2>
   <div class="changelog">
     <div class="row" style="background:rgba(15,157,88,0.06)">
+      <div class="ts">2026-05-09 13:00</div>
+      <div>
+        <b>v4.7.7-S17 (push 候補)</b>: 4 つの修繕を 1 push に集約。
+        (1) <b>棚上げ解消</b>: 試合 (match) の閲覧専用 view が無く、TournamentDetail の matches 行 click が「次 Stage で実装予定」 toast 出すだけだった件 (本日のデータ消失事故の根本原因) → <code>MatchDetailView.jsx</code> 新規、SessionDetailView の onMatchClick を MatchDetailView 起動に変更、編集ボタンで MatchEditModal、削除 confirm、popstate 自階層チェック。
+        (2) <b>戻るバグ修繕</b>: MatchDetailView から戻ると SessionDetailView も同時に閉じる (Phase 3.5b と同種のバグ) → app.jsx Sessions popstate listener に「detail / match-detail」維持判定を追加。
+        (3) <b>MatchEditModal バグ修繕</b>: validation を opponent/result 必須から「相手名/結果/ゲーム のいずれか 1 つ」 に緩和 (= データ消失事故防止)、保存 disabled 時の inline 警告、コンディション 5 ボタン iPhone 画面内に収まるレイアウト (minWidth 40→32, gap 6→4, 右側数値 span 削除)。
+        (4) <b>MasterField 自前 Combobox 化</b>: master 候補がある時に Select 強制だった旧版 → datalist 試行 → iPhone Safari で動かず → 自前 input + dropdown に再実装。完全一致時の隠蔽バグも修正 (= 既存値変更で全候補表示)。
+        (5) <b>build 方式変更</b>: esbuild <code>--format=esm</code> + <code>&lt;script type="module"&gt;</code> → IIFE wrapper の overhead 解消で 525 KB → 511 KB、iPhone JIT deopt 回避。
+        Plan タブ草案からの未実装機能は次着手予定。
+      </div>
+    </div>
+    <div class="row" style="background:rgba(15,157,88,0.06)">
       <div class="ts">2026-05-09 07:30</div>
       <div>
-        <b>Phase 4 完了 (v4.7.5-S17、push 待ち、B 案 = 縮小実装で bundle 限界回避)</b>:
+        <b>Phase 4 完了 (v4.7.5-S17、push 済 fd90baa、B 案 = 縮小実装で bundle 限界回避)</b>:
         Plan Gear Decision の段ヘッダー「過去から」ボタン → Bottom sheet で <b>試打 + 大会 を時系列 mix した 1 リスト</b> 表示 (行頭 📜/🏆 で区別)。stringSetups は対象外 (ユーザー確定)。
         <br>
         <b>build 限界エピソード</b>: 当初実装 (案 B 通り segment 切替) は bundle 526.4 KB → iPhone で「読み込みに時間がかかる、反応しない」レベルの重さ発覚 (memory <code>feedback_iphone_build_priority.md</code>)。直前 push (v4.7.4) は 525.4 KB で軽く、+1 KB の差で iPhone WebKit JIT deopt と推測。A 案 (コード手動最小化) で -258 byte しか削れず効果なし → B 案 (segment 撤廃 = code 量を構造的に削減) で 525.6 KB に収めて再検証 → iPhone 軽い確認。次 Stage で build 方式 code splitting 検討必要。

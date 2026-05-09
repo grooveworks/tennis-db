@@ -85,10 +85,16 @@ if (-not (Test-Path $npxPath)) {
 }
 
 Write-Host "Running esbuild..."
+# S17 build 修繕 (2026-05-09 第 2 弾): --format=esm に変更。
+#   経緯: --format=iife (default) だと bundle 全体が 1 つの IIFE 巨大関数になり、
+#   iPhone WebKit JIT が約 525 KB で deopt → 試合運用不可レベルの重さ。
+#   ESM format は top-level statements として展開され、JIT が個別関数単位で適用 → deopt 回避見込み。
+#   _head.html 側で <script type="module"> に変更必須 (top-level await / import 等の ESM 文法を許可)。
 & $npxPath --yes esbuild $tmpJsx `
   "--jsx-factory=React.createElement" `
   "--jsx-fragment=React.Fragment" `
   --target=es2017 `
+  --format=esm `
   --minify `
   --keep-names `
   --outfile=$tmpOut `
