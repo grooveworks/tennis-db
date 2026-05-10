@@ -1,4 +1,4 @@
-# Tennis DB v4 — S17.x 引き継ぎ書 (2026-05-10 更新、code splitting 着手前)
+# Tennis DB v4 — S17.x 引き継ぎ書 (2026-05-10 更新、code splitting 段階 1 完了、段階 2 着手前)
 
 > **このファイルは、文脈を知らない次セッションの Claude が単独で読んで現状を把握できることを目的とする。最初に必ず全文読む。**
 
@@ -6,18 +6,32 @@
 
 ## 0. 現在地
 
-- **APP_VERSION**: `v4.7.11-S17` (`src/core/01_constants.js`)
-- **直近 push**: `8fed399` (= Phase A1 = v2 profile 移植、データのみ、UI なし)
-- **working tree**: clean (= 4.7.11-S17 push 状態と同一)
-- **stash@{0}**: Phase B Carry Over (= 4.7.12-S17 試作、bundle 528.9 KB で iPhone limit 越えのため退避、code splitting 後に resume 予定)
+- **APP_VERSION**: `v4.7.12-S17` (`src/core/01_constants.js`)
+- **直近 push**: `e4dd227` (= Code splitting 段階 1 = PlanTab + plan_assist.js を heavy bundle 化)
+- **working tree**: clean (= 4.7.12-S17 push 状態と同一)
+- **stash@{0}**: 依然 Phase B Carry Over (= 旧 528.9 KB で退避、段階 2 完了後 = core が更に軽くなった状態で resume 検討)
 
 ---
 
 ## 1. 次セッション最初のアクション
 
-### Phase A1 まで完了済の上で、**Code Splitting (= 段階 1: PlanTab だけ heavy 化)** を着手する。
+### Code splitting 段階 1 まで完了済の上で、**Code Splitting 段階 2** を着手する。
 
-理由: Phase B (= Plan Carry Over) を実装したら bundle 528.9 KB で iPhone JIT deopt 閾値 (約 525 KB) を超えた。機能追加を続けると iPhone で重さ問題が再発するため、**機能追加より先に build 方式を直す** (memory `feedback_iphone_build_priority.md`)。
+段階 2 = MatchEditModal / GameTracker は core 維持の制約下で、残り heavy 候補 (= Master 管理 / Setup Picker / Period Detail / Quick Trial / Gear 詳細比較 / Insights グラフ / AI 関連 / 大きい編集 modal) を heavy bundle 側に順次切出。**目標: core < 350 KB (HANDOFF §3 安全圏)**。
+
+段階 1 は PlanTab + plan_assist.js だけ切出して core 525 → 488 KB (37 KB 減、commit e4dd227)。HANDOFF §3 最低ライン (< 450 KB) に未達のため、段階 2 が必要。
+
+### 次の優先順位 (= 段階 2 着手前の判断分岐、ユーザー方針 2026-05-10)
+
+iPhone 実機で 4.7.12-S17 (core 488 KB) を確認後、以下で分岐:
+- **十分軽い (起動・タブ切替に体感ストレスなし)** → 段階 2 を後回し、stash@{0} の **Phase B Carry Over** を resume + push (= 4.7.13-S17 候補)
+- **まだ不安定 (試合運用に不安残る)** → **段階 2 を優先** で実施 (= core < 350 KB を目指す)、Phase B はその後
+
+段階 2 進め方 (= 段階 1 と同じ厳守):
+1. heavy 候補を決める (= §3 段階 2 候補リスト + iPhone 動作確認の感触から)
+2. 候補の依存を読む (= grep + Read で外部参照を全棚卸し)
+3. core に残す / heavy に逃がす を分類 (= A/B/C/D 4 分類)
+4. **1 対象ずつ切り出す** (= バンドル切出禁止、PlanTab と同じ単位粒度)
 
 ---
 
@@ -46,7 +60,8 @@ AI の土台だけ作る。
 |---|---|---|
 | 0 | 4.7.9-S17 fcbdeca の AI 機能 現状調査 | ✅ 完了 (4.7.10-S17 で AI ボタン feature flag 非表示) |
 | **A1** | **v2 profile を v4 Player Model Core に移植 (データのみ、UI なし)** | ✅ **完了 (4.7.11-S17、commit 8fed399)** |
-| **Code Splitting 段階 1** | **PlanTab だけ heavy 化、core 450 KB 未満を目標** | 🔄 **次セッションで着手** |
+| Code Splitting 段階 1 | PlanTab だけ heavy 化、core 450 KB 未満を目標 | ✅ 完了 (4.7.12-S17、commit e4dd227、core 488 KB / heavy 40 KB、目標 < 450 KB は未達 → 段階 2 へ) |
+| **Code Splitting 段階 2** | **残り heavy 候補を切出、目標 core < 350 KB** | 🔄 **次セッションで着手** |
 | B | 前回 Plan 自動継承 (1 タップで前回作戦・ギア・リセット文をコピー) | ⏸ stash@{0} に試作あり、code splitting 後に resume |
 | C | Generated Defaults (デフォルト作戦・リセット文・継続テーマ) | 着手前 |
 | A2 | Core Profile 表示・編集画面の最低限復活 | 着手前 |
@@ -63,44 +78,52 @@ AI の土台だけ作る。
 
 ---
 
-## 3. Code Splitting 段階 1 — 詳細実装計画 (ChatGPT 最終整理 2026-05-10)
+## 3. Code Splitting 段階 1 完了報告 + 段階 2 詳細実装計画
 
-### 大方針
+### 段階 1 完了 (4.7.12-S17 / commit e4dd227、2026-05-10)
+
+- **機構**: PlanTab.jsx + plan_assist.js を `v4/bundle-heavy.js` に切出、Plan タブ初回タップ時に動的 `<script>` tag injection で on-demand 読込
+- **bridge**: `build.ps1` footer で `window.__TennisDBCore = { C, font, APP_VERSION, Icon, Modal, Input, Textarea, NumWheel, sortByStatusAndOrder, RACKET_STATUS_PRIORITY, STRING_STATUS_PRIORITY, fbFunctions }` 公開、heavy 冒頭で destructure 受取
+- **cache busting**: `./bundle-heavy.js?v=APP_VERSION` (= core bridge の APP_VERSION を `_head.html` 内 `loadHeavy()` が参照)
+- **expose**: `window.__TennisDBHeavy.PlanTab` (= heavy 末尾で登録、build 時 + runtime で存在チェック)
+- **PlanTab.jsx 修正**: `today()` 呼出 → `todayIso` props 化 (1 箇所のみ最小修正、props 全面化はせず段階 2 候補)
+- **サイズ**: core 525 KB → **488 KB** (37 KB 減、iPhone JIT deopt 閾値 525 KB 割り込み)、heavy 40 KB
+- **HANDOFF §3 目標 (< 450 KB) 未達** → 段階 2 が必要
+
+### 大方針 (段階 2)
 
 | 区分 | 配置 |
 |---|---|
 | **核心 (core)** | 起動・全タブ root・Home・Sessions 一覧・Gear 概要・**GameTracker / MatchEditModal** (= 試合中重要、core 維持)・共通 UI | inline で `_head.html` に直接埋込 (現方式維持) |
-| **重い機能 (heavy)** 段階 1 | **PlanTab.jsx だけ** | 外部ファイル `v4/bundle-heavy.js`、必要時に動的 script tag injection で読み込み |
+| **重い機能 (heavy)** 段階 2 追加 | **Master 管理 / Setup Picker / Period Detail / Quick Trial / Gear 詳細比較 / Insights グラフ / AI 関連 / 大きい編集 modal** | 段階 1 と同じ `v4/bundle-heavy.js` に追記 (= 1 ファイル維持、segment 分けない) |
 
-### 実装手順 (ChatGPT 推奨厳守)
+### 実装手順 (= 段階 1 と同じ厳守パターン)
 
 | Step | 内容 |
 |---|---|
-| 1 | 現状の bundle サイズ・iPhone 起動時間記録 |
-| 2 | `build.ps1` を改修: bundle-core (= inline) と bundle-heavy.js (= 外部 file) の 2 ファイル生成。esbuild で heavy bundle は `--format=iife --global-name=__TennisDBHeavy --external:react`。core は従来通り `--format=esm`。 |
-| 3 | core から PlanTab を直接 import しない (= 全 import 箇所を grep で洗い出し) |
-| 4 | `_head.html` に core inline 直前で `loadHeavy()` 関数を inline 定義: `Plan タブ初回表示時に動的 <script> tag injection`、Promise キャッシュで二重読み込み防止 |
-| 5 | `app.jsx` で Plan タブ render 部分: `if (window.__TennisDBHeavy?.PlanTab) → <window.__TennisDBHeavy.PlanTab .../>`、未読込なら "計画タブを読み込んでいます..." 表示 + `loadHeavy()` 呼び出し、読込完了で setState 再 render |
-| 6 | ビルド + サイズ確認 (= core が 450 KB 未満で最低ライン、350 KB 前後で安全圏、300 KB 以下が理想) |
-| 7 | dev mode + iPhone 実機で全タブ動作確認 |
-| 8 | 軽さ確認 OK なら push (= 4.7.12-S17 として code splitting 段階 1) |
-| 9 | core が 450 KB 以上なら段階 2 (= MatchEditModal/GameTracker は維持、それ以外の heavy 候補を順次移行) |
+| 1 | 候補ごとに依存関係棚卸し (= core 側の関数・コンポーネント・定数を直接参照していないか grep) |
+| 2 | 必要なら `window.__TennisDBCore` に新規エントリ追加 (`build.ps1` core bridge footer 拡張) |
+| 3 | heavy 冒頭 destructure に新規エントリ追加 (`build.ps1` Step 3.5 の prelude 拡張) |
+| 4 | core 側 src/ui/* / src/domain/* から候補を `Where-Object` で除外 (`build.ps1` D-1 / D-2 step に追加) |
+| 5 | heavy 側 expose 末尾に新規 component を追加 (例: `window.__TennisDBHeavy.MasterManager = MasterManager;` + `if (typeof MasterManager === "undefined") throw...`) |
+| 6 | core から該当 component を直接 import している箇所を Loader 経由に変更 (= app.jsx で `PlanTabLoader` と同じパターン) |
+| 7 | ビルド + サイズ確認 (= core < 350 KB が安全圏、< 300 KB が理想) + heavy bundle に React 本体混入していないこと確認 |
+| 8 | dev mode (Tennis DB Dev Server, port 8081) で全タブ + 切出した機能のモーダル開閉まで動作確認 |
+| 9 | iPhone (`http://192.168.1.4:8080`) で動作確認 |
+| 10 | APP_VERSION bump 承認 → push 承認 → push (= 4.7.13-S17 候補) |
 
-### 厳守ルール
+### 厳守ルール (= 段階 1 と同じ、繰り返しても重要)
 
-- **`<script defer>` は使わない** (= MDN 公式: defer は parser-blocking を避けるが初期ロード中に評価される、on-demand 読み込みにならない)
-- **React は heavy 側に二重バンドルしない** (= `--external:react`、heavy 側は `window.React` を参照)
-- **expose する関数は最小限** (= PlanTab だけ、グローバル名は `window.__TennisDBHeavy`)
+- **`<script defer>` は使わない** (= on-demand 読み込みにならない)
+- **React は heavy 側に二重バンドルしない** (= `--jsx-factory=React.createElement` で global 参照、`--external:react` 不要)
 - **core → heavy を通常 import しない** (= 循環依存防止)
-- **MatchEditModal / GameTracker は core 維持** (= 試合中重要)
-
-### 段階 2 候補 (= 段階 1 後に core が 450 KB 以上なら着手)
-
-Master 管理 / Setup Picker / Period Detail / Quick Trial / Gear 詳細比較 / Insights グラフ / AI 関連 / 大きい編集 modal
+- **MatchEditModal / GameTracker は core 維持** (= 試合中重要、絶対 heavy に出さない)
+- **編集前に依存棚卸し → ユーザー承認 → 編集** (= ChatGPT 3 者議論厳守)
+- **build.ps1 / src/_head.html / src/app.jsx / APP_VERSION 等の重要ファイル編集前にユーザー承認**
 
 ### 失敗時の rollback
 
-- stash@{0} は Phase B 試作 = 退避中、code splitting で壊れたら `git reset --hard 8fed399` で 4.7.11-S17 に戻る
+- 段階 1 push (`e4dd227`) は dev mode 全タブ + Plan モーダル開閉まで確認済 → 段階 2 で壊れたら `git reset --hard e4dd227` で 4.7.12-S17 に戻る
 - iPhone で動作確認するまで push しない
 
 ---
@@ -174,16 +197,17 @@ UAC 出ない設定済 (= ユーザー PC) なので即時 admin 起動。これ
 ```
 1. CLAUDE.md を最初から読む (R0 フック前提)
 2. 本ファイル (HANDOFF_v4_S17.md) を最初から最後まで読む
-3. progress.html を Tennis DB Progress preview パネル (port 8082) で開く
-4. ユーザーに状況確認:
-   「現バージョン v4.7.11-S17 push 済 (= Phase A1 完了)。
-    次は code splitting 段階 1 (= PlanTab だけ heavy 化) に着手で良いですか?」
-5. ユーザー OK → 上記 §3 の手順通り着手
+3. §6 の serve.ps1 admin 起動コマンドを実行 (= port 8080 LAN 公開、PC + iPhone 両方アクセス可能化)
+4. progress.html を Tennis DB Progress preview パネル (port 8082) で開く
+5. ユーザーに状況確認:
+   「現バージョン v4.7.12-S17 push 済 (= Code splitting 段階 1 完了)。
+    次は code splitting 段階 2 (= 残り heavy 候補を切出、目標 core < 350 KB) に着手で良いですか?」
+6. ユーザー OK → 上記 §3 の段階 2 実装手順通り着手
    - build.ps1 編集前に変更内容と理由を提示してユーザー承認
    - APP_VERSION bump 前にも承認
    - push 前にも承認
-6. 段階 1 完了 → iPhone 軽さ確認 → push (4.7.12-S17 候補)
-7. その後 stash@{0} の Phase B Carry Over を resume + push (4.7.13-S17 候補)
+7. 段階 2 完了 → dev mode 全タブ動作確認 → iPhone 動作確認 → push (4.7.13-S17 候補)
+8. その後 stash@{0} の Phase B Carry Over を resume + push (4.7.14-S17 候補)
 ```
 
 ---
@@ -192,6 +216,7 @@ UAC 出ない設定済 (= ユーザー PC) なので即時 admin 起動。これ
 
 | commit | バージョン | 内容 |
 |---|---|---|
+| `e4dd227` | 4.7.12-S17 | Code splitting 段階 1: PlanTab + plan_assist.js を heavy bundle 化 (core 488 KB / heavy 40 KB、bridge `window.__TennisDBCore` 経由) |
 | `8fed399` | 4.7.11-S17 | Phase A1 = v2 profile を v4 に移植 (データのみ、UI なし) |
 | `8adbb50` | 4.7.10-S17 | AI ボタン feature flag で非表示 |
 | `fcbdeca` | 4.7.9-S17 | AI 段階 1+2 (Strategy 整理 / Reset Phrase 生成) 実装、Cloud Functions 未 deploy |
