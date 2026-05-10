@@ -57,11 +57,18 @@ window.loadHeavy = function() {
     s.src = "./bundle-heavy.js?v=" + encodeURIComponent(v);
     s.async = true;
     s.onload = function() {
-      if (window.__TennisDBHeavy && window.__TennisDBHeavy.PlanTab) {
+      // S17 段階 2-1 (2026-05-10): heavy bundle に同梱される全 component を成功条件にする
+      // 古い bundle-heavy.js キャッシュで部分 expose の場合に Loader が永久 placeholder ループするのを防ぐ
+      // 将来 component を追加する場合は && 条件にも追加すること
+      if (
+        window.__TennisDBHeavy &&
+        window.__TennisDBHeavy.PlanTab &&
+        window.__TennisDBHeavy.InsightsTab
+      ) {
         resolve();
       } else {
         window.__loadHeavyPromise = null;
-        reject(new Error("Heavy bundle loaded but PlanTab is not exposed"));
+        reject(new Error("Heavy bundle loaded but required components are not exposed"));
       }
     };
     s.onerror = function() {

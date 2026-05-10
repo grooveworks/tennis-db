@@ -167,6 +167,48 @@ function PlanTabLoader(props) {
   return <HeavyPlanTab {...props} />;
 }
 
+// S17 code splitting 段階 2-1 (2026-05-10): InsightsTab heavy bundle on-demand 読込 wrapper
+//   loadHeavy() は段階 1 と共有 (= bundle-heavy.js 1 本に PlanTab + InsightsTab 両方同梱)
+//   loadHeavy() 内で両方の expose を確認するので、ここに到達した時点で InsightsTab が必ず存在
+function InsightsTabLoader(props) {
+  const [state, setState] = useState(() =>
+    (window.__TennisDBHeavy && window.__TennisDBHeavy.InsightsTab) ? "ready" : "loading"
+  );
+  useEffect(() => {
+    if (state !== "loading") return;
+    if (window.__TennisDBHeavy && window.__TennisDBHeavy.InsightsTab) {
+      setState("ready");
+      return;
+    }
+    if (typeof window.loadHeavy !== "function") {
+      console.error("loadHeavy is not defined");
+      setState("error");
+      return;
+    }
+    window.loadHeavy().then(() => setState("ready")).catch((e) => {
+      console.error("Heavy bundle load failed:", e);
+      setState("error");
+    });
+  }, [state]);
+  if (state === "error") {
+    return (
+      <div style={{ padding: "20px 14px", textAlign: "center", color: C.error, fontSize: 13, lineHeight: 1.6 }}>
+        分析タブの読み込みに失敗しました。<br />
+        ページを再読み込みしてください。
+      </div>
+    );
+  }
+  if (state === "loading" || !(window.__TennisDBHeavy && window.__TennisDBHeavy.InsightsTab)) {
+    return (
+      <div style={{ padding: "20px 14px", textAlign: "center", color: C.textMuted, fontSize: 13 }}>
+        分析タブを読み込んでいます…
+      </div>
+    );
+  }
+  const HeavyInsightsTab = window.__TennisDBHeavy.InsightsTab;
+  return <HeavyInsightsTab {...props} />;
+}
+
 function TennisDB() {
   const [user, setUser] = useState(null);
   const [authReady, setAuthReady] = useState(false);
@@ -1616,7 +1658,7 @@ function TennisDB() {
     );
   } else if (tab === "insights") {
     tabContent = (
-      <InsightsTab
+      <InsightsTabLoader
         tournaments={tournaments}
         practices={practices}
         trials={trials}

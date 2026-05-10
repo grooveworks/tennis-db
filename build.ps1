@@ -55,11 +55,11 @@ if (Test-Path $domainDir) {
   }
 }
 
-# ui/ (recursive, sort by full path) — S17 code splitting 段階 1: ui/plan/ は heavy bundle 側へ
+# ui/ (recursive, sort by full path) — S17 code splitting 段階 1+2-1: ui/plan/ + ui/insights/ は heavy bundle 側へ
 $uiDir = Join-Path $srcDir "ui"
 if (Test-Path $uiDir) {
   Get-ChildItem $uiDir -Recurse -Filter *.jsx | Where-Object {
-    -not ($_.FullName -match "[\\/]ui[\\/]plan[\\/]")
+    -not ($_.FullName -match "[\\/]ui[\\/](plan|insights)[\\/]")
   } | Sort-Object FullName | ForEach-Object {
     $rel = $_.FullName.Substring($srcDir.Length + 1).Replace("\", "/")
     AppendLine "// === src/$rel ==="
@@ -79,7 +79,7 @@ AppendLine ""
 # heavy bundle (bundle-heavy.js) は window.__TennisDBCore 経由で共通 UI / 定数 / hooks helper を参照
 # APP_VERSION も公開: heavy loader が ./bundle-heavy.js?v=APP_VERSION で cache busting
 # fbFunctions は core/02_firebase.js で同期代入されるので value copy で OK (= 再代入なし grep 確認済)
-AppendLine "// === core bridge footer (S17 code splitting 段階 1) ==="
+AppendLine "// === core bridge footer (S17 code splitting 段階 1 + 段階 2-1) ==="
 AppendLine "window.__TennisDBCore = {"
 AppendLine "  C: C, font: font, APP_VERSION: APP_VERSION,"
 AppendLine "  Icon: Icon, Modal: Modal, Input: Input, Textarea: Textarea, NumWheel: NumWheel,"
@@ -87,6 +87,9 @@ AppendLine "  sortByStatusAndOrder: sortByStatusAndOrder,"
 AppendLine "  RACKET_STATUS_PRIORITY: RACKET_STATUS_PRIORITY,"
 AppendLine "  STRING_STATUS_PRIORITY: STRING_STATUS_PRIORITY,"
 AppendLine "  fbFunctions: fbFunctions,"
+AppendLine "  RADIUS: RADIUS,"
+AppendLine "  normDate: normDate,"
+AppendLine "  _normalizeMatchResult: _normalizeMatchResult,"
 AppendLine "};"
 
 # ── Step 2: 一時ファイルに書き出して esbuild に渡す
@@ -139,13 +142,19 @@ if (-not (Test-Path $planTabPath)) {
   Write-Error "PlanTab.jsx not found at $planTabPath (heavy bundle build aborted)"
   exit 1
 }
+# S17 code splitting 段階 2-1: InsightsTab.jsx の存在チェック (= 移動・削除事故の早期検出)
+$insightsTabPath = Join-Path $srcDir "ui\insights\InsightsTab.jsx"
+if (-not (Test-Path $insightsTabPath)) {
+  Write-Error "InsightsTab.jsx not found at $insightsTabPath (heavy bundle build aborted)"
+  exit 1
+}
 
 $heavySb = New-Object System.Text.StringBuilder
 [void]$heavySb.AppendLine("// === heavy bundle prelude (S17 code splitting 段階 1) ===")
 [void]$heavySb.AppendLine("if (!window.__TennisDBCore) {")
 [void]$heavySb.AppendLine('  throw new Error("TennisDB core bridge is not available");')
 [void]$heavySb.AppendLine("}")
-[void]$heavySb.AppendLine("const { C, font, Icon, Modal, Input, Textarea, NumWheel, sortByStatusAndOrder, RACKET_STATUS_PRIORITY, STRING_STATUS_PRIORITY, fbFunctions } = window.__TennisDBCore;")
+[void]$heavySb.AppendLine("const { C, font, Icon, Modal, Input, Textarea, NumWheel, sortByStatusAndOrder, RACKET_STATUS_PRIORITY, STRING_STATUS_PRIORITY, fbFunctions, RADIUS, normDate, _normalizeMatchResult } = window.__TennisDBCore;")
 [void]$heavySb.AppendLine("const { useState, useEffect, useMemo } = React;")
 [void]$heavySb.AppendLine("")
 
@@ -165,13 +174,28 @@ Get-ChildItem $planDir -Recurse -Filter *.jsx | Sort-Object FullName | ForEach-O
   [void]$heavySb.AppendLine("")
 }
 
+# ui/insights/*.jsx (S17 code splitting 段階 2-1: InsightsTab を heavy 側へ)
+$insightsDir = Join-Path $srcDir "ui\insights"
+if (Test-Path $insightsDir) {
+  Get-ChildItem $insightsDir -Recurse -Filter *.jsx | Sort-Object FullName | ForEach-Object {
+    $rel = $_.FullName.Substring($srcDir.Length + 1).Replace("\", "/")
+    [void]$heavySb.AppendLine("// === src/$rel ===")
+    [void]$heavySb.Append([System.IO.File]::ReadAllText($_.FullName))
+    [void]$heavySb.AppendLine("")
+  }
+}
+
 # heavy 末尾 expose (PlanTab 存在ランタイム検証 + window.__TennisDBHeavy 登録)
 [void]$heavySb.AppendLine("// === heavy bundle expose ===")
 [void]$heavySb.AppendLine('if (typeof PlanTab === "undefined") {')
 [void]$heavySb.AppendLine('  throw new Error("PlanTab is not defined in heavy bundle");')
 [void]$heavySb.AppendLine("}")
+[void]$heavySb.AppendLine('if (typeof InsightsTab === "undefined") {')
+[void]$heavySb.AppendLine('  throw new Error("InsightsTab is not defined in heavy bundle");')
+[void]$heavySb.AppendLine("}")
 [void]$heavySb.AppendLine("window.__TennisDBHeavy = window.__TennisDBHeavy || {};")
 [void]$heavySb.AppendLine("window.__TennisDBHeavy.PlanTab = PlanTab;")
+[void]$heavySb.AppendLine("window.__TennisDBHeavy.InsightsTab = InsightsTab;")
 
 $tmpHeavyJsx = Join-Path $tmpDir "heavy.jsx"
 $heavyOut = Join-Path $outDir "bundle-heavy.js"
