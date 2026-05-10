@@ -43,20 +43,24 @@ if (Test-Path $coreDir) {
   }
 }
 
-# domain/ (sort by name)
+# domain/ (sort by name) — S17 code splitting 段階 1: plan_assist.js は heavy bundle 側へ
 $domainDir = Join-Path $srcDir "domain"
 if (Test-Path $domainDir) {
-  Get-ChildItem $domainDir -Filter *.js | Sort-Object Name | ForEach-Object {
+  Get-ChildItem $domainDir -Filter *.js | Where-Object {
+    $_.Name -ne "plan_assist.js"
+  } | Sort-Object Name | ForEach-Object {
     AppendLine "// === src/domain/$($_.Name) ==="
     AppendFromFile $_.FullName
     AppendLine ""
   }
 }
 
-# ui/ (recursive, sort by full path)
+# ui/ (recursive, sort by full path) — S17 code splitting 段階 1: ui/plan/ は heavy bundle 側へ
 $uiDir = Join-Path $srcDir "ui"
 if (Test-Path $uiDir) {
-  Get-ChildItem $uiDir -Recurse -Filter *.jsx | Sort-Object FullName | ForEach-Object {
+  Get-ChildItem $uiDir -Recurse -Filter *.jsx | Where-Object {
+    -not ($_.FullName -match "[\\/]ui[\\/]plan[\\/]")
+  } | Sort-Object FullName | ForEach-Object {
     $rel = $_.FullName.Substring($srcDir.Length + 1).Replace("\", "/")
     AppendLine "// === src/$rel ==="
     AppendFromFile $_.FullName
@@ -68,6 +72,22 @@ if (Test-Path $uiDir) {
 AppendLine "// === src/app.jsx ==="
 AppendFromFile (Join-Path $srcDir "app.jsx")
 AppendLine ""
+
+# ── core bridge footer (S17 code splitting 段階 1、2026-05-10)
+# 連結順序 (core → domain → ui → app.jsx) の最後に bridge を出すことで、
+# Icon/Modal/Input/Textarea/NumWheel (= ui/common, ui/sessions) の定義より後で実行されることを保証
+# heavy bundle (bundle-heavy.js) は window.__TennisDBCore 経由で共通 UI / 定数 / hooks helper を参照
+# APP_VERSION も公開: heavy loader が ./bundle-heavy.js?v=APP_VERSION で cache busting
+# fbFunctions は core/02_firebase.js で同期代入されるので value copy で OK (= 再代入なし grep 確認済)
+AppendLine "// === core bridge footer (S17 code splitting 段階 1) ==="
+AppendLine "window.__TennisDBCore = {"
+AppendLine "  C: C, font: font, APP_VERSION: APP_VERSION,"
+AppendLine "  Icon: Icon, Modal: Modal, Input: Input, Textarea: Textarea, NumWheel: NumWheel,"
+AppendLine "  sortByStatusAndOrder: sortByStatusAndOrder,"
+AppendLine "  RACKET_STATUS_PRIORITY: RACKET_STATUS_PRIORITY,"
+AppendLine "  STRING_STATUS_PRIORITY: STRING_STATUS_PRIORITY,"
+AppendLine "  fbFunctions: fbFunctions,"
+AppendLine "};"
 
 # ── Step 2: 一時ファイルに書き出して esbuild に渡す
 $tmpDir = Join-Path $root ".build_tmp"
@@ -108,6 +128,74 @@ if ($LASTEXITCODE -ne 0) {
 $transpiledJs = [System.IO.File]::ReadAllText($tmpOut)
 $transpiledSize = $transpiledJs.Length
 
+# ── Step 3.5: heavy bundle (PlanTab) を別ファイル化 (S17 code splitting 段階 1、2026-05-10)
+# 連結順序: prelude (guard + destructure) → plan_assist.js → ui/plan/*.jsx → expose
+# IIFE format で別 scope。core から共通部品は window.__TennisDBCore 経由参照
+# build 時点で PlanTab.jsx 存在チェック (= 移動・削除事故の早期検出、ChatGPT 指摘 2)
+$heavySize = 0
+$planDir = Join-Path $srcDir "ui\plan"
+$planTabPath = Join-Path $planDir "PlanTab.jsx"
+if (-not (Test-Path $planTabPath)) {
+  Write-Error "PlanTab.jsx not found at $planTabPath (heavy bundle build aborted)"
+  exit 1
+}
+
+$heavySb = New-Object System.Text.StringBuilder
+[void]$heavySb.AppendLine("// === heavy bundle prelude (S17 code splitting 段階 1) ===")
+[void]$heavySb.AppendLine("if (!window.__TennisDBCore) {")
+[void]$heavySb.AppendLine('  throw new Error("TennisDB core bridge is not available");')
+[void]$heavySb.AppendLine("}")
+[void]$heavySb.AppendLine("const { C, font, Icon, Modal, Input, Textarea, NumWheel, sortByStatusAndOrder, RACKET_STATUS_PRIORITY, STRING_STATUS_PRIORITY, fbFunctions } = window.__TennisDBCore;")
+[void]$heavySb.AppendLine("const { useState, useEffect, useMemo } = React;")
+[void]$heavySb.AppendLine("")
+
+# plan_assist.js (heavy 同梱、core から除外済)
+$planAssistPath = Join-Path $srcDir "domain\plan_assist.js"
+if (Test-Path $planAssistPath) {
+  [void]$heavySb.AppendLine("// === src/domain/plan_assist.js ===")
+  [void]$heavySb.Append([System.IO.File]::ReadAllText($planAssistPath))
+  [void]$heavySb.AppendLine("")
+}
+
+# ui/plan/*.jsx (現状 PlanTab.jsx のみだが将来増えても拾える)
+Get-ChildItem $planDir -Recurse -Filter *.jsx | Sort-Object FullName | ForEach-Object {
+  $rel = $_.FullName.Substring($srcDir.Length + 1).Replace("\", "/")
+  [void]$heavySb.AppendLine("// === src/$rel ===")
+  [void]$heavySb.Append([System.IO.File]::ReadAllText($_.FullName))
+  [void]$heavySb.AppendLine("")
+}
+
+# heavy 末尾 expose (PlanTab 存在ランタイム検証 + window.__TennisDBHeavy 登録)
+[void]$heavySb.AppendLine("// === heavy bundle expose ===")
+[void]$heavySb.AppendLine('if (typeof PlanTab === "undefined") {')
+[void]$heavySb.AppendLine('  throw new Error("PlanTab is not defined in heavy bundle");')
+[void]$heavySb.AppendLine("}")
+[void]$heavySb.AppendLine("window.__TennisDBHeavy = window.__TennisDBHeavy || {};")
+[void]$heavySb.AppendLine("window.__TennisDBHeavy.PlanTab = PlanTab;")
+
+$tmpHeavyJsx = Join-Path $tmpDir "heavy.jsx"
+$heavyOut = Join-Path $outDir "bundle-heavy.js"
+[System.IO.File]::WriteAllText($tmpHeavyJsx, $heavySb.ToString(), $encoding)
+
+Write-Host "Running esbuild for heavy bundle..."
+& $npxPath --yes esbuild $tmpHeavyJsx `
+  "--jsx-factory=React.createElement" `
+  "--jsx-fragment=React.Fragment" `
+  --target=es2017 `
+  --format=iife `
+  --minify `
+  --keep-names `
+  --outfile=$heavyOut `
+  --log-level=warning
+
+if ($LASTEXITCODE -ne 0) {
+  Write-Error "esbuild (heavy) failed with exit code $LASTEXITCODE"
+  exit 1
+}
+
+if (Test-Path $heavyOut) { $heavySize = (Get-Item $heavyOut).Length }
+Remove-Item $tmpHeavyJsx -ErrorAction SilentlyContinue
+
 # ── Step 4: HTML 結合 → v4/index.html
 $headHtml = [System.IO.File]::ReadAllText((Join-Path $srcDir "_head.html"))
 $tailHtml = [System.IO.File]::ReadAllText((Join-Path $srcDir "_tail.html"))
@@ -121,5 +209,6 @@ Remove-Item $tmpOut -ErrorAction SilentlyContinue
 
 $size = (Get-Item $out).Length
 Write-Host "Built: $out"
-Write-Host "Size: $size bytes (transpiled+minified by esbuild)"
-Write-Host "Transpiled JS only: $transpiledSize bytes"
+Write-Host "Core size (v4/index.html): $size bytes (transpiled+minified by esbuild)"
+Write-Host "Heavy size (v4/bundle-heavy.js): $heavySize bytes"
+Write-Host "Transpiled core JS only: $transpiledSize bytes"

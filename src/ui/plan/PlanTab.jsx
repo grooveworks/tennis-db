@@ -1308,8 +1308,10 @@ function _planModalBtn(primary, enabled) {
 // PlanTab 本体
 // ===================================================================
 
-function PlanTab({ plan, tournaments, rackets, strings, trials, onPlanSave, toast, confirm }) {
-  const todayIso = today();
+// S17 code splitting 段階 1 (2026-05-10): today() 呼出を todayIso props 化
+//   理由: heavy bundle (IIFE) は core の today() を window.__TennisDBCore 経由で受け取る形にするより、
+//         呼出元 (app.jsx の PlanTabLoader) が today() の結果文字列を props で渡す方が PlanTab の依存が軽い
+function PlanTab({ plan, tournaments, rackets, strings, trials, onPlanSave, toast, confirm, todayIso }) {
   const safePlan = plan && typeof plan === "object" ? plan : {};
   const tid = safePlan.targetTournamentId || null;
   const targetSet = !!tid && (tournaments || []).some(t => t && t.id === tid);

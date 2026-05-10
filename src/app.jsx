@@ -122,6 +122,51 @@ const _loadDevFixture = async () => {
   }
 };
 
+// S17 code splitting 段階 1 (2026-05-10): PlanTab heavy bundle on-demand 読込 wrapper
+//   _head.html 内 inline 定義の window.loadHeavy() を Plan タブ初回表示時に呼出。
+//   読込中: "計画タブを読み込んでいます…" placeholder
+//   読込失敗: 「再読み込みしてください」placeholder (= __loadHeavyPromise は loader 側で null リセット済、
+//             ページ再読込で再試行可能)
+//   読込済: window.__TennisDBHeavy.PlanTab を render
+function PlanTabLoader(props) {
+  const [state, setState] = useState(() =>
+    (window.__TennisDBHeavy && window.__TennisDBHeavy.PlanTab) ? "ready" : "loading"
+  );
+  useEffect(() => {
+    if (state !== "loading") return;
+    if (window.__TennisDBHeavy && window.__TennisDBHeavy.PlanTab) {
+      setState("ready");
+      return;
+    }
+    if (typeof window.loadHeavy !== "function") {
+      console.error("loadHeavy is not defined");
+      setState("error");
+      return;
+    }
+    window.loadHeavy().then(() => setState("ready")).catch((e) => {
+      console.error("Heavy bundle load failed:", e);
+      setState("error");
+    });
+  }, [state]);
+  if (state === "error") {
+    return (
+      <div style={{ padding: "20px 14px", textAlign: "center", color: C.error, fontSize: 13, lineHeight: 1.6 }}>
+        計画タブの読み込みに失敗しました。<br />
+        ページを再読み込みしてください。
+      </div>
+    );
+  }
+  if (state === "loading" || !(window.__TennisDBHeavy && window.__TennisDBHeavy.PlanTab)) {
+    return (
+      <div style={{ padding: "20px 14px", textAlign: "center", color: C.textMuted, fontSize: 13 }}>
+        計画タブを読み込んでいます…
+      </div>
+    );
+  }
+  const HeavyPlanTab = window.__TennisDBHeavy.PlanTab;
+  return <HeavyPlanTab {...props} />;
+}
+
 function TennisDB() {
   const [user, setUser] = useState(null);
   const [authReady, setAuthReady] = useState(false);
@@ -1557,7 +1602,7 @@ function TennisDB() {
     );
   } else if (tab === "plan") {
     tabContent = (
-      <PlanTab
+      <PlanTabLoader
         plan={plan}
         tournaments={tournaments}
         rackets={rackets}
@@ -1566,6 +1611,7 @@ function TennisDB() {
         onPlanSave={persistPlan}
         toast={toast}
         confirm={cfm}
+        todayIso={today()}
       />
     );
   } else if (tab === "insights") {

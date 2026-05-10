@@ -42,5 +42,36 @@ input,select,textarea,button{font-family:inherit}
 }
 </style>
 </head><body><div id="root"></div>
+<!-- S17 code splitting 段階 1 (2026-05-10): heavy bundle on-demand loader -->
+<!-- - Plan タブ初回表示時に PlanTabLoader (app.jsx) が window.loadHeavy() を呼ぶ -->
+<!-- - Promise キャッシュで二重読込防止 -->
+<!-- - cache busting: window.__TennisDBCore.APP_VERSION (= core 末尾 bridge で公開) を ?v= に付与 -->
+<!-- - 失敗時は __loadHeavyPromise を null にリセットして再試行可能にする -->
+<script>
+window.__loadHeavyPromise = null;
+window.loadHeavy = function() {
+  if (window.__loadHeavyPromise) return window.__loadHeavyPromise;
+  window.__loadHeavyPromise = new Promise(function(resolve, reject) {
+    var v = (window.__TennisDBCore && window.__TennisDBCore.APP_VERSION) || "0";
+    var s = document.createElement("script");
+    s.src = "./bundle-heavy.js?v=" + encodeURIComponent(v);
+    s.async = true;
+    s.onload = function() {
+      if (window.__TennisDBHeavy && window.__TennisDBHeavy.PlanTab) {
+        resolve();
+      } else {
+        window.__loadHeavyPromise = null;
+        reject(new Error("Heavy bundle loaded but PlanTab is not exposed"));
+      }
+    };
+    s.onerror = function() {
+      window.__loadHeavyPromise = null;
+      reject(new Error("Failed to load heavy bundle"));
+    };
+    document.head.appendChild(s);
+  });
+  return window.__loadHeavyPromise;
+};
+</script>
 <!-- S17 build 修繕 (2026-05-09 第 2 弾): type="module" で iPhone WebKit JIT deopt 回避 -->
 <script type="module">

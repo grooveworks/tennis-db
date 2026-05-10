@@ -131,10 +131,25 @@ Master 管理 / Setup Picker / Period Detail / Quick Trial / Gear 詳細比較 /
 
 ## 6. 検証環境
 
-- **本番モード (PC)**: `http://localhost:8080/v4/index.html` (port 8080、ユーザー使用)
-- **dev モード (PC, Claude preview)**: `http://localhost:8081/v4/index.html?dev=1` (= Tennis DB Dev Server、Google ログイン skip + fixture)
+### サーバ起動 (Claude が毎セッション開始時に必ず最初に実行) — 2026-05-10 確立
+
+```
+Start-Process powershell -Verb RunAs -ArgumentList '-NoExit','-ExecutionPolicy','Bypass','-File','D:\Downloads\Claude\tennis\serve.ps1'
+```
+
+UAC 出ない設定済 (= ユーザー PC) なので即時 admin 起動。これで port 8080 が LAN 公開モード (`http://+:8080/`) で動き、PC + iPhone 両方アクセス可能。
+
+**禁止事項** (memory `feedback_consistent_verification_method.md` 「思いつきで変えない」):
+- npx http-server / python http.server 等の別サーバを立ち上げない
+- serve.ps1 を非 admin で起動しない (= LAN 公開モードが localhost 限定にフォールバック → iPhone で見られない)
+- サーバが落ちていたら **同じコマンド** で起動し直す、別方法を試行錯誤しない
+
+### URL
+
+- **本番モード (PC)**: `http://localhost:8080/v4/index.html` (port 8080、ユーザー使用、上記コマンドで Claude が起動)
+- **iPhone 実機**: `http://192.168.1.4:8080/v4/index.html` (= 同一 LAN、本番モード固定)
+- **dev モード (PC, Claude preview)**: `http://localhost:8081/v4/index.html?dev=1` (= Tennis DB Dev Server、Google ログイン skip + fixture、Claude が `preview_start "Tennis DB Dev Server"` で起動)
 - **進捗ダッシュボード**: Claude Code preview パネル「Tennis DB Progress」(port 8082)
-- **iPhone 実機**: `http://192.168.1.4:8080/v4/index.html` (本番モード固定)
 - v4 が主運用、V2/V3 は不具合時のみ触る (ユーザー指示 2026-05-09)
 
 ---
