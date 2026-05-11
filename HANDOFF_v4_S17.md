@@ -1,4 +1,4 @@
-# Tennis DB v4 — S17.x 引き継ぎ書 (2026-05-11 更新、Phase B + 試合記録 UX 改善 完了、段階 2-2 着手前)
+# Tennis DB v4 — S17.x 引き継ぎ書 (2026-05-12 更新、iPhone 戻りスワイプ修正完了、段階 2-2 再着手前)
 
 > **このファイルは、文脈を知らない次セッションの Claude が単独で読んで現状を把握できることを目的とする。最初に必ず全文読む。**
 
@@ -6,10 +6,17 @@
 
 ## 0. 現在地
 
-- **APP_VERSION**: `v4.7.14-S17` (`src/core/01_constants.js`)
-- **直近 push**: `f20dded` (= Phase B Carry Over + 試合記録 UX 改善)
-- **working tree**: clean (= 4.7.14-S17 push 状態と同一)
+- **APP_VERSION**: `v4.7.16-S17` (`src/core/01_constants.js`)
+- **直近 push**: `c7eba87` (= iPhone Safari 戻りスワイプ復活: body から overscroll-behavior 完全削除)
+- **working tree**: clean (= 4.7.16-S17 push 状態と同一)
 - **stash@{0}**: Phase B 試作 (= 4.7.14-S17 で resume 完了済、復旧経路として保持中、不要なら `git stash drop stash@{0}` で破棄可)
+- **段階 2-2 (= QuickTrialMode heavy 化)**: a11fcd6 で push したが iPhone 戻りスワイプ問題の調査で revert (266591a)、後で再着手
+
+**⚠️ 重要 (= 2026-05-12 確定、memory `feedback_overscroll_behavior_ios_2026_05_12.md` 参照)**:
+- body / html / 最上位 div に `overscroll-behavior` プロパティを **絶対に設定しない** (= shorthand `none` も `-y:none` も両方禁止)
+- iOS Safari 左端スワイプ戻りを阻害する罠、復旧 commit c7eba87 で確定
+- pull-to-refresh 防止は別手段 (= 子要素限定 / JavaScript preventDefault) で
+- 試合中の入力消失リスクは無し (= S15.5.9 自動保存で全編集画面が保護済)
 
 ---
 
@@ -250,6 +257,10 @@ UAC 出ない設定済 (= ユーザー PC) なので即時 admin 起動。これ
 
 | commit | バージョン | 内容 |
 |---|---|---|
+| `c7eba87` | 4.7.16-S17 | fix: body から overscroll-behavior 完全削除 → iPhone Safari 戻りスワイプ復活 (memory `feedback_overscroll_behavior_ios_2026_05_12.md` 参照) |
+| `59ef684` | 4.7.15-S17 | fix: overscroll-behavior:none → -y:none (= 仮説 1、効果なし) |
+| `266591a` | 4.7.14-S17 | Revert "段階 2-2: QuickTrialMode を heavy bundle に同梱" (= 戻りスワイプ問題切り分けのため、原因は overscroll-behavior と判明したので段階 2-2 は後で再着手) |
+| `a11fcd6` | 4.7.15-S17 (revert済) | (revert 済) 段階 2-2: QuickTrialMode を heavy bundle に同梱 |
 | `f20dded` | 4.7.14-S17 | Phase B Carry Over + 試合記録 UX 改善 (core 481 KB / heavy 54 KB、3 択ダイアログ + PracticeDetail に試合追加ボタン) |
 | `ff0c01b` | 4.7.13-S17 | Code splitting 段階 2-1: InsightsTab を heavy bundle に同梱 (core 479 KB / heavy 52 KB、bridge に RADIUS / normDate / _normalizeMatchResult 追加) |
 | `e4dd227` | 4.7.12-S17 | Code splitting 段階 1: PlanTab + plan_assist.js を heavy bundle 化 (core 488 KB / heavy 40 KB、bridge `window.__TennisDBCore` 経由) |
