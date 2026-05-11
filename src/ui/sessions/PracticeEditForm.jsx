@@ -267,35 +267,33 @@ function PracticeEditForm({ form, errors = {}, onChange, racketNames = [], strin
         <Textarea label="良かった点" value={form.goodNote || ""} onChange={(v) => onChange({ ...form, goodNote: v })} placeholder="できるようになったこと..." />
         <Textarea label="改善点" value={form.improveNote || ""} onChange={(v) => onChange({ ...form, improveNote: v })} placeholder="次回意識したいこと..." />
         <Textarea label="メモ" value={form.generalNote || ""} onChange={(v) => onChange({ ...form, generalNote: v })} placeholder="その他気づき..." />
-        {/* S16 Issue 2 案 3': 0 件は控えめな + ボタンのみ (普段は無視できる主張)
-            1 件以上は下のフルセクション展開 */}
+        {/* S17.x (2026-05-11) 案 B: 0 件時も section ヘッダ + 説明文 + 目立つボタン
+            (= 「便利すぎて見つけられない」問題対応、3cfe102 の控えめ案を強化、preview_s17_match_btn_p1.html 承認)
+            1 件以上時は下のフルセクション展開 */}
         {matches.length === 0 && (
-          <button
-            type="button"
-            onClick={handleAddMatch}
-            style={{
-              width: "100%", minHeight: 36, padding: "8px 10px",
-              borderRadius: 8, border: `1px dashed ${C.border}`,
-              background: "transparent", color: C.textSecondary,
-              fontSize: 12, fontWeight: 500, cursor: "pointer",
-              display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-              marginTop: 10, fontFamily: font,
-              transition: "background 150ms, color 150ms, border-color 150ms",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = C.primaryLight;
-              e.currentTarget.style.color = C.primary;
-              e.currentTarget.style.borderColor = C.primary;
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = "transparent";
-              e.currentTarget.style.color = C.textSecondary;
-              e.currentTarget.style.borderColor = C.border;
-            }}
-          >
-            <Icon name="plus" size={14} color={C.textSecondary} />
-            試合記録を追加
-          </button>
+          <div style={{ marginTop: 14 }}>
+            <_peSectionHead num="6" label="試合記録" />
+            <div style={{ fontSize: 11, color: C.textSecondary, marginBottom: 10, lineHeight: 1.55 }}>
+              練習の中で試合をした場合は記録できます (任意)。<br />
+              練習試合 / ゲーム練習 / 紅白戦 などの結果を残せます。
+            </div>
+            <button
+              type="button"
+              onClick={handleAddMatch}
+              style={{
+                width: "100%", minHeight: 44, padding: "10px 14px",
+                borderRadius: 10, border: `1.5px solid ${C.primary}`,
+                background: C.primaryLight, color: C.primary,
+                fontSize: 13, fontWeight: 700, cursor: "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                fontFamily: font,
+                transition: "background 150ms",
+              }}
+            >
+              <Icon name="plus" size={16} color={C.primary} />
+              試合記録を追加
+            </button>
+          </div>
         )}
       </div>
 

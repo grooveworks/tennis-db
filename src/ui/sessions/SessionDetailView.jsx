@@ -285,8 +285,9 @@ function SessionDetailView({ type, session, mode = "detail", tournaments, trials
 
   // リク 30-a: 詳細画面の「+ 試合を追加」ボタンから直接 MatchEditModal を開く
   //   blankMatch のデフォルト = 直前の試合 (あれば)、無ければ大会レベル機材
+  // S17.x (2026-05-11): tournament だけでなく practice も対応 (= ユーザー要望: 詳細画面から直接試合追加で、編集画面スクロールを避ける)
   const handleAddMatchClick = useCallback(() => {
-    if (type !== "tournament" || !session) return;
+    if ((type !== "tournament" && type !== "practice") || !session) return;
     const matches = Array.isArray(session.matches) ? session.matches : [];
     const lastMatch = matches.length > 0 ? matches[matches.length - 1] : null;
     setAddMatchState({ match: blankMatch(matches.length, lastMatch || session) });
@@ -413,6 +414,8 @@ function SessionDetailView({ type, session, mode = "detail", tournaments, trials
             session={session}
             linkedTrials={linkedTrials}
             onLinkedTrialClick={(tr) => onOpenLinkedSession && onOpenLinkedSession("trial", tr)}
+            onMatchClick={(m) => setMatchDetailTarget(m)}
+            onAddMatch={handleAddMatchClick}
           />
         )}
         {type === "trial" && (

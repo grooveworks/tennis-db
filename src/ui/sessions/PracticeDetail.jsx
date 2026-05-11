@@ -62,7 +62,7 @@ function _pdWatchSumCell({ icon, label, value, unit, valueColor }) {
   );
 }
 
-function PracticeDetail({ session, linkedTrials, onLinkedTrialClick }) {
+function PracticeDetail({ session, linkedTrials, onLinkedTrialClick, onAddMatch, onMatchClick }) {
   const p = session || {};
   const typeBadge = _dvPracticeTypeBadgeProps(p.type);
   const trials = Array.isArray(linkedTrials) ? linkedTrials : [];
@@ -233,15 +233,24 @@ function PracticeDetail({ session, linkedTrials, onLinkedTrialClick }) {
         </_dvSection>
       )}
 
-      {/* S16 Issue 2: 試合記録 (matches[] が 1 件以上の時のみ表示、read-only) */}
-      {matches.length > 0 && (
-        <_dvSection title={`試合記録 (${wins}勝${losses}敗 ・ ${matches.length}試合)`}>
-          {matches.map((m, i) => (
+      {/* S17.x (2026-05-11): 試合記録 (常時表示、ユーザー要望: 詳細画面から直接試合追加で編集画面のスクロール回避)
+          0 件時: section ヘッダ + 説明文 + 目立つ「試合記録を追加」ボタン
+          1 件以上時: section + 試合行 (click で MatchEditModal 編集) + 末尾に追加ボタン */}
+      <_dvSection title={matches.length > 0 ? `試合記録 (${wins}勝${losses}敗 ・ ${matches.length}試合)` : "試合記録"}>
+        {matches.length === 0 ? (
+          <div style={{ fontSize: 11, color: C.textSecondary, marginBottom: 10, lineHeight: 1.55 }}>
+            練習の中で試合をした場合は記録できます (任意)。<br />
+            練習試合 / ゲーム練習 / 紅白戦 などの結果を残せます。
+          </div>
+        ) : (
+          matches.map((m, i) => (
             <div
               key={m.id || i}
+              onClick={onMatchClick ? () => onMatchClick(m) : undefined}
               style={{
                 background: C.bg, borderRadius: 8, padding: "10px 12px", marginBottom: 6,
                 display: "flex", alignItems: "center", gap: 10, minHeight: 44,
+                cursor: onMatchClick ? "pointer" : "default",
               }}
             >
               <span style={{ fontSize: 11, color: C.textSecondary, minWidth: 36, fontWeight: 600 }}>{m.round || "—"}</span>
@@ -255,9 +264,27 @@ function PracticeDetail({ session, linkedTrials, onLinkedTrialClick }) {
                 {m.result === "勝利" ? "勝" : m.result === "敗北" ? "負" : m.result === "棄権" ? "棄" : "—"}
               </span>
             </div>
-          ))}
-        </_dvSection>
-      )}
+          ))
+        )}
+        {onAddMatch && (
+          <button
+            type="button"
+            onClick={onAddMatch}
+            style={{
+              width: "100%", minHeight: 44, padding: "10px 14px",
+              borderRadius: 10, border: `1.5px solid ${C.primary}`,
+              background: C.primaryLight, color: C.primary,
+              fontSize: 13, fontWeight: 700, cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+              fontFamily: font, marginTop: matches.length > 0 ? 8 : 0,
+              transition: "background 150ms",
+            }}
+          >
+            <Icon name="plus" size={16} color={C.primary} />
+            試合記録を追加
+          </button>
+        )}
+      </_dvSection>
     </>
   );
 }

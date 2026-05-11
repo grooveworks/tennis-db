@@ -1328,10 +1328,86 @@ function PlanTab({ plan, tournaments, rackets, strings, trials, onPlanSave, toas
   // ── Target Edit ハンドラ
   const handleTargetEdit = () => setTargetEditOpen(true);
   const handleTargetChange = () => setTargetEditOpen(true);
+  // S17.x Phase B: ターゲット変更時に現 Plan の strategy/resetPhrase/gearChoice を previousPlan に退避
+  //   条件: いずれかが入っている場合のみ退避 (空 Plan は previousPlan を上書きしない)
+  //   命名: savedAt (= 退避時刻、capturedAt より自然)
+  //   メタ情報は savedAt のみ。copiedFromPlanId / copiedFields は Phase D 以降
   const handleTargetSave = (next) => {
-    onPlanSave({ ...safePlan, ...next });
+    let updated = { ...safePlan, ...next };
+    // ターゲット変更検知 (= targetTournamentId が変わる場合のみ退避を試みる)
+    const prevTid = safePlan.targetTournamentId || null;
+    const newTid = next.targetTournamentId || null;
+    if (prevTid && newTid && prevTid !== newTid) {
+      const hasContent = (Array.isArray(safePlan.strategy) && safePlan.strategy.length > 0)
+        || (safePlan.resetPhrase || "").trim()
+        || (safePlan.gearChoice && (safePlan.gearChoice.main || safePlan.gearChoice.sub || safePlan.gearChoice.pending || (safePlan.gearChoice.concern || "").trim()));
+      if (hasContent) {
+        const prevTour = (tournaments || []).find(t => t && t.id === prevTid);
+        updated.previousPlan = {
+          targetTournamentId: prevTid,
+          targetLabel: prevTour ? `${prevTour.date || ""} ${prevTour.name || ""}`.trim() : "",
+          strategy: Array.isArray(safePlan.strategy) ? safePlan.strategy.slice() : [],
+          resetPhrase: safePlan.resetPhrase || "",
+          gearChoice: safePlan.gearChoice ? { ...safePlan.gearChoice } : {},
+          savedAt: new Date().toISOString(),
+        };
+      }
+      // 新ターゲット設定時、現 Plan の作戦/リセット文/ギア決定はリセット (= ユーザーが「前回 Plan を使う」 で復元)
+      updated.strategy = [];
+      updated.resetPhrase = "";
+      updated.gearChoice = {};
+    }
+    onPlanSave(updated);
     setTargetEditOpen(false);
     toast.show("ターゲットを保存しました", "success");
+  };
+
+  // S17.x Phase B: 「前回 Plan を使う」 ハンドラ (= previousPlan から空欄 or 全項目に復元)
+  //   現 Plan の strategy/resetPhrase/gearChoice 入力状況で挙動を分ける:
+  //   - 全部空: 確認なし即継承
+  //   - 一部入力済み: 確認 dialog (空欄だけ埋める / すべて上書き / キャンセル) デフォルトは空欄だけ埋める
+  const handleCarryOver = () => {
+    const pp = safePlan.previousPlan;
+    if (!pp) return;
+    const curStrategyEmpty = !Array.isArray(safePlan.strategy) || safePlan.strategy.length === 0;
+    const curResetEmpty = !(safePlan.resetPhrase || "").trim();
+    const curGearEmpty = !safePlan.gearChoice || (
+      !safePlan.gearChoice.main && !safePlan.gearChoice.sub && !safePlan.gearChoice.pending && !(safePlan.gearChoice.concern || "").trim()
+    );
+    const allEmpty = curStrategyEmpty && curResetEmpty && curGearEmpty;
+    if (allEmpty) {
+      applyCarryOver(false);
+    } else {
+      // 3 択 dialog (useConfirm の extraAction で実現): 空欄だけ埋める / すべて上書き / キャンセル
+      confirm.ask(
+        "現在の Plan に既に入力があります。前回 Plan をどう反映しますか?",
+        () => applyCarryOver(false),
+        {
+          title: "前回 Plan を使う",
+          yesLabel: "空欄だけ埋める",
+          noLabel: "キャンセル",
+          yesVariant: "primary",
+          icon: "copy",
+          extraAction: { label: "すべて上書き", onClick: () => applyCarryOver(true), variant: "danger" },
+        }
+      );
+    }
+  };
+  // Carry Over の実反映 (overwrite=true: 全項目上書き、false: 空欄だけ)
+  const applyCarryOver = (overwrite) => {
+    const pp = safePlan.previousPlan;
+    if (!pp) return;
+    const curStrategyEmpty = !Array.isArray(safePlan.strategy) || safePlan.strategy.length === 0;
+    const curResetEmpty = !(safePlan.resetPhrase || "").trim();
+    const curGearEmpty = !safePlan.gearChoice || (
+      !safePlan.gearChoice.main && !safePlan.gearChoice.sub && !safePlan.gearChoice.pending && !(safePlan.gearChoice.concern || "").trim()
+    );
+    const next = { ...safePlan };
+    if (overwrite || curStrategyEmpty) next.strategy = Array.isArray(pp.strategy) ? pp.strategy.slice() : [];
+    if (overwrite || curResetEmpty) next.resetPhrase = pp.resetPhrase || "";
+    if (overwrite || curGearEmpty) next.gearChoice = pp.gearChoice ? { ...pp.gearChoice } : {};
+    onPlanSave(next);
+    toast.show(overwrite ? "前回 Plan で全項目を上書きしました" : "前回 Plan で空欄を埋めました", "success");
   };
 
   // ── Strategy ハンドラ
@@ -1408,6 +1484,41 @@ function PlanTab({ plan, tournaments, rackets, strings, trials, onPlanSave, toas
       {dimmed && (
         <_PlanCallout message="先にターゲットを設定すると、作戦・ギアを編集できます。" />
       )}
+
+      {/* === Phase B: 前回 Plan 自動継承 Banner (= Target Card 直下、必要な時だけ表示) ===
+          表示条件: target 設定済み + previousPlan あり + 現 Plan の strategy/resetPhrase/gearChoice
+          のうち 2 つ以上が空 (= ゼロ入力で始めたい場面のみ) */}
+      {(() => {
+        if (dimmed) return null;
+        const pp = safePlan.previousPlan;
+        if (!pp) return null;
+        const sEmpty = !Array.isArray(safePlan.strategy) || safePlan.strategy.length === 0;
+        const rEmpty = !(safePlan.resetPhrase || "").trim();
+        const gEmpty = !safePlan.gearChoice || (
+          !safePlan.gearChoice.main && !safePlan.gearChoice.sub && !safePlan.gearChoice.pending && !(safePlan.gearChoice.concern || "").trim()
+        );
+        const emptyCount = (sEmpty ? 1 : 0) + (rEmpty ? 1 : 0) + (gEmpty ? 1 : 0);
+        if (emptyCount < 2) return null;
+        const label = pp.targetLabel || "(前回大会)";
+        return (
+          <div style={{
+            background: C.primaryLight, border: `1px solid ${C.primary}`,
+            borderRadius: 10, padding: "8px 12px", marginBottom: 10,
+            display: "flex", alignItems: "center", gap: 8, fontFamily: font,
+          }}>
+            <div style={{ flex: 1, fontSize: 11, color: C.text, lineHeight: 1.5 }}>
+              <b style={{ color: C.primary }}>前回 Plan から始められます</b><br />
+              <span style={{ color: C.textSecondary }}>前回: {label}</span>
+            </div>
+            <button onClick={handleCarryOver} style={{
+              minHeight: 32, padding: "4px 10px",
+              background: C.primary, color: "#fff",
+              border: "none", borderRadius: 6,
+              fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: font,
+            }}>使う</button>
+          </div>
+        );
+      })()}
 
       {/* === 2. Strategy Card === */}
       <_PlanStrategyCard

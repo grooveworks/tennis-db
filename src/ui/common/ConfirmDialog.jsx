@@ -12,6 +12,7 @@ function ConfirmDialog({
   open, title = "確認", message, icon = "trash-2",
   yesLabel = "削除する", noLabel = "キャンセル",
   yesVariant = "danger",
+  extraAction,
   onYes, onNo,
 }) {
   if (!open) return null;
@@ -28,17 +29,27 @@ function ConfirmDialog({
           {message}
         </div>
       )}
-      <div style={{ display: "flex", gap: 8 }}>
-        <Button variant="secondary" onClick={onNo} style={{ flex: 1 }}>{noLabel}</Button>
-        <Button variant={yesVariant} onClick={onYes} style={{ flex: 1 }}>{yesLabel}</Button>
-      </div>
+      {/* 3 択ダイアログ (Phase B): extraAction があれば縦積み、無ければ従来の 2 択横並び */}
+      {extraAction ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <Button variant={yesVariant} onClick={onYes}>{yesLabel}</Button>
+          <Button variant={extraAction.variant || "secondary"} onClick={extraAction.onClick}>{extraAction.label}</Button>
+          <Button variant="ghost" onClick={onNo}>{noLabel}</Button>
+        </div>
+      ) : (
+        <div style={{ display: "flex", gap: 8 }}>
+          <Button variant="secondary" onClick={onNo} style={{ flex: 1 }}>{noLabel}</Button>
+          <Button variant={yesVariant} onClick={onYes} style={{ flex: 1 }}>{yesLabel}</Button>
+        </div>
+      )}
     </Modal>
   );
 }
 
 // フック: useConfirm()
 // 返り値: { ask(message, onYes, options?), el }
-// options: { title, yesLabel, noLabel, yesVariant, icon }
+// options: { title, yesLabel, noLabel, yesVariant, icon, extraAction }
+//   extraAction: { label, onClick, variant } — 3 択ダイアログ用 (Phase B Carry Over 等)
 function useConfirm() {
   const [state, setState] = useState(null);
   const ask = (message, onYes, options = {}) => {
@@ -53,6 +64,10 @@ function useConfirm() {
       noLabel={state.noLabel}
       yesVariant={state.yesVariant}
       icon={state.icon}
+      extraAction={state.extraAction ? {
+        ...state.extraAction,
+        onClick: () => { state.extraAction.onClick(); setState(null); },
+      } : null}
       onYes={() => { state.onYes(); setState(null); }}
       onNo={() => setState(null)}
     />
