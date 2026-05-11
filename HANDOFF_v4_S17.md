@@ -1,4 +1,4 @@
-# Tennis DB v4 — S17.x 引き継ぎ書 (2026-05-11 更新、code splitting 段階 2-1 完了、段階 2-2 着手前)
+# Tennis DB v4 — S17.x 引き継ぎ書 (2026-05-11 更新、Phase B + 試合記録 UX 改善 完了、段階 2-2 着手前)
 
 > **このファイルは、文脈を知らない次セッションの Claude が単独で読んで現状を把握できることを目的とする。最初に必ず全文読む。**
 
@@ -6,28 +6,33 @@
 
 ## 0. 現在地
 
-- **APP_VERSION**: `v4.7.13-S17` (`src/core/01_constants.js`)
-- **直近 push**: `ff0c01b` (= Code splitting 段階 2-1 = InsightsTab を heavy bundle に同梱)
-- **working tree**: clean (= 4.7.13-S17 push 状態と同一)
-- **stash@{0}**: 依然 Phase B Carry Over (= 旧 528.9 KB で退避、段階 2-2 完了後 = core が更に軽くなった状態で resume 検討)
+- **APP_VERSION**: `v4.7.14-S17` (`src/core/01_constants.js`)
+- **直近 push**: `f20dded` (= Phase B Carry Over + 試合記録 UX 改善)
+- **working tree**: clean (= 4.7.14-S17 push 状態と同一)
+- **stash@{0}**: Phase B 試作 (= 4.7.14-S17 で resume 完了済、復旧経路として保持中、不要なら `git stash drop stash@{0}` で破棄可)
 
 ---
 
 ## 1. 次セッション最初のアクション
 
-### Code splitting 段階 2-1 まで完了済の上で、**Code Splitting 段階 2-2** を着手する。
+### Phase B + 試合記録 UX 改善 まで完了済の上で、**次の優先順位を判断** する。
 
-段階 2-2 = MatchEditModal / GameTracker は core 維持の制約下で、残り heavy 候補 (= **QuickTrialMode 最優先**、その後 SettingsModal / MergeModal / Gear 詳細系 / PeriodDetailView) を heavy bundle 側に順次切出。**目標: core < 350 KB (HANDOFF §3 安全圏)**。
+直近完了 (4.7.14-S17、commit f20dded):
+- **Phase B Carry Over**: ターゲット切替時に現 Plan を自動退避 → 新ターゲットで「前回 Plan から始められます」バナー → 「使う」で 3 択ダイアログ復元
+- **試合記録 UX 改善**: PracticeEditForm に ⑥ section ヘッダ + 説明文 + 目立つボタン、PracticeDetail に試合記録 section 常時表示 + 追加ボタン (= 編集画面スクロール回避)
 
-段階 1 は PlanTab + plan_assist.js を切出して core 525 → 488 KB (37 KB 減、commit e4dd227)。段階 2-1 は InsightsTab を切出して core 488 → 479 KB (9 KB 減、commit ff0c01b)。累計 46 KB 減で HANDOFF §3 目標 (< 350 KB) には依然未達のため、段階 2-2 継続が必要。
+サイズ累計: 4.7.11-S17 525 KB → **4.7.14-S17 481 KB** (= 44 KB 減、iPhone 閾値 525 KB に余裕)。HANDOFF §3 目標 (< 350 KB) には依然 130 KB の差。
 
-### 次の優先順位 (= 段階 2-2 着手前の判断分岐、ユーザー方針 2026-05-10、2026-05-11 更新)
+次の方向は **iPhone 実機での 4.7.14-S17 動作確認結果** を踏まえて分岐 (= §1 末尾「次の優先順位」参照)。
 
-iPhone 実機で 4.7.13-S17 (core 479 KB) を確認後、以下で分岐:
-- **十分軽い (起動・タブ切替に体感ストレスなし)** → 段階 2-2 を後回し、stash@{0} の **Phase B Carry Over** を resume + push (= 4.7.14-S17 候補)
-- **まだ不安定 (試合運用に不安残る)** → **段階 2-2 を優先** で実施 (= core < 350 KB を目指す)、Phase B はその後
+### 次の優先順位 (= 4.7.14-S17 後の判断分岐、ユーザー方針 2026-05-11 更新)
 
-段階 2-2 進め方 (= 段階 1 / 2-1 と同じ厳守):
+iPhone 実機で 4.7.14-S17 (core 481 KB) を確認後、以下で分岐:
+- **十分軽い + Phase B 等の機能満足** → **Phase C (Generated Defaults)** or **Phase A2 (Core Profile 編集 UI)** を着手
+- **まだ重い** → **段階 2-2 (= QuickTrialMode 等の追加 heavy 切出、目標 core < 350 KB)** を優先
+- **UI ブラッシュアップ要望** → 試合記録ボタン目立たせは案 B で完了したが、追加の UX 調整があれば優先
+
+段階 2-2 進め方 (= 段階 1 / 2-1 / Phase B と同じ厳守):
 1. heavy 候補を決める (= §3 段階 2-2 候補リスト + iPhone 動作確認の感触から、QuickTrialMode を最優先)
 2. 候補の依存を読む (= grep + Read で外部参照を全棚卸し、QuickTrialMode は Sessions 内部依存が複雑な可能性 → 念入りに)
 3. core に残す / heavy に逃がす を分類 (= A/B/C/D 4 分類)
@@ -61,9 +66,10 @@ AI の土台だけ作る。
 | 0 | 4.7.9-S17 fcbdeca の AI 機能 現状調査 | ✅ 完了 (4.7.10-S17 で AI ボタン feature flag 非表示) |
 | **A1** | **v2 profile を v4 Player Model Core に移植 (データのみ、UI なし)** | ✅ **完了 (4.7.11-S17、commit 8fed399)** |
 | Code Splitting 段階 1 | PlanTab だけ heavy 化、core 450 KB 未満を目標 | ✅ 完了 (4.7.12-S17、commit e4dd227、core 488 KB / heavy 40 KB) |
-| Code Splitting 段階 2-1 | InsightsTab を heavy 同梱、累計 < 350 KB を目標 | ✅ 完了 (4.7.13-S17、commit ff0c01b、core 479 KB / heavy 52 KB、目標 < 350 KB は未達 → 段階 2-2 へ) |
-| **Code Splitting 段階 2-2** | **QuickTrialMode 最優先、その後 SettingsModal / MergeModal / Gear 詳細系 / PeriodDetailView を順次切出** | 🔄 **次セッションで着手** |
-| B | 前回 Plan 自動継承 (1 タップで前回作戦・ギア・リセット文をコピー) | ⏸ stash@{0} に試作あり、code splitting 後に resume |
+| Code Splitting 段階 2-1 | InsightsTab を heavy 同梱、累計 < 350 KB を目標 | ✅ 完了 (4.7.13-S17、commit ff0c01b、core 479 KB / heavy 52 KB) |
+| **B** | **前回 Plan 自動継承 (1 タップで前回作戦・ギア・リセット文をコピー)** | ✅ **完了 (4.7.14-S17、commit f20dded、3 択ダイアログで「空欄だけ埋める/すべて上書き/キャンセル」)** |
+| 試合記録 UX 改善 (案 B) | PracticeEditForm + PracticeDetail に section ヘッダ + 説明文 + 目立つボタン | ✅ 完了 (4.7.14-S17、commit f20dded、ユーザー要望「便利すぎて見つけられない」対応) |
+| Code Splitting 段階 2-2 | QuickTrialMode 最優先、その後 SettingsModal / MergeModal / Gear 詳細系 / PeriodDetailView を順次切出 | 🔄 次セッションで着手候補 (iPhone 4.7.14 動作確認次第) |
 | C | Generated Defaults (デフォルト作戦・リセット文・継続テーマ) | 着手前 |
 | A2 | Core Profile 表示・編集画面の最低限復活 | 着手前 |
 | D | Strategy AI 整理 (Cloud Functions deploy 含む) | 着手前 (= Player Model 整備後) |
@@ -225,14 +231,17 @@ UAC 出ない設定済 (= ユーザー PC) なので即時 admin 起動。これ
 3. §6 の serve.ps1 admin 起動コマンドを実行 (= port 8080 LAN 公開、PC + iPhone 両方アクセス可能化)
 4. progress.html を Tennis DB Progress preview パネル (port 8082) で開く
 5. ユーザーに状況確認:
-   「現バージョン v4.7.13-S17 push 済 (= Code splitting 段階 2-1 完了)。
-    次は code splitting 段階 2-2 (= QuickTrialMode 最優先、目標 core < 350 KB) に着手で良いですか?」
-6. ユーザー OK → 上記 §3 の段階 2-2 実装手順通り着手
-   - build.ps1 編集前に変更内容と理由を提示してユーザー承認
-   - APP_VERSION bump 前にも承認
-   - push 前にも承認
-7. 段階 2-2 完了 → dev mode 全タブ動作確認 → iPhone 動作確認 → push (4.7.14-S17 候補)
-8. その後 stash@{0} の Phase B Carry Over を resume + push (4.7.15-S17 候補)
+   「現バージョン v4.7.14-S17 push 済 (= Phase B Carry Over + 試合記録 UX 改善 完了)。
+    iPhone 実機での 4.7.14 動作を確認した上で、次は以下のどれに着手しますか?」
+   - (a) Code Splitting 段階 2-2 (= QuickTrialMode 最優先で core < 350 KB)
+   - (b) Phase C (= Generated Defaults = デフォルト作戦・リセット文 AI 生成土台)
+   - (c) Phase A2 (= Core Profile 表示・編集画面の最低限復活)
+   - (d) UI ブラッシュアップ (= 個別の UX 調整、ユーザーから具体要望)
+6. ユーザー OK → 承認 3 ポイント (memory `feedback_approval_3_points.md`) に沿って:
+   - コード書く前承認 (= 設計案 + diff 案を提示してまとめて承認)
+   - プレビュー前承認 (= ビルド + dev mode 検証に進む承認)
+   - push 前承認 (= commit メッセージ + push を 1 回でまとめて承認)
+7. push 完了 → HANDOFF 更新を別 commit で実施
 ```
 
 ---
@@ -241,6 +250,7 @@ UAC 出ない設定済 (= ユーザー PC) なので即時 admin 起動。これ
 
 | commit | バージョン | 内容 |
 |---|---|---|
+| `f20dded` | 4.7.14-S17 | Phase B Carry Over + 試合記録 UX 改善 (core 481 KB / heavy 54 KB、3 択ダイアログ + PracticeDetail に試合追加ボタン) |
 | `ff0c01b` | 4.7.13-S17 | Code splitting 段階 2-1: InsightsTab を heavy bundle に同梱 (core 479 KB / heavy 52 KB、bridge に RADIUS / normDate / _normalizeMatchResult 追加) |
 | `e4dd227` | 4.7.12-S17 | Code splitting 段階 1: PlanTab + plan_assist.js を heavy bundle 化 (core 488 KB / heavy 40 KB、bridge `window.__TennisDBCore` 経由) |
 | `8fed399` | 4.7.11-S17 | Phase A1 = v2 profile を v4 に移植 (データのみ、UI なし) |
