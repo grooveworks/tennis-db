@@ -55,11 +55,13 @@ if (Test-Path $domainDir) {
   }
 }
 
-# ui/ (recursive, sort by full path) — S17 code splitting 段階 1+2-1: ui/plan/ + ui/insights/ は heavy bundle 側へ
+# ui/ (recursive, sort by full path) — S17 code splitting 段階 1+2-1+2-2: ui/plan/ + ui/insights/ + ui/sessions/QuickTrialMode.jsx は heavy bundle 側へ
+# QuickTrialMode はファイル単位で厳密除外 (= SessionsTab / GameTracker / MatchEditModal / _NumWheel は core 維持)
 $uiDir = Join-Path $srcDir "ui"
 if (Test-Path $uiDir) {
   Get-ChildItem $uiDir -Recurse -Filter *.jsx | Where-Object {
-    -not ($_.FullName -match "[\\/]ui[\\/](plan|insights)[\\/]")
+    -not ($_.FullName -match "[\\/]ui[\\/](plan|insights)[\\/]") -and
+    -not ($_.FullName -match "[\\/]ui[\\/]sessions[\\/]QuickTrialMode\.jsx$")
   } | Sort-Object FullName | ForEach-Object {
     $rel = $_.FullName.Substring($srcDir.Length + 1).Replace("\", "/")
     AppendLine "// === src/$rel ==="
@@ -90,6 +92,7 @@ AppendLine "  fbFunctions: fbFunctions,"
 AppendLine "  RADIUS: RADIUS,"
 AppendLine "  normDate: normDate,"
 AppendLine "  _normalizeMatchResult: _normalizeMatchResult,"
+AppendLine "  genId: genId,"
 AppendLine "};"
 
 # ── Step 2: 一時ファイルに書き出して esbuild に渡す
@@ -148,14 +151,20 @@ if (-not (Test-Path $insightsTabPath)) {
   Write-Error "InsightsTab.jsx not found at $insightsTabPath (heavy bundle build aborted)"
   exit 1
 }
+# S17 code splitting 段階 2-2: QuickTrialMode.jsx の存在チェック (= 移動・削除事故の早期検出)
+$quickTrialModePath = Join-Path $srcDir "ui\sessions\QuickTrialMode.jsx"
+if (-not (Test-Path $quickTrialModePath)) {
+  Write-Error "QuickTrialMode.jsx not found at $quickTrialModePath (heavy bundle build aborted)"
+  exit 1
+}
 
 $heavySb = New-Object System.Text.StringBuilder
 [void]$heavySb.AppendLine("// === heavy bundle prelude (S17 code splitting 段階 1) ===")
 [void]$heavySb.AppendLine("if (!window.__TennisDBCore) {")
 [void]$heavySb.AppendLine('  throw new Error("TennisDB core bridge is not available");')
 [void]$heavySb.AppendLine("}")
-[void]$heavySb.AppendLine("const { C, font, Icon, Modal, Input, Textarea, NumWheel, sortByStatusAndOrder, RACKET_STATUS_PRIORITY, STRING_STATUS_PRIORITY, fbFunctions, RADIUS, normDate, _normalizeMatchResult } = window.__TennisDBCore;")
-[void]$heavySb.AppendLine("const { useState, useEffect, useMemo } = React;")
+[void]$heavySb.AppendLine("const { C, font, Icon, Modal, Input, Textarea, NumWheel, sortByStatusAndOrder, RACKET_STATUS_PRIORITY, STRING_STATUS_PRIORITY, fbFunctions, RADIUS, normDate, _normalizeMatchResult, genId } = window.__TennisDBCore;")
+[void]$heavySb.AppendLine("const { useState, useEffect, useMemo, useRef } = React;")
 [void]$heavySb.AppendLine("")
 
 # plan_assist.js (heavy 同梱、core から除外済)
@@ -185,6 +194,13 @@ if (Test-Path $insightsDir) {
   }
 }
 
+# ui/sessions/QuickTrialMode.jsx (S17 code splitting 段階 2-2: 試打モードを heavy 側へ、ファイル単位ピンポイント)
+if (Test-Path $quickTrialModePath) {
+  [void]$heavySb.AppendLine("// === src/ui/sessions/QuickTrialMode.jsx ===")
+  [void]$heavySb.Append([System.IO.File]::ReadAllText($quickTrialModePath))
+  [void]$heavySb.AppendLine("")
+}
+
 # heavy 末尾 expose (PlanTab 存在ランタイム検証 + window.__TennisDBHeavy 登録)
 [void]$heavySb.AppendLine("// === heavy bundle expose ===")
 [void]$heavySb.AppendLine('if (typeof PlanTab === "undefined") {')
@@ -193,9 +209,13 @@ if (Test-Path $insightsDir) {
 [void]$heavySb.AppendLine('if (typeof InsightsTab === "undefined") {')
 [void]$heavySb.AppendLine('  throw new Error("InsightsTab is not defined in heavy bundle");')
 [void]$heavySb.AppendLine("}")
+[void]$heavySb.AppendLine('if (typeof QuickTrialMode === "undefined") {')
+[void]$heavySb.AppendLine('  throw new Error("QuickTrialMode is not defined in heavy bundle");')
+[void]$heavySb.AppendLine("}")
 [void]$heavySb.AppendLine("window.__TennisDBHeavy = window.__TennisDBHeavy || {};")
 [void]$heavySb.AppendLine("window.__TennisDBHeavy.PlanTab = PlanTab;")
 [void]$heavySb.AppendLine("window.__TennisDBHeavy.InsightsTab = InsightsTab;")
+[void]$heavySb.AppendLine("window.__TennisDBHeavy.QuickTrialMode = QuickTrialMode;")
 
 $tmpHeavyJsx = Join-Path $tmpDir "heavy.jsx"
 $heavyOut = Join-Path $outDir "bundle-heavy.js"
