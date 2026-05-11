@@ -209,70 +209,6 @@ function InsightsTabLoader(props) {
   return <HeavyInsightsTab {...props} />;
 }
 
-// S17 code splitting 段階 2-2 (2026-05-11): QuickTrialMode heavy bundle on-demand 読込 wrapper
-//   open=false 時は null return (= 元 QuickTrialMode と同じ挙動を Loader 側で再現)
-//   loadHeavy() は段階 1/2-1 と共有 (= bundle-heavy.js 1 本に PlanTab + InsightsTab + QuickTrialMode 同梱)
-//   loading/error 両方とも背景クリックで onClose (= 通信詰まり時に戻れる安全策、ChatGPT 補足)
-//   React hooks rules 遵守: useState/useEffect を条件付き return より前に呼ぶ
-function QuickTrialModeLoader(props) {
-  const [state, setState] = useState(() =>
-    (window.__TennisDBHeavy && window.__TennisDBHeavy.QuickTrialMode) ? "ready" : "loading"
-  );
-  useEffect(() => {
-    if (!props.open) return;
-    if (state !== "loading") return;
-    if (window.__TennisDBHeavy && window.__TennisDBHeavy.QuickTrialMode) {
-      setState("ready");
-      return;
-    }
-    if (typeof window.loadHeavy !== "function") {
-      console.error("loadHeavy is not defined");
-      setState("error");
-      return;
-    }
-    window.loadHeavy().then(() => setState("ready")).catch((e) => {
-      console.error("Heavy bundle load failed:", e);
-      setState("error");
-    });
-  }, [props.open, state]);
-
-  if (!props.open) return null;
-
-  if (state === "error") {
-    return (
-      <div onClick={props.onClose} style={{
-        position: "fixed", inset: 0, zIndex: 1100,
-        background: "rgba(0,0,0,0.4)",
-        display: "flex", alignItems: "center", justifyContent: "center",
-      }}>
-        <div onClick={(e) => e.stopPropagation()} style={{
-          background: C.panel, padding: 20, borderRadius: 12, color: C.error, fontSize: 13, textAlign: "center", lineHeight: 1.6,
-        }}>
-          試打モードの読み込みに失敗しました。<br />
-          ページを再読み込みしてください。
-        </div>
-      </div>
-    );
-  }
-  if (state === "loading" || !(window.__TennisDBHeavy && window.__TennisDBHeavy.QuickTrialMode)) {
-    return (
-      <div onClick={props.onClose} style={{
-        position: "fixed", inset: 0, zIndex: 1100,
-        background: "rgba(0,0,0,0.4)",
-        display: "flex", alignItems: "center", justifyContent: "center",
-      }}>
-        <div onClick={(e) => e.stopPropagation()} style={{
-          background: C.panel, padding: 20, borderRadius: 12, color: C.textMuted, fontSize: 13,
-        }}>
-          試打モードを読み込んでいます…
-        </div>
-      </div>
-    );
-  }
-  const HeavyQuickTrialMode = window.__TennisDBHeavy.QuickTrialMode;
-  return <HeavyQuickTrialMode {...props} />;
-}
-
 function TennisDB() {
   const [user, setUser] = useState(null);
   const [authReady, setAuthReady] = useState(false);
@@ -1940,9 +1876,8 @@ function TennisDB() {
         onClose={handleMeasurementClose}
         confirm={cfm}
       />
-      {/* S15.5: QuickTrialMode (試打カード式、Home 試打ボタン → これが起動)
-          S17 段階 2-2 (2026-05-11): heavy bundle on-demand 読込のため Loader 経由に変更 */}
-      <QuickTrialModeLoader
+      {/* S15.5: QuickTrialMode (試打カード式、Home 試打ボタン → これが起動) */}
+      <QuickTrialMode
         open={quickTrial}
         cards={quickTrialCards}
         setCards={persistQuickTrialCards}
