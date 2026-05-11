@@ -1,4 +1,4 @@
-# Tennis DB v4 — S17.x 引き継ぎ書 (2026-05-12 更新、iPhone 戻りスワイプ修正完了、段階 2-2 再着手前)
+# Tennis DB v4 — S17.x 引き継ぎ書 (2026-05-12 更新、段階 2-2 完了、段階 2-3 着手前)
 
 > **このファイルは、文脈を知らない次セッションの Claude が単独で読んで現状を把握できることを目的とする。最初に必ず全文読む。**
 
@@ -6,11 +6,11 @@
 
 ## 0. 現在地
 
-- **APP_VERSION**: `v4.7.16-S17` (`src/core/01_constants.js`)
-- **直近 push**: `c7eba87` (= iPhone Safari 戻りスワイプ復活: body から overscroll-behavior 完全削除)
-- **working tree**: clean (= 4.7.16-S17 push 状態と同一)
+- **APP_VERSION**: `v4.7.17-S17` (`src/core/01_constants.js`)
+- **直近 push**: `7e4425d` (= 段階 2-2 再着手完了: QuickTrialMode を heavy bundle に同梱)
+- **working tree**: clean (= 4.7.17-S17 push 状態と同一)
 - **stash@{0}**: Phase B 試作 (= 4.7.14-S17 で resume 完了済、復旧経路として保持中、不要なら `git stash drop stash@{0}` で破棄可)
-- **段階 2-2 (= QuickTrialMode heavy 化)**: a11fcd6 で push したが iPhone 戻りスワイプ問題の調査で revert (266591a)、後で再着手
+- **サイズ累計**: 出発点 525 KB → **4.7.17-S17 core 463 KB / heavy 74 KB** (= 62 KB 減、HANDOFF §3 目標 < 350 KB まで残り 113 KB)
 
 **⚠️ 重要 (= 2026-05-12 確定、memory `feedback_overscroll_behavior_ios_2026_05_12.md` 参照)**:
 - body / html / 最上位 div に `overscroll-behavior` プロパティを **絶対に設定しない** (= shorthand `none` も `-y:none` も両方禁止)
@@ -76,7 +76,8 @@ AI の土台だけ作る。
 | Code Splitting 段階 2-1 | InsightsTab を heavy 同梱、累計 < 350 KB を目標 | ✅ 完了 (4.7.13-S17、commit ff0c01b、core 479 KB / heavy 52 KB) |
 | **B** | **前回 Plan 自動継承 (1 タップで前回作戦・ギア・リセット文をコピー)** | ✅ **完了 (4.7.14-S17、commit f20dded、3 択ダイアログで「空欄だけ埋める/すべて上書き/キャンセル」)** |
 | 試合記録 UX 改善 (案 B) | PracticeEditForm + PracticeDetail に section ヘッダ + 説明文 + 目立つボタン | ✅ 完了 (4.7.14-S17、commit f20dded、ユーザー要望「便利すぎて見つけられない」対応) |
-| Code Splitting 段階 2-2 | QuickTrialMode 最優先、その後 SettingsModal / MergeModal / Gear 詳細系 / PeriodDetailView を順次切出 | 🔄 次セッションで着手候補 (iPhone 4.7.14 動作確認次第) |
+| Code Splitting 段階 2-2 | QuickTrialMode を heavy 同梱 | ✅ 完了 (4.7.17-S17、commit 7e4425d、core 463 KB / heavy 74 KB、目標 < 350 KB まで残り 113 KB) |
+| **Code Splitting 段階 2-3** | **次の重い候補を切出 (= SettingsModal / MergeModal + master_cleanup.js / Gear 詳細系 (RacketDetailView / PeriodDetailView) / TournamentEditForm 等)** | 🔄 **次セッションで着手候補** |
 | C | Generated Defaults (デフォルト作戦・リセット文・継続テーマ) | 着手前 |
 | A2 | Core Profile 表示・編集画面の最低限復活 | 着手前 |
 | D | Strategy AI 整理 (Cloud Functions deploy 含む) | 着手前 (= Player Model 整備後) |
@@ -257,6 +258,8 @@ UAC 出ない設定済 (= ユーザー PC) なので即時 admin 起動。これ
 
 | commit | バージョン | 内容 |
 |---|---|---|
+| `7e4425d` | 4.7.17-S17 | Reapply 段階 2-2: QuickTrialMode を heavy bundle に同梱 (core 463 KB / heavy 74 KB、a11fcd6 と同内容を re-apply、戻りスワイプ問題は overscroll-behavior 削除で別途解消済) |
+| `877f29a` | 4.7.16-S17 | docs: HANDOFF を 4.7.16-S17 (戻りスワイプ修正完了) 状態に更新 |
 | `c7eba87` | 4.7.16-S17 | fix: body から overscroll-behavior 完全削除 → iPhone Safari 戻りスワイプ復活 (memory `feedback_overscroll_behavior_ios_2026_05_12.md` 参照) |
 | `59ef684` | 4.7.15-S17 | fix: overscroll-behavior:none → -y:none (= 仮説 1、効果なし) |
 | `266591a` | 4.7.14-S17 | Revert "段階 2-2: QuickTrialMode を heavy bundle に同梱" (= 戻りスワイプ問題切り分けのため、原因は overscroll-behavior と判明したので段階 2-2 は後で再着手) |
