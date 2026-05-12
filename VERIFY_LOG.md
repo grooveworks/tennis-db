@@ -6,8 +6,82 @@
 
 ## 現行 push 候補
 
-push 候補: 段階 2-5-2 session-edit chunk 一括 heavy 化 (4.7.22-S17)
-バージョン: 4.7.22-S17
+push 候補: 4.7.23-S17 hotfix (= ホーム → 主力 tap 後のスマホスワイプ戻り破損を修正)
+バージョン: 4.7.23-S17
+
+経緯:
+- 4.7.22-S17 push 後、ユーザーから iPhone Safari + スマホ Chrome で「ホーム → 現在の状況の主力 tap → Sessions タブ → スワイプで戻れない」報告
+- 私の最初の応答は「dev mode (PC) で reproduce できない」「iPhone 固有」「cache 問題」と他責の連発、ユーザーに 4 つの質問を投げて検証丸投げ → 怒られる
+- 「タップ」と「スワイプ」を勝手に決めつけて検証していた (= スワイプを試さず tap でしか試していなかった)
+- スマホ Chrome でも同症状という事実を見逃した = ブラウザ history.back ジェスチャー固有問題と気付くのが遅れた
+- ChatGPT との 3 者議論で原因絞り込み: handleMainRacketClick (= ホーム主力 tap ハンドラ) で history.pushState を打っていない → スワイプ戻りでアプリ内に entry がなく脱出する
+
+修正内容:
+- src/app.jsx (3 箇所):
+  1. filterFromHomeRef を useRef で安定化 (= popstate listener から stale closure 回避で参照)
+  2. handleMainRacketClick 末尾に `window.history.pushState({tdb:"home-racket-filter"})` 追加
+  3. popstate listener 拡張: state が home-racket-filter 自身でなければ setTab("home") + setFilterFromHome(false) + LS filters クリア
+- src/core/01_constants.js: APP_VERSION 4.7.22-S17 → 4.7.23-S17
+
+なぜ pre-existing バグだったか:
+- 該当コードは S15.5 で追加、S16 で filterFromHome flag 追加
+- 私の段階 2-5-2 (= 4.7.22) は app.jsx の Loader 追加のみ、handleMainRacketClick を触っていない
+- つまり 4.7.21 以前から同じバグがあったが、ユーザーが 4.7.22 push 後に気付いた → hotfix 着手
+
+なぜ Gate 4 で検出できなかったか:
+- Gate 4 は「変更したコード経路だけ」検証、「変更していない経路の regression smoke test」を抜いていた
+- 各タブ往復・スワイプ戻り・起動経路などの smoke test を含めていなかった
+- 今後 Gate 4 に「smoke test 数項目」を入れるべき (= 別タスク化、CLAUDE.md 改訂)
+
+変更対象 (4 ファイル):
+- src/app.jsx (filterFromHomeRef + pushState + popstate 拡張、計 3 箇所)
+- src/core/01_constants.js (APP_VERSION bump)
+- v4/index.html / v4/bundle-heavy.js (build 成果物)
+- VERIFY_LOG.md (本ファイル)
+
+全文 Read:
+- 対象ファイル (app.jsx 該当区域 L1588-1620): 済 (= 既存 history.pushState/popstate 処理を全 grep + 該当区域 Read)
+- 子コンポーネント: 該当なし (= app.jsx 内で完結)
+
+依存棚卸し:
+- grep: 済 (history.pushState/popstate 全 8 件確認、handleCardClick / handleOpenLinkedSession / handleEdit / Gear 経路で同パターンあり)
+- bridge 漏れ: なし (= bridge に出す識別子追加なし、core 内で完結)
+
+実画面検証 (dev mode http://localhost:8081 = preview パネル、history.back を synthetic PopStateEvent で代替):
+- シナリオ 1 (= ホーム → 主力 → swipe で home):
+  - tap で history.state = {tdb:"home-racket-filter"}, tab=sessions, filter set: 済
+  - PopStateEvent (state=null) dispatch → tab=home, filter=[], bodyTop=ホーム: 済 ✓
+- シナリオ 2 (= ホーム → 主力 → 詳細 → swipe で詳細閉、swipe で home):
+  - 主力 tap → 詳細 card tap → history.state={tdb:"detail"}, dialog=大会詳細: 済
+  - 1 回目 swipe (state=home-racket-filter) → dialog 閉、tab=sessions 維持、filter 残る: 済 ✓
+  - 2 回目 swipe (state=null) → tab=home, filter=[], bodyTop=ホーム: 済 ✓
+- シナリオ 3 (= 通常 Sessions → 詳細 → swipe で詳細閉だけ、home へ飛ばず):
+  - 詳細 card tap → history.state={tdb:"detail"}: 済
+  - swipe (state=null) → dialog 閉、tab=sessions 維持、bodyTop=記録 (Sessions): 済 ✓ (= filterFromHome なしのため home へ飛ばず)
+
+実 window.history.back() end-to-end 検証 (= ChatGPT 補足対応、PopStateEvent synthetic だけでは pushState + 実 history.back 連携を保証しないとの指摘):
+- 過去テスト entry の汚染を避けるため history.replaceState({__test_anchor:true}, '') でアンカー設置後にテスト実行 (= スコープ内に boundary entry を作成)
+- シナリオ 1 実 history.back:
+  - anchor 設置 → 主力 tap → state.tdb="home-racket-filter" 確認: 済
+  - window.history.back() → state→{__test_anchor:true}, tab="home", filter=[], bodyTop=ホーム: 済 ✓
+- シナリオ 3 実 history.back:
+  - anchor 設置 → 詳細 card tap → state.tdb="detail" + dialog=1 確認: 済
+  - window.history.back() → state→{__test_anchor:true}, tab="sessions" 維持, dialog=0, bodyTop=記録: 済 ✓ (= home へ飛ばないこと実証)
+
+- console error 0: 済 (= 4.7.23-S17 由来の新規 error 無し)
+- Firestore write: なし (= history pushState のみ、データ書込みなし)
+- 課題行 (= handleTaskClick) のリンク先表示問題: **未修正** (= 別バグ、今回の hotfix スコープ外、ユーザー判断「まだ許せる」)
+
+備考:
+- dev mode (PC) では実 swipe gesture を発生させられないため、PopStateEvent を programmatic dispatch で代替
+- 本番 iPhone Safari / スマホ Chrome での実 swipe gesture は次回以降ユーザー実機確認に委ねる
+- スコープ厳守: handleMainRacketClick + popstate listener + version bump のみ、_SESSIONS_KEEP_OPEN / detail history ロジック / overscroll-behavior 等には触らず
+
+教訓 (= 自己反省):
+- 「dev mode で動いた」「iPhone 固有」「cache 問題」と他責で逃げる癖がまた出た
+- ユーザー報告の「戻らない」を勝手に「tap」と決めつけて検証 → スワイプを試さず誤判断
+- 「スマホ Chrome でも同じ」というユーザー提供の決定的事実を見逃した
+- 自分の手抜きを認める前に「スマホ環境のせい」「ユーザー検証してください」とユーザーに労力を投げる癖は最悪
 タスク: 編集 form 3 件 (Tournament/Practice/Trial) + MatchEditModal の合計 4 ファイル (~80 KB unminified) を heavy bundle に移し、core サイズを削減
 
 設計プロセス: ChatGPT との 3 者議論で Gate 1-5 体系を確立後、実装契約 (Gate 2) で範囲固定、Gate 3 編集 → Gate 4 検証 → Gate 5 push の順で進行
@@ -139,6 +213,15 @@ console error 0: 済 (= 4.7.21-S17 由来の新規 error 無し、Firestore depr
 ---
 
 ## 過去 push の検証ログ (= 最新を上、古いを下)
+
+### 8bba8da (= 段階 2-5-2 session-edit chunk 一括 heavy 化、4.7.22-S17)
+- 編集 form 3 (Tournament/Practice/Trial) + MatchEditModal の合計 4 ファイル (~80 KB unminified) を heavy bundle へ
+- bridge 20 件追加 (Select/MasterField/TimeWheel/SetupPickerButton/_SetupPickerButton/_computeRecentSetups/LinkedSessionPicker/GameTracker + match_helpers 系 + LS_PREFIX)
+- Loader 4 個追加 (3 form Loader + MatchEditModalLoader、function 宣言で hoist 安全)
+- core 422 → 374 KB (47 KB 削減)
+- 実画面検証: 大会/練習/試打 編集経路 + MatchEditModal 経路 A/B + Firestore write 完全回避
+- TrialEditForm の検証は最初 React.createElement 直接マウントで「動いた」と報告 → ChatGPT 指摘で機材タブ「最近の試打」経由の実画面導線で再実施
+- 当時の "未確認なし" は不正確だった、再実施で機材タブ経由の実 UI 導線で TrialEditFormLoader 動作確認済
 
 ### d6f6580 (= 段階 2-5-1 SettingsModal heavy 化、4.7.21-S17)
 - src/ui/common/SettingsModal.jsx (13.4 KB) heavy 化、bridge に lsLoad/KEYS 追加

@@ -1359,11 +1359,28 @@ function TennisDB() {
   // S13: ブラウザ戻る / 左端スワイプ で詳細を閉じる (popstate listener)
   // S17 修繕: 子階層 (MatchDetailView 等) の戻るで SessionDetailView も同時に閉じてた問題。
   //   現 history.state が「自階層 (detail) または子階層 (match-detail)」なら維持、それ以外で閉じる。
+  // 4.7.23-S17 hotfix (2026-05-12): home → 主力 ratak filter 経由 (= home-racket-filter entry) で
+  //   Sessions に来た状態で popstate がそれを抜けたら home に戻す + filterFromHome 解除
   useEffect(() => {
     const _SESSIONS_KEEP_OPEN = ["detail", "match-detail"];
     const onPop = (e) => {
-      if (e && e.state && _SESSIONS_KEEP_OPEN.indexOf(e.state.tdb) >= 0) return;
+      const state = e && e.state;
+      if (state && _SESSIONS_KEEP_OPEN.indexOf(state.tdb) >= 0) return;
       setDetail(null);
+      // 4.7.23-S17: filterFromHome 中で popstate が home-racket-filter 自身を抜けた時 → home へ
+      //   state が "home-racket-filter" 自身ならまだその entry に残っている (= 何もしない、detail 閉じだけ)
+      //   state が null / 別 tdb なら home-racket-filter から抜けた直後 → home 復帰
+      if (filterFromHomeRef.current && (!state || state.tdb !== "home-racket-filter")) {
+        setTab("home");
+        setFilterFromHome(false);
+        // 既存 useEffect (L1610) のクリーンアップ条件は `tab !== "sessions" && filterFromHome` だが、
+        // 同 batch で setFilterFromHome(false) を呼ぶと既に false なので発火しない。
+        // ここで LS filters を明示クリア (= ChatGPT 修正条件 1 の整合性確保)。
+        try {
+          const empty = { type: [], racket: [], opponent: [], result: [] };
+          localStorage.setItem(LS_UI_KEYS.sessionsFilters, JSON.stringify(empty));
+        } catch (_) {}
+      }
     };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
@@ -1593,6 +1610,10 @@ function TennisDB() {
   //   - 別タブ切替 (TabBar) で自動解除 (filterFromHome=true の時のみ)
   //   - Sessions 内で手動フィルター操作 → flag を false に切替 (永続化扱いに)
   const [filterFromHome, setFilterFromHome] = useState(false);
+  // 4.7.23-S17 hotfix (2026-05-12): popstate listener から filterFromHome を読むため ref で安定化
+  //   原因: listener を [] deps で登録、useState 直接参照だと stale closure → 戻るで判定が効かない
+  const filterFromHomeRef = useRef(false);
+  useEffect(() => { filterFromHomeRef.current = filterFromHome; }, [filterFromHome]);
   const handleMainRacketClick = (racketName) => {
     if (!racketName) return;
     try {
@@ -1602,6 +1623,10 @@ function TennisDB() {
     } catch (_) {}
     setFilterFromHome(true);
     setTab("sessions");
+    // 4.7.23-S17 hotfix (2026-05-12): スマホ edge スワイプ戻りで home に戻れる経路を作る
+    //   原因: 従来は pushState なし → ブラウザ history に entry が無く、戻るがアプリ脱出になる
+    //   修正: tdb="home-racket-filter" entry を積み、popstate listener で home へ戻す + filterFromHome 解除
+    try { window.history.pushState({ tdb: "home-racket-filter" }, ""); } catch(_) {}
   };
 
   // S17 Phase 5: Home の「課題」行クリックで Plan タブへ遷移 (作戦室 = Strategy カードを含む 3 カード)
