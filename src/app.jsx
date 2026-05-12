@@ -507,6 +507,65 @@ function PeriodDetailViewLoader(props) {
   return <HeavyPeriodDetailView {...props} />;
 }
 
+// S17 code splitting 段階 2-5-1 (2026-05-12): SettingsModal heavy bundle on-demand 読込 wrapper
+//   open=false 時は null return、open=true 時にモーダルとして loading 状態を表示
+function SettingsModalLoader(props) {
+  const [state, setState] = useState(() =>
+    (window.__TennisDBHeavy && window.__TennisDBHeavy.SettingsModal) ? "ready" : "loading"
+  );
+  useEffect(() => {
+    if (!props.open) return;
+    if (state !== "loading") return;
+    if (window.__TennisDBHeavy && window.__TennisDBHeavy.SettingsModal) {
+      setState("ready");
+      return;
+    }
+    if (typeof window.loadHeavy !== "function") {
+      console.error("loadHeavy is not defined");
+      setState("error");
+      return;
+    }
+    window.loadHeavy().then(() => setState("ready")).catch((e) => {
+      console.error("Heavy bundle load failed:", e);
+      setState("error");
+    });
+  }, [props.open, state]);
+  if (!props.open) return null;
+  if (state === "error") {
+    return (
+      <div onClick={props.onClose} style={{
+        position: "fixed", inset: 0, zIndex: 1100,
+        background: "rgba(0,0,0,0.4)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+      }}>
+        <div onClick={(e) => e.stopPropagation()} style={{
+          background: C.panel, padding: 20, borderRadius: 12, color: C.error, fontSize: 13, textAlign: "center", lineHeight: 1.6,
+        }}>
+          設定画面の読み込みに失敗しました。<br />
+          ページを再読み込みしてください。
+        </div>
+      </div>
+    );
+  }
+  if (state === "loading" || !(window.__TennisDBHeavy && window.__TennisDBHeavy.SettingsModal)) {
+    return (
+      <div onClick={props.onClose} style={{
+        position: "fixed", inset: 0, zIndex: 1100,
+        background: "rgba(0,0,0,0.4)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+      }}>
+        <div onClick={(e) => e.stopPropagation()} style={{
+          background: C.panel, padding: 20, borderRadius: 12, color: C.textMuted, fontSize: 13,
+        }}>
+          設定画面を読み込んでいます…
+        </div>
+      </div>
+    );
+  }
+  const HeavySettingsModal = window.__TennisDBHeavy.SettingsModal;
+  return <HeavySettingsModal {...props} />;
+}
+
 function TennisDB() {
   const [user, setUser] = useState(null);
   const [authReady, setAuthReady] = useState(false);
@@ -2069,8 +2128,8 @@ function TennisDB() {
         weather={weather}
         onClose={handleWeatherClose}
       />
-      {/* S15.5.7: 設定 Modal (Header ⚙️ タップで開く) — 文字サイズ + バージョン表示 */}
-      <SettingsModal
+      {/* S15.5.7: 設定 Modal (Header ⚙️ タップで開く) — 文字サイズ + バージョン表示、S17 段階 2-5-1 で Loader 経由化 */}
+      <SettingsModalLoader
         open={settingsOpen}
         fontScale={fontScale}
         onFontScaleChange={handleFontScaleChange}

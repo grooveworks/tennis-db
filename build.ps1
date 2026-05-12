@@ -55,14 +55,15 @@ if (Test-Path $domainDir) {
   }
 }
 
-# ui/ (recursive, sort by full path) — S17 code splitting 段階 1+2-1+2-2+2-3+2-4: ui/plan/ + ui/insights/ + ui/sessions/{QuickTrialMode,MergeModal,MergePartnerPicker}.jsx + ui/gear/{RacketDetailView,PeriodDetailView,SettingHistorySection}.jsx は heavy bundle 側へ
+# ui/ (recursive, sort by full path) — S17 code splitting 段階 1+2-1+2-2+2-3+2-4+2-5-1: ui/plan/ + ui/insights/ + ui/sessions/{QuickTrialMode,MergeModal,MergePartnerPicker}.jsx + ui/gear/{RacketDetailView,PeriodDetailView,SettingHistorySection}.jsx + ui/common/SettingsModal.jsx は heavy bundle 側へ
 # 試合中使わない component はファイル単位で厳密除外 (= SessionsTab / GameTracker / MatchEditModal / _NumWheel / GearTab は core 維持)
 $uiDir = Join-Path $srcDir "ui"
 if (Test-Path $uiDir) {
   Get-ChildItem $uiDir -Recurse -Filter *.jsx | Where-Object {
     -not ($_.FullName -match "[\\/]ui[\\/](plan|insights)[\\/]") -and
     -not ($_.FullName -match "[\\/]ui[\\/]sessions[\\/](QuickTrialMode|MergeModal|MergePartnerPicker)\.jsx$") -and
-    -not ($_.FullName -match "[\\/]ui[\\/]gear[\\/](RacketDetailView|PeriodDetailView|SettingHistorySection)\.jsx$")
+    -not ($_.FullName -match "[\\/]ui[\\/]gear[\\/](RacketDetailView|PeriodDetailView|SettingHistorySection)\.jsx$") -and
+    -not ($_.FullName -match "[\\/]ui[\\/]common[\\/]SettingsModal\.jsx$")
   } | Sort-Object FullName | ForEach-Object {
     $rel = $_.FullName.Substring($srcDir.Length + 1).Replace("\", "/")
     AppendLine "// === src/$rel ==="
@@ -105,6 +106,8 @@ AppendLine "  computeRacketUsage: computeRacketUsage,"
 AppendLine "  formatRacketStringDisplay: formatRacketStringDisplay,"
 AppendLine "  formatRacketTensionDisplay: formatRacketTensionDisplay,"
 AppendLine "  computeSettingHistory: computeSettingHistory,"
+AppendLine "  lsLoad: lsLoad,"
+AppendLine "  KEYS: KEYS,"
 AppendLine "};"
 
 # ── Step 2: 一時ファイルに書き出して esbuild に渡す
@@ -191,13 +194,19 @@ foreach ($p in @($racketDetailPath, $periodDetailPath, $settingHistoryPath)) {
     exit 1
   }
 }
+# S17 code splitting 段階 2-5-1: SettingsModal.jsx の存在チェック
+$settingsModalPath = Join-Path $srcDir "ui\common\SettingsModal.jsx"
+if (-not (Test-Path $settingsModalPath)) {
+  Write-Error "SettingsModal.jsx not found at $settingsModalPath (heavy bundle build aborted)"
+  exit 1
+}
 
 $heavySb = New-Object System.Text.StringBuilder
 [void]$heavySb.AppendLine("// === heavy bundle prelude (S17 code splitting 段階 1) ===")
 [void]$heavySb.AppendLine("if (!window.__TennisDBCore) {")
 [void]$heavySb.AppendLine('  throw new Error("TennisDB core bridge is not available");')
 [void]$heavySb.AppendLine("}")
-[void]$heavySb.AppendLine("const { C, font, Icon, Modal, Input, Textarea, NumWheel, sortByStatusAndOrder, RACKET_STATUS_PRIORITY, STRING_STATUS_PRIORITY, fbFunctions, RADIUS, normDate, _normalizeMatchResult, genId, Button, SCHEMA, isEmptyVal, useFocusTrap, computeMergeDiff, applyMerge, countRelinks, computeRacketUsage, formatRacketStringDisplay, formatRacketTensionDisplay, computeSettingHistory } = window.__TennisDBCore;")
+[void]$heavySb.AppendLine("const { C, font, Icon, Modal, Input, Textarea, NumWheel, sortByStatusAndOrder, RACKET_STATUS_PRIORITY, STRING_STATUS_PRIORITY, fbFunctions, RADIUS, normDate, _normalizeMatchResult, genId, Button, SCHEMA, isEmptyVal, useFocusTrap, computeMergeDiff, applyMerge, countRelinks, computeRacketUsage, formatRacketStringDisplay, formatRacketTensionDisplay, computeSettingHistory, lsLoad, KEYS, APP_VERSION } = window.__TennisDBCore;")
 [void]$heavySb.AppendLine("const { useState, useEffect, useMemo, useRef } = React;")
 [void]$heavySb.AppendLine("")
 
@@ -257,6 +266,13 @@ foreach ($p in @($settingHistoryPath, $racketDetailPath, $periodDetailPath)) {
   }
 }
 
+# ui/common/SettingsModal.jsx (S17 code splitting 段階 2-5-1、2026-05-12: アプリ設定モーダルを heavy 側へ)
+if (Test-Path $settingsModalPath) {
+  [void]$heavySb.AppendLine("// === src/ui/common/SettingsModal.jsx ===")
+  [void]$heavySb.Append([System.IO.File]::ReadAllText($settingsModalPath))
+  [void]$heavySb.AppendLine("")
+}
+
 # heavy 末尾 expose (PlanTab 存在ランタイム検証 + window.__TennisDBHeavy 登録)
 [void]$heavySb.AppendLine("// === heavy bundle expose ===")
 [void]$heavySb.AppendLine('if (typeof PlanTab === "undefined") {')
@@ -283,6 +299,9 @@ foreach ($p in @($settingHistoryPath, $racketDetailPath, $periodDetailPath)) {
 [void]$heavySb.AppendLine('if (typeof PeriodDetailView === "undefined") {')
 [void]$heavySb.AppendLine('  throw new Error("PeriodDetailView is not defined in heavy bundle");')
 [void]$heavySb.AppendLine("}")
+[void]$heavySb.AppendLine('if (typeof SettingsModal === "undefined") {')
+[void]$heavySb.AppendLine('  throw new Error("SettingsModal is not defined in heavy bundle");')
+[void]$heavySb.AppendLine("}")
 [void]$heavySb.AppendLine("window.__TennisDBHeavy = window.__TennisDBHeavy || {};")
 [void]$heavySb.AppendLine("window.__TennisDBHeavy.PlanTab = PlanTab;")
 [void]$heavySb.AppendLine("window.__TennisDBHeavy.InsightsTab = InsightsTab;")
@@ -291,6 +310,7 @@ foreach ($p in @($settingHistoryPath, $racketDetailPath, $periodDetailPath)) {
 [void]$heavySb.AppendLine("window.__TennisDBHeavy.MergePartnerPicker = MergePartnerPicker;")
 [void]$heavySb.AppendLine("window.__TennisDBHeavy.RacketDetailView = RacketDetailView;")
 [void]$heavySb.AppendLine("window.__TennisDBHeavy.PeriodDetailView = PeriodDetailView;")
+[void]$heavySb.AppendLine("window.__TennisDBHeavy.SettingsModal = SettingsModal;")
 # SettingHistorySection は expose しない (= heavy IIFE 内で RacketDetailView から参照、外部不要、ChatGPT 補足 6)
 
 $tmpHeavyJsx = Join-Path $tmpDir "heavy.jsx"
