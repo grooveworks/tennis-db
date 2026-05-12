@@ -86,6 +86,8 @@ function _meRatingRow({ label, value, onChange }) {
 
 function MatchEditModal({ open, match, trnType, tournament, racketNames = [], stringNames = [], opponentNames = [], recentSetups = [], confirm, onSave, onClose, planResetPhrase = "" }) {
   const trapRef = useFocusTrap(open); // Round 5: a11y focus trap
+  // 4.7.26-S17 hotfix (2026-05-13): swipe back silent close 用、UI close → history.back と popstate handler の二重 onClose 防止 guard
+  const closingByUiRef = useRef(false);
   // リク 30-e (S16): 試合形式を解決 (form.format > tournament.matchFormat > default)
   //   form (state) を見ることで「変更」ボタン操作時に即座に効く。useMemo はキャッシュ。
   //   helpers が format に応じてセット完了判定 / 試合勝敗判定を変える。
@@ -129,13 +131,23 @@ function MatchEditModal({ open, match, trnType, tournament, racketNames = [], st
   }, [open, form, dirty]);
 
   // 未保存変更がある時は閉じる前に確認 (S15.5.9: 確定で下書きクリア)
+  // 4.7.26-S17 hotfix (2026-05-13): UI close 確定後に history entry 消費 (= match-edit-modal entry が stale 残りで次の back が誤発火するのを防ぐ)
+  //   既存 dirty confirm の UX (= 文言・ボタン・表示条件) は不変、history cleanup のみ追加
+  //   依存配列 [dirty, confirm, onClose, form] は変更なし (= 既存形維持)
   const handleClose = useCallback(() => {
     const clearDraft = () => { if (form?.id) _clearMatchDraft(form.id); };
-    if (!dirty) { clearDraft(); onClose && onClose(); return; }
-    if (!confirm) { clearDraft(); onClose && onClose(); return; }
+    const consumeHistoryEntry = () => {
+      // UI close 経由で match-edit-modal entry を pop、popstate handler は closingByUiRef で二重 onClose を skip する
+      if (window.history.state && window.history.state.tdb === "match-edit-modal") {
+        closingByUiRef.current = true;
+        try { window.history.back(); } catch (_) { closingByUiRef.current = false; }
+      }
+    };
+    if (!dirty) { clearDraft(); consumeHistoryEntry(); onClose && onClose(); return; }
+    if (!confirm) { clearDraft(); consumeHistoryEntry(); onClose && onClose(); return; }
     confirm.ask(
       "編集内容が保存されていません。破棄してよろしいですか？",
-      () => { clearDraft(); onClose && onClose(); },
+      () => { clearDraft(); consumeHistoryEntry(); onClose && onClose(); },
       { title: "未保存の変更があります", yesLabel: "破棄する", noLabel: "編集に戻る", yesVariant: "danger", icon: "triangle-alert" }
     );
   }, [dirty, confirm, onClose, form]);
@@ -208,6 +220,35 @@ function MatchEditModal({ open, match, trnType, tournament, racketNames = [], st
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
   }, [open, handleClose]);
+
+  // 4.7.26-S17 hotfix (2026-05-13): スマホ edge スワイプ戻りで silent close (= 案 A、4 経路共通の history 管理)
+  //   open 時に pushState({tdb:"match-edit-modal"}) で entry 追加、重複 push ガード付き
+  //   popstate で entry を抜けたら silent close (= dirty confirm 通さない、_clearMatchDraft 呼ばない、onClose のみ)
+  //   closingByUiRef が true なら UI close 経由の history.back と判定して二重 close を skip + ref クリア
+  //   draft auto-save (_saveMatchDraft) の意味は不変、_clearMatchDraft も既存意味不変 (= 別経路で必要時のみ呼ぶ)
+  //   注: handleSaveClick → onSave 経由の close は match-edit-modal entry を leak する (= 別 hotfix 候補、handleSaveClick 不変)
+  useEffect(() => {
+    if (!open) return;
+    try {
+      if (!window.history.state || window.history.state.tdb !== "match-edit-modal") {
+        window.history.pushState({ tdb: "match-edit-modal" }, "");
+      }
+    } catch (_) {}
+    const handler = (e) => {
+      if (closingByUiRef.current) {
+        // UI close 経由の history.back、ref クリアして return (= popstate 二重 close 防止)
+        closingByUiRef.current = false;
+        return;
+      }
+      const state = e && e.state;
+      if (state && state.tdb === "match-edit-modal") return;  // 自階層維持 (= 念のため)
+      // silent close: dirty confirm を出さず、draft clear せず、onClose を直接呼ぶ
+      // draft は LS に残存 (= 既存編集なら次回 open で復元、新規追加なら orphan)
+      onClose && onClose();
+    };
+    window.addEventListener("popstate", handler);
+    return () => window.removeEventListener("popstate", handler);
+  }, [open, onClose]);
 
   if (!open || !form) return null;
 

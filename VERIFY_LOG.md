@@ -6,8 +6,114 @@
 
 ## 現行 push 候補
 
-push 候補: 4.7.25-S17 merge-flow swipe-back hotfix (= スワイプ戻り audit Tier 1 の MergeModal + MergePartnerPicker 対応)
-バージョン: 4.7.25-S17
+push 候補: 4.7.26-S17 MatchEditModal swipe-back hotfix (= スワイプ戻り audit Tier 1 残 1 件、MatchEditModal の 4 経路一括対応)
+バージョン: 4.7.26-S17
+
+経緯:
+- 4.7.25 push 後、Tier 1 残 1 件 (= MatchEditModal) に着手
+- MatchEditModal は 4 経路で開かれる: A1 大会編集 form / A2 練習編集 form / B1 詳細「+試合追加」/ B2 詳細 既存試合 tap → 編集
+- ChatGPT 議論で UX 判断確定: 案 A (= swipe back = silent close、dirty confirm 通さず、_clearMatchDraft 呼ばない、案 B 「dirty 時 confirm + history 再 push」 は race 多いため不採用)
+- 私の元案で 「handleClose 不変」 と書いた → ユーザー指摘 「UI close 時に match-edit-modal entry を消費しないと leak」 で修正、closingByUiRef guard で popstate 二重 close 防止追加
+- 「データロス無し」 を当初言ったが、blankMatch 実コード確認で 新規追加 (A1/A2/B1) は毎回新 id 発行 → orphan draft として LS 残存するが自動復元されない判明、表現を 「LS 残存」 + 「既存編集なら復元可能」 に正確化
+- useCallback / useMemo 等の React hook 新規導入は禁止 (= 既存 handleClose は既に useCallback、依存配列 [dirty, confirm, onClose, form] 不変)
+- G1/G2/G2' は大会詳細経由 (= B route) で固定検証、history.back が detail を巻き込まないこと実証
+
+修正内容 (= src/ui/sessions/MatchEditModal.jsx、3 区域):
+1. closingByUiRef (= useRef、新規追加) を関数冒頭に追加、UI close → history.back と popstate handler の二重 onClose 防止
+2. 既存 handleClose 内に consumeHistoryEntry 関数を追加、dirty confirm UX 不変のまま close 確定後に history.back で match-edit-modal entry を消費 (依存配列不変)
+3. 新規 useEffect で open 時 pushState({tdb:"match-edit-modal"}) + popstate listener、popstate で silent close (= dirty confirm 通さず _clearMatchDraft 呼ばず onClose のみ、closingByUiRef true なら skip)
+
+スコープ外 (= 別 hotfix で扱う、明記):
+- handleSaveClick → onSave 経由の close は match-edit-modal entry を leak する (= 4.7.25 handleMergeConfirm と同型、別 hotfix で実 Firestore write 検証込みで対応)
+- 新規追加 (A1/A2/B1) の orphan draft 自動復元改善 (= 既存仕様、別タスク)
+- 課題行 Plan リンク表示 (= B 系別バグ)
+
+変更対象ファイル:
+- src/ui/sessions/MatchEditModal.jsx (= 3 区域)
+- src/core/01_constants.js (APP_VERSION 4.7.25-S17 → 4.7.26-S17)
+- v4/bundle-heavy.js / v4/index.html (= build 成果物、heavy のみ +565 bytes)
+- VERIFY_LOG.md
+
+全文 Read:
+- MatchEditModal.jsx の handleClose / useEffect Esc / useFocusTrap / ROUND_OPTS など主要構造 (= 段階 2-5-2 時点で 537 行全 Read 済、今回は handleClose 周辺と Esc useEffect 隣接 area 再確認)
+- 4 経路の state host (= TournamentEditForm.matchModalState / PracticeEditForm.matchModalState / SessionDetailView.addMatchState + matchEditTarget): 確認済
+- blankMatch (= match_helpers.js L91-94): id: genId() で毎回新 id 発行確認
+
+依存棚卸し:
+- grep: handleSaveClick / handleAddMatchSave / handleEditMatchSave / handleSaveMatch / app.jsx popstate / Modal.jsx すべて差分なし (= 触らない契約遵守)
+- bridge 漏れ: なし (= MatchEditModal は既に heavy 内、追加 bridge 不要)
+
+制約チェック (= ユーザー指定 7 項目):
+- MatchEditModal.jsx 以外の UI ファイル不変: 済 (= git diff で確認)
+- app.jsx popstate listener 不変: 済
+- handleSaveClick / onSave / Firestore write 経路不変: 済
+- _clearMatchDraft は popstate handler から呼ばない: 済 (= popstate handler に呼出無し)
+- UI close 経路だけ history entry 消費 (= consumeHistoryEntry を handleClose 内のみ): 済
+- dirty confirm 文言・ボタン・表示条件不変: 済 (= 「未保存の変更があります」「破棄してよろしいですか？」「破棄する」「編集に戻る」全て不変)
+- handleClose 依存配列 [dirty, confirm, onClose, form] 不変: 済
+- useCallback / useMemo 等の React hook 新規導入なし: 済 (= 既存 useCallback ラップを維持、closingByUiRef は既存パターンの useRef、新規 hook ではない)
+
+実画面検証 (dev mode http://localhost:8081/v4/index.html?dev=1、real window.history.back()):
+
+シナリオ A1 (= 大会編集 form +試合追加 → 入力 → real back):
+- 4/29 インスピシングルス → 編集 → +試合追加 → 対戦相手 input "test_dirty_..." 入力 → dialog=[大会詳細(編集), 試合を編集]、state.tdb="match-edit-modal"、draft count=4
+- real back → dialog=[大会詳細(編集)]、state.tdb="detail"、dirty confirm 出ない (= silent close 成立)、draft count=4 (= _clearMatchDraft 呼ばれていない、案 A 設計成立): 済 ✓
+
+シナリオ G1 (= 大会詳細 +試合追加 → 入力なし → キャンセル):
+- 4/29 大会詳細 (state.tdb="detail") → +試合追加 → dialog=[大会詳細, 試合を編集]、state.tdb="match-edit-modal"
+- キャンセル button click → dialog=[大会詳細]、state.tdb="detail"、state !== "match-edit-modal" 確認: 済 ✓ (= UI close 経路の history cleanup 成立)
+
+シナリオ G2 (= 大会詳細 +試合追加 → 入力 → キャンセル → 編集に戻る):
+- 大会詳細 → +試合追加 → 対戦相手 input 入力 → キャンセル button → **dirty confirm dialog 表示** (「未保存の変更があります」「破棄してよろしいですか？」「編集に戻る」「破棄する」)、state.tdb="match-edit-modal" 維持
+- 「編集に戻る」 click → dialog=[大会詳細, 試合を編集]、**state.tdb="match-edit-modal" 維持**: 済 ✓ (= consumeHistoryEntry が confirm 「破棄する」 callback 内のみで動く設計、契約の核心)
+
+シナリオ G2' (= G2 続き → 再度キャンセル → 破棄する):
+- 再度キャンセル → dirty confirm → 「破棄する」 click → dialog=[大会詳細]、state.tdb="detail"、state !== "match-edit-modal"
+- draft count: 5 → 4、新規 G2 入力で作成された draft key "yuke-match-draft-mp376ar2mdrlm4-v1" がクリア確認: 済 ✓ (= UI close 「破棄する」 で _clearMatchDraft 既存挙動維持)
+
+シナリオ Reg-2 (= 4.7.24 Settings 回帰):
+- 設定 button → state.tdb="settings-modal"、dialog=[アプリ設定] → real back → dialog=[]、state=anchor: 済 ✓ (= 4.7.24 動作維持、MatchEditModal popstate 追加で settings 経路に影響なし)
+
+シナリオ A2 (= PracticeEditForm 内 +試合追加 → 入力 → real back、ChatGPT 補足対応で追加検証):
+- 練習 5/15 テニス練習 → 編集 button → PracticeEditForm 表示 (dialog=[練習詳細(編集)])
+- 「試合記録を追加」 button → MatchEditModal 表示 (dialog=[練習詳細(編集), 試合を編集])、state.tdb="match-edit-modal"
+- 対戦相手 input "A2_test_dirty" 入力 → dirty=true、draft auto-save (draft count 3 → 4)
+- real window.history.back() → MatchEditModal 閉、**練習詳細 (編集) 維持** (= dialog=[練習詳細(編集)])、state.tdb="detail"、dirty confirm 出ず、draft count 5 (= +1 orphan): 済 ✓
+- onClose 受け側: PracticeEditForm `setMatchModalState(null)` (= A1 とは別ファイルの別 state)、正常動作確認
+
+シナリオ B1 (= SessionDetailView 詳細「+試合追加」→ 入力 → real back、ChatGPT 補足対応で追加検証):
+- 4/29 インスピシングルス 大会詳細 (state.tdb="detail") → 詳細画面の「試合を追加」 button → MatchEditModal 表示 (dialog=[大会詳細, 試合を編集])、state.tdb="match-edit-modal"
+- 対戦相手 input "B1_test_dirty" 入力 → dirty=true、draft auto-save (draft count 5 → 6)
+- real window.history.back() → MatchEditModal 閉、**大会詳細 (= SessionDetailView) 維持**、state.tdb="detail"、dirty confirm 出ず、draft count 6 (= orphan 残存): 済 ✓
+- onClose 受け側: SessionDetailView `setAddMatchState(null)` (= A 系とは別の state、core 側)、正常動作確認
+
+シナリオ B2 (= SessionDetailView 既存試合 tap → MatchDetailView → 編集 → 入力 → real back、ChatGPT 補足対応で追加検証):
+- 4/12 所沢市民大会ベテランダブルス (= match 3 件保持) → 詳細表示 → 既存試合 row tap → MatchDetailView 表示 (dialog=[大会詳細, 試合詳細])、state.tdb="match-detail"
+- 「編集」 button → MatchEditModal 表示 (dialog=[大会詳細, 試合を編集])、state.tdb="match-edit-modal"、MatchDetailView は同時に閉じる (= `onEdit={(m) => { setMatchDetailTarget(null); setMatchEditTarget(m); }}` 既存挙動)
+- メモ系 textarea に "B2_test_dirty" 入力 → dirty=true、draft auto-save (= **固定 match id `mr1775952691476` の draft key `yuke-match-draft-mr1775952691476-v1`** に保存、draft count 6 → 7)
+- real window.history.back() → MatchEditModal 閉、**大会詳細 (= SessionDetailView) 維持**、state.tdb="match-detail" (= MatchDetailView entry に戻る、`_SESSIONS_KEEP_OPEN` 内なので app.jsx popstate で setDetail(null) 走らず、SessionDetailView 維持成立)、dirty confirm 出ず、target match draft 保存維持: 済 ✓
+- onClose 受け側: SessionDetailView `setMatchEditTarget(null)` (= A 系・B1 とは別の state、core 側)、正常動作確認
+- **既存編集の fixed id 特性**: target match draft が同 id で保存維持 → next open (= 同 match 再 tap) で「下書きを復元しました」 banner 復元期待 (= 既存仕様、本 hotfix で直接検証せず)
+
+別 hotfix 候補 (= 4.7.26 範囲外で発見、明記):
+- MatchDetailView → 編集 button (= `onEdit` で `setMatchDetailTarget(null)` + `setMatchEditTarget(m)`) の経路で MatchDetailView の history entry が消費されず leak する pre-existing 挙動 (= 4.7.26 で導入した問題ではなく、検証中に観察)
+
+console error 0: 済 (= 4.7.26-S17 由来の新規 error 無し)
+Firestore write: なし (= 検証で 削除して統合 / 保存 / 削除 button 一切押さず)
+
+未確認: なし (= ChatGPT 指摘の 「同一コードパスだから実証済」 を撤回、A2/B1/B2 すべて実 UI 導線で検証完了、onClose 受け側 4 件すべて別 state hosts に対して動作確認済)
+
+備考:
+- closingByUiRef pattern (= 既存 manualResultLockRef と同形の useRef、新規 hook ではない) で UI close → history.back → popstate の二重 close を guard、unmount cleanup と popstate fire の race にも耐性
+- silent close 設計 (= 案 A) と UI cancel dirty confirm (= 既存) の非対称性は意図的、UX 統一は別タスク
+- 新規追加 (A1/A2/B1) の orphan draft 自動復元は既存仕様の制約、4.7.26 で改善せず
+- handleSaveClick → onSave 経由の match-edit-modal entry leak は 4.7.25 handleMergeConfirm と同型、別 hotfix 候補
+
+教訓 (= 引き継ぎ):
+- 4.7.25 で確立した「UI close 経路でも history.back に統一」を 4.7.26 でも踏襲、ただし MatchEditModal は dirty confirm があるため handleClose 内部に consumeHistoryEntry を組込む点が新しい
+- 私の元案で 「handleClose 不変」と書いた → ユーザー指摘で entry leak バグを検出 → 修正、これは 4.7.25 と同じ問題の繰り返しだったが、UX 不変原則 (= dirty confirm 文言・ボタン・条件) と history cleanup の両立を契約で固定して解決
+- 「データロス無し」断定 → blankMatch コード確認で orphan draft 判明 → 表現修正、断定する前に実コード読む習慣を徹底
+- 4.7.26 push 前ゲートで 「A2/B1/B2 は同一コードパスなので実証済」 と書いた → ユーザー指摘 「onClose の受け側が違う、各経路実 UI 検証必須」 で却下、4.7.22 段階 2-5-2 TrialEditForm 「React.createElement で動いた」 と同質の手抜き再発、4 経路すべて実 UI 検証して PASS 確認
 
 経緯:
 - 4.7.24 push 後、ロードマップ通り次対象は MergeModal + MergePartnerPicker
@@ -399,6 +505,14 @@ console error 0: 済 (= 4.7.21-S17 由来の新規 error 無し、Firestore depr
 ---
 
 ## 過去 push の検証ログ (= 最新を上、古いを下)
+
+### 1ddb87c (= 4.7.25-S17 merge-flow swipe-back hotfix、MergeModal + MergePartnerPicker 対応)
+- handleMergeStart に pushState({tdb:"merge-flow"}) + 重複ガード、handleMergeCancel を history.back 統一
+- popstate listener: modal-first 末尾に merge close 条件 slot in、_SESSIONS_KEEP_OPEN check より先
+- handleMergeConfirm 不変 (= Firestore 削除統合導線、別 hotfix で entry leak 対応)
+- Picker と MergeModal を別経路で検証 (Modal.jsx 経由 vs 自前 dialog)、UI キャンセル / 背景タップ 両方確認
+- 実 history.back 9 シナリオ全 PASS、console error 0
+- 教訓: A1+B1 (= swipe = キャンセル相当) 採用、internal step (compare↔confirm) の history 管理は別タスク
 
 ### 4242b05 (= 4.7.24-S17 top-level history hotfix、handleTaskClick / SettingsModal / QuickAddModal swipe back 対応)
 - 3 件 (handleTaskClick / SettingsModal / QuickAddModal) に pushState + popstate listener 拡張
