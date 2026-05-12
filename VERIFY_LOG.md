@@ -6,26 +6,27 @@
 
 ## 現行 push 候補
 
-push 候補: (これから commit) .claude/hooks/git-guard.ps1 拡張 (= 二重防御)
+push 候補: (これから commit) CLAUDE.md に R6 push 前ゲート追加
 バージョン: 4.7.20-S17 (不変、画面影響なし)
-タスク: ChatGPT 補足 E (= git-guard.ps1 で VERIFY_LOG.md チェックを追加、Claude Code 内二重防御)
+タスク: ChatGPT 補足 B (= CLAUDE.md に 8 項目停止条件 + push 前ゲートフォーマット追加、行動規範レベル)
 
 変更対象:
-- .claude/hooks/git-guard.ps1 (= push 検知時に VERIFY_LOG.md 必須項目チェックを追加、不足なら ask reason に追記)
+- CLAUDE.md (= R6 セクション追加、コミット規律と役割分担の間に挿入、約 60 行)
 
 全文 Read:
-- 対象ファイル: 済 (= git-guard.ps1 59 行 全文 Read、自分で書いたファイル)
+- 対象ファイル: 済 (= CLAUDE.md 既存セクション構造確認、編集箇所周辺 Read 済)
 - 子コンポーネント: 該当なし
 
-依存棚卸し: 該当なし (= UI 変更なし、hook script のみ)
+依存棚卸し: 該当なし (= UI 変更なし、ドキュメントのみ)
 
-実画面検証: 済 (= 画面変更なし、UI 影響無し。BOM 付与済「BOM added」、Pre-push hook 単体テストは前回確認済 = 「pre-push gate passed」)
+実画面検証: 済 (= 画面変更なし、UI 影響無し)
 
 console error 0: 済 (= 該当なし、画面変更なし)
 
 備考:
-- 今回 push 時に git-guard.ps1 拡張 + pre-push hook の二重防御が初めて稼働する
-- ask reason に「VERIFY_LOG.md 不足」hint が追加される / されない、pre-push hook で exit 0/1 のどちらか で動作確認
+- C+D (pre-push hook + VERIFY_LOG.md) + E (git-guard.ps1 拡張) は既に push 済 (7ed5f8d / b50657d)
+- 今回 B (CLAUDE.md R6) は行動規範を明文化、次回からの heavy 化作業で参照
+- 残: A (Memory 短文化、補助)
 
 ---
 

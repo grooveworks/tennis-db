@@ -99,6 +99,56 @@
 
 ---
 
+## R6. push 前ゲート (2026-05-12 確立、ChatGPT 補足対応)
+
+heavy 化作業 / code splitting / 重要ファイル編集 を含む push 前に、以下 8 項目を Yes/No で確認する。1 つでも No なら push 禁止。
+
+1. 変更対象ファイルと、その **子コンポーネント** を全文 Read したか
+2. grep だけで依存棚卸しを済ませていないか (= 全文 Read 必須)
+3. bridge 漏れが 1 件でも出た場合、対象ファイルを **全文再 Read** したか (= 1 個直して終わりにしない、氷山の一角と見做す)
+4. **実画面で変更対象そのものを開いた** か (= dev mode で実際の機能を呼び出した)
+5. click / 遷移 / 戻る / 閉じる を確認したか
+6. console error 0 を確認したか
+7. 「bundle expose 確認」「heavy 読込確認」「Plan タブで render 確認」だけで動作確認済みにしていないか
+8. ユーザーに検証を丸投げしていないか (= 「iPhone で確認お願いします」を再掲しない)
+
+### push 前ゲートフォーマット (= push 承認求める時に必ずこの形式)
+
+```
+## push 前ゲート
+変更対象:
+- xxx.jsx
+
+全文 Read:
+- 対象ファイル: 済
+- 子コンポーネント: 済 / 該当なし
+
+依存棚卸し:
+- grep: 済
+- 全文確認: 済
+- bridge 漏れ: なし / あり (xxx 追加)
+
+実画面検証:
+- 対象画面を開いた: 済
+- click / 遷移 / 戻る/閉じる: 済
+
+console error 0: 済
+
+未確認: なし
+```
+
+この形式が出せないなら push 禁止。
+
+### 物理ブロック仕組み (= 2026-05-12 導入、ChatGPT 推奨)
+
+- `.git/hooks/pre-push`: `VERIFY_LOG.md` に「実画面検証: 済」「console error 0: 済」が含まれていなければ exit 1 で物理ブロック
+- `.claude/hooks/git-guard.ps1`: git push 検知時に VERIFY_LOG.md 必須項目チェック、不足なら ask reason に hint 追記 (= Claude Code 内二重防御)
+- `VERIFY_LOG.md`: 各 push 前に Claude が必ず更新、現行 push 候補 + 過去 push 履歴を記録
+
+教訓: Memory は読まない / 都合よく解釈 / 忘れる / 検証を省く ので強制力なし。HOOK / pre-push gate で物理的に縛る方が確実 (ChatGPT 補足 2026-05-12)。
+
+---
+
 ## 役割分担
 
 | | 担当 |
