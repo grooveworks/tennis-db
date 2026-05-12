@@ -390,6 +390,123 @@ function MergeModalLoader(props) {
   return <HeavyMergeModal {...props} />;
 }
 
+// S17 code splitting 段階 2-4 (2026-05-12): RacketDetailView heavy bundle on-demand 読込 wrapper
+//   open=false 時は null return、open=true 時にモーダルとして loading 状態を表示
+function RacketDetailViewLoader(props) {
+  const [state, setState] = useState(() =>
+    (window.__TennisDBHeavy && window.__TennisDBHeavy.RacketDetailView) ? "ready" : "loading"
+  );
+  useEffect(() => {
+    if (!props.open) return;
+    if (state !== "loading") return;
+    if (window.__TennisDBHeavy && window.__TennisDBHeavy.RacketDetailView) {
+      setState("ready");
+      return;
+    }
+    if (typeof window.loadHeavy !== "function") {
+      console.error("loadHeavy is not defined");
+      setState("error");
+      return;
+    }
+    window.loadHeavy().then(() => setState("ready")).catch((e) => {
+      console.error("Heavy bundle load failed:", e);
+      setState("error");
+    });
+  }, [props.open, state]);
+  if (!props.open) return null;
+  if (state === "error") {
+    return (
+      <div onClick={props.onClose} style={{
+        position: "fixed", inset: 0, zIndex: 1100,
+        background: "rgba(0,0,0,0.4)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+      }}>
+        <div onClick={(e) => e.stopPropagation()} style={{
+          background: C.panel, padding: 20, borderRadius: 12, color: C.error, fontSize: 13, textAlign: "center", lineHeight: 1.6,
+        }}>
+          ギア詳細の読み込みに失敗しました。<br />
+          ページを再読み込みしてください。
+        </div>
+      </div>
+    );
+  }
+  if (state === "loading" || !(window.__TennisDBHeavy && window.__TennisDBHeavy.RacketDetailView)) {
+    return (
+      <div onClick={props.onClose} style={{
+        position: "fixed", inset: 0, zIndex: 1100,
+        background: "rgba(0,0,0,0.4)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+      }}>
+        <div onClick={(e) => e.stopPropagation()} style={{
+          background: C.panel, padding: 20, borderRadius: 12, color: C.textMuted, fontSize: 13,
+        }}>
+          ギア詳細を読み込んでいます…
+        </div>
+      </div>
+    );
+  }
+  const HeavyRacketDetailView = window.__TennisDBHeavy.RacketDetailView;
+  return <HeavyRacketDetailView {...props} />;
+}
+
+// S17 code splitting 段階 2-4 (2026-05-12): PeriodDetailView heavy bundle on-demand 読込 wrapper
+function PeriodDetailViewLoader(props) {
+  const [state, setState] = useState(() =>
+    (window.__TennisDBHeavy && window.__TennisDBHeavy.PeriodDetailView) ? "ready" : "loading"
+  );
+  useEffect(() => {
+    if (!props.open) return;
+    if (state !== "loading") return;
+    if (window.__TennisDBHeavy && window.__TennisDBHeavy.PeriodDetailView) {
+      setState("ready");
+      return;
+    }
+    if (typeof window.loadHeavy !== "function") {
+      console.error("loadHeavy is not defined");
+      setState("error");
+      return;
+    }
+    window.loadHeavy().then(() => setState("ready")).catch((e) => {
+      console.error("Heavy bundle load failed:", e);
+      setState("error");
+    });
+  }, [props.open, state]);
+  if (!props.open) return null;
+  if (state === "error") {
+    return (
+      <div onClick={props.onClose} style={{
+        position: "fixed", inset: 0, zIndex: 1100,
+        background: "rgba(0,0,0,0.4)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+      }}>
+        <div onClick={(e) => e.stopPropagation()} style={{
+          background: C.panel, padding: 20, borderRadius: 12, color: C.error, fontSize: 13, textAlign: "center", lineHeight: 1.6,
+        }}>
+          期間詳細の読み込みに失敗しました。<br />
+          ページを再読み込みしてください。
+        </div>
+      </div>
+    );
+  }
+  if (state === "loading" || !(window.__TennisDBHeavy && window.__TennisDBHeavy.PeriodDetailView)) {
+    return (
+      <div onClick={props.onClose} style={{
+        position: "fixed", inset: 0, zIndex: 1100,
+        background: "rgba(0,0,0,0.4)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+      }}>
+        <div onClick={(e) => e.stopPropagation()} style={{
+          background: C.panel, padding: 20, borderRadius: 12, color: C.textMuted, fontSize: 13,
+        }}>
+          期間詳細を読み込んでいます…
+        </div>
+      </div>
+    );
+  }
+  const HeavyPeriodDetailView = window.__TennisDBHeavy.PeriodDetailView;
+  return <HeavyPeriodDetailView {...props} />;
+}
+
 function TennisDB() {
   const [user, setUser] = useState(null);
   const [authReady, setAuthReady] = useState(false);
@@ -2006,8 +2123,8 @@ function TennisDB() {
         onConfirm={handleCleanupConfirm}
         onClose={handleCleanupClose}
       />
-      {/* S16 Phase 4-B: Racket Detail (slide-in、6 セクション + 履歴) */}
-      <RacketDetailView
+      {/* S16 Phase 4-B: Racket Detail (slide-in、6 セクション + 履歴)、S17 段階 2-4 で Loader 経由化 */}
+      <RacketDetailViewLoader
         open={!!racketDetail}
         racket={racketDetail}
         rackets={rackets}
@@ -2023,8 +2140,8 @@ function TennisDB() {
         onMeasurementAdd={handleMeasurementAdd}
         onPeriodClick={handlePeriodClick}
       />
-      {/* S16 Phase 4-C-1: Period Detail (履歴 1 期間の sessions 一覧 slide-in) */}
-      <PeriodDetailView
+      {/* S16 Phase 4-C-1: Period Detail (履歴 1 期間の sessions 一覧 slide-in)、S17 段階 2-4 で Loader 経由化 */}
+      <PeriodDetailViewLoader
         open={!!periodDetail}
         period={periodDetail?.period}
         racket={periodDetail?.racket}
