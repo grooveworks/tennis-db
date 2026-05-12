@@ -273,6 +273,123 @@ function QuickTrialModeLoader(props) {
   return <HeavyQuickTrialMode {...props} />;
 }
 
+// S17 code splitting 段階 2-3 (2026-05-12): MergePartnerPicker heavy bundle on-demand 読込 wrapper
+//   open=false 時は null return、open=true 時にモーダルとして loading 状態を表示
+function MergePartnerPickerLoader(props) {
+  const [state, setState] = useState(() =>
+    (window.__TennisDBHeavy && window.__TennisDBHeavy.MergePartnerPicker) ? "ready" : "loading"
+  );
+  useEffect(() => {
+    if (!props.open) return;
+    if (state !== "loading") return;
+    if (window.__TennisDBHeavy && window.__TennisDBHeavy.MergePartnerPicker) {
+      setState("ready");
+      return;
+    }
+    if (typeof window.loadHeavy !== "function") {
+      console.error("loadHeavy is not defined");
+      setState("error");
+      return;
+    }
+    window.loadHeavy().then(() => setState("ready")).catch((e) => {
+      console.error("Heavy bundle load failed:", e);
+      setState("error");
+    });
+  }, [props.open, state]);
+  if (!props.open) return null;
+  if (state === "error") {
+    return (
+      <div onClick={props.onClose} style={{
+        position: "fixed", inset: 0, zIndex: 1100,
+        background: "rgba(0,0,0,0.4)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+      }}>
+        <div onClick={(e) => e.stopPropagation()} style={{
+          background: C.panel, padding: 20, borderRadius: 12, color: C.error, fontSize: 13, textAlign: "center", lineHeight: 1.6,
+        }}>
+          マージ画面の読み込みに失敗しました。<br />
+          ページを再読み込みしてください。
+        </div>
+      </div>
+    );
+  }
+  if (state === "loading" || !(window.__TennisDBHeavy && window.__TennisDBHeavy.MergePartnerPicker)) {
+    return (
+      <div onClick={props.onClose} style={{
+        position: "fixed", inset: 0, zIndex: 1100,
+        background: "rgba(0,0,0,0.4)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+      }}>
+        <div onClick={(e) => e.stopPropagation()} style={{
+          background: C.panel, padding: 20, borderRadius: 12, color: C.textMuted, fontSize: 13,
+        }}>
+          マージ画面を読み込んでいます…
+        </div>
+      </div>
+    );
+  }
+  const HeavyMergePartnerPicker = window.__TennisDBHeavy.MergePartnerPicker;
+  return <HeavyMergePartnerPicker {...props} />;
+}
+
+// S17 code splitting 段階 2-3 (2026-05-12): MergeModal heavy bundle on-demand 読込 wrapper
+function MergeModalLoader(props) {
+  const [state, setState] = useState(() =>
+    (window.__TennisDBHeavy && window.__TennisDBHeavy.MergeModal) ? "ready" : "loading"
+  );
+  useEffect(() => {
+    if (!props.open) return;
+    if (state !== "loading") return;
+    if (window.__TennisDBHeavy && window.__TennisDBHeavy.MergeModal) {
+      setState("ready");
+      return;
+    }
+    if (typeof window.loadHeavy !== "function") {
+      console.error("loadHeavy is not defined");
+      setState("error");
+      return;
+    }
+    window.loadHeavy().then(() => setState("ready")).catch((e) => {
+      console.error("Heavy bundle load failed:", e);
+      setState("error");
+    });
+  }, [props.open, state]);
+  if (!props.open) return null;
+  if (state === "error") {
+    return (
+      <div onClick={props.onCancel} style={{
+        position: "fixed", inset: 0, zIndex: 1100,
+        background: "rgba(0,0,0,0.4)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+      }}>
+        <div onClick={(e) => e.stopPropagation()} style={{
+          background: C.panel, padding: 20, borderRadius: 12, color: C.error, fontSize: 13, textAlign: "center", lineHeight: 1.6,
+        }}>
+          マージ確定画面の読み込みに失敗しました。<br />
+          ページを再読み込みしてください。
+        </div>
+      </div>
+    );
+  }
+  if (state === "loading" || !(window.__TennisDBHeavy && window.__TennisDBHeavy.MergeModal)) {
+    return (
+      <div onClick={props.onCancel} style={{
+        position: "fixed", inset: 0, zIndex: 1100,
+        background: "rgba(0,0,0,0.4)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+      }}>
+        <div onClick={(e) => e.stopPropagation()} style={{
+          background: C.panel, padding: 20, borderRadius: 12, color: C.textMuted, fontSize: 13,
+        }}>
+          マージ確定画面を読み込んでいます…
+        </div>
+      </div>
+    );
+  }
+  const HeavyMergeModal = window.__TennisDBHeavy.MergeModal;
+  return <HeavyMergeModal {...props} />;
+}
+
 function TennisDB() {
   const [user, setUser] = useState(null);
   const [authReady, setAuthReady] = useState(false);
@@ -1805,8 +1922,8 @@ function TennisDB() {
           confirm={cfm}
         />
       )}
-      {/* S15: マージ相手選択 (Detail マージボタン → 起動、相手未選択時のみ) */}
-      <MergePartnerPicker
+      {/* S15: マージ相手選択 (Detail マージボタン → 起動、相手未選択時のみ)、S17 段階 2-3 で Loader 経由化 */}
+      <MergePartnerPickerLoader
         open={!!mergeStarting && !mergePartner}
         type={mergeStarting?.type}
         sourceItem={mergeStarting?.sourceItem}
@@ -1819,8 +1936,8 @@ function TennisDB() {
         onSelect={handlePartnerSelect}
         onClose={handleMergeCancel}
       />
-      {/* S15: マージ本体 (相手選択完了 → 比較ビュー → 最終確認) */}
-      <MergeModal
+      {/* S15: マージ本体 (相手選択完了 → 比較ビュー → 最終確認)、S17 段階 2-3 で Loader 経由化 */}
+      <MergeModalLoader
         open={!!mergeStarting && !!mergePartner}
         type={mergeStarting?.type}
         itemA={mergeStarting?.sourceItem}
