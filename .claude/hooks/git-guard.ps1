@@ -45,7 +45,25 @@ if (-not $dangerous) {
   exit 0
 }
 
-$reason = "$kind を検知。直近の user message に明示承認 (Y / OK / やれ / push して 等) はありましたか? memory ルール「push は確認してから」(feedback_push_confirmation) と「コミット粒度ルール」(feedback_commit_granularity) を順守。承認が無ければユーザーに確認してから実行してください。"
+# S17 段階 2-4 後 (= 2026-05-12 ChatGPT 補足): git push の場合、VERIFY_LOG.md 必須項目チェックを追加
+# 不足なら reason に追記して、Claude Code 側でも「VERIFY_LOG.md 更新が必要」を意識させる
+# (.git/hooks/pre-push で物理ブロックされるが、Claude Code 内でも事前に気付かせる = 二重防御)
+$verifyHint = ""
+if ($kind -eq "git push") {
+  $verifyLogPath = Join-Path (Get-Location).Path "VERIFY_LOG.md"
+  $verifyOK = $false
+  if (Test-Path $verifyLogPath) {
+    $content = Get-Content $verifyLogPath -Raw -Encoding UTF8
+    if ($content -match "実画面検証: 済" -and $content -match "console error 0: 済") {
+      $verifyOK = $true
+    }
+  }
+  if (-not $verifyOK) {
+    $verifyHint = " ⚠️ VERIFY_LOG.md の必須項目 (= 「実画面検証: 済」「console error 0: 済」) が不足しています。push 前に VERIFY_LOG.md を今回 push 内容で更新してください。.git/hooks/pre-push でも物理ブロックされます。"
+  }
+}
+
+$reason = "$kind を検知。直近の user message に明示承認 (Y / OK / やれ / push して 等) はありましたか? memory ルール「push は確認してから」(feedback_push_confirmation) と「コミット粒度ルール」(feedback_commit_granularity) を順守。承認が無ければユーザーに確認してから実行してください。${verifyHint}"
 
 $output = @{
   hookSpecificOutput = @{

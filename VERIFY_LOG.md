@@ -6,27 +6,26 @@
 
 ## 現行 push 候補
 
-push 候補: (これから commit) VERIFY_LOG.md + pre-push hook 導入
+push 候補: (これから commit) .claude/hooks/git-guard.ps1 拡張 (= 二重防御)
 バージョン: 4.7.20-S17 (不変、画面影響なし)
-タスク: ChatGPT 補足 (2026-05-12) に基づく「Memory に頼らず物理的に push をブロック」する仕組みの導入
+タスク: ChatGPT 補足 E (= git-guard.ps1 で VERIFY_LOG.md チェックを追加、Claude Code 内二重防御)
 
 変更対象:
-- VERIFY_LOG.md (新規、リポジトリ管理対象)
-- .git/hooks/pre-push (新規、リポジトリ管理外 = ローカル PC のみ、別 PC で開発する場合は手動コピー要)
+- .claude/hooks/git-guard.ps1 (= push 検知時に VERIFY_LOG.md 必須項目チェックを追加、不足なら ask reason に追記)
 
 全文 Read:
-- 対象ファイル: 済 (= 自分で書いたファイル、内容把握)
-- 子コンポーネント: 該当なし (= UI コードではない)
+- 対象ファイル: 済 (= git-guard.ps1 59 行 全文 Read、自分で書いたファイル)
+- 子コンポーネント: 該当なし
 
-依存棚卸し: 該当なし (= UI 変更なし)
+依存棚卸し: 該当なし (= UI 変更なし、hook script のみ)
 
-実画面検証: 済 (= 画面変更なし、UI 影響無し。pre-push hook 単体動作テストで exit 0 確認、現状の VERIFY_LOG.md で gate passed)
+実画面検証: 済 (= 画面変更なし、UI 影響無し。BOM 付与済「BOM added」、Pre-push hook 単体テストは前回確認済 = 「pre-push gate passed」)
 
 console error 0: 済 (= 該当なし、画面変更なし)
 
 備考:
-- 過去 push (2e4aef6 = 段階 2-4) は実画面検証済 (= ラケット詳細 / 期間詳細 / 戻る動作 / console error 0 全項目クリア)、これは別 commit
-- 今回の commit は仕組み導入のみ、画面影響無し
+- 今回 push 時に git-guard.ps1 拡張 + pre-push hook の二重防御が初めて稼働する
+- ask reason に「VERIFY_LOG.md 不足」hint が追加される / されない、pre-push hook で exit 0/1 のどちらか で動作確認
 
 ---
 
