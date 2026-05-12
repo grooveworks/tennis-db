@@ -1,4 +1,4 @@
-# Tennis DB v4 — S17.x 引き継ぎ書 (2026-05-12 更新、段階 2-3 完了、段階 2-4 着手前)
+# Tennis DB v4 — S17.x 引き継ぎ書 (2026-05-12 更新、段階 2-4 完了 + 4 層防御完成、段階 2-5 着手前)
 
 > **このファイルは、文脈を知らない次セッションの Claude が単独で読んで現状を把握できることを目的とする。最初に必ず全文読む。**
 
@@ -6,11 +6,18 @@
 
 ## 0. 現在地
 
-- **APP_VERSION**: `v4.7.18-S17` (`src/core/01_constants.js`)
-- **直近 push**: `f3a205c` (= 段階 2-3 完了: MergeModal + MergePartnerPicker を heavy bundle 化)
-- **working tree**: clean (= 4.7.18-S17 push 状態と同一)
+- **APP_VERSION**: `v4.7.20-S17` (`src/core/01_constants.js`)
+- **直近 push**: `f98cd06` (= CLAUDE.md R6 push 前ゲート明文化、4 層防御完成)
+- **working tree**: clean (= 4.7.20-S17 push 状態と同一)
 - **stash@{0}**: Phase B 試作 (= 4.7.14-S17 で resume 完了済、復旧経路として保持中、不要なら `git stash drop stash@{0}` で破棄可)
-- **サイズ累計**: 出発点 525 KB → **4.7.18-S17 core 450 KB (= 450,571 bytes、目標 < 450 KB に 581 bytes 超過 = 実質達成) / heavy 91 KB** (= 75 KB 減)
+- **サイズ累計**: 出発点 525 KB → **4.7.20-S17 core 429 KB / heavy 117 KB** (= 96 KB 減、HANDOFF §3 目標 < 350 KB まで残り 79 KB)
+
+**⚠️ 4 層防御完成 (= 2026-05-12、ChatGPT 補足対応)**:
+1. `.git/hooks/pre-push` (= 物理ブロック): VERIFY_LOG.md に「実画面検証: 済」「console error 0: 済」両方ないと exit 1 で push 禁止
+2. `.claude/hooks/git-guard.ps1` (= Claude Code 内二重防御): git push 検知時に VERIFY_LOG.md 不足を ask reason に追記
+3. `CLAUDE.md R6` (= 行動規範): 8 項目停止条件 + push 前ゲートフォーマット明文化
+4. `memory/feedback_verify_before_push_2026_05_12.md` (= 補助): Memory ではなく HOOK / CLAUDE.md R6 / pre-push gate に従うことを誘導
+- **次セッションの Claude も R6 gate 必須**、push 候補は VERIFY_LOG.md 「現行 push 候補」セクションで毎回更新
 
 **⚠️ 重要 (= 2026-05-12 確定、memory `feedback_overscroll_behavior_ios_2026_05_12.md` 参照)**:
 - body / html / 最上位 div に `overscroll-behavior` プロパティを **絶対に設定しない** (= shorthand `none` も `-y:none` も両方禁止)
@@ -77,8 +84,10 @@ AI の土台だけ作る。
 | **B** | **前回 Plan 自動継承 (1 タップで前回作戦・ギア・リセット文をコピー)** | ✅ **完了 (4.7.14-S17、commit f20dded、3 択ダイアログで「空欄だけ埋める/すべて上書き/キャンセル」)** |
 | 試合記録 UX 改善 (案 B) | PracticeEditForm + PracticeDetail に section ヘッダ + 説明文 + 目立つボタン | ✅ 完了 (4.7.14-S17、commit f20dded、ユーザー要望「便利すぎて見つけられない」対応) |
 | Code Splitting 段階 2-2 | QuickTrialMode を heavy 同梱 | ✅ 完了 (4.7.17-S17、commit 7e4425d、core 463 KB / heavy 74 KB) |
-| Code Splitting 段階 2-3 | MergeModal + MergePartnerPicker を heavy 同梱 (master_cleanup.js / domain/merge.js は core 維持) | ✅ 完了 (4.7.18-S17、commit f3a205c、core 450 KB / heavy 91 KB、目標 < 450 KB に 581 bytes 超過 = 実質達成) |
-| **Code Splitting 段階 2-4** | **次の重い候補を切出 (= SettingsModal / Gear 詳細系 (RacketDetailView / PeriodDetailView) / TournamentEditForm 等)、目標 < 350 KB へ** | 🔄 **次セッションで着手候補** |
+| Code Splitting 段階 2-3 | MergeModal + MergePartnerPicker を heavy 同梱 (master_cleanup.js / domain/merge.js は core 維持) | ✅ 完了 (4.7.18-S17、commit f3a205c、core 450 KB / heavy 91 KB) |
+| Code Splitting 段階 2-4 | RacketDetailView + PeriodDetailView + SettingHistorySection を heavy 同梱 (= GearTab / computeRacketUsage / formatRacketStringDisplay/Tension は core 維持) | ✅ 完了 (4.7.20-S17、commit 2e4aef6、core 429 KB / heavy 117 KB、計算漏れ事故 → 4.7.19 で computeSettingHistory 漏れ → 4.7.20 で bridge 修正、Gear 詳細 / 期間詳細実画面検証済) |
+| 4 層防御完成 | pre-push hook 物理ブロック + git-guard.ps1 二重防御 + CLAUDE.md R6 + memory 短文 | ✅ 完了 (b50657d / 7ed5f8d / f98cd06) |
+| **Code Splitting 段階 2-5** | **次の重い候補 (= SettingsModal 14 KB / TournamentEditForm 19 KB / YearHeatmap+Cell+WeekPanel 13 KB+補助) を切出、目標 < 350 KB へ (残り 79 KB)** | 🔄 **次セッションで着手候補、R6 gate 必須** |
 | C | Generated Defaults (デフォルト作戦・リセット文・継続テーマ) | 着手前 |
 | A2 | Core Profile 表示・編集画面の最低限復活 | 着手前 |
 | D | Strategy AI 整理 (Cloud Functions deploy 含む) | 着手前 (= Player Model 整備後) |
@@ -259,6 +268,11 @@ UAC 出ない設定済 (= ユーザー PC) なので即時 admin 起動。これ
 
 | commit | バージョン | 内容 |
 |---|---|---|
+| `f98cd06` | 4.7.20-S17 | docs: CLAUDE.md に R6 push 前ゲート追加 (8 項目停止条件 + フォーマット、4 層防御完成) |
+| `7ed5f8d` | 4.7.20-S17 | chore: .claude/hooks/git-guard.ps1 拡張 (Claude Code 内二重防御) |
+| `b50657d` | 4.7.20-S17 | chore: VERIFY_LOG.md + .git/hooks/pre-push 導入 (物理ブロック) |
+| `2e4aef6` | 4.7.20-S17 | 段階 2-4: Gear 詳細 (RacketDetailView + PeriodDetailView + SettingHistorySection) を heavy bundle に同梱 + computeSettingHistory bridge 追加 (core 429 KB / heavy 117 KB、累計 96 KB 減) |
+| `919dc07` | 4.7.18-S17 | docs: HANDOFF を 4.7.18-S17 (段階 2-3 完了) 状態に更新 |
 | `f3a205c` | 4.7.18-S17 | 段階 2-3: MergeModal + MergePartnerPicker を heavy bundle に同梱 (core 450 KB / heavy 91 KB、bridge に Button/SCHEMA/isEmptyVal/useFocusTrap/computeMergeDiff/applyMerge/countRelinks 7 識別子追加、master_cleanup.js / domain/merge.js は core 維持) |
 | `d24481e` | 4.7.17-S17 | docs: HANDOFF を 4.7.17-S17 (段階 2-2 完了) 状態に更新 |
 | `7e4425d` | 4.7.17-S17 | Reapply 段階 2-2: QuickTrialMode を heavy bundle に同梱 (core 463 KB / heavy 74 KB、a11fcd6 と同内容を re-apply、戻りスワイプ問題は overscroll-behavior 削除で別途解消済) |
