@@ -967,8 +967,22 @@ function TennisDB() {
     } catch (_) {}
     return 1.0;
   });
-  const handleSettingsClick = () => setSettingsOpen(true);
-  const handleSettingsClose = () => setSettingsOpen(false);
+  // 4.7.24-S17 hotfix (2026-05-13): スマホ edge スワイプ戻りで Settings modal を閉じる
+  //   open: pushState({tdb:"settings-modal"}) + ref/state 同期更新
+  //   close: 現 history.state が "settings-modal" なら history.back() (= popstate listener が setSettingsOpen(false) を呼ぶ)
+  //         そうでなければ (= 既に他 navigation で entry が消費済) 直接 close
+  const handleSettingsClick = () => {
+    settingsOpenRef.current = true;
+    setSettingsOpen(true);
+    try { window.history.pushState({ tdb: "settings-modal" }, ""); } catch (_) {}
+  };
+  const handleSettingsClose = () => {
+    if (window.history.state && window.history.state.tdb === "settings-modal") {
+      try { window.history.back(); return; } catch (_) {}
+    }
+    settingsOpenRef.current = false;
+    setSettingsOpen(false);
+  };
   const handleFontScaleChange = (scale) => {
     setFontScale(scale);
     try { localStorage.setItem(LS_PREFIX + "memo-font-scale-v1", String(scale)); } catch (_) {}
@@ -1359,27 +1373,49 @@ function TennisDB() {
   // S13: ブラウザ戻る / 左端スワイプ で詳細を閉じる (popstate listener)
   // S17 修繕: 子階層 (MatchDetailView 等) の戻るで SessionDetailView も同時に閉じてた問題。
   //   現 history.state が「自階層 (detail) または子階層 (match-detail)」なら維持、それ以外で閉じる。
-  // 4.7.23-S17 hotfix (2026-05-12): home → 主力 ratak filter 経由 (= home-racket-filter entry) で
+  // 4.7.23-S17 hotfix (2026-05-12): home → 主力 racket filter 経由 (= home-racket-filter entry) で
   //   Sessions に来た状態で popstate がそれを抜けたら home に戻す + filterFromHome 解除
+  // 4.7.24-S17 hotfix (2026-05-13): top-level modal (SettingsModal / QuickAddModal) と task-jump (= 課題 → Plan) の swipe 戻り対応
+  //   処理順が重要: modal close を _SESSIONS_KEEP_OPEN check より先に処理 (= detail 上で modal 開いた状態の back で modal だけ閉じて detail 維持するため)
   useEffect(() => {
     const _SESSIONS_KEEP_OPEN = ["detail", "match-detail"];
     const onPop = (e) => {
       const state = e && e.state;
+
+      // 1. top-level modal close を最優先 (= detail 上で modal 開いた状態の back に対応)
+      //    state が "settings-modal" 以外 (= 既に modal entry を抜けた直後) なら modal を閉じる + return
+      if (settingsOpenRef.current && (!state || state.tdb !== "settings-modal")) {
+        settingsOpenRef.current = false;
+        setSettingsOpen(false);
+        return;
+      }
+      if (quickAddTypeRef.current && (!state || state.tdb !== "quick-add-modal")) {
+        quickAddTypeRef.current = null;
+        setQuickAddType(null);
+        return;
+      }
+
+      // 2. detail / match-detail は維持 (= 自階層内なら何もしない)
       if (state && _SESSIONS_KEEP_OPEN.indexOf(state.tdb) >= 0) return;
+
+      // 3. 通常の detail close
       setDetail(null);
-      // 4.7.23-S17: filterFromHome 中で popstate が home-racket-filter 自身を抜けた時 → home へ
-      //   state が "home-racket-filter" 自身ならまだその entry に残っている (= 何もしない、detail 閉じだけ)
-      //   state が null / 別 tdb なら home-racket-filter から抜けた直後 → home 復帰
+
+      // 4. tab jump 系 (= 4.7.23 + 4.7.24)
+      //    state が自身の jump entry でなければ home に戻す + ref/state 解除
       if (filterFromHomeRef.current && (!state || state.tdb !== "home-racket-filter")) {
+        filterFromHomeRef.current = false;
         setTab("home");
         setFilterFromHome(false);
-        // 既存 useEffect (L1610) のクリーンアップ条件は `tab !== "sessions" && filterFromHome` だが、
-        // 同 batch で setFilterFromHome(false) を呼ぶと既に false なので発火しない。
-        // ここで LS filters を明示クリア (= ChatGPT 修正条件 1 の整合性確保)。
+        // 既存 useEffect (L1668-1676) のクリーンアップ条件は同 batch で filterFromHome=false で skip されるため、ここで明示クリア
         try {
           const empty = { type: [], racket: [], opponent: [], result: [] };
           localStorage.setItem(LS_UI_KEYS.sessionsFilters, JSON.stringify(empty));
         } catch (_) {}
+      }
+      if (taskJumpRef.current && (!state || state.tdb !== "task-jump")) {
+        taskJumpRef.current = false;
+        setTab("home");
       }
     };
     window.addEventListener("popstate", onPop);
@@ -1629,8 +1665,28 @@ function TennisDB() {
     try { window.history.pushState({ tdb: "home-racket-filter" }, ""); } catch(_) {}
   };
 
+  // 4.7.24-S17 hotfix (2026-05-13): top-level history hotfix 用 ref (= popstate listener から stale closure 回避で参照)
+  //   - taskJumpRef: handleTaskClick で true、popstate で false (= state がない代わりに ref で管理)
+  //   - settingsOpenRef / quickAddTypeRef: state を ref ミラーリング (= useEffect + open/close 同期更新の二重で race 回避)
+  const taskJumpRef = useRef(false);
+  const settingsOpenRef = useRef(false);
+  const quickAddTypeRef = useRef(null);
+  useEffect(() => { settingsOpenRef.current = settingsOpen; }, [settingsOpen]);
+  useEffect(() => { quickAddTypeRef.current = quickAddType; }, [quickAddType]);
+
   // S17 Phase 5: Home の「課題」行クリックで Plan タブへ遷移 (作戦室 = Strategy カードを含む 3 カード)
-  const handleTaskClick = () => setTab("plan");
+  // 4.7.24-S17 hotfix (2026-05-13): スマホ edge スワイプ戻りで home に戻れる経路を作る
+  //   原因: 従来は setTab("plan") のみで pushState なし → スワイプでアプリ脱出
+  //   修正: tdb="task-jump" entry を積み、popstate listener で home へ戻す。連打対策に重複 push ガード付き
+  const handleTaskClick = () => {
+    taskJumpRef.current = true;
+    setTab("plan");
+    try {
+      if (!window.history.state || window.history.state.tdb !== "task-jump") {
+        window.history.pushState({ tdb: "task-jump" }, "");
+      }
+    } catch (_) {}
+  };
   // S16 Issue 1: tab が sessions から離れた時、filterFromHome なら自動解除
   useEffect(() => {
     if (tab !== "sessions" && filterFromHome) {
@@ -1649,10 +1705,21 @@ function TennisDB() {
     if (type === "trial") {
       setQuickTrial(true);
     } else if (type === "tournament" || type === "practice") {
+      // 4.7.24-S17 hotfix (2026-05-13): スマホ edge スワイプ戻りで QuickAddModal を閉じる
+      //   ref/state 同期更新 + pushState({tdb:"quick-add-modal"})
+      //   注: handleQuickAddSave (= 保存導線) は今回スコープ外、触らない
+      quickAddTypeRef.current = type;
       setQuickAddType(type);
+      try { window.history.pushState({ tdb: "quick-add-modal" }, ""); } catch (_) {}
     }
   };
-  const handleQuickAddClose = () => setQuickAddType(null);
+  const handleQuickAddClose = () => {
+    if (window.history.state && window.history.state.tdb === "quick-add-modal") {
+      try { window.history.back(); return; } catch (_) {}
+    }
+    quickAddTypeRef.current = null;
+    setQuickAddType(null);
+  };
   // S15.5: QuickTrialMode (試打カード式) のカード state 永続化 + 保存ハンドラ
   //   - persistQuickTrialCards: state + lsSave + Firestore (debounced save)
   //   - handleQuickTrialSave: ({card, eval}) → trial 生成 (auto-link) → trials 追加 → カード削除 → toast
