@@ -1394,6 +1394,16 @@ function TennisDB() {
         setQuickAddType(null);
         return;
       }
+      // 4.7.25-S17 hotfix (2026-05-13): merge flow close を modal-first 末尾に slot in
+      //   detail 上でマージ開いた状態の back で merge だけ閉じて detail 維持するため、_SESSIONS_KEEP_OPEN check より先
+      //   return 必須 (= 続けて detail close まで進むと詳細も道連れに閉じる)
+      if (mergeStartingRef.current && (!state || state.tdb !== "merge-flow")) {
+        mergeStartingRef.current = null;
+        mergePartnerRef.current = null;
+        setMergeStarting(null);
+        setMergePartner(null);
+        return;
+      }
 
       // 2. detail / match-detail は維持 (= 自階層内なら何もしない)
       if (state && _SESSIONS_KEEP_OPEN.indexOf(state.tdb) >= 0) return;
@@ -1577,17 +1587,43 @@ function TennisDB() {
   //   4. 統合後 A を Detail で再描画
   const [mergeStarting, setMergeStarting] = useState(null); // { type, sourceItem } | null
   const [mergePartner, setMergePartner] = useState(null);   // B (MergeModal の itemB)
+  // 4.7.25-S17 hotfix (2026-05-13): merge flow の swipe back 対応用 ref (= popstate から stale closure 回避で参照)
+  //   open 時に同期更新 + useEffect で state mirror、4.7.24 と同じパターン
+  const mergeStartingRef = useRef(null);
+  const mergePartnerRef = useRef(null);
+  useEffect(() => { mergeStartingRef.current = mergeStarting; }, [mergeStarting]);
+  useEffect(() => { mergePartnerRef.current = mergePartner; }, [mergePartner]);
 
+  // 4.7.25-S17 hotfix (2026-05-13): merge 開始で history entry を積む (= スマホ swipe back 対応)
+  //   pushState({tdb:"merge-flow"}) で entry 1 つ、Picker → MergeModal 遷移では追加 push しない (= 内部 state 遷移)
+  //   重複 push ガード付き (= 詳細でマージボタン連打時の history 膨張防止)
   const handleMergeStart = (type, item) => {
     if (!item || !item.id) return;
+    mergeStartingRef.current = { type, sourceItem: item };  // sync 更新
+    mergePartnerRef.current = null;                          // sync 更新
     setMergeStarting({ type, sourceItem: item });
     setMergePartner(null);
+    try {
+      if (!window.history.state || window.history.state.tdb !== "merge-flow") {
+        window.history.pushState({ tdb: "merge-flow" }, "");
+      }
+    } catch (_) {}
   };
   const handlePartnerSelect = (itemB) => {
     if (!itemB || !itemB.id) return;
+    // 4.7.25-S17 hotfix: ref 同期更新のみ、history 操作なし (= merge-flow entry 1 つで Picker/MergeModal 両方覆う)
+    mergePartnerRef.current = itemB;
     setMergePartner(itemB);
   };
+  // 4.7.25-S17 hotfix: UI キャンセル経路を history.back に統一
+  //   現 history.state が "merge-flow" なら history.back() で popstate listener が close を統一処理
+  //   それ以外 (= 既に他 navigation で entry 消費済) は直接 close (fallback)
   const handleMergeCancel = () => {
+    if (window.history.state && window.history.state.tdb === "merge-flow") {
+      try { window.history.back(); return; } catch (_) {}
+    }
+    mergeStartingRef.current = null;
+    mergePartnerRef.current = null;
     setMergeStarting(null);
     setMergePartner(null);
   };

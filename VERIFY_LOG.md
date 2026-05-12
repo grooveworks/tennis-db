@@ -6,8 +6,110 @@
 
 ## 現行 push 候補
 
-push 候補: 4.7.24-S17 top-level history hotfix (= スワイプ戻り audit Tier 1 のうち top-level 3 件)
-バージョン: 4.7.24-S17
+push 候補: 4.7.25-S17 merge-flow swipe-back hotfix (= スワイプ戻り audit Tier 1 の MergeModal + MergePartnerPicker 対応)
+バージョン: 4.7.25-S17
+
+経緯:
+- 4.7.24 push 後、ロードマップ通り次対象は MergeModal + MergePartnerPicker
+- ChatGPT 議論で UX 判断 (A1+B1: swipe back = マージ全体キャンセル) と detail 維持を確定
+- popstate 順序を modal-first 末尾に slot in、_SESSIONS_KEEP_OPEN check より前
+- handleMergeConfirm は触らない (= Firestore write 検証なしのため、entry leak は別 hotfix で扱う)
+- Picker と MergeModal は別コンポーネント (Modal.jsx 経由 vs 自前 dialog) のため UI キャンセル代表 1 経路ずつ別検証
+- 4.7.24 機能の回帰 spot check (= settings open/close) を含めて実 history.back 9 シナリオ検証
+
+修正対象 (= 5 区域):
+1. ref 2 個追加 (mergeStartingRef, mergePartnerRef)
+2. handleMergeStart に pushState({tdb:"merge-flow"}) + 重複 push ガード + ref sync
+3. handlePartnerSelect に ref sync (= history 操作なし、内部 state 遷移)
+4. handleMergeCancel を history.back 統一 (= 現 state が merge-flow なら back、それ以外で直接 close fallback)
+5. popstate listener: modal-first 末尾 (= settings/quickAdd の後) に merge close 条件 slot in、return 必須
+
+スコープ外 (= 別 hotfix で扱う、今回触らない):
+- handleMergeConfirm (= Firestore 削除 + 統合導線、検証で「削除して統合」を押さないため変更不可)
+- 統合成功後の history entry leak (= 別 hotfix で実データ/テストデータ方針決定後)
+- MergeModal 内部 step (compare ↔ confirm) の history 管理 (= 内部「戻る」ボタンで充足)
+- 4.7.26 候補: MatchEditModal
+- Tier 2: 機材編集 modal 群
+- Tier 3: bottom sheet 群
+- Modal.jsx 共通化
+- _SESSIONS_KEEP_OPEN 中身
+- overscroll-behavior
+
+変更対象ファイル (4 件):
+- src/app.jsx (= 5 区域)
+- src/core/01_constants.js (APP_VERSION 4.7.24-S17 → 4.7.25-S17)
+- v4/index.html (build 成果物)
+- VERIFY_LOG.md
+
+全文 Read:
+- 対象 (MergeModal.jsx 485 行、MergePartnerPicker.jsx 166 行): 済
+- app.jsx merge 関連 区域 (= 状態定義 / 4 handler / popstate listener): 済
+- Modal.jsx (= Picker が使う base、触らないが挙動確認のため確認): 済
+
+依存棚卸し:
+- Picker → Modal.jsx 経由、MergeModal → 自前 dialog (= UI キャンセル経路が別コードパス、Modal.jsx 干渉確認のため別検証必須)
+- mergeStarting / mergePartner の組み合わせで flow 状態 (Picker / MergeModal) が決まる (= 2 ref で state mirror)
+- bridge 漏れ: なし (= bridge に出す識別子追加なし、core 内で完結)
+
+制約チェック:
+- handleMergeConfirm に差分なし: 済 (= git diff で空)
+- Modal.jsx / MergeModal.jsx / MergePartnerPicker.jsx に差分なし: 済 (= git diff で空)
+- _SESSIONS_KEEP_OPEN 中身不変: 済
+- src/app.jsx の変更が契約 5 区域に収まる: 済
+- APP_VERSION = 4.7.25-S17: 済
+
+実画面検証 (dev mode、history.replaceState({__test_anchor:true}) でアンカー設置後に実 window.history.back() を実行):
+
+シナリオ 1 (= 詳細 → マージ → Picker → real back → Picker 閉、detail 維持):
+- 練習詳細 (5/15) 開く → state.tdb="detail", dialog=練習詳細 1 件
+- マージ button → state.tdb="merge-flow", dialog=[練習詳細, (Picker, aria-labelledby のため aria-label null)] 2 件
+- real back → state.tdb="detail", dialog=[練習詳細] 1 件: 済 ✓ (Picker 閉、detail 維持)
+
+シナリオ 2 (= 詳細 → マージ → 相手選択 → MergeModal compare → real back → MergeModal 閉、detail 維持):
+- マージ button → Picker → 候補 click (= 5/12 スクール) → state.tdb="merge-flow" 維持 (= 追加 push なし、契約通り)
+- dialog=[練習詳細, 練習のマージ] 2 件、bodyHasMergeKW=true (= compare 表示)
+- real back → state.tdb="detail", dialog=[練習詳細]: 済 ✓
+
+シナリオ 3 (= 詳細 → マージ → 相手選択 → MergeModal compare → 次へ → confirm → real back → MergeModal 閉、detail 維持):
+- compare → 「次へ」 button click → state.tdb="merge-flow" 維持、bodyHasConfirmBtn=true (= 「削除して統合」 button あり)、bodyHasMergeKW=true (= 「統合後」 keyword あり)
+- real back → state.tdb="detail", dialog=[練習詳細]: 済 ✓ (= confirm 段階からも全体キャンセルされる、A1+B1 仕様通り)
+
+シナリオ 4a (= Picker UI キャンセル代表、Modal.jsx 「閉じる」 button 経由):
+- マージ → Picker open → state.tdb="merge-flow"
+- Picker 内 button[aria-label="閉じる"] click → state.tdb="detail", dialog=[練習詳細]
+- state_is_not_merge_flow=true (= entry 消費済、history.back に委譲した handleMergeCancel が動作): 済 ✓
+
+シナリオ 4b (= MergeModal UI キャンセル代表、自前 dialog 「キャンセル」 button 経由):
+- マージ → 候補選択 → MergeModal open → state.tdb="merge-flow"
+- MergeModal Footer 「キャンセル」 button click → state.tdb="detail", dialog=[練習詳細]
+- state_is_not_merge_flow=true: 済 ✓ (= 自前 dialog の onCancel も history.back 経由で正常動作)
+
+シナリオ 5: 「削除して統合」 押さない、検証範囲外明記: 済 (= 関数 handleMergeConfirm 不変、Firestore write 経路一切踏まず)
+
+シナリオ 6 (= 通常 detail real back、回帰):
+- 詳細から real back → state=anchor, dialog=[]: 済 ✓ (= 既存 detail close 挙動維持)
+
+シナリオ R1 (= 4.7.24 回帰: Home → 設定 → real back → 設定だけ閉じる):
+- 設定 button → state.tdb="settings-modal", dialog=[アプリ設定], tab=home
+- real back → state=anchor, tab=home, dialog=[]: 済 ✓ (= merge slot in しても settings の挙動変更なし)
+
+console error 0: 済 (= 4.7.25-S17 由来の新規 error 無し)
+Firestore write: なし (= 検証で「削除して統合」「保存」一切押さず)
+
+未確認: なし
+
+備考:
+- merge-flow entry 1 つで Picker / MergeModal compare / MergeModal confirm すべて覆う設計、内部 step 変化では history 不変
+- handleMergeStart の重複 push ガード (= state.tdb !== "merge-flow" check) で詳細マージボタン連打耐性
+- ref 同期更新 (= mergeStartingRef.current = ... を click handler 冒頭、useEffect は mirror) で stale closure race 回避
+- Picker 経由 (Modal.jsx の onClose) と MergeModal 経由 (自前 dialog の onCancel) は同じ handleMergeCancel に到達するが、React コードパスが別なので 4a/4b で別検証
+- 「削除して統合」成功後の merge-flow entry leak は今回未対応 (= 統合後の swipe が 2 回必要)、別 hotfix で実 Firestore write 検証込みで扱う
+- dev mode 実 history.back 検証では preview eval timeout が 1 回発生したが、コード自体は動作 (= dialog 確認で挙動正常)、再 click で完了
+
+教訓 (= 引き継ぎ):
+- ChatGPT 議論で UX 判断 (A1+B1) を先に確定したことで、後続の実装契約と検証範囲が明確化、scope creep 抑止
+- popstate 順序を modal-first 末尾に slot in する pattern が 4.7.24 + 4.7.25 で 2 回成功 (= 4.7.26 MatchEditModal でも同 pattern 想定)
+- Picker と MergeModal を「同じ handleMergeCancel だから 1 経路代表で十分」と私が当初提案 → ユーザー指摘で別経路扱いに修正、Modal.jsx 経由と自前 dialog 経由で別コードパスを尊重
 
 経緯:
 - 4.7.23-S17 push 後、ユーザーから「いたちごっこになる、全箇所試せ」「すでに 1 箇所見つけた」と指摘
@@ -297,6 +399,14 @@ console error 0: 済 (= 4.7.21-S17 由来の新規 error 無し、Firestore depr
 ---
 
 ## 過去 push の検証ログ (= 最新を上、古いを下)
+
+### 4242b05 (= 4.7.24-S17 top-level history hotfix、handleTaskClick / SettingsModal / QuickAddModal swipe back 対応)
+- 3 件 (handleTaskClick / SettingsModal / QuickAddModal) に pushState + popstate listener 拡張
+- ref 3 個 (taskJumpRef / settingsOpenRef / quickAddTypeRef) 追加、open/close 同期更新で stale closure race 回避
+- popstate 順序: modal close を _SESSIONS_KEEP_OPEN check より先に処理 (= detail 上で modal 開いた状態の back で modal だけ閉じて detail 維持)
+- 実 history.back 6 シナリオ + 回帰 2 シナリオ全 PASS、console error 0
+- handleQuickAddSave 不変 / Modal.jsx 不変 / SettingsModal.jsx 不変 / QuickAddModal.jsx 不変 (= スコープ厳守)
+- 教訓: 「Tier 1 全 6 件まとめ修正」を私が当初提案 → ユーザー指摘で「広すぎる、性質違う、Merge/MatchEdit は別」と却下、3 件に絞って成功
 
 ### 51184cd (= 4.7.23-S17 hotfix、ホーム → 主力 tap 後のスワイプ戻りで home に戻れない修正)
 - handleMainRacketClick に history.pushState({tdb:"home-racket-filter"}) 追加
