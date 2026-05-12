@@ -55,13 +55,13 @@ if (Test-Path $domainDir) {
   }
 }
 
-# ui/ (recursive, sort by full path) — S17 code splitting 段階 1+2-1+2-2+2-3+2-4+2-5-1: ui/plan/ + ui/insights/ + ui/sessions/{QuickTrialMode,MergeModal,MergePartnerPicker}.jsx + ui/gear/{RacketDetailView,PeriodDetailView,SettingHistorySection}.jsx + ui/common/SettingsModal.jsx は heavy bundle 側へ
-# 試合中使わない component はファイル単位で厳密除外 (= SessionsTab / GameTracker / MatchEditModal / _NumWheel / GearTab は core 維持)
+# ui/ (recursive, sort by full path) — S17 code splitting 段階 1+2-1+2-2+2-3+2-4+2-5-1+2-5-2: ui/plan/ + ui/insights/ + ui/sessions/{QuickTrialMode,MergeModal,MergePartnerPicker,TournamentEditForm,PracticeEditForm,TrialEditForm,MatchEditModal}.jsx + ui/gear/{RacketDetailView,PeriodDetailView,SettingHistorySection}.jsx + ui/common/SettingsModal.jsx は heavy bundle 側へ
+# 試合中使わない component はファイル単位で厳密除外 (= SessionsTab / GameTracker / _NumWheel / _SetupPicker / LinkedSessionPicker / GearTab は core 維持)
 $uiDir = Join-Path $srcDir "ui"
 if (Test-Path $uiDir) {
   Get-ChildItem $uiDir -Recurse -Filter *.jsx | Where-Object {
     -not ($_.FullName -match "[\\/]ui[\\/](plan|insights)[\\/]") -and
-    -not ($_.FullName -match "[\\/]ui[\\/]sessions[\\/](QuickTrialMode|MergeModal|MergePartnerPicker)\.jsx$") -and
+    -not ($_.FullName -match "[\\/]ui[\\/]sessions[\\/](QuickTrialMode|MergeModal|MergePartnerPicker|TournamentEditForm|PracticeEditForm|TrialEditForm|MatchEditModal)\.jsx$") -and
     -not ($_.FullName -match "[\\/]ui[\\/]gear[\\/](RacketDetailView|PeriodDetailView|SettingHistorySection)\.jsx$") -and
     -not ($_.FullName -match "[\\/]ui[\\/]common[\\/]SettingsModal\.jsx$")
   } | Sort-Object FullName | ForEach-Object {
@@ -108,6 +108,27 @@ AppendLine "  formatRacketTensionDisplay: formatRacketTensionDisplay,"
 AppendLine "  computeSettingHistory: computeSettingHistory,"
 AppendLine "  lsLoad: lsLoad,"
 AppendLine "  KEYS: KEYS,"
+AppendLine "  // 段階 2-5-2 (2026-05-12): session-edit chunk heavy 化のため追加 (4 編集 form + MatchEditModal が core 側 UI primitive / domain helpers / 試合中 component を bridge 経由で参照)"
+AppendLine "  Select: Select,"
+AppendLine "  MasterField: MasterField,"
+AppendLine "  TimeWheel: TimeWheel,"
+AppendLine "  SetupPickerButton: SetupPickerButton,"
+AppendLine "  _SetupPickerButton: _SetupPickerButton,"
+AppendLine "  _computeRecentSetups: _computeRecentSetups,"
+AppendLine "  LinkedSessionPicker: LinkedSessionPicker,"
+AppendLine "  GameTracker: GameTracker,"
+AppendLine "  blankMatch: blankMatch,"
+AppendLine "  computeCascade: computeCascade,"
+AppendLine "  describeCascadeMessage: describeCascadeMessage,"
+AppendLine "  formatFromPreset: formatFromPreset,"
+AppendLine "  formatLabel: formatLabel,"
+AppendLine "  formatRuleSummary: formatRuleSummary,"
+AppendLine "  DEFAULT_MATCH_FORMAT: DEFAULT_MATCH_FORMAT,"
+AppendLine "  resolveMatchFormat: resolveMatchFormat,"
+AppendLine "  computeSetScoresFromGames: computeSetScoresFromGames,"
+AppendLine "  applyTbDetails: applyTbDetails,"
+AppendLine "  computeAutoMatchResult: computeAutoMatchResult,"
+AppendLine "  LS_PREFIX: LS_PREFIX,"
 AppendLine "};"
 
 # ── Step 2: 一時ファイルに書き出して esbuild に渡す
@@ -200,14 +221,27 @@ if (-not (Test-Path $settingsModalPath)) {
   Write-Error "SettingsModal.jsx not found at $settingsModalPath (heavy bundle build aborted)"
   exit 1
 }
+# S17 code splitting 段階 2-5-2 (2026-05-12): session-edit chunk 一括 heavy 化
+#   対象 4 ファイル (= 3 編集 form + MatchEditModal) の存在チェック (= 移動・削除事故の早期検出)
+$tournamentEditFormPath = Join-Path $srcDir "ui\sessions\TournamentEditForm.jsx"
+$practiceEditFormPath   = Join-Path $srcDir "ui\sessions\PracticeEditForm.jsx"
+$trialEditFormPath      = Join-Path $srcDir "ui\sessions\TrialEditForm.jsx"
+$matchEditModalPath     = Join-Path $srcDir "ui\sessions\MatchEditModal.jsx"
+foreach ($p in @($tournamentEditFormPath, $practiceEditFormPath, $trialEditFormPath, $matchEditModalPath)) {
+  if (-not (Test-Path $p)) {
+    $fn = [System.IO.Path]::GetFileName($p)
+    Write-Error "$fn not found at $p (heavy bundle build aborted)"
+    exit 1
+  }
+}
 
 $heavySb = New-Object System.Text.StringBuilder
 [void]$heavySb.AppendLine("// === heavy bundle prelude (S17 code splitting 段階 1) ===")
 [void]$heavySb.AppendLine("if (!window.__TennisDBCore) {")
 [void]$heavySb.AppendLine('  throw new Error("TennisDB core bridge is not available");')
 [void]$heavySb.AppendLine("}")
-[void]$heavySb.AppendLine("const { C, font, Icon, Modal, Input, Textarea, NumWheel, sortByStatusAndOrder, RACKET_STATUS_PRIORITY, STRING_STATUS_PRIORITY, fbFunctions, RADIUS, normDate, _normalizeMatchResult, genId, Button, SCHEMA, isEmptyVal, useFocusTrap, computeMergeDiff, applyMerge, countRelinks, computeRacketUsage, formatRacketStringDisplay, formatRacketTensionDisplay, computeSettingHistory, lsLoad, KEYS, APP_VERSION } = window.__TennisDBCore;")
-[void]$heavySb.AppendLine("const { useState, useEffect, useMemo, useRef } = React;")
+[void]$heavySb.AppendLine("const { C, font, Icon, Modal, Input, Textarea, NumWheel, sortByStatusAndOrder, RACKET_STATUS_PRIORITY, STRING_STATUS_PRIORITY, fbFunctions, RADIUS, normDate, _normalizeMatchResult, genId, Button, SCHEMA, isEmptyVal, useFocusTrap, computeMergeDiff, applyMerge, countRelinks, computeRacketUsage, formatRacketStringDisplay, formatRacketTensionDisplay, computeSettingHistory, lsLoad, KEYS, APP_VERSION, Select, MasterField, TimeWheel, SetupPickerButton, _SetupPickerButton, _computeRecentSetups, LinkedSessionPicker, GameTracker, blankMatch, computeCascade, describeCascadeMessage, formatFromPreset, formatLabel, formatRuleSummary, DEFAULT_MATCH_FORMAT, resolveMatchFormat, computeSetScoresFromGames, applyTbDetails, computeAutoMatchResult, LS_PREFIX } = window.__TennisDBCore;")
+[void]$heavySb.AppendLine("const { useState, useEffect, useMemo, useRef, useCallback } = React;")
 [void]$heavySb.AppendLine("")
 
 # plan_assist.js (heavy 同梱、core から除外済)
@@ -273,6 +307,18 @@ if (Test-Path $settingsModalPath) {
   [void]$heavySb.AppendLine("")
 }
 
+# ui/sessions/{MatchEditModal,TournamentEditForm,PracticeEditForm,TrialEditForm}.jsx (S17 code splitting 段階 2-5-2、2026-05-12: session-edit chunk 一括 heavy 化)
+# 連結順: MatchEditModal → TournamentEditForm → PracticeEditForm → TrialEditForm
+#   (= TournamentEditForm/PracticeEditForm が MatchEditModal を参照、ファイル読み順を呼出順に揃える。function 宣言は hoist されるので順序問わず動くが可読性優先)
+foreach ($p in @($matchEditModalPath, $tournamentEditFormPath, $practiceEditFormPath, $trialEditFormPath)) {
+  if (Test-Path $p) {
+    $fname = Split-Path $p -Leaf
+    [void]$heavySb.AppendLine("// === src/ui/sessions/$fname ===")
+    [void]$heavySb.Append([System.IO.File]::ReadAllText($p))
+    [void]$heavySb.AppendLine("")
+  }
+}
+
 # heavy 末尾 expose (PlanTab 存在ランタイム検証 + window.__TennisDBHeavy 登録)
 [void]$heavySb.AppendLine("// === heavy bundle expose ===")
 [void]$heavySb.AppendLine('if (typeof PlanTab === "undefined") {')
@@ -302,6 +348,19 @@ if (Test-Path $settingsModalPath) {
 [void]$heavySb.AppendLine('if (typeof SettingsModal === "undefined") {')
 [void]$heavySb.AppendLine('  throw new Error("SettingsModal is not defined in heavy bundle");')
 [void]$heavySb.AppendLine("}")
+# 段階 2-5-2: session-edit chunk 4 件のランタイム検証
+[void]$heavySb.AppendLine('if (typeof TournamentEditForm === "undefined") {')
+[void]$heavySb.AppendLine('  throw new Error("TournamentEditForm is not defined in heavy bundle");')
+[void]$heavySb.AppendLine("}")
+[void]$heavySb.AppendLine('if (typeof PracticeEditForm === "undefined") {')
+[void]$heavySb.AppendLine('  throw new Error("PracticeEditForm is not defined in heavy bundle");')
+[void]$heavySb.AppendLine("}")
+[void]$heavySb.AppendLine('if (typeof TrialEditForm === "undefined") {')
+[void]$heavySb.AppendLine('  throw new Error("TrialEditForm is not defined in heavy bundle");')
+[void]$heavySb.AppendLine("}")
+[void]$heavySb.AppendLine('if (typeof MatchEditModal === "undefined") {')
+[void]$heavySb.AppendLine('  throw new Error("MatchEditModal is not defined in heavy bundle");')
+[void]$heavySb.AppendLine("}")
 [void]$heavySb.AppendLine("window.__TennisDBHeavy = window.__TennisDBHeavy || {};")
 [void]$heavySb.AppendLine("window.__TennisDBHeavy.PlanTab = PlanTab;")
 [void]$heavySb.AppendLine("window.__TennisDBHeavy.InsightsTab = InsightsTab;")
@@ -311,6 +370,10 @@ if (Test-Path $settingsModalPath) {
 [void]$heavySb.AppendLine("window.__TennisDBHeavy.RacketDetailView = RacketDetailView;")
 [void]$heavySb.AppendLine("window.__TennisDBHeavy.PeriodDetailView = PeriodDetailView;")
 [void]$heavySb.AppendLine("window.__TennisDBHeavy.SettingsModal = SettingsModal;")
+[void]$heavySb.AppendLine("window.__TennisDBHeavy.TournamentEditForm = TournamentEditForm;")
+[void]$heavySb.AppendLine("window.__TennisDBHeavy.PracticeEditForm = PracticeEditForm;")
+[void]$heavySb.AppendLine("window.__TennisDBHeavy.TrialEditForm = TrialEditForm;")
+[void]$heavySb.AppendLine("window.__TennisDBHeavy.MatchEditModal = MatchEditModal;")
 # SettingHistorySection は expose しない (= heavy IIFE 内で RacketDetailView から参照、外部不要、ChatGPT 補足 6)
 
 $tmpHeavyJsx = Join-Path $tmpDir "heavy.jsx"

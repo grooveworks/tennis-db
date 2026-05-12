@@ -171,9 +171,11 @@ function SessionEditView({ type, session, practices, tournaments, trials, racket
       )}
 
       {/* Body (scrollable) */}
+      {/* S17 段階 2-5-2 (2026-05-12): 3 編集 form を heavy bundle 化、Loader 経由でマウント
+          shell (= 戻る/保存ボタン、下書きバナー、下部アクションバー) は core 維持、body 内のみ on-demand 読込 */}
       <div style={{ flex: 1, overflowY: "auto", padding: "14px 14px 80px" }}>
         {type === "tournament" && (
-          <TournamentEditForm
+          <TournamentEditFormLoader
             form={form} errors={errors} onChange={handleChange}
             racketNames={racketNames} stringNames={stringNames} venueNames={venueNames} opponentNames={opponentNames} levelNames={levelNames}
             stringSetups={stringSetups}
@@ -182,7 +184,7 @@ function SessionEditView({ type, session, practices, tournaments, trials, racket
           />
         )}
         {type === "practice" && (
-          <PracticeEditForm
+          <PracticeEditFormLoader
             form={form} errors={errors} onChange={handleChange}
             racketNames={racketNames} stringNames={stringNames} venueNames={venueNames}
             opponentNames={opponentNames}
@@ -192,7 +194,7 @@ function SessionEditView({ type, session, practices, tournaments, trials, racket
           />
         )}
         {type === "trial" && (
-          <TrialEditForm
+          <TrialEditFormLoader
             form={form} errors={errors} onChange={handleChange}
             practices={practices} tournaments={tournaments} trials={trials}
             racketNames={racketNames} stringNames={stringNames} venueNames={venueNames}

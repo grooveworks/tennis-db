@@ -566,6 +566,191 @@ function SettingsModalLoader(props) {
   return <HeavySettingsModal {...props} />;
 }
 
+// S17 code splitting 段階 2-5-2 (2026-05-12): session-edit chunk Loader 4 個
+//
+// 設計:
+//   - 3 form Loader (Tournament/Practice/Trial): SessionEditView shell 内 body の差し込み、
+//     placeholder は shell 内に「読み込み中…」軽量 spinner (= shell の戻る/保存ボタンは既に表示済)
+//   - MatchEditModalLoader: SessionDetailView から開かれる経路 (= 詳細画面「+ 試合追加」「既存試合編集」)、
+//     placeholder は SettingsModalLoader と同じ overlay + 中央 spinner、open===false で null return
+//   - 編集 form (heavy 内) の中から MatchEditModal を直接 mount するケース (= 経路 A) は heavy 内同梱、
+//     loadHeavy 1 回で同時ロード、Loader 不要
+//
+// 形式: function 宣言 (= hoist 安全、SessionEditView/SessionDetailView より後に定義されても OK)
+function TournamentEditFormLoader(props) {
+  const [state, setState] = useState(() =>
+    (window.__TennisDBHeavy && window.__TennisDBHeavy.TournamentEditForm) ? "ready" : "loading"
+  );
+  useEffect(() => {
+    if (state !== "loading") return;
+    if (window.__TennisDBHeavy && window.__TennisDBHeavy.TournamentEditForm) {
+      setState("ready");
+      return;
+    }
+    if (typeof window.loadHeavy !== "function") {
+      console.error("loadHeavy is not defined");
+      setState("error");
+      return;
+    }
+    window.loadHeavy().then(() => setState("ready")).catch((e) => {
+      console.error("Heavy bundle load failed:", e);
+      setState("error");
+    });
+  }, [state]);
+  if (state === "error") {
+    return (
+      <div style={{ padding: 20, textAlign: "center", color: C.error, fontSize: 13, lineHeight: 1.6 }}>
+        編集画面の読み込みに失敗しました。<br />
+        ページを再読み込みしてください。
+      </div>
+    );
+  }
+  if (state === "loading" || !(window.__TennisDBHeavy && window.__TennisDBHeavy.TournamentEditForm)) {
+    return (
+      <div style={{ padding: 20, textAlign: "center", color: C.textMuted, fontSize: 13 }}>
+        編集画面を読み込んでいます…
+      </div>
+    );
+  }
+  const HeavyTournamentEditForm = window.__TennisDBHeavy.TournamentEditForm;
+  return <HeavyTournamentEditForm {...props} />;
+}
+
+function PracticeEditFormLoader(props) {
+  const [state, setState] = useState(() =>
+    (window.__TennisDBHeavy && window.__TennisDBHeavy.PracticeEditForm) ? "ready" : "loading"
+  );
+  useEffect(() => {
+    if (state !== "loading") return;
+    if (window.__TennisDBHeavy && window.__TennisDBHeavy.PracticeEditForm) {
+      setState("ready");
+      return;
+    }
+    if (typeof window.loadHeavy !== "function") {
+      console.error("loadHeavy is not defined");
+      setState("error");
+      return;
+    }
+    window.loadHeavy().then(() => setState("ready")).catch((e) => {
+      console.error("Heavy bundle load failed:", e);
+      setState("error");
+    });
+  }, [state]);
+  if (state === "error") {
+    return (
+      <div style={{ padding: 20, textAlign: "center", color: C.error, fontSize: 13, lineHeight: 1.6 }}>
+        編集画面の読み込みに失敗しました。<br />
+        ページを再読み込みしてください。
+      </div>
+    );
+  }
+  if (state === "loading" || !(window.__TennisDBHeavy && window.__TennisDBHeavy.PracticeEditForm)) {
+    return (
+      <div style={{ padding: 20, textAlign: "center", color: C.textMuted, fontSize: 13 }}>
+        編集画面を読み込んでいます…
+      </div>
+    );
+  }
+  const HeavyPracticeEditForm = window.__TennisDBHeavy.PracticeEditForm;
+  return <HeavyPracticeEditForm {...props} />;
+}
+
+function TrialEditFormLoader(props) {
+  const [state, setState] = useState(() =>
+    (window.__TennisDBHeavy && window.__TennisDBHeavy.TrialEditForm) ? "ready" : "loading"
+  );
+  useEffect(() => {
+    if (state !== "loading") return;
+    if (window.__TennisDBHeavy && window.__TennisDBHeavy.TrialEditForm) {
+      setState("ready");
+      return;
+    }
+    if (typeof window.loadHeavy !== "function") {
+      console.error("loadHeavy is not defined");
+      setState("error");
+      return;
+    }
+    window.loadHeavy().then(() => setState("ready")).catch((e) => {
+      console.error("Heavy bundle load failed:", e);
+      setState("error");
+    });
+  }, [state]);
+  if (state === "error") {
+    return (
+      <div style={{ padding: 20, textAlign: "center", color: C.error, fontSize: 13, lineHeight: 1.6 }}>
+        編集画面の読み込みに失敗しました。<br />
+        ページを再読み込みしてください。
+      </div>
+    );
+  }
+  if (state === "loading" || !(window.__TennisDBHeavy && window.__TennisDBHeavy.TrialEditForm)) {
+    return (
+      <div style={{ padding: 20, textAlign: "center", color: C.textMuted, fontSize: 13 }}>
+        編集画面を読み込んでいます…
+      </div>
+    );
+  }
+  const HeavyTrialEditForm = window.__TennisDBHeavy.TrialEditForm;
+  return <HeavyTrialEditForm {...props} />;
+}
+
+function MatchEditModalLoader(props) {
+  const [state, setState] = useState(() =>
+    (window.__TennisDBHeavy && window.__TennisDBHeavy.MatchEditModal) ? "ready" : "loading"
+  );
+  useEffect(() => {
+    if (!props.open) return;
+    if (state !== "loading") return;
+    if (window.__TennisDBHeavy && window.__TennisDBHeavy.MatchEditModal) {
+      setState("ready");
+      return;
+    }
+    if (typeof window.loadHeavy !== "function") {
+      console.error("loadHeavy is not defined");
+      setState("error");
+      return;
+    }
+    window.loadHeavy().then(() => setState("ready")).catch((e) => {
+      console.error("Heavy bundle load failed:", e);
+      setState("error");
+    });
+  }, [props.open, state]);
+  if (!props.open) return null;
+  if (state === "error") {
+    return (
+      <div onClick={props.onClose} style={{
+        position: "fixed", inset: 0, zIndex: 1100,
+        background: "rgba(0,0,0,0.4)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+      }}>
+        <div onClick={(e) => e.stopPropagation()} style={{
+          background: C.panel, padding: 20, borderRadius: 12, color: C.error, fontSize: 13, textAlign: "center", lineHeight: 1.6,
+        }}>
+          試合編集画面の読み込みに失敗しました。<br />
+          ページを再読み込みしてください。
+        </div>
+      </div>
+    );
+  }
+  if (state === "loading" || !(window.__TennisDBHeavy && window.__TennisDBHeavy.MatchEditModal)) {
+    return (
+      <div onClick={props.onClose} style={{
+        position: "fixed", inset: 0, zIndex: 1100,
+        background: "rgba(0,0,0,0.4)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+      }}>
+        <div onClick={(e) => e.stopPropagation()} style={{
+          background: C.panel, padding: 20, borderRadius: 12, color: C.textMuted, fontSize: 13,
+        }}>
+          試合編集画面を読み込んでいます…
+        </div>
+      </div>
+    );
+  }
+  const HeavyMatchEditModal = window.__TennisDBHeavy.MatchEditModal;
+  return <HeavyMatchEditModal {...props} />;
+}
+
 function TennisDB() {
   const [user, setUser] = useState(null);
   const [authReady, setAuthReady] = useState(false);
