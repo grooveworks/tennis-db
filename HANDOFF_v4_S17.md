@@ -1,4 +1,4 @@
-# Tennis DB v4 — S17.x 引き継ぎ書 (2026-05-12 更新、段階 2-4 完了 + 4 層防御完成、段階 2-5 着手前)
+# Tennis DB v4 — S17.x 引き継ぎ書 (2026-05-13 更新、段階 2-5-1/2-5-2 完了 + Tier 1 swipe-back audit 全完了、段階 2-5-3 着手前)
 
 > **このファイルは、文脈を知らない次セッションの Claude が単独で読んで現状を把握できることを目的とする。最初に必ず全文読む。**
 
@@ -6,11 +6,40 @@
 
 ## 0. 現在地
 
-- **APP_VERSION**: `v4.7.20-S17` (`src/core/01_constants.js`)
-- **直近 push**: `f98cd06` (= CLAUDE.md R6 push 前ゲート明文化、4 層防御完成)
-- **working tree**: clean (= 4.7.20-S17 push 状態と同一)
+- **APP_VERSION**: `v4.7.26-S17` (`src/core/01_constants.js`)
+- **直近 push**: `d25bd74` (= MatchEditModal swipe-back hotfix、Tier 1 audit 完了)
+- **working tree**: clean (= 4.7.26-S17 push 状態と同一)
 - **stash@{0}**: Phase B 試作 (= 4.7.14-S17 で resume 完了済、復旧経路として保持中、不要なら `git stash drop stash@{0}` で破棄可)
-- **サイズ累計**: 出発点 525 KB → **4.7.20-S17 core 429 KB / heavy 117 KB** (= 96 KB 減、HANDOFF §3 目標 < 350 KB まで残り 79 KB)
+- **サイズ累計**: 出発点 525 KB → **4.7.26-S17 core 376 KB / heavy 180 KB** (= core 149 KB 減、HANDOFF §3 目標 < 350 KB まで残り **26 KB**)
+
+**⚠️ Tier 1 swipe-back audit 全完了 (= 2026-05-12〜13、4 push)**:
+- 経緯: 段階 2-5-2 push 後にユーザーが iPhone / スマホ Chrome でスワイプ戻り破損を発見 → audit で 14 箇所の pushState 未対応箇所を特定 → Tier 1 (= top-level 6 件) を 4 push に分けて対応
+- 4.7.23 (commit `51184cd`): ホーム → 主力ラケット tap (filterFromHome 経路)
+- 4.7.24 (commit `4242b05`): handleTaskClick / SettingsModal / QuickAddModal (top-level 3 件)
+- 4.7.25 (commit `1ddb87c`): MergeModal + MergePartnerPicker (merge-flow)
+- 4.7.26 (commit `d25bd74`): MatchEditModal (= A1 大会編集 form / A2 練習編集 form / B1 SessionDetailView +試合追加 / B2 SessionDetailView 既存試合 編集)
+- 修正済 計 **10 経路**、検証パターン (= anchor entry 隔離 + 実 window.history.back + 4 経路別 onClose 受け側確認) 確立
+
+**⚠️ 確立した検証パターン (= 4.7.23-4.7.26 共通、Tier 2 で再利用)**:
+- popstate 順序: modal close → _SESSIONS_KEEP_OPEN check → detail close → tab jump 系、modal は必ず先に return
+- ref 同期更新: useEffect mirror + click handler 冒頭で直接更新 (= stale closure race 回避)
+- history.back 統一: UI キャンセル button は state が自分のものなら history.back、それ以外で直接 close
+- 重複 push ガード: `state.tdb !== "..."` check で連打耐性
+- 実 history.back 検証: synthetic PopStateEvent では不十分、anchor entry で過去 history 隔離後に実 `window.history.back()`
+- 各経路別 onClose 確認: 同一コードパスでも state host が違えば別検証必須 (= 4.7.26 で TournamentEditForm/PracticeEditForm/SessionDetailView の 3 host を実証)
+
+**⚠️ 4 層防御完成 (= 2026-05-12、ChatGPT 補足対応)**:
+1. `.git/hooks/pre-push` (= 物理ブロック): VERIFY_LOG.md に「実画面検証: 済」「console error 0: 済」両方ないと exit 1 で push 禁止
+2. `.claude/hooks/git-guard.ps1` (= Claude Code 内二重防御): git push 検知時に VERIFY_LOG.md 不足を ask reason に追記
+3. `CLAUDE.md R6` (= 行動規範): 8 項目停止条件 + push 前ゲートフォーマット明文化
+4. `memory/feedback_verify_before_push_2026_05_12.md` (= 補助): Memory ではなく HOOK / CLAUDE.md R6 / pre-push gate に従うことを誘導
+- **次セッションの Claude も R6 gate 必須**、push 候補は VERIFY_LOG.md 「現行 push 候補」セクションで毎回更新
+
+**⚠️ 重要 (= 2026-05-12 確定、memory `feedback_overscroll_behavior_ios_2026_05_12.md` 参照)**:
+- body / html / 最上位 div に `overscroll-behavior` プロパティを **絶対に設定しない** (= shorthand `none` も `-y:none` も両方禁止)
+- iOS Safari 左端スワイプ戻りを阻害する罠、復旧 commit c7eba87 で確定
+- pull-to-refresh 防止は別手段 (= 子要素限定 / JavaScript preventDefault) で
+- 試合中の入力消失リスクは無し (= S15.5.9 自動保存で全編集画面が保護済)
 
 **⚠️ 4 層防御完成 (= 2026-05-12、ChatGPT 補足対応)**:
 1. `.git/hooks/pre-push` (= 物理ブロック): VERIFY_LOG.md に「実画面検証: 済」「console error 0: 済」両方ないと exit 1 で push 禁止
@@ -29,28 +58,46 @@
 
 ## 1. 次セッション最初のアクション
 
-### Phase B + 試合記録 UX 改善 まで完了済の上で、**次の優先順位を判断** する。
+### Tier 1 swipe-back audit 完了 (4.7.23-26) の上で、**次の優先順位を判断** する。
 
-直近完了 (4.7.14-S17、commit f20dded):
-- **Phase B Carry Over**: ターゲット切替時に現 Plan を自動退避 → 新ターゲットで「前回 Plan から始められます」バナー → 「使う」で 3 択ダイアログ復元
-- **試合記録 UX 改善**: PracticeEditForm に ⑥ section ヘッダ + 説明文 + 目立つボタン、PracticeDetail に試合記録 section 常時表示 + 追加ボタン (= 編集画面スクロール回避)
+直近完了 (= 4.7.26-S17、commit `d25bd74`、2026-05-13):
+- **MatchEditModal swipe-back hotfix**: 4 経路 (A1 大会編集 form / A2 練習編集 form / B1 SessionDetailView +試合追加 / B2 既存試合編集) すべて実 UI 検証 PASS
+- silent close 設計 (= swipe = dirty confirm 通さず、draft clear せず、onClose 直接)、UI cancel は既存 dirty confirm UX 不変、closingByUiRef guard で popstate 二重 close 防止
 
-サイズ累計: 4.7.11-S17 525 KB → **4.7.14-S17 481 KB** (= 44 KB 減、iPhone 閾値 525 KB に余裕)。HANDOFF §3 目標 (< 350 KB) には依然 130 KB の差。
+サイズ累計: 出発点 525 KB → **4.7.26-S17 core 376 KB** (= 149 KB 減)。HANDOFF §3 目標 (< 350 KB) まで残り **26 KB**。
 
-次の方向は **iPhone 実機での 4.7.14-S17 動作確認結果** を踏まえて分岐 (= §1 末尾「次の優先順位」参照)。
+### 次の優先順位 (= 2026-05-13 ユーザー判断、推奨順)
 
-### 次の優先順位 (= 4.7.14-S17 後の判断分岐、ユーザー方針 2026-05-11 更新)
+**第一候補: 段階 2-5-3 (= core 残 26 KB 削減、本筋目標復帰)**:
+- 出発点 525 KB → 376 KB まで 149 KB 削減済、目標 350 KB まで残 26 KB
+- 候補は YearHeatmap + YearHeatmapCell + WeekPanel set (= 13 + 補助 KB unminified) や他の重い未 heavy 化 component
+- 4.7.22 で session-edit chunk 80 KB unminified → 47 KB minified (= 約 58% 残存) の実績から、26 KB 削減には **約 50 KB 程度 unminified の追加 heavy 化** が必要
+- Gate 1 から候補棚卸し → 実装契約 (Gate 2) → 編集 build (Gate 3) → 検証 (Gate 4) → push (Gate 5)
+- 進め方は段階 1 / 2-1 / 2-2 / 2-3 / 2-4 / 2-5-1 / 2-5-2 と同じ厳守 (= §3 末尾 「実装手順」 + 「厳守ルール」 参照)
 
-iPhone 実機で 4.7.14-S17 (core 481 KB) を確認後、以下で分岐:
-- **十分軽い + Phase B 等の機能満足** → **Phase C (Generated Defaults)** or **Phase A2 (Core Profile 編集 UI)** を着手
-- **まだ重い** → **段階 2-2 (= QuickTrialMode 等の追加 heavy 切出、目標 core < 350 KB)** を優先
-- **UI ブラッシュアップ要望** → 試合記録ボタン目立たせは案 B で完了したが、追加の UX 調整があれば優先
+**第二候補: Tier 2 swipe-back audit (= 機材編集 modal 群、8 件)**:
+- RacketEditModal / StringEditModal / SetupEditModal / VenueEditModal / MeasurementEditModal / MasterCleanupModal / WeatherModal / Plan タブ内 3 modal
+- 4.7.23-26 で確立したパターン (= popstate + history.back + closingByUiRef) を踏襲
+- Tier 1 と同じ作業負担 (= 各 modal 1 push)、新規パターン追加なし
 
-段階 2-2 進め方 (= 段階 1 / 2-1 / Phase B と同じ厳守):
-1. heavy 候補を決める (= §3 段階 2-2 候補リスト + iPhone 動作確認の感触から、QuickTrialMode を最優先)
-2. 候補の依存を読む (= grep + Read で外部参照を全棚卸し、QuickTrialMode は Sessions 内部依存が複雑な可能性 → 念入りに)
+**第三候補: entry leak 一括 cleanup hotfix (= 危険度高、別セッション推奨)**:
+- 検出済 3 件: `handleQuickAddSave` / `handleMergeConfirm` / `MatchDetailView onEdit` (= state transition で history.back を伴わない)
+- すべて save / 削除 / Firestore write 経路と絡む → 検証で「保存」ボタン押下が必要 → テストデータ準備 + 削除取消 / DB 直接 cleanup 等の準備が必要
+- 危険度高、専用セッションで Gate 1 から実 Firestore write 検証込みで着手すべき
+
+**第四候補 (= 後回し可)**:
+- bridge 肥大化整理 (= 計 49+ 件、別ファイル化 `src/core/_bridge.js` 等、段階 2-5 完了後の refactor 候補)
+- Phase C (Generated Defaults) / Phase A2 (Core Profile 編集 UI) / Phase D (Strategy AI deploy) / Phase E
+
+**推奨**: 第一候補 (段階 2-5-3) から着手。残 26 KB の本筋目標達成後、Tier 2 audit に移る順序。
+
+### 段階 2-5-3 進め方 (= 段階 1 / 2-1 / 2-2 / 2-3 / 2-4 / 2-5-1 / 2-5-2 と同じ厳守)
+
+1. heavy 候補を決める (= §3 候補リスト + 4.7.22 で session-edit chunk が 80 KB / 47 KB 削減実績、 同等以上のサイズを選定)
+2. 候補の依存を読む (= grep + Read で外部参照を全棚卸し、子コンポーネントまで全文 Read)
 3. core に残す / heavy に逃がす を分類 (= A/B/C/D 4 分類)
-4. **1 対象ずつ切り出す** (= バンドル切出禁止、PlanTab / InsightsTab と同じ単位粒度)
+4. **1 対象ずつ切り出す** (= バンドル切出禁止)
+5. **Gate 1-5 体系で進める** (= 全文 Read → 実装契約 → 編集 + build → 実画面検証 → push 前ゲート)
 
 ---
 
@@ -87,7 +134,10 @@ AI の土台だけ作る。
 | Code Splitting 段階 2-3 | MergeModal + MergePartnerPicker を heavy 同梱 (master_cleanup.js / domain/merge.js は core 維持) | ✅ 完了 (4.7.18-S17、commit f3a205c、core 450 KB / heavy 91 KB) |
 | Code Splitting 段階 2-4 | RacketDetailView + PeriodDetailView + SettingHistorySection を heavy 同梱 (= GearTab / computeRacketUsage / formatRacketStringDisplay/Tension は core 維持) | ✅ 完了 (4.7.20-S17、commit 2e4aef6、core 429 KB / heavy 117 KB、計算漏れ事故 → 4.7.19 で computeSettingHistory 漏れ → 4.7.20 で bridge 修正、Gear 詳細 / 期間詳細実画面検証済) |
 | 4 層防御完成 | pre-push hook 物理ブロック + git-guard.ps1 二重防御 + CLAUDE.md R6 + memory 短文 | ✅ 完了 (b50657d / 7ed5f8d / f98cd06) |
-| **Code Splitting 段階 2-5** | **次の重い候補 (= SettingsModal 14 KB / TournamentEditForm 19 KB / YearHeatmap+Cell+WeekPanel 13 KB+補助) を切出、目標 < 350 KB へ (残り 79 KB)** | 🔄 **次セッションで着手候補、R6 gate 必須** |
+| Code Splitting 段階 2-5-1 | SettingsModal (13.4 KB) を heavy 同梱、bridge に lsLoad/KEYS 追加 | ✅ 完了 (4.7.21-S17、commit d6f6580、core 422 KB、heavy 126 KB) |
+| Code Splitting 段階 2-5-2 | 編集 form 3 件 (Tournament/Practice/Trial) + MatchEditModal を heavy 一括同梱、bridge 20 件追加、Loader 4 個 | ✅ 完了 (4.7.22-S17、commit 8bba8da、core 422 → **374 KB** (47 KB 削減、目標まで残 24 KB)、heavy 180 KB) |
+| **Tier 1 swipe-back audit** | **4 push に分けて 10 経路を pushState/popstate 対応** | ✅ 完了 (4.7.23/24/25/26、計 4 push、`51184cd / 4242b05 / 1ddb87c / d25bd74`) |
+| **Code Splitting 段階 2-5-3** | **次の重い候補 (= YearHeatmap+Cell+WeekPanel 13 KB+補助 等) を切出、目標 < 350 KB へ (残 26 KB)** | 🔄 **次セッションで着手候補、R6 gate 必須、Gate 1-5 体系で進める** |
 | C | Generated Defaults (デフォルト作戦・リセット文・継続テーマ) | 着手前 |
 | A2 | Core Profile 表示・編集画面の最低限復活 | 着手前 |
 | D | Strategy AI 整理 (Cloud Functions deploy 含む) | 着手前 (= Player Model 整備後) |
