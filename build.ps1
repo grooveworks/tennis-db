@@ -55,15 +55,16 @@ if (Test-Path $domainDir) {
   }
 }
 
-# ui/ (recursive, sort by full path) — S17 code splitting 段階 1+2-1+2-2+2-3+2-4+2-5-1+2-5-2: ui/plan/ + ui/insights/ + ui/sessions/{QuickTrialMode,MergeModal,MergePartnerPicker,TournamentEditForm,PracticeEditForm,TrialEditForm,MatchEditModal}.jsx + ui/gear/{RacketDetailView,PeriodDetailView,SettingHistorySection}.jsx + ui/common/SettingsModal.jsx は heavy bundle 側へ
-# 試合中使わない component はファイル単位で厳密除外 (= SessionsTab / GameTracker / _NumWheel / _SetupPicker / LinkedSessionPicker / GearTab は core 維持)
+# ui/ (recursive, sort by full path) — S17 code splitting 段階 1+2-1+2-2+2-3+2-4+2-5-1+2-5-2+2-5-3: ui/plan/ + ui/insights/ + ui/sessions/{QuickTrialMode,MergeModal,MergePartnerPicker,TournamentEditForm,PracticeEditForm,TrialEditForm,MatchEditModal,YearHeatmap,YearHeatmapCell,WeekPanel}.jsx + ui/gear/{RacketDetailView,PeriodDetailView,SettingHistorySection}.jsx + ui/common/{SettingsModal,WeatherModal}.jsx + ui/home/HomeDayPanel.jsx は heavy bundle 側へ
+# 試合中使わない component はファイル単位で厳密除外 (= SessionsTab / GameTracker / _NumWheel / _SetupPicker / LinkedSessionPicker / GearTab / HomeTab は core 維持)
 $uiDir = Join-Path $srcDir "ui"
 if (Test-Path $uiDir) {
   Get-ChildItem $uiDir -Recurse -Filter *.jsx | Where-Object {
     -not ($_.FullName -match "[\\/]ui[\\/](plan|insights)[\\/]") -and
-    -not ($_.FullName -match "[\\/]ui[\\/]sessions[\\/](QuickTrialMode|MergeModal|MergePartnerPicker|TournamentEditForm|PracticeEditForm|TrialEditForm|MatchEditModal)\.jsx$") -and
+    -not ($_.FullName -match "[\\/]ui[\\/]sessions[\\/](QuickTrialMode|MergeModal|MergePartnerPicker|TournamentEditForm|PracticeEditForm|TrialEditForm|MatchEditModal|YearHeatmap|YearHeatmapCell|WeekPanel)\.jsx$") -and
     -not ($_.FullName -match "[\\/]ui[\\/]gear[\\/](RacketDetailView|PeriodDetailView|SettingHistorySection)\.jsx$") -and
-    -not ($_.FullName -match "[\\/]ui[\\/]common[\\/]SettingsModal\.jsx$")
+    -not ($_.FullName -match "[\\/]ui[\\/]common[\\/](SettingsModal|WeatherModal)\.jsx$") -and
+    -not ($_.FullName -match "[\\/]ui[\\/]home[\\/]HomeDayPanel\.jsx$")
   } | Sort-Object FullName | ForEach-Object {
     $rel = $_.FullName.Substring($srcDir.Length + 1).Replace("\", "/")
     AppendLine "// === src/$rel ==="
@@ -129,6 +130,8 @@ AppendLine "  computeSetScoresFromGames: computeSetScoresFromGames,"
 AppendLine "  applyTbDetails: applyTbDetails,"
 AppendLine "  computeAutoMatchResult: computeAutoMatchResult,"
 AppendLine "  LS_PREFIX: LS_PREFIX,"
+AppendLine "  // 段階 2-5-3 (2026-05-13): YearHeatmap/WeatherModal/HomeDayPanel heavy 化のため追加 (WeekPanel が result badge 表示で参照)"
+AppendLine "  Badge: Badge,"
 AppendLine "};"
 
 # ── Step 2: 一時ファイルに書き出して esbuild に渡す
@@ -234,13 +237,26 @@ foreach ($p in @($tournamentEditFormPath, $practiceEditFormPath, $trialEditFormP
     exit 1
   }
 }
+# S17 code splitting 段階 2-5-3 (2026-05-13): YearHeatmap セット + WeatherModal + HomeDayPanel の存在チェック
+$yearHeatmapPath     = Join-Path $srcDir "ui\sessions\YearHeatmap.jsx"
+$yearHeatmapCellPath = Join-Path $srcDir "ui\sessions\YearHeatmapCell.jsx"
+$weekPanelPath       = Join-Path $srcDir "ui\sessions\WeekPanel.jsx"
+$weatherModalPath    = Join-Path $srcDir "ui\common\WeatherModal.jsx"
+$homeDayPanelPath    = Join-Path $srcDir "ui\home\HomeDayPanel.jsx"
+foreach ($p in @($yearHeatmapPath, $yearHeatmapCellPath, $weekPanelPath, $weatherModalPath, $homeDayPanelPath)) {
+  if (-not (Test-Path $p)) {
+    $fn = [System.IO.Path]::GetFileName($p)
+    Write-Error "$fn not found at $p (heavy bundle build aborted)"
+    exit 1
+  }
+}
 
 $heavySb = New-Object System.Text.StringBuilder
 [void]$heavySb.AppendLine("// === heavy bundle prelude (S17 code splitting 段階 1) ===")
 [void]$heavySb.AppendLine("if (!window.__TennisDBCore) {")
 [void]$heavySb.AppendLine('  throw new Error("TennisDB core bridge is not available");')
 [void]$heavySb.AppendLine("}")
-[void]$heavySb.AppendLine("const { C, font, Icon, Modal, Input, Textarea, NumWheel, sortByStatusAndOrder, RACKET_STATUS_PRIORITY, STRING_STATUS_PRIORITY, fbFunctions, RADIUS, normDate, _normalizeMatchResult, genId, Button, SCHEMA, isEmptyVal, useFocusTrap, computeMergeDiff, applyMerge, countRelinks, computeRacketUsage, formatRacketStringDisplay, formatRacketTensionDisplay, computeSettingHistory, lsLoad, KEYS, APP_VERSION, Select, MasterField, TimeWheel, SetupPickerButton, _SetupPickerButton, _computeRecentSetups, LinkedSessionPicker, GameTracker, blankMatch, computeCascade, describeCascadeMessage, formatFromPreset, formatLabel, formatRuleSummary, DEFAULT_MATCH_FORMAT, resolveMatchFormat, computeSetScoresFromGames, applyTbDetails, computeAutoMatchResult, LS_PREFIX } = window.__TennisDBCore;")
+[void]$heavySb.AppendLine("const { C, font, Icon, Modal, Input, Textarea, NumWheel, sortByStatusAndOrder, RACKET_STATUS_PRIORITY, STRING_STATUS_PRIORITY, fbFunctions, RADIUS, normDate, _normalizeMatchResult, genId, Button, SCHEMA, isEmptyVal, useFocusTrap, computeMergeDiff, applyMerge, countRelinks, computeRacketUsage, formatRacketStringDisplay, formatRacketTensionDisplay, computeSettingHistory, lsLoad, KEYS, APP_VERSION, Select, MasterField, TimeWheel, SetupPickerButton, _SetupPickerButton, _computeRecentSetups, LinkedSessionPicker, GameTracker, blankMatch, computeCascade, describeCascadeMessage, formatFromPreset, formatLabel, formatRuleSummary, DEFAULT_MATCH_FORMAT, resolveMatchFormat, computeSetScoresFromGames, applyTbDetails, computeAutoMatchResult, LS_PREFIX, Badge } = window.__TennisDBCore;")
 [void]$heavySb.AppendLine("const { useState, useEffect, useMemo, useRef, useCallback } = React;")
 [void]$heavySb.AppendLine("")
 
@@ -319,6 +335,19 @@ foreach ($p in @($matchEditModalPath, $tournamentEditFormPath, $practiceEditForm
   }
 }
 
+# S17 code splitting 段階 2-5-3 (2026-05-13): YearHeatmap セット + WeatherModal + HomeDayPanel を heavy 一括同梱
+# 連結順: YearHeatmapCell → WeekPanel → YearHeatmap (= YearHeatmap が上 2 つを使用、可読性優先) → WeatherModal → HomeDayPanel (= 独立)
+# YearHeatmapCell / WeekPanel は YearHeatmap.jsx 内クロージャ参照のみ、外部 expose 不要
+foreach ($p in @($yearHeatmapCellPath, $weekPanelPath, $yearHeatmapPath, $weatherModalPath, $homeDayPanelPath)) {
+  if (Test-Path $p) {
+    $fname = Split-Path $p -Leaf
+    $subdir = if ($p -like "*\common\*") { "common" } elseif ($p -like "*\home\*") { "home" } else { "sessions" }
+    [void]$heavySb.AppendLine("// === src/ui/$subdir/$fname ===")
+    [void]$heavySb.Append([System.IO.File]::ReadAllText($p))
+    [void]$heavySb.AppendLine("")
+  }
+}
+
 # heavy 末尾 expose (PlanTab 存在ランタイム検証 + window.__TennisDBHeavy 登録)
 [void]$heavySb.AppendLine("// === heavy bundle expose ===")
 [void]$heavySb.AppendLine('if (typeof PlanTab === "undefined") {')
@@ -361,6 +390,17 @@ foreach ($p in @($matchEditModalPath, $tournamentEditFormPath, $practiceEditForm
 [void]$heavySb.AppendLine('if (typeof MatchEditModal === "undefined") {')
 [void]$heavySb.AppendLine('  throw new Error("MatchEditModal is not defined in heavy bundle");')
 [void]$heavySb.AppendLine("}")
+# 段階 2-5-3 (2026-05-13): YearHeatmap / WeatherModal / HomeDayPanel のランタイム検証
+# YearHeatmapCell / WeekPanel は外部 expose しない (= YearHeatmap.jsx 内クロージャ参照、ユーザー指摘の expose 最小化原則)
+[void]$heavySb.AppendLine('if (typeof YearHeatmap === "undefined") {')
+[void]$heavySb.AppendLine('  throw new Error("YearHeatmap is not defined in heavy bundle");')
+[void]$heavySb.AppendLine("}")
+[void]$heavySb.AppendLine('if (typeof WeatherModal === "undefined") {')
+[void]$heavySb.AppendLine('  throw new Error("WeatherModal is not defined in heavy bundle");')
+[void]$heavySb.AppendLine("}")
+[void]$heavySb.AppendLine('if (typeof HomeDayPanel === "undefined") {')
+[void]$heavySb.AppendLine('  throw new Error("HomeDayPanel is not defined in heavy bundle");')
+[void]$heavySb.AppendLine("}")
 [void]$heavySb.AppendLine("window.__TennisDBHeavy = window.__TennisDBHeavy || {};")
 [void]$heavySb.AppendLine("window.__TennisDBHeavy.PlanTab = PlanTab;")
 [void]$heavySb.AppendLine("window.__TennisDBHeavy.InsightsTab = InsightsTab;")
@@ -374,7 +414,11 @@ foreach ($p in @($matchEditModalPath, $tournamentEditFormPath, $practiceEditForm
 [void]$heavySb.AppendLine("window.__TennisDBHeavy.PracticeEditForm = PracticeEditForm;")
 [void]$heavySb.AppendLine("window.__TennisDBHeavy.TrialEditForm = TrialEditForm;")
 [void]$heavySb.AppendLine("window.__TennisDBHeavy.MatchEditModal = MatchEditModal;")
-# SettingHistorySection は expose しない (= heavy IIFE 内で RacketDetailView から参照、外部不要、ChatGPT 補足 6)
+[void]$heavySb.AppendLine("window.__TennisDBHeavy.YearHeatmap = YearHeatmap;")
+[void]$heavySb.AppendLine("window.__TennisDBHeavy.WeatherModal = WeatherModal;")
+[void]$heavySb.AppendLine("window.__TennisDBHeavy.HomeDayPanel = HomeDayPanel;")
+# SettingHistorySection / YearHeatmapCell / WeekPanel は expose しない
+# (= heavy IIFE 内クロージャ参照のみ、外部から呼ばれない、expose 最小化原則 ChatGPT 補足 6 + ユーザー段階 2-5-3 指摘)
 
 $tmpHeavyJsx = Join-Path $tmpDir "heavy.jsx"
 $heavyOut = Join-Path $outDir "bundle-heavy.js"

@@ -6,8 +6,141 @@
 
 ## 現行 push 候補
 
-push 候補: 4.7.26-S17 MatchEditModal swipe-back hotfix (= スワイプ戻り audit Tier 1 残 1 件、MatchEditModal の 4 経路一括対応)
-バージョン: 4.7.26-S17
+push 候補: 4.7.27-S17 段階 2-5-3 (= YearHeatmap セット + WeatherModal + HomeDayPanel を heavy bundle に一括分離、core 残 26 KB 削減目標)
+バージョン: 4.7.27-S17
+
+経緯:
+- Tier 1 swipe-back audit (4.7.23-26) 完了後、本筋目標 core <350 KB 復帰のため段階 2-5-3 着手
+- Step 0 軽量棚卸し → 候補 6 グループ評価 → Step 1 推奨 B (= YearHeatmap セット + WeatherModal + HomeDayPanel、5 ファイル) 選定 → 正式 Gate 1 全文 Read で縮小トリガー 5 件全て不該当 → Gate 2 実装契約 → Gate 3 着手
+- ChatGPT 議論で 5 ファイルすべて display only / Firestore 触らず / 副作用ゼロ / Loader 各 1 箇所 / bridge 追加は Badge 1 件のみ と確定
+- YearHeatmapCell / WeekPanel は外部 expose しない (= heavy IIFE 内クロージャ参照のみ、expose 最小化原則)
+- 機材編集 modal 群 + MasterCleanupModal は save/delete/merge 性質のため除外、別 hotfix で扱う
+
+修正対象 (= 7 ファイル):
+- build.ps1 (= core 除外 + bridge Badge + prelude Badge + 存在 check + concat + expose)
+- src/_head.html (= loadHeavy 成功条件 3 件追加: YearHeatmap / WeatherModal / HomeDayPanel)
+- src/app.jsx (= Loader 3 個追加: YearHeatmapLoader / WeatherModalLoader / HomeDayPanelLoader、WeatherModal mount を Loader に置換)
+- src/ui/sessions/SessionsTab.jsx (= L565 `<YearHeatmap>` → `<YearHeatmapLoader>`)
+- src/ui/home/HomeTab.jsx (= L92 `<HomeDayPanel>` → `<HomeDayPanelLoader>`)
+- src/core/01_constants.js (= APP_VERSION 4.7.26-S17 → 4.7.27-S17)
+- VERIFY_LOG.md / v4/index.html / v4/bundle-heavy.js (= build 成果物)
+
+スコープ外 (= 触らない、別 hotfix で扱う):
+- handleQuickAddSave / handleMergeConfirm / MatchDetailView onEdit (= entry leak 3 件、別 hotfix)
+- 機材編集 modal 群 (RacketEditModal/StringEditModal/SetupEditModal/VenueEditModal/MeasurementEditModal): Tier 2 audit
+- MasterCleanupModal: 性質として cleanup/integration 系、別扱い
+- SessionsTab / HomeTab の mount 条件 (= viewMode 判定 / state) 不変
+- app.jsx popstate listener / 4.7.23-26 で確立した swipe-back ロジック 不変
+- YearHeatmapCell / WeekPanel の本体不変、expose しない
+- Badge.jsx 本体不変
+
+全文 Read:
+- 対象 5 ファイル (YearHeatmap 307 行 / YearHeatmapCell 101 行 / WeekPanel 189 行 / WeatherModal 291 行 / HomeDayPanel 207 行): 済
+- 呼び出し元 3 箇所周辺 (SessionsTab L555-575 / app.jsx L2430-2455 / HomeTab L1-100): 済
+
+依存棚卸し:
+- 副作用 grep: fetch/navigator/localStorage/setTimeout/setInterval 全 5 ファイル 0 件 (= display only 確定)
+- 既存 bridge で解決: C/Icon/normDate/useFocusTrap + React hooks (= 全ファイル)
+- 新規 bridge 追加: **Badge** 1 件のみ (= WeekPanel が result badge 表示で参照、core 7 ファイルで使用維持)
+- YearHeatmapCell / WeekPanel 呼出箇所: YearHeatmap.jsx 内のみ (= heavy IIFE 内クロージャで完結、expose 不要)
+
+制約チェック (= ユーザー指定 7 項目 + 私が Gate 2 で固定):
+- Loader 全て function 宣言 (= hoist 安全): 済
+- YearHeatmapCell / WeekPanel expose されていない: 済 (= ランタイム __TennisDBHeavy で確認、hasCell=false, hasWeekPanel=false)
+- bridge 追加 Badge のみ: 済 (= ランタイム __TennisDBCore.Badge = function、bridge 動作確認)
+- build.ps1 除外は対象 5 ファイルのみ: 済 (= ui/sessions 除外 regex に YearHeatmap/YearHeatmapCell/WeekPanel 追加、ui/common 除外 regex に SettingsModal|WeatherModal、ui/home 除外 regex に HomeDayPanel 追加)
+- SessionsTab / HomeTab の mount 条件不変: 済 (= viewMode==="year" 判定 / dayPanelIso state 判定 そのまま)
+- app.jsx popstate / history 系不変: 済 (= 4.7.23-26 ロジック未変更)
+- v4/index.html / bundle-heavy.js は build 成果物としてのみ更新: 済
+- APP_VERSION = 4.7.27-S17: 済
+- src 直接参照確認: `<YearHeatmap` / `<WeatherModal` / `<HomeDayPanel` は全て Loader 経由に置換、heavy IIFE 内 `<YearHeatmapCell>` のみ直接残存 (契約通り): 済
+
+静的チェック (= ユーザー指定 7 項目):
+1. window.__TennisDBHeavy.YearHeatmap 存在: True
+2. window.__TennisDBHeavy.WeatherModal 存在: True
+3. window.__TennisDBHeavy.HomeDayPanel 存在: True
+4. window.__TennisDBHeavy.YearHeatmapCell 不在: True (= expose 最小化原則遵守)
+5. window.__TennisDBHeavy.WeekPanel 不在: True (= 同上)
+6. window.__TennisDBCore.Badge bridge 公開: True (= ランタイム確認、minify で alias されたが function として bridge 経由)
+7. src 内 `<YearHeatmap / <WeatherModal / <HomeDayPanel` 直接参照 0 件、Loader 経由: True
+
+実画面検証 (dev mode http://localhost:8081/v4/index.html?dev=1、fresh reload 後):
+
+シナリオ Y0 (= list 表示時 heavy 未ロード確認、Y0 fresh context 規律):
+- Sessions タブ list viewMode 起動直後: `__loadHeavyPromise = false`, `__TennisDBHeavy = {}` (空): 済 ✓ (= YearHeatmapLoader が mount されていないので loadHeavy 未発火)
+
+シナリオ Y1 (= 年間濃淡切替 → loadHeavy 発火):
+- 「年間濃淡表示」 button click → loadHeavy 発火 → __TennisDBHeavy に 15 件 expose 確認 (PlanTab/InsightsTab/QuickTrialMode/MergeModal/MergePartnerPicker/RacketDetailView/PeriodDetailView/SettingsModal/TournamentEditForm/PracticeEditForm/TrialEditForm/MatchEditModal/YearHeatmap/WeatherModal/HomeDayPanel)
+- YearHeatmapCell/WeekPanel は expose されない (= 静的チェック 4-5 と整合)
+- YearHeatmap render: 「W1」「W2」「2026年」 等のラベル可視、12 月 × 5 週 grid: 済 ✓
+
+シナリオ Y2 (= heavy IIFE 内 WeekPanel + Badge bridge 動作):
+- 週セル「1月第1週 (大会あり)」 tap → WeekPanel slide up
+- 表示: 「1/1 - 1/7 (第1週) 6件」、結果バッジ (「優勝」「予選突破」 等) 表示: 済 ✓
+- これが Badge bridge 経由動作の決定的実証 (= WeekPanel が heavy IIFE 内から core の Badge を window.__TennisDBCore.Badge 経由で参照)
+
+シナリオ Y3 (= 行 tap → SessionDetailView 遷移):
+- WeekPanel ミニ行「1/1 (木) テニス09:00-13:00 / 219分 / 心拍108」 tap → 「練習詳細」 dialog 表示: 済 ✓
+
+シナリオ Y4 (= viewMode list 戻り → YearHeatmap unmount):
+- 「リスト表示」 button click → bodyText から W1-W5/1月 完全消失、yearHeatmapStillRendered=false: 済 ✓
+
+シナリオ W1 (= WeatherModalLoader → loadHeavy 既ロード済から即マウント):
+- ホーム 「今日の天気」 (= aria-label="今日の天気" の div、cursor:pointer) tap → 「今日の天気詳細」 dialog 表示
+- 「テニス指標」「降水」「時間別」 全 keyword 可視: 済 ✓
+
+シナリオ W2 (= WeatherModal 閉じる):
+- × button (aria-label="閉じる") click → dialog=0、tab=home 維持: 済 ✓
+
+シナリオ H1 (= HomeDayPanelLoader → mount):
+- ホーム 2 週間カレンダー 「21」 日付 tap → 「5月21日(木) の予定」 dialog 表示: 済 ✓
+
+シナリオ H3 (= HomeDayPanel 閉じる):
+- × button click → dialog=0、tab=home 維持: 済 ✓
+
+シナリオ Reg-2 (= 4.7.24 Settings 回帰):
+- 設定 button → state.tdb="settings-modal", dialog=[アプリ設定] → real history.back → state=anchor, dialog=[]: 済 ✓
+
+console error 0: 済 (= 4.7.27-S17 由来の新規 error 無し)
+Firestore write: なし (= 検証で 削除して統合 / 保存 / 削除 button 一切押さず)
+
+シナリオ W3 (= WeatherModal 背景 dim タップ、ChatGPT 補足対応で追加検証):
+- ホーム 天気 button tap → WeatherModal 表示
+- 背景 dim div (= WeatherModal L80-87 の半透明 overlay) を fiber 経由 onClick → modal 閉、tab=home 維持: 済 ✓
+- これにより 「× button だけでなく背景タップ経路も heavy 経由で正常動作」 を実証
+
+シナリオ H2 (= HomeDayPanel 行 tap → SessionDetailView 遷移 + panel 自動閉、ChatGPT 補足対応で追加検証):
+- ホーム 2 週間カレンダー 「19」 (= 5/19 火、テニススクール practice 保持) tap → HomeDayPanel 表示 (「5月19日(火) · 1 件、テニススクール(イトマンテニス) 20:00-21:30 · 90 分 · スクール · 練習」)
+- panel 内 練習 row (cursor:pointer div) fiber 経由 onClick → HomeDayPanel **自動閉**、SessionDetailView 「練習詳細」 dialog 開く: 済 ✓
+- これにより 親 callback chain (`onItemClick` → HomeTab `handleDayItemClick` → `setDayPanelIso(null) + onCardClick`) が Loader 化後も正常動作することを実証
+
+シナリオ Reg-1 (= MatchEditModal swipe back 回帰、bundle-heavy.js 構造変化後の動作確認):
+- 4/29 大会詳細 (state.tdb="detail") → +試合追加 → MatchEditModal 表示、state.tdb="match-edit-modal" 確認
+- 対戦相手 input "Reg1_4.7.27_dirty" 入力 → dirty=true
+- real window.history.back() → MatchEditModal 閉、大会詳細維持、state.tdb="detail"、**dirty confirm 出ず** (= 4.7.26 silent close 維持): 済 ✓
+- これにより bundle-heavy.js +3 component / loadHeavy 成功条件 +3 件追加後も MatchEditModal の popstate listener / closingByUiRef / handleClose 動作に regression なし
+
+未確認: なし (= ChatGPT 補足対応で W3 / H2 / Reg-1 を実 UI で追加検証、「同ロジックで省略」 を撤回)
+
+サイズ実測:
+- core: 376,368 → **358,090 bytes** (= 18,278 bytes 削減 ≈ **18 KB**)
+- heavy: 180,236 → 203,795 bytes (= +23,559 bytes、5 ファイル分追加)
+- core 目標 < 350 KB: **未達 (= 残 8 KB)**、契約通り **追加切出ししない**、段階 2-5-4 で次候補対応
+
+備考:
+- 予測 21-25 KB 削減に対し実測 18 KB、esbuild minify が予想より高残存 (= 50% でなく 60% 程度残存)
+- Y0 fresh context 確認で 「viewMode list 時に heavy 不要発火しない」 ことを実証、YearHeatmapLoader の mount/unmount 設計が正しいことを確認
+- Y2 で Badge bridge が heavy IIFE 内 WeekPanel から正常動作することを実証 (= 結果バッジ表示)
+- YearHeatmapCell / WeekPanel 非 expose 設計が正常動作 (= heavy IIFE 内クロージャで完結、external __TennisDBHeavy に乗らず)
+- Tier 2 swipe-back audit / entry leak cleanup 等 残候補は別段階で扱う、契約遵守
+
+教訓 (= 引き継ぎ):
+- Step 0 軽量棚卸し → Step 1 対象決定 → Step 2 正式 Gate 1 → Gate 2 → Gate 3 の段階分けが効果的
+- 「正式 Gate 1 に進める価値」 列 (= ユーザー追加) でサイズ最大候補ではなくリスク評価を優先する判定軸を確立、機材編集 modal 群 (save/delete 絡み) を早期除外できた
+- expose 最小化原則 (= YearHeatmapCell/WeekPanel を __TennisDBHeavy に乗せない) を Tier 2 でも踏襲、heavy bundle 公開 API を必要最小限に保つ
+- Y0 fresh context 検証 (= ユーザー指示) で 「heavy がいつロードされるか」 を実証、設計仮定と実挙動の乖離を防ぐ
+- 目標 < 350 KB 未達 (残 8 KB) でも追加切出しせず、段階 2-5-4 で別候補対応 (= 4.7.22 と同じ scope discipline)
+- 「同一コードパス / 未変更だから省略」 癖が本セッション内で 3 回目 (4.7.22 TrialEditForm / 4.7.26 A2-B2 / 4.7.27 W3-H2-Reg-1) → ChatGPT 補足で毎回撤回、検証マトリクス記載 = 実行必須を物理ルール化
 
 経緯:
 - 4.7.25 push 後、Tier 1 残 1 件 (= MatchEditModal) に着手
@@ -505,6 +638,20 @@ console error 0: 済 (= 4.7.21-S17 由来の新規 error 無し、Firestore depr
 ---
 
 ## 過去 push の検証ログ (= 最新を上、古いを下)
+
+### a854ddd (= docs: HANDOFF を 4.7.26-S17 状態に更新、Tier 1 swipe-back audit 完了記録)
+- HANDOFF_v4_S17.md 更新 (= §0 現在地 / §1 次セッション最初のアクション / §2 Phase 表 / Tier 1 完了経緯 + 確立した検証パターン記録)
+- 4.7.26-S17 / commit d25bd74 / 対応済 10 経路 / 未対応 entry leak 3 件 / 次候補 段階 2-5-3 (推奨) を明記
+- 大型節目で local 差分持ち越し回避、次セッション開始時の文脈固定
+
+### d25bd74 (= 4.7.26-S17 MatchEditModal swipe-back hotfix、4 経路 + UI close history cleanup)
+- MatchEditModal.jsx に closingByUiRef + handleClose 内 consumeHistoryEntry + open useEffect 内 popstate listener 追加
+- 案 A 採用: swipe back = silent close (dirty confirm 通さず、_clearMatchDraft 呼ばず、onClose 直接)
+- UI cancel は既存 dirty confirm UX 不変、close 確定後に history.back で entry 消費
+- closingByUiRef で popstate 二重 close 防止
+- 4 経路すべて実 UI 検証 PASS (A1/A2/B1/B2、onClose 受け側 4 件別実装、ChatGPT 指摘で 「同一コードパスだから実証済」 撤回)
+- G1/G2/G2' で dirty confirm UX 不変 + history cleanup 動作確認 + draft clear 動作確認
+- 教訓: 「同じ component の popstate でも onClose 受け側が違えば別検証必須」 を物理ルール化
 
 ### 1ddb87c (= 4.7.25-S17 merge-flow swipe-back hotfix、MergeModal + MergePartnerPicker 対応)
 - handleMergeStart に pushState({tdb:"merge-flow"}) + 重複ガード、handleMergeCancel を history.back 統一

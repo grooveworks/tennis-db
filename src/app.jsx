@@ -694,6 +694,168 @@ function TrialEditFormLoader(props) {
   return <HeavyTrialEditForm {...props} />;
 }
 
+// S17 code splitting 段階 2-5-3 (2026-05-13): YearHeatmap / WeatherModal / HomeDayPanel heavy bundle Loader
+//   - YearHeatmapLoader: SessionsTab L565 で viewMode==="year" 時に mount される (= mount 時に loadHeavy 発火、それ以外は Loader 自体 unmount で loadHeavy 未発火)
+//   - WeatherModalLoader: app.jsx L2439 mount、open=false 時 null return、open=true で loadHeavy 発火
+//   - HomeDayPanelLoader: HomeTab L92 mount、open=false 時 null return、open=true で loadHeavy 発火
+//   全 Loader function 宣言 (= hoist 安全)、ready/loading/error 3 状態、既存 Loader 群 (SettingsModalLoader 等) と同パターン
+function YearHeatmapLoader(props) {
+  const [state, setState] = useState(() =>
+    (window.__TennisDBHeavy && window.__TennisDBHeavy.YearHeatmap) ? "ready" : "loading"
+  );
+  useEffect(() => {
+    if (state !== "loading") return;
+    if (window.__TennisDBHeavy && window.__TennisDBHeavy.YearHeatmap) {
+      setState("ready");
+      return;
+    }
+    if (typeof window.loadHeavy !== "function") {
+      console.error("loadHeavy is not defined");
+      setState("error");
+      return;
+    }
+    window.loadHeavy().then(() => setState("ready")).catch((e) => {
+      console.error("Heavy bundle load failed:", e);
+      setState("error");
+    });
+  }, [state]);
+  if (state === "error") {
+    return (
+      <div style={{ flex: 1, padding: 20, textAlign: "center", color: C.error, fontSize: 13, lineHeight: 1.6 }}>
+        年間ヒートマップの読み込みに失敗しました。<br />
+        ページを再読み込みしてください。
+      </div>
+    );
+  }
+  if (state === "loading" || !(window.__TennisDBHeavy && window.__TennisDBHeavy.YearHeatmap)) {
+    return (
+      <div style={{ flex: 1, padding: 40, textAlign: "center", color: C.textMuted, fontSize: 13 }}>
+        年間ヒートマップを読み込んでいます…
+      </div>
+    );
+  }
+  const HeavyYearHeatmap = window.__TennisDBHeavy.YearHeatmap;
+  return <HeavyYearHeatmap {...props} />;
+}
+
+function WeatherModalLoader(props) {
+  const [state, setState] = useState(() =>
+    (window.__TennisDBHeavy && window.__TennisDBHeavy.WeatherModal) ? "ready" : "loading"
+  );
+  useEffect(() => {
+    if (!props.open) return;
+    if (state !== "loading") return;
+    if (window.__TennisDBHeavy && window.__TennisDBHeavy.WeatherModal) {
+      setState("ready");
+      return;
+    }
+    if (typeof window.loadHeavy !== "function") {
+      console.error("loadHeavy is not defined");
+      setState("error");
+      return;
+    }
+    window.loadHeavy().then(() => setState("ready")).catch((e) => {
+      console.error("Heavy bundle load failed:", e);
+      setState("error");
+    });
+  }, [props.open, state]);
+  if (!props.open) return null;
+  if (state === "error") {
+    return (
+      <div onClick={props.onClose} style={{
+        position: "fixed", inset: 0, zIndex: 1099,
+        background: "rgba(0,0,0,0.18)",
+        display: "flex", alignItems: "flex-end", justifyContent: "center",
+      }}>
+        <div onClick={(e) => e.stopPropagation()} style={{
+          background: C.panel, padding: 20, borderRadius: 16, color: C.error, fontSize: 13, textAlign: "center", lineHeight: 1.6,
+          margin: 14, marginBottom: 70,
+        }}>
+          天気詳細の読み込みに失敗しました。<br />
+          ページを再読み込みしてください。
+        </div>
+      </div>
+    );
+  }
+  if (state === "loading" || !(window.__TennisDBHeavy && window.__TennisDBHeavy.WeatherModal)) {
+    return (
+      <div onClick={props.onClose} style={{
+        position: "fixed", inset: 0, zIndex: 1099,
+        background: "rgba(0,0,0,0.18)",
+        display: "flex", alignItems: "flex-end", justifyContent: "center",
+      }}>
+        <div onClick={(e) => e.stopPropagation()} style={{
+          background: C.panel, padding: 20, borderRadius: 16, color: C.textMuted, fontSize: 13,
+          margin: 14, marginBottom: 70,
+        }}>
+          天気詳細を読み込んでいます…
+        </div>
+      </div>
+    );
+  }
+  const HeavyWeatherModal = window.__TennisDBHeavy.WeatherModal;
+  return <HeavyWeatherModal {...props} />;
+}
+
+function HomeDayPanelLoader(props) {
+  const [state, setState] = useState(() =>
+    (window.__TennisDBHeavy && window.__TennisDBHeavy.HomeDayPanel) ? "ready" : "loading"
+  );
+  useEffect(() => {
+    if (!props.open) return;
+    if (state !== "loading") return;
+    if (window.__TennisDBHeavy && window.__TennisDBHeavy.HomeDayPanel) {
+      setState("ready");
+      return;
+    }
+    if (typeof window.loadHeavy !== "function") {
+      console.error("loadHeavy is not defined");
+      setState("error");
+      return;
+    }
+    window.loadHeavy().then(() => setState("ready")).catch((e) => {
+      console.error("Heavy bundle load failed:", e);
+      setState("error");
+    });
+  }, [props.open, state]);
+  if (!props.open) return null;
+  if (state === "error") {
+    return (
+      <div onClick={props.onClose} style={{
+        position: "fixed", inset: 0, zIndex: 9,
+        background: "rgba(0,0,0,0.18)",
+      }}>
+        <div onClick={(e) => e.stopPropagation()} style={{
+          position: "fixed", left: 14, right: 14, bottom: "calc(74px + env(safe-area-inset-bottom, 0px))",
+          background: C.panel, padding: 16, borderRadius: 22,
+          color: C.error, fontSize: 13, textAlign: "center", lineHeight: 1.6,
+        }}>
+          日別パネルの読み込みに失敗しました。<br />
+          ページを再読み込みしてください。
+        </div>
+      </div>
+    );
+  }
+  if (state === "loading" || !(window.__TennisDBHeavy && window.__TennisDBHeavy.HomeDayPanel)) {
+    return (
+      <div onClick={props.onClose} style={{
+        position: "fixed", inset: 0, zIndex: 9,
+        background: "rgba(0,0,0,0.18)",
+      }}>
+        <div onClick={(e) => e.stopPropagation()} style={{
+          position: "fixed", left: 14, right: 14, bottom: "calc(74px + env(safe-area-inset-bottom, 0px))",
+          background: C.panel, padding: 16, borderRadius: 22,
+          color: C.textMuted, fontSize: 13,
+        }}>
+          日別パネルを読み込んでいます…
+        </div>
+      </div>
+    );
+  }
+  const HeavyHomeDayPanel = window.__TennisDBHeavy.HomeDayPanel;
+  return <HeavyHomeDayPanel {...props} />;
+}
+
 function MatchEditModalLoader(props) {
   const [state, setState] = useState(() =>
     (window.__TennisDBHeavy && window.__TennisDBHeavy.MatchEditModal) ? "ready" : "loading"
@@ -2435,8 +2597,8 @@ function TennisDB() {
         onConfirm={handleMergeConfirm}
         onCancel={handleMergeCancel}
       />
-      {/* S14 P2: 天気詳細 Modal (Header 天気タップで開く) */}
-      <WeatherModal
+      {/* S14 P2: 天気詳細 Modal (Header 天気タップで開く)、S17 段階 2-5-3 で Loader 経由化 */}
+      <WeatherModalLoader
         open={weatherModalOpen}
         weather={weather}
         onClose={handleWeatherClose}

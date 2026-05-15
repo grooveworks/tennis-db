@@ -562,7 +562,7 @@ function SessionsTab({ tournaments = [], practices = [], trials = [], loading = 
             読み込み中...
           </div>
         ) : (
-          <YearHeatmap
+          <YearHeatmapLoader
             items={filteredItems}
             trialLinks={trialLinks}
             onCardClick={onCardClick}

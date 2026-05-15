@@ -88,8 +88,8 @@ function HomeTab({
         onCardClick={onCardClick}
       />
 
-      {/* DayPanel (Glass overlay、選択日のセッション一覧) */}
-      <HomeDayPanel
+      {/* DayPanel (Glass overlay、選択日のセッション一覧)、S17 段階 2-5-3 で Loader 経由化 */}
+      <HomeDayPanelLoader
         open={!!dayPanelIso}
         iso={dayPanelIso}
         tournaments={tournaments}
