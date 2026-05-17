@@ -5,6 +5,9 @@ v4/dev-fixture.json
 # Claude Code の launch 設定 (環境依存)
 .claude/launch.json
 
+# R7 design-phase-guard.ps1 の runtime flag (commit 対象外、2026-05-17 追加)
+.claude/state/
+
 # Node.js / Playwright (e2e テスト依存)
 node_modules/
 playwright-report/

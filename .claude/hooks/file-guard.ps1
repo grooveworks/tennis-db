@@ -29,7 +29,10 @@ $criticalPatterns = @(
   'session-start.ps1', # フック自体
   'file-guard.ps1',
   'git-guard.ps1',
-  'user-keyword-guard.ps1'
+  'user-keyword-guard.ps1',
+  'design-phase-guard.ps1',  # R7 設計フェーズ hook 自体 (2026-05-17 追加)
+  'CLAUDE.md',               # 行動規範本体 (R7 追加に伴い保護、2026-05-17)
+  'CLAUDE_failures.md'       # 失敗パターン記録 (R7 / F16 追加に伴い保護、2026-05-17)
 )
 
 $isCritical = $false
@@ -43,6 +46,105 @@ foreach ($p in $criticalPatterns) {
 }
 
 if (-not $isCritical) {
+  # R7 設計フェーズ flag 検知 (2026-05-17 追加、当日エントリ範囲限定)
+  # critical 通過後、設計フェーズ flag が有効なら設計対象パスをチェック
+  $flagPath = ".claude/state/design-phase.json"
+  $flagActive = $false
+  $flagDetected = @()
+  if (Test-Path $flagPath) {
+    try {
+      $flag = Get-Content $flagPath -Raw -Encoding UTF8 | ConvertFrom-Json
+      $now = [int][double]::Parse((Get-Date -UFormat %s))
+      if (($now - $flag.ts) -lt 86400) {  # 24h
+        $flagActive = $true
+        $flagDetected = $flag.detected_keywords
+      }
+    } catch { }
+  }
+
+  if (-not $flagActive) {
+    exit 0
+  }
+
+  # 設計対象 path 判定 (src/** / _head.html / build.ps1)
+  $designTargets = @(
+    'src[\\/].*\.jsx?$',
+    'src[\\/]_head\.html$',
+    'build\.ps1$'
+  )
+  # 高リスク語パス (Firestore / save / sync 系)
+  $highRiskWords = @(
+    'Firestore','save','sync','localStorage','IndexedDB',
+    'offline','loadHeavy','__TennisDBCore','__TennisDBHeavy',
+    'pushState','popstate','history\.back',
+    'MatchEditModal','GameTracker','SessionEditView',
+    'TournamentEditForm','PracticeEditForm'
+  )
+
+  $matchesDesign = $false
+  foreach ($pat in $designTargets) {
+    if ($file -match $pat) { $matchesDesign = $true; break }
+  }
+  if (-not $matchesDesign) {
+    foreach ($word in $highRiskWords) {
+      if ($file -match $word) { $matchesDesign = $true; break }
+    }
+  }
+
+  if (-not $matchesDesign) {
+    exit 0
+  }
+
+  # Phase 1: DESIGN_LOG.md 当日エントリ範囲内に必須セクション 5 件があるか確認
+  $today = Get-Date -Format "yyyy-MM-dd"
+  $designLogPath = "DESIGN_LOG.md"
+  $missingSections = @()
+
+  if (-not (Test-Path $designLogPath)) {
+    $missingSections += "DESIGN_LOG.md 自体が存在しない"
+  } else {
+    $log = Get-Content $designLogPath -Raw -Encoding UTF8
+    $todayPattern = "##\s+$today"
+    $todayMatch = [regex]::Match($log, $todayPattern)
+
+    if (-not $todayMatch.Success) {
+      $missingSections += "## $today (当日見出し)"
+    } else {
+      # 当日エントリの範囲を切り出し (## YYYY-MM-DD から次の ## 見出し直前まで、または EOF)
+      $startIdx = $todayMatch.Index + $todayMatch.Length
+      $afterStart = $log.Substring($startIdx)
+      $nextH2 = [regex]::Match($afterStart, "(?m)^##\s+")
+      if ($nextH2.Success) {
+        $todayEntry = $afterStart.Substring(0, $nextH2.Index)
+      } else {
+        $todayEntry = $afterStart
+      }
+
+      # 当日エントリ範囲内に限定して必須セクション存在確認
+      if (-not ($todayEntry -match "###\s+§1\."))  { $missingSections += "### §1. (当日エントリ内)" }
+      if (-not ($todayEntry -match "###\s+§5\."))  { $missingSections += "### §5. (当日エントリ内)" }
+      if (-not ($todayEntry -match "###\s+§11\.")) { $missingSections += "### §11. (当日エントリ内)" }
+      if (-not ($todayEntry -match "###\s+§12\.")) { $missingSections += "### §12. (当日エントリ内)" }
+      if (-not ($todayEntry -match "###\s+§14\.")) { $missingSections += "### §14. (当日エントリ内)" }
+    }
+  }
+
+  if ($missingSections.Count -eq 0) {
+    exit 0
+  }
+
+  $missingStr = $missingSections -join " / "
+  $kwStr = $flagDetected -join ","
+  $r7Reason = "R7 設計フェーズ flag が active (検知: $kwStr) で、設計対象パス $file を編集しようとしていますが、DESIGN_LOG.md 当日エントリに必須要素が不足: $missingStr。R7 プロトコル §1-15 を当日エントリ内に埋めてから着手してください (Phase 1: 当日見出し + §1/§5/§11/§12/§14 見出し存在チェック、当日エントリ範囲限定)。"
+
+  $r7Output = @{
+    hookSpecificOutput = @{
+      hookEventName = "PreToolUse"
+      permissionDecision = "ask"
+      permissionDecisionReason = $r7Reason
+    }
+  } | ConvertTo-Json -Compress -Depth 10
+  Write-Output $r7Output
   exit 0
 }
 

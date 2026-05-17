@@ -149,6 +149,94 @@ console error 0: 済
 
 ---
 
+## R7. 設計前提棚卸しプロトコル (2026-05-17 確立、前提決め打ち癖対策)
+
+R6 が「push 前」のゲートなら、R7 は「設計を書き始める前」のゲート。Claude の常設の癖 (資料・過去発言・制約を読まずに前提決め打ち → 訂正されたら逆方向に決め打ち → 「理解しました」で実装 → 別の前提漏れで壊す = F16) を物理的に縛る。
+
+### R7 発動条件 (フック発火)
+
+`.claude/hooks/design-phase-guard.ps1` (UserPromptSubmit) がユーザー発言に以下を検知した時:
+
+| 区分 | キーワード | 発火条件 |
+|---|---|---|
+| strong (11) | 設計 / フェーズ / フェーズ計画 / 棚卸し / Gate / 試合中信頼性 / local-first / offline / core / heavy / Firestore | 単独で発火 |
+| weak (7) | 次のステップ / 保存 / 同期 / 運用 / 大会 / 方針 / 要件 | anchor 同時の時のみ発火 |
+| anchor (10) | Tennis DB / v4 / 試合 / 実戦 / 設計 / Gate / core / heavy / Firestore / local-first | (weak 発火条件) |
+
+発火 = `.claude/state/design-phase.json` に flag を書き、応答前に DESIGN PHASE 注入 (additionalContext)。flag 有効期間 24 時間。`.claude/state/` は `.gitignore` で commit 除外。
+
+### R7 は 2 段階構造
+
+#### 段階 A: 設計相談段階 (= UserPromptSubmit 発火直後)
+**応答内で実行 (DESIGN_LOG エントリは推奨だが必須ではない)**:
+1. 今回の論点を明確化
+2. 必要資料を選定して Read (= 固定 Read 強制ではない、選定理由を明記)
+3. 12 項目棚卸しを応答内に書く
+4. 未確認前提を §5 根拠分類 4 区分で明示
+5. 複数パターンを検討、対象外には理由
+6. ユーザー確認事項を提示
+
+→ 「方針どう思う?」程度の相談で DESIGN_LOG を強制しない。応答内棚卸しで足りる。
+
+#### 段階 B: 実装着手前 (= file-guard が src/build/高リスク語パスを検知)
+**DESIGN_LOG.md に当日エントリ必須**。無ければ `file-guard.ps1` が ask で止める。
+Phase 1 check (当日エントリ範囲内に限定): 当日見出し `## YYYY-MM-DD` + `### §1.` `### §5.` `### §11.` `### §12.` `### §14.` の各見出し存在 (過去エントリの見出しでは通さない)。
+Phase 2 で空欄チェック追加予定 (別ターン実装)。
+
+### 12 項目 (段階 A 応答 + 段階 B DESIGN_LOG 共通フォーマット)
+
+1. 今回の論点 / 2. 読んだ資料 (選定理由含む) / 3. 過去制約 / 4. Claude が置いている前提 / 5. 各前提の根拠分類 (資料 / ユーザー明示 / 過去ログ推定 / 未確認仮説) / 6. 複数あり得るパターン / 7. 今回対象にするパターン / 8. 対象外パターンと理由 / 9. 未確認の前提 / 10. ユーザー確認が必要な点 / 11. 禁止事項 / 12. 停止条件
+
+### 必要資料の選定 (固定 Read 廃止)
+
+毎回固定 Read ではなく、**今回の論点に必要な資料を選び、選定理由を明記して読む**。
+
+候補 (= 論点別の参照原則):
+- 全論点共通: CLAUDE.md R6/R7 / CLAUDE_failures.md
+- 機能・要件論点: REQUIREMENTS_v4.md
+- 進行・凍結論点: ROADMAP_v4.md
+- 着手タスク: HANDOFF_v4_S<N>.md
+- UI/UX 論点: WIREFRAMES_v4.md / DESIGN_SYSTEM_v4.md
+- 保存・同期・信頼性論点: src/core/02_firebase.js / src/core/03_storage.js / Firestore 関連
+- 過去発言: MEMORY 該当エントリ
+
+応答冒頭チェックリスト (手続き型):
+- □ 今回読む資料を選定した / □ 選定理由を書いた / □ 実際に Read した / □ 各資料 2 行サマリーを書いた
+
+### 8 禁止 (発動中・違反時自己停止)
+
+1. 未確認の前提を事実として扱う
+2. 1 つの運用・経路・状態だけに決め打ちする
+3. ユーザーの訂正を逆方向の決め打ちに置換する
+4. 資料未読で設計案を書く
+5. 「理解しました」と言って即実装に進む
+6. 複数パターンを勝手に 1 つに圧縮する
+7. dev mode の結果を実戦保証として扱う
+8. 同一コードパスを理由に検証を省略する
+
+### 形式的記入防止 (F7/F16 再演防止)
+
+DESIGN_LOG.md の各前提は §5 前提一覧表 (前提 / 根拠分類 / 根拠 / 未確認なら確認方法) を埋める。チェックだけで内容空欄は違反。未確認仮説の事実扱いは禁止 (8 禁止 §1 と一致)。
+
+### Gate 2 への転記 (R6 連携)
+
+DESIGN_LOG §14「Gate 2 へ必ず転記する制約」+ §15「Gate 2 転記確認」に書いた制約は、実装着手時 (= Gate 2、原則チャット提示) にも必ず転記する。Gate 2 契約自体は VERIFY_LOG.md には書かない (VERIFY_LOG は検証ログ純度維持)。
+
+### 高リスク語パス (file-guard PreToolUse 対象)
+
+Firestore / save / sync / localStorage / IndexedDB / offline / loadHeavy / __TennisDBCore / __TennisDBHeavy / pushState / popstate / history.back / MatchEditModal / GameTracker / SessionEditView / TournamentEditForm / PracticeEditForm
+
+(2026-05-17 時点では path 判定中心。content (tool_input new_string/content) 内の高リスク語検査は Phase 2 として別ターン実装。)
+
+### R7 ストップサイン (= 自己停止の追加条件)
+
+- 「ご指摘の通りです」と書いた次の行で実装トーンに移ろうとした
+- 「同じ趣旨だから」「便宜上」で項目を統合しようとした
+- ユーザー訂正直後に統合せず逆方向に決め打ちしようとした
+- DESIGN_LOG §5 / §13 表を空欄チェックだけで埋めようとした
+
+---
+
 ## 役割分担
 
 | | 担当 |
