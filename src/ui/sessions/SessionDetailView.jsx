@@ -459,9 +459,9 @@ function SessionDetailView({ type, session, mode = "detail", tournaments, trials
       </div>
 
       {/* リク 30-a: 詳細画面から直接「+ 試合を追加」する用の MatchEditModal
-          S17 段階 2-5-2 (2026-05-12): MatchEditModal を heavy 化、Loader 経由 (= 経路 B、別 loadHeavy 発火) */}
+          4.7.28-S17 R1-1 (2026-05-18): MatchEditModal は core 復帰、直接参照 (= 通信断でも開ける、loadHeavy 非経由) */}
       {addMatchState && type === "tournament" && (
-        <MatchEditModalLoader
+        <MatchEditModal
           open={true}
           match={addMatchState.match}
           trnType={session?.type}
@@ -491,9 +491,9 @@ function SessionDetailView({ type, session, mode = "detail", tournaments, trials
       )}
 
       {/* S17: 既存試合 編集用 MatchEditModal (新規追加用 addMatchState とは別 state)
-          S17 段階 2-5-2 (2026-05-12): MatchEditModal を heavy 化、Loader 経由 (= 経路 B、別 loadHeavy 発火) */}
+          4.7.28-S17 R1-1 (2026-05-18): MatchEditModal は core 復帰、直接参照 (= 通信断でも開ける、loadHeavy 非経由) */}
       {matchEditTarget && type === "tournament" && (
-        <MatchEditModalLoader
+        <MatchEditModal
           open={true}
           match={matchEditTarget}
           trnType={session?.type}

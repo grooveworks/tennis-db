@@ -856,63 +856,6 @@ function HomeDayPanelLoader(props) {
   return <HeavyHomeDayPanel {...props} />;
 }
 
-function MatchEditModalLoader(props) {
-  const [state, setState] = useState(() =>
-    (window.__TennisDBHeavy && window.__TennisDBHeavy.MatchEditModal) ? "ready" : "loading"
-  );
-  useEffect(() => {
-    if (!props.open) return;
-    if (state !== "loading") return;
-    if (window.__TennisDBHeavy && window.__TennisDBHeavy.MatchEditModal) {
-      setState("ready");
-      return;
-    }
-    if (typeof window.loadHeavy !== "function") {
-      console.error("loadHeavy is not defined");
-      setState("error");
-      return;
-    }
-    window.loadHeavy().then(() => setState("ready")).catch((e) => {
-      console.error("Heavy bundle load failed:", e);
-      setState("error");
-    });
-  }, [props.open, state]);
-  if (!props.open) return null;
-  if (state === "error") {
-    return (
-      <div onClick={props.onClose} style={{
-        position: "fixed", inset: 0, zIndex: 1100,
-        background: "rgba(0,0,0,0.4)",
-        display: "flex", alignItems: "center", justifyContent: "center",
-      }}>
-        <div onClick={(e) => e.stopPropagation()} style={{
-          background: C.panel, padding: 20, borderRadius: 12, color: C.error, fontSize: 13, textAlign: "center", lineHeight: 1.6,
-        }}>
-          試合編集画面の読み込みに失敗しました。<br />
-          ページを再読み込みしてください。
-        </div>
-      </div>
-    );
-  }
-  if (state === "loading" || !(window.__TennisDBHeavy && window.__TennisDBHeavy.MatchEditModal)) {
-    return (
-      <div onClick={props.onClose} style={{
-        position: "fixed", inset: 0, zIndex: 1100,
-        background: "rgba(0,0,0,0.4)",
-        display: "flex", alignItems: "center", justifyContent: "center",
-      }}>
-        <div onClick={(e) => e.stopPropagation()} style={{
-          background: C.panel, padding: 20, borderRadius: 12, color: C.textMuted, fontSize: 13,
-        }}>
-          試合編集画面を読み込んでいます…
-        </div>
-      </div>
-    );
-  }
-  const HeavyMatchEditModal = window.__TennisDBHeavy.MatchEditModal;
-  return <HeavyMatchEditModal {...props} />;
-}
-
 function TennisDB() {
   const [user, setUser] = useState(null);
   const [authReady, setAuthReady] = useState(false);
