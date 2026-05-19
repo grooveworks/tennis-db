@@ -233,3 +233,143 @@ Z。理由: 事故ったウォーム経路を最小 core 増分で根治。SW(X)
 | コールドは対象外 | ☑ Gate 2 §F/完成条件 |
 
 ---
+
+## 2026-05-19 確定穴2点の修正 (新規試合下書き孤児化 / CO小窓書きかけ消失) — R1 条件1・2
+
+### §1. 今回の論点 (必須セクション)
+試合中に入力が消えない保険の確定穴2点を塞ぐ。①＋試合追加の新規(未保存)試合をうっかり閉じると下書きが孤児化し復元不能。②GameTracker の CO 入力小窓の書きかけが端末保存されず、小窓を保存前に閉じると消える。完成条件1(試合中に使える)・2(通信不安定でも記録が端末に残る)に直結。
+
+### §2. 読んだ資料 (選定理由含む)
+- MatchEditModal.jsx 35-160（下書きヘルパ/init/auto-save/handleClose の正確な作り）
+- domain/match_helpers.js blankMatch（新規 match が id を即発行する事実: id:genId()）
+- SessionDetailView / TournamentEditForm / PracticeEditForm の MatchEditModal 渡し props（B-0、新規 grep）
+- GameTracker.jsx _gtCOModal（CO 小窓が local useState のみで永続なしの事実）
+- SessionEditView.jsx draft 機構と popstate 不在（フリック戻りは構造上下書き保持の確認）
+
+### §3. 過去制約
+- 既存の下書き機構(per-id match draft / session draft / racket draft)を壊さない（ユーザー明示・回帰禁止）。
+- SessionEditView は触らない。CDN/SW/Android/R1-2/UI改善に広げない。
+- APP_VERSION 独断変更禁止（実装着手時にユーザー確認、Z上げ 4.7.28→4.7.29-S17 候補だが未確定）。
+- 検証は DEV 確立手順のみ。再現不能障害の検証は不可、作りと挙動の確認まで。
+
+### §4. Claude が置いている前提
+| # | 前提 |
+|---|---|
+| a | 3ホスト全てが MatchEditModal に match と tournament(.matches含む) を渡す（B-0 PASS） |
+| b | 新規/既存の判別は match.id が tournament.matches に在るか |
+| c | 安定キーは tournament.id 由来で導出可能 |
+| d | CO小窓は matchId+afterGame で一意 |
+
+### §5. 前提一覧表 (必須セクション、F7/F16 防止)
+| # | 前提 | 根拠分類 | 根拠 | 未確認なら確認方法 |
+|---|---|---|---|---|
+| a | 3ホストが match+tournament を渡す | 資料 | B-0 grep: SessionDetailView L463-506 / TournamentEditForm L340-344 / PracticeEditForm L349-354 | — |
+| b | blankMatch は新規でも id 即発行 | 資料 | match_helpers.js:94 `id: genId()` | — |
+| c | 新規試合 draft が孤児化し復元不能 | 資料 | reopen で blankMatch が新 id 発行、旧キー不一致（MatchEditModal init/auto-save の作りから確定） | — |
+| d | CO小窓は永続なし | 資料 | GameTracker _gtCOModal は useState(draft) のみ、onSave でのみ commit | — |
+| e | tournament.id は session/form に存在 | 過去ログ推定 | session オブジェクトは id を持つ慣行 | 実装時に該当箇所で存在を読み確認、無ければ per-id にフォールバック（クラッシュさせない） |
+
+### §6. 複数あり得るパターン
+| パターン | 内容 | 今回対象か |
+|---|---|---|
+| X | CO 入力を即 MatchEditModal form へ流す(commit意味変更) | 対象外（既存 save/cancel 意味を壊す恐れ） |
+| Y | 新規も per-id のまま別途復元UIを足す | 対象外（機構複雑化） |
+| Z | 新規は安定キー(parent由来)、CO は独立 localStorage draft（追加のみ） | 対象 |
+
+### §7. 今回対象にするパターン
+Z。既存 per-id 機構は不変、新規のみ安定キー、CO は追加の独立 draft。最小・回帰なし。
+
+### §8. 対象外パターンと理由
+- X: CO の commit/cancel 意味を変える＝既存機構破壊、禁止に抵触。
+- Y: 復元UI新設は範囲拡大、目的に不要。
+
+### §9. 未確認の前提
+- §5-e（tournament.id 存在）。実装時に該当行を読んで確認、無ければ per-id フォールバック。
+- CO draft を「試合保存/破棄」で消す処理は MatchEditModal 側で co-draft プレフィックス一括 clear が要る（両ファイル対象内）。実装時に既存 clear と干渉しないか読んで確認。
+
+### §10. ユーザー確認が必要な点
+- APP_VERSION の Z 上げ（実装・push 段で明示確認、今は変更しない）。
+
+### §11. 禁止事項 (必須セクション)
+- 既存 per-id match draft / session draft / racket draft の挙動を変えない（回帰禁止）。
+- 既存 CO の save/skip/delete/commit 意味を変えない（追加のみ）。
+- 触るファイルは MatchEditModal.jsx / GameTracker.jsx（+build生成物）以外に広げない。
+- SessionEditView / CDN / SW / Android / R1-2 / UI改善 に触れない。
+- CO draft を別 afterGame に流用しない。
+- 確認前の決め打ち修正をしない。APP_VERSION 独断変更しない。--no-verify しない。
+
+### §12. 停止条件 (必須セクション)
+- 既存下書き機構の挙動が変わる兆候 → 停止。
+- 新規/CO draft が保存・破棄・スキップ・削除でクリアされず stale 化 → 停止。
+- 触るファイルが2本(+build生成物)を超えそう → 停止。
+- tournament.id 不在で安定キーが導出できず穴1が MatchEditModal 内完結不能 → 停止して報告。
+- R1-smoke T1〜T7 のいずれか FAIL → 停止。
+- SessionEditView/CDN/SW/Android/UI改善 に手が伸びかけた瞬間 → 停止。
+
+---
+
+### §13. 前提対立軸チェック (固定 7 軸、空欄禁止)
+| 軸 | 今回の扱い | 根拠 | 未確認 |
+|---|---|---|---|
+| 試合中 / 試合後 | 試合中 | 入力中の消失防止 | — |
+| 通信あり / なし | なし前提 | localStorage 保険 | — |
+| 本番データ / dev fixture | dev fixture で検証 | 確立 DEV 手順 | 実機実戦は対象外（合意） |
+| 表示のみ / 保存・削除・同期 | 保存(下書き)中心 | draft 機構 | — |
+| 1 経路 / 複数 state host | 複数ホスト | B-0 で3経路確認 | — |
+| PC dev / 実機 | PC dev | DEV smoke | 実機は別 |
+| core 削減 / 信頼性 | 信頼性 | 条件1・2 | — |
+
+---
+
+### §14. Gate 2 へ必ず転記する制約 (必須セクション)
+- 対象は確定穴2点のみ、優先順 ①新規試合 ②CO小窓。
+- 触るファイル MatchEditModal.jsx / GameTracker.jsx のみ、SessionEditView 不可侵。
+- 既存 per-id / session / racket draft 不変（回帰禁止）。
+- 穴1: 新規=安定キー(tournament.id由来)、既存=per-id 不変、判別=match.id∈tournament.matches、保存/破棄でクリア。
+- 穴2: CO draft key=matchId+afterGame、同一 matchId+afterGame のみ復元、保存/スキップ/削除/試合保存/破棄でクリア、別 afterGame 流用禁止。
+- 検証=DEV 確立手順 + R1-smoke T1〜T7 回帰。APP_VERSION は別途確認。
+
+### §15. Gate 2 転記確認
+| 制約 | Gate 2 禁止事項/停止条件へ転記したか |
+|---|---|
+| 対象2点・優先順 | ☑ Gate 2 対象 |
+| 触るファイル限定・SessionEditView不可侵 | ☑ Gate 2 触るファイル/停止条件 |
+| 既存draft回帰禁止 | ☑ Gate 2 停止条件 |
+| 穴1 安定キー/判別/クリア | ☑ Gate 2 変更方針 |
+| 穴2 stale防止(key/復元/clear/流用禁止) | ☑ Gate 2 変更方針(修正2) |
+| DEV検証+smoke回帰 | ☑ Gate 2 検証方法 |
+| APP_VERSION別途確認 | ☑ Gate 2 停止条件 |
+
+---
+
+## 2026-05-20 穴1 実装着手 (前日設計 + フォールバック修正反映)
+
+### §1. 今回の論点 (必須セクション)
+2026-05-19 エントリの確定穴2点修正設計を踏襲して 穴1（新規試合下書き孤児化）の実装に着手。ユーザー修正を反映: 「新規試合 + tournament.id 不在」は per-id フォールバックしない（孤児再発するため）、停止して報告する。既存試合は per-id のまま不変。全設計は 2026-05-19 §1-15 を正とする（重複記載しない）。
+
+### §5. 前提一覧表 (必須セクション、F7/F16 防止)
+| # | 前提 | 根拠分類 | 根拠 | 未確認なら確認方法 |
+|---|---|---|---|---|
+| a | 新規+tournament.id 不在は per-id fallback 禁止 | ユーザー明示 | 2026-05-20 ユーザー指示「fallback ではなく停止」 | — |
+| b | tournament.id は実際には全ホストで存在 | 資料 | B-0: session/form を tournament として渡す（session は id を持つ） | 実装時に該当箇所で id 参照を読み確認 |
+| c | 既存試合 per-id 機構は不変 | ユーザー明示 | 「既存試合だけ per-id のままでよい」 | — |
+
+### §11. 禁止事項 (必須セクション)
+- 新規試合で tournament.id 不在の時に per-id キーへフォールバックしない（孤児再発）。その場合は停止して報告。
+- 既存試合の per-id draft 機構（key/load/save/clear）の挙動を変えない（回帰禁止）。
+- 触るファイルは MatchEditModal.jsx / GameTracker.jsx 以外に広げない。SessionEditView/CDN/SW/Android/UI改善 不可侵。
+- 確認前の決め打ち、APP_VERSION 独断変更、--no-verify をしない。
+
+### §12. 停止条件 (必須セクション)
+- 新規試合 + tournament.id 不在 → per-id fallback せず停止して報告。
+- 既存 per-id / session / racket draft の挙動が変わる兆候 → 停止。
+- 触るファイルが2本(+build生成物)超 → 停止。
+- R1-smoke T1〜T7 のいずれか FAIL → 停止。
+- 一クリーン Edit で穴1を回帰なく表現できないと判明 → 停止して報告（雑な多重 Edit を強行しない）。
+
+### §14. Gate 2 へ必ず転記する制約 (必須セクション)
+- 穴1 キー解決: 既存(match.id∈tournament.matches)=`match-draft-${id}-v1` 不変／新規+tournament.id有=`match-draft-new-${tournament.id}-v1`／**新規+tournament.id無=キー無し→停止報告（fallback 禁止）**。
+- 保存・破棄で新規キーをクリア。既存 per-id 経路はバイト等価で不変。
+- 残りの全設計（穴2 含む）は 2026-05-19 §14 を正とする。
+
+---

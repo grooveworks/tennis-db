@@ -37,22 +37,48 @@ const RESULT_OPTS = [
 //   form の変化のたびに localStorage に下書き保存、Modal 開く時に下書きあれば復元。
 //   保存・破棄 (キャンセル) の確定操作で下書きクリア。
 const _matchDraftKey = (id) => `${LS_PREFIX}match-draft-${id}-v1`;
-const _loadMatchDraft = (id) => {
-  if (!id) return null;
+// 4.7.29-S17 穴1: 新規(未保存)試合の下書き孤児化対策。
+//   既存試合 (match.id が tournament.matches に在る) = 従来 per-id キー (挙動不変)。
+//   新規試合 = tournament.id 由来の安定キー (＋試合追加を開き直しても復元可能)。
+//   新規 + tournament.id 不在 = per-id へフォールバックしない (孤児再発防止) → null。
+const _resolveMatchDraftKey = (m, tournament) => {
+  if (!m || !m.id) return null;
+  const matches = Array.isArray(tournament?.matches) ? tournament.matches : [];
+  const isExisting = matches.some((x) => x && x.id === m.id);
+  if (isExisting) return _matchDraftKey(m.id);
+  if (tournament && tournament.id) return `${LS_PREFIX}match-draft-new-${tournament.id}-v1`;
+  return null;
+};
+const _loadMatchDraft = (key) => {
+  if (!key) return null;
   try {
-    const v = localStorage.getItem(_matchDraftKey(id));
+    const v = localStorage.getItem(key);
     if (!v) return null;
     return JSON.parse(v);
   } catch (_) { return null; }
 };
-const _saveMatchDraft = (id, form) => {
-  if (!id) return;
-  try { localStorage.setItem(_matchDraftKey(id), JSON.stringify(form)); }
+const _saveMatchDraft = (key, form) => {
+  if (!key) return;
+  try { localStorage.setItem(key, JSON.stringify(form)); }
   catch (_) {}
 };
-const _clearMatchDraft = (id) => {
-  if (!id) return;
-  try { localStorage.removeItem(_matchDraftKey(id)); } catch (_) {}
+const _clearMatchDraft = (key) => {
+  if (!key) return;
+  try { localStorage.removeItem(key); } catch (_) {}
+};
+// 4.7.29-S17 穴2: 試合保存/破棄時に、その試合の CO 下書き(co-draft-<matchId>-*)を一括クリア(stale 防止)
+//   popstate silent-close は handleClose.clearDraft を呼ばないので CO 下書きも保持され回復可能。
+const _clearAllCODraftsForMatch = (matchId) => {
+  if (!matchId) return;
+  try {
+    const prefix = `${LS_PREFIX}co-draft-${matchId}-`;
+    const keys = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.indexOf(prefix) === 0) keys.push(k);
+    }
+    keys.forEach((k) => localStorage.removeItem(k));
+  } catch (_) {}
 };
 
 // rating row (5 ボタン) — 編集フォーム共通スタイル
@@ -92,14 +118,16 @@ function MatchEditModal({ open, match, trnType, tournament, racketNames = [], st
   //   form (state) を見ることで「変更」ボタン操作時に即座に効く。useMemo はキャッシュ。
   //   helpers が format に応じてセット完了判定 / 試合勝敗判定を変える。
   // 注: form は下で初期化されるため、ここでは関数内で参照するだけ (lexical scope)
+  // 4.7.29-S17 穴1: 編集セッション中で一貫した下書きキー (新規=tournament.id 安定キー / 既存=per-id 不変)
+  const _draftKey = _resolveMatchDraftKey(match, tournament);
   // S15.5.9: 起動時に下書きがあればそちらを優先
   const [form, setForm] = useState(() => {
-    if (!match || !match.id) return match;
-    const draft = _loadMatchDraft(match.id);
+    if (!_draftKey) return match;
+    const draft = _loadMatchDraft(_draftKey);
     return draft || match;
   });
-  const [dirty, setDirty] = useState(() => match?.id ? _loadMatchDraft(match.id) !== null : false);
-  const [restored, setRestored] = useState(() => match?.id ? _loadMatchDraft(match.id) !== null : false);
+  const [dirty, setDirty] = useState(() => _draftKey ? _loadMatchDraft(_draftKey) !== null : false);
+  const [restored, setRestored] = useState(() => _draftKey ? _loadMatchDraft(_draftKey) !== null : false);
 
   // リク 30-e (S16): 試合形式の解決 (form.format > tournament.matchFormat > default)
   //   form を直接見るため、preset 切替・1-1 10pt TB トグルの影響が即座に反映
@@ -111,7 +139,7 @@ function MatchEditModal({ open, match, trnType, tournament, racketNames = [], st
   // open のたびに最新の match を反映 (別 match を編集する時の対応、S15.5.9 で下書き優先)
   useEffect(() => {
     if (!open) return;
-    const draft = match?.id ? _loadMatchDraft(match.id) : null;
+    const draft = _draftKey ? _loadMatchDraft(_draftKey) : null;
     if (draft) {
       setForm(draft);
       setDirty(true);     // 下書きあり = 未保存とみなす (キャンセル時 confirm 経由)
@@ -126,16 +154,16 @@ function MatchEditModal({ open, match, trnType, tournament, racketNames = [], st
   // S15.5.9: form 変化のたびに localStorage に auto-save (dirty な間のみ)
   //   debounce なし即時、Match の form は数 KB なので localStorage 書き込みは高速
   useEffect(() => {
-    if (!open || !form || !form.id || !dirty) return;
-    _saveMatchDraft(form.id, form);
-  }, [open, form, dirty]);
+    if (!open || !form || !_draftKey || !dirty) return;
+    _saveMatchDraft(_draftKey, form);
+  }, [open, form, dirty, _draftKey]);
 
   // 未保存変更がある時は閉じる前に確認 (S15.5.9: 確定で下書きクリア)
   // 4.7.26-S17 hotfix (2026-05-13): UI close 確定後に history entry 消費 (= match-edit-modal entry が stale 残りで次の back が誤発火するのを防ぐ)
   //   既存 dirty confirm の UX (= 文言・ボタン・表示条件) は不変、history cleanup のみ追加
   //   依存配列 [dirty, confirm, onClose, form] は変更なし (= 既存形維持)
   const handleClose = useCallback(() => {
-    const clearDraft = () => { if (form?.id) _clearMatchDraft(form.id); };
+    const clearDraft = () => { if (_draftKey) _clearMatchDraft(_draftKey); _clearAllCODraftsForMatch(form?.id); };
     const consumeHistoryEntry = () => {
       // UI close 経由で match-edit-modal entry を pop、popstate handler は closingByUiRef で二重 onClose を skip する
       if (window.history.state && window.history.state.tdb === "match-edit-modal") {
@@ -150,7 +178,7 @@ function MatchEditModal({ open, match, trnType, tournament, racketNames = [], st
       () => { clearDraft(); consumeHistoryEntry(); onClose && onClose(); },
       { title: "未保存の変更があります", yesLabel: "破棄する", noLabel: "編集に戻る", yesVariant: "danger", icon: "triangle-alert" }
     );
-  }, [dirty, confirm, onClose, form]);
+  }, [dirty, confirm, onClose, form, _draftKey]);
 
   // S15.5.9: 保存ボタン (下書きクリア + 親に渡す)
   // S17: 必須項目を「opponent + result」から「いずれか + games」に緩和。
@@ -168,9 +196,10 @@ function MatchEditModal({ open, match, trnType, tournament, racketNames = [], st
       // toast がない場合は handleSaveClick を caller 側 (onSave 内) で警告するが、ここで disabled にしているので通常は到達しない
       return;
     }
-    if (form?.id) _clearMatchDraft(form.id);
+    if (_draftKey) _clearMatchDraft(_draftKey);
+    _clearAllCODraftsForMatch(form?.id);
     onSave && onSave(form);
-  }, [form, onSave]);
+  }, [form, onSave, _draftKey]);
 
   // S15.5.9: GameTracker からの onChange を dirty 追跡 + auto-save 連動
   //   従来 onChange={setForm} で dirty が立たず auto-save も走らなかったバグの解消

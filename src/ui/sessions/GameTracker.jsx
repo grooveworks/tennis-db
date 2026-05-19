@@ -214,12 +214,45 @@ function _gtGameEditPopover({ index, current, onSwitchMe, onSwitchOpp, onDelete,
   );
 }
 
+// 4.7.29-S17 穴2: CO 小窓の書きかけ消失対策。
+//   key = matchId + afterGame、同一 matchId+afterGame のみ復元、別 afterGame へ流用しない。
+//   保存/スキップ/削除でクリア（背景クリック等の onClose は復元目的でクリアしない）。
+const _coDraftKey = (matchId, afterGame) =>
+  (matchId == null || afterGame == null) ? null : `${LS_PREFIX}co-draft-${matchId}-${afterGame}-v1`;
+const _loadCODraft = (key) => {
+  if (!key) return null;
+  try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : null; }
+  catch (_) { return null; }
+};
+const _saveCODraft = (key, d) => {
+  if (!key) return;
+  try { localStorage.setItem(key, JSON.stringify(d)); } catch (_) {}
+};
+const _clearCODraft = (key) => {
+  if (!key) return;
+  try { localStorage.removeItem(key); } catch (_) {}
+};
+
 // ── pending/edit CO モーダル
-function _gtCOModal({ open, initial, onSave, onSkip, onDelete, onClose, isEditMode }) {
-  const [draft, setDraft] = useState(initial);
+function _gtCOModal({ open, initial, onSave, onSkip, onDelete, onClose, isEditMode, matchId }) {
+  const _coKey = _coDraftKey(matchId, initial?.afterGame);
+  const [draft, setDraft] = useState(() => {
+    const r = _loadCODraft(_coKey);
+    // 別 afterGame へ流用しない: 同一 afterGame の下書きのみ採用
+    return (r && r.afterGame === initial?.afterGame) ? r : initial;
+  });
   const trapRef = useFocusTrap(open); // Round 5 a11y: focus trap (再点検追加)
-  // initial が変わったら draft をリセット (afterGame 違いの CO を編集する時)
-  useEffect(() => { if (open) setDraft(initial); }, [open, initial?.afterGame]);
+  // open / afterGame 変化時: 同一 matchId+afterGame の下書きがあれば復元、なければ initial
+  useEffect(() => {
+    if (!open) return;
+    const r = _loadCODraft(_coDraftKey(matchId, initial?.afterGame));
+    setDraft((r && r.afterGame === initial?.afterGame) ? r : initial);
+  }, [open, initial?.afterGame, matchId]);
+  // 書きかけを即端末保存 (open 中のみ)
+  useEffect(() => {
+    if (!open || !_coKey || !draft) return;
+    _saveCODraft(_coKey, draft);
+  }, [open, draft, _coKey]);
   if (!open || !draft) return null;
   return (
     <div
@@ -271,7 +304,7 @@ function _gtCOModal({ open, initial, onSave, onSkip, onDelete, onClose, isEditMo
           {isEditMode ? (
             <button
               type="button"
-              onClick={onDelete}
+              onClick={() => { _clearCODraft(_coKey); onDelete && onDelete(); }}
               style={{
                 flex: 1, minHeight: 44, borderRadius: 8,
                 border: `1px solid ${C.error}`, background: C.errorLight, color: C.error,
@@ -283,7 +316,7 @@ function _gtCOModal({ open, initial, onSave, onSkip, onDelete, onClose, isEditMo
           ) : (
             <button
               type="button"
-              onClick={onSkip}
+              onClick={() => { _clearCODraft(_coKey); onSkip && onSkip(); }}
               style={{
                 flex: 1, minHeight: 44, borderRadius: 8,
                 border: `1px solid ${C.border}`, background: C.panel, color: C.textSecondary,
@@ -295,7 +328,7 @@ function _gtCOModal({ open, initial, onSave, onSkip, onDelete, onClose, isEditMo
           )}
           <button
             type="button"
-            onClick={() => onSave(draft)}
+            onClick={() => { _clearCODraft(_coKey); onSave(draft); }}
             style={{
               flex: 2, minHeight: 44, borderRadius: 8,
               border: "none", background: C.primary, color: "#fff",
@@ -796,6 +829,7 @@ function GameTracker({ match, onChange, confirm, matchEnded, format, resetPhrase
         onSkip={handlePendingSkip}
         onClose={handlePendingSkip}
         isEditMode={false}
+        matchId={match?.id}
       />
 
       {/* 既存 CO 編集モーダル (CO 行タップ) */}
@@ -806,6 +840,7 @@ function GameTracker({ match, onChange, confirm, matchEnded, format, resetPhrase
         onDelete={handleEditDelete}
         onClose={() => setEditing(null)}
         isEditMode={true}
+        matchId={match?.id}
       />
     </div>
   );
