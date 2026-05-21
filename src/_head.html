@@ -9,18 +9,20 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="TennisDB">
 <title>Tennis DB v4</title>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-functions-compat.js"></script>
-<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<!-- 4.7.31-S17 R1-2 CDN依存除去 (2026-05-21): 全 vendor を v4/vendor/ から同一オリジン読込 -->
+<!-- Firebase 10.12.0 (Apache-2.0、v4/vendor/firebase/LICENSE) / React 18.3.1 (MIT、v4/vendor/react/LICENSE) / Phosphor 2.1.1 (MIT、v4/vendor/phosphor/LICENSE) -->
+<script src="./vendor/firebase/firebase-app-compat.js"></script>
+<script src="./vendor/firebase/firebase-auth-compat.js"></script>
+<script src="./vendor/firebase/firebase-firestore-compat.js"></script>
+<script src="./vendor/firebase/firebase-functions-compat.js"></script>
+<script src="./vendor/react/react.production.min.js"></script>
+<script src="./vendor/react/react-dom.production.min.js"></script>
 <!-- S17 build 修繕 (2026-05-09): @babel/standalone CDN 削除、esbuild で事前 transpile (iPhone のロード時間激減) -->
 <!-- S13.5: Lucide UMD → Phosphor web font に差し替え (DESIGN_SYSTEM_v4.md §5 / §10.5) -->
-<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
-<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/duotone/style.css">
-<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css">
-<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/bold/style.css">
+<link rel="stylesheet" href="./vendor/phosphor/regular/style.css">
+<link rel="stylesheet" href="./vendor/phosphor/duotone/style.css">
+<link rel="stylesheet" href="./vendor/phosphor/fill/style.css">
+<link rel="stylesheet" href="./vendor/phosphor/bold/style.css">
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;background:#F2F2F7;color:#202124}

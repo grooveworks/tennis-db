@@ -85,8 +85,13 @@
 - **解消済**: 4.7.30-S17 (2026-05-21) で試合経路の leak 2 件閉鎖:
   - `MatchDetailView onEdit` 経路: MatchEditModal open useEffect で mount 時 `state.tdb === "match-detail"` の時のみ replaceState (= {match-detail} slot 消費、他経路は pushState のまま不変)
   - `handleSaveClick` 経路 (旧 4.7.26 L258 「別 hotfix 候補」と注記されていた `{match-edit-modal}` leak): consumeHistoryEntry を handleClose と同形で追加
-  - DEV 検証 X1-X5 / R1-R3 全 PASS、commit `<TBD>`
+  - DEV 検証 X1-X5 / R1-R3 全 PASS、commit `badc323`
 - 残 2 件は試合経路ではないため危険度評価維持、専用セッションで Gate 1 から実 Firestore write 検証込みで着手すべき
+
+**R1-2 進捗** (2026-05-21):
+- **Stage 1 解消済 (4.7.31-S17)**: src/_head.html の全 CDN URL (Firebase 4 + React 2 + Phosphor 4 CSS) を v4/vendor/ 配下に同梱して同一オリジン化。N1〜N6 必須全 PASS、R1-smoke T1〜T7 全 PASS、console error 0。build.ps1 不変、Service Worker なし。本件で達成: CDN 依存排除 + 後段の前提作り。本件で未達: タブレット初期化直後 / no-cache / 通信ゼロ起動 (= Stage 2/3 が必要)
+- Stage 2 (= Service Worker / App Shell pre-cache): 未着手、別セッション。DESIGN_LOG.md:169 で「iOS で予告なく evict されうる、補助扱い」と評価済
+- Stage 3 (= iOS evict 対策の UI 案内 + 運用文言): 未着手、Stage 2 後
 
 **第四候補 (= 後回し可)**:
 - bridge 肥大化整理 (= 計 49+ 件、別ファイル化 `src/core/_bridge.js` 等、段階 2-5 完了後の refactor 候補)

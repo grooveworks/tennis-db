@@ -6,53 +6,60 @@
 
 ## 現行 push 候補
 
-push 候補: 4.7.30-S17 MatchEditModal history entry 一貫性修繕 (試合経路 entry leak 2 件閉鎖、+ APP_VERSION bump)
-バージョン: 4.7.30-S17
+push 候補: 4.7.31-S17 R1-2 CDN依存除去 (vendor 同梱化、+ APP_VERSION bump)
+バージョン: 4.7.31-S17
 
 経緯:
-- 完成条件1 (大会当日に端末上で試合記録できる) の戻る/フリック導線信頼性に直結する試合経路 entry leak 2 件を閉鎖
-- HANDOFF_v4_S17.md「未対応 entry leak 3 件」のうち試合経路の `MatchDetailView onEdit` を解消、加えて MatchEditModal:258 で「別 hotfix 候補」と注記されていた `handleSaveClick` → `{match-edit-modal}` leak も同時解消
-- 残 2 件 (`handleQuickAddSave` / `handleMergeConfirm`) は試合経路ではないため別 hotfix
-- 挙動変更を伴う hotfix のため APP_VERSION 4.7.29-S17 → 4.7.30-S17 (ユーザー承認済)
+- R1-2「通信ゼロでも、タブレット単体で起動して試合記録できるか」の前段必須として、src/_head.html の全 CDN URL (Firebase 4 + React 2 + Phosphor 4 CSS = 10 箇所) を v4/vendor/ 配下に同梱して同一オリジン化
+- 達成: CDN 依存排除 + 後段 Service Worker / App Shell の前提作り
+- 達成しない (= 本件単独では不可、ユーザー承認): タブレット初期化直後 / no-cache / 通信ゼロ起動 (= Service Worker + 運用案内まで必要)
+- browser cache 経由の offline reload は副作用としての参考観測のみ (PASS/FAIL 判定しない)
+- build.ps1 不変、Service Worker なし、PWA manifest 強化なし
+- 挙動変更 (起動経路の依存先変更) を伴うため APP_VERSION 4.7.30-S17 → 4.7.31-S17 (ユーザー承認済)
 
-修正対象 (= commit 対象 7 ファイル):
-- src/core/01_constants.js (= APP_VERSION 4.7.29-S17 → 4.7.30-S17)
-- src/ui/sessions/MatchEditModal.jsx (= 修正1: open useEffect で mount 時 state.tdb==="match-detail" なら replaceState で {match-detail} slot 消費 / 修正2: handleSaveClick に consumeHistoryEntry 追加、handleClose と同形ガード+closingByUiRef 共用)
-- v4/index.html (= build 成果物、上記反映)
-- DESIGN_LOG.md (= 設計記録 2026-05-21 エントリ §1/§5/§11/§12/§14)
-- R1-smoke-test.md (= R1 実戦信頼性 smoke 固定仕様、T1 期待値 4.7.30-S17 に更新)
-- HANDOFF_v4_S17.md (= §第三候補「未対応 entry leak」を 3 件→ 2 件、解消経路 2 件記録)
+修正対象 (= commit 対象):
+- src/core/01_constants.js (= APP_VERSION 4.7.30-S17 → 4.7.31-S17)
+- src/_head.html (= 10 URL を ./vendor/ 相対パスに置換、script/link 順序不変)
+- v4/vendor/ (= 新規同梱、git tracked):
+  - firebase/ : firebase-app/auth/firestore/functions-compat.js (10.12.0) + LICENSE (Apache-2.0)
+  - react/ : react.production.min.js + react-dom.production.min.js (18.3.1) + LICENSE (MIT)
+  - phosphor/ : regular/duotone/fill/bold (style.css + 各 .woff2) + LICENSE (MIT)
+- v4/index.html (= build 成果物、_head 反映)
+- DESIGN_LOG.md (= 2026-05-21 R1-2 エントリ §1/§5/§11/§12/§14)
+- R1-smoke-test.md (= T1 期待値 4.7.31-S17 に更新)
+- HANDOFF_v4_S17.md (= R1-2 Stage 1 解消の記録追加)
 - VERIFY_LOG.md (= 本ファイル、実施済み検証ログ)
 
-スコープ外 (= 触らない、別 hotfix で扱う):
-- handleQuickAddSave / handleMergeConfirm の leak (= 試合経路ではない、別 hotfix で対応)
-- MatchDetailView.jsx (= Design は MatchEditModal-side 完結、不変)
-- SessionDetailView.jsx (= L488 の onEdit 渡し方そのまま)
-- app.jsx popstate listener (= `_SESSIONS_KEEP_OPEN` リスト含め不変)
-- MatchEditModal.jsx の handleClose / consumeHistoryEntry / closingByUiRef ロジック (= 4.7.26 hotfix 不変)
-- silent-close ロジック (= L267-273 不変)
-- 4.7.29 で塞いだ穴1・穴2 関連箇所
-- GameTracker.jsx / SessionEditView.jsx / TournamentEditForm.jsx / PracticeEditForm.jsx
-- R1-2 / CDN / SW / Android / UI 改善 (= 条件1・2 直撃ではない)
+スコープ外 (= 触らない):
+- build.ps1 (= ユーザー明示、vendor は git tracked 同梱で copy step 不要)
+- src/core/02_firebase.js (= Firebase API 利用箇所、SDK バージョン不変なので不変)
+- src/app.jsx / 他 src 配下 (= _head.html と version 以外触らない)
+- Service Worker / sw.js (= 別作業、本件では追加しない)
+- PWA manifest / icons / theme_color (= 別作業)
+- iOS evict 対策 (= 別作業)
+- バージョン更新 (Firebase / React / Phosphor) (= 既存固定維持)
+- 4.7.30 で塞いだ MatchEditModal history 修正
+- 4.7.29 で塞いだ穴1・穴2 関連
+- 残 entry leak 2 件 (handleQuickAddSave / handleMergeConfirm) (= 別 hotfix)
+- preload / preconnect hint 追加 (= 最小変更原則)
 
 全文 Read:
-- 対象ファイル: 済 (MatchEditModal.jsx 全文、handleSaveClick / handleClose / open useEffect / popstate handler)
-- 子コンポーネント: 済 / 該当なし (= 本件 history 修正に外部子なし)
+- 対象ファイル: 済 (_head.html 全文、Phosphor 4 style.css の @font-face 確認、build 出力 v4/index.html の置換結果確認)
 
 依存棚卸し:
-- grep: 済 (entry leak / popstate / pushState / history.back / MatchDetailView / closingByUiRef)
-- "match-detail" 文字列出現箇所: MatchDetailView.jsx:28 の唯一経路 (= 他経路に影響なし)
-- 全文確認: 済
-- 新規 ref / 新規 listener 追加: なし (= 既存 closingByUiRef + popstate handler 機構流用のみ)
-- bridge 漏れ: なし (= heavy 化変更なし、core 内修正のみ)
+- grep: 済 (gstatic / unpkg / CDN / cdn\. / jsdelivr / cdnjs)
+- v4/index.html 内 CDN URL: grep 0 件 (= ./vendor/ のみ)
+- Phosphor CSS の @font-face url(): 全 4 ファイル "./Phosphor*.woff2" 相対参照、同階層 woff2 配置で resolve 想定通り
+- LICENSE: 3 ライブラリすべて取得済 (Firebase Apache-2.0 14096B / React MIT 1086B / Phosphor MIT 1076B)
 
 build:
-- build.ps1 EXITCODE=0
-- Core size (v4/index.html): 373676 bytes (+259 vs 4.7.29)
+- build.ps1 EXITCODE=0 (= 不変)
+- Core size (v4/index.html): 373701 bytes (+25 vs 4.7.30、_head head comment 増分)
 - Heavy size (v4/bundle-heavy.js): 187789 bytes (不変)
+- v4/vendor/ 同梱合計: 1754086 bytes (1.67 MB) (= 想定 ~1.5MB の 11% 超、停止条件「大きく超過」には該当しないと判断、続行)
 
 R1-smoke T1〜T7 (確立 DEV 手順: preview_start "Tennis DB Dev Server" → http://localhost:8081/v4/index.html?dev=1&reset=1 → 検証 → preview_stop、サーバー停止済み):
-- T1 [完成条件1]: PASS  observed=APP_VERSION="4.7.30-S17"
+- T1 [完成条件1]: PASS  observed=APP_VERSION="4.7.31-S17"
 - T2 [完成条件2]: PASS  observed=__loadHeavyPromise=null / typeof __TennisDBHeavy="undefined"
 - T3 [完成条件1]: PASS  observed=大会詳細(試合記録 3試合、clean fixture)表示=true
 - T4 [完成条件1]: PASS  observed=[role=dialog][aria-label=試合を編集] 存在=true
@@ -60,31 +67,39 @@ R1-smoke T1〜T7 (確立 DEV 手順: preview_start "Tennis DB Dev Server" → ht
 - T6 [完成条件2]: PASS  observed=network 内 bundle-heavy.js request=0件
 - T7 [完成条件1]: PASS  observed=console error=0 (全工程通算)
 
-個別シナリオ X1〜X5 / R1〜R3 (確立 DEV 手順、history.length と history.state 実値観測):
-- X1 必須: PASS  MatchDetail→編集→MatchEditModal mount / state.tdb="match-edit-modal" / history.length 不変 (=replaceState 機能、{match-detail} slot 消費)
-- X2 必須: PASS  X1 → swipe back / MatchEditModal silent close + 大会詳細維持 / state.tdb="detail" / phantom back なし
-- X3 必須: PASS  MatchDetail→編集→保存 / modal 閉 + 大会詳細維持 / state.tdb="detail" / 試合 3→4 件永続 / MatchDetail 再開なし
-- X4 必須: PASS  X3 後 1 back で大会詳細閉 / state=null / phantom back なし
-- X5 不変: PASS  X1 → dirty 編集 → UI キャンセル → dirty confirm 破棄 / 4.7.26 handleClose 挙動不変 / draft 1 件 clear
-- R1 必須: PASS  +試合追加→保存→1 back で大会詳細閉 / 修正2 で改善 (旧: phantom back 1 回残)
-- R2 不変: PASS  +試合追加→swipe back / modal silent close + new-tournament draft 保持 / 4.7.26 silent-close 不変
-- R3 不変: PASS  TournamentEditForm→試合追加 / mount 時 state.tdb="match-edit-modal" (pushState 分岐) / 閉後 state="detail" / 編集 form 維持
+R1-2 新規検証 N1〜N6 必須 / N7〜N8 参考観測:
+- N1 必須: PASS  v4/index.html 内 CDN URL=0件 (grep 観測)、./vendor/ のみ
+- N2 必須: PASS  起動後の network 内、app 発の外部 CDN host (gstatic/unpkg/cdnjs/jsdelivr) request=0件
+  (注: 起動前に preview tool 自身のプリページが CDN を叩く出現は app と無関係、index.html?dev=1 以降の発信のみで判定)
+- N3 必須: PASS  /v4/vendor/ 配下 fetch 成功: firebase-app-compat.js (200, 31444B), Phosphor regular Phosphor.woff2 (200), Phosphor fill Phosphor-Fill.woff2 (200)
+- N4 必須: PASS  Firebase compat SDK が local vendor から読込、app/auth/firestore/functions 初期化で runtime error なし (window.firebase = object, firebase.apps.length = 1, window.React = object, window.ReactDOM = object)、dev mode 既存起動正常 (大会詳細表示・MatchEditModal 表示)
+- N5 必須: PASS  Phosphor アイコン描画正常、icons.length=306、getComputedStyle.fontFamily="Phosphor"/"Phosphor-Fill" 確認
+- N6 必須: PASS  console error=0 (preview_console_logs(error) 全工程通算 0 件)
+- N7 参考観測: 実施せず (= browser cache 経由の offline reload は本件達成基準外、参考観測のみで PASS/FAIL 判定しない)
+- N8 参考観測: v4/vendor/ 同梱 1.67 MB (内訳: Firebase 520KB / React 142KB / Phosphor CSS+woff2 1075KB + LICENSE 16KB)、計測値のみ記録、許容判定はユーザー
 
-経路網羅性 (実観測):
-- replaceState 分岐: X1 で実観測 (= mount 時 state.tdb==="match-detail" のみ replaceState、length 不変)
-- pushState 分岐: R1 / R2 / R3 で実観測 (= mount 時 state.tdb==="detail"、従来通り pushState)
-- consumeHistoryEntry 新規 (save 経路): R1 / X3 で機能確認 (= 保存後 stack 消費)
-- consumeHistoryEntry 既存 (close 経路): X5 で挙動不変確認
-
-実画面検証: 済 (= 大会詳細 → 試合 tap → MatchDetailView → 編集 → MatchEditModal、+試合追加、編集 form 内 試合追加、swipe back / 保存 / UI キャンセル / dirty confirm 破棄 全経路を実画面で実施)
+実画面検証: 済 (= 起動・記録タブ・大会詳細・MatchEditModal 開閉、確立 DEV 手順)
 
 console error 0: 済 (= 全工程通算 0 件)
 
 未確認: なし
 
-注: 直前まで本セクションにあった 4.7.29-S17 (e58da6c) の検証ログは、本 push 候補で上書き (supersede) し、過去ログセクションに e58da6c エントリとして要約記録。当該候補の確定記録は git 履歴 (本ファイルの過去版および e58da6c commit) を真とする (= 「Claude 認識ではなく git 履歴を真とする」原則)。
+本件達成しないと明記:
+- タブレット初期化直後 / no-cache / 通信ゼロ起動: Service Worker (Stage 2) + iOS evict 対策 (Stage 3) まで必要、本件単独では不可
+- iOS Safari evict 耐性: DESIGN_LOG.md:169「iOS で予告なく evict されうる」、別作業
+
+注: 直前まで本セクションにあった 4.7.30-S17 (badc323) の検証ログは、本 push 候補で上書き (supersede) し、過去ログセクションに badc323 エントリとして要約記録。当該候補の確定記録は git 履歴 (本ファイルの過去版および badc323 commit) を真とする (= 「Claude 認識ではなく git 履歴を真とする」原則)。
 
 ## 過去 push の検証ログ (= 最新を上、古いを下)
+
+### badc323 (= 4.7.30-S17 MatchEditModal history entry 一貫性修繕、試合経路 entry leak 2 件閉鎖)
+- 完成条件1 直撃の試合経路 entry leak 2 件を閉鎖 (MatchDetailView onEdit transition + handleSaveClick save 経路)
+- 修正1: MatchEditModal open useEffect で mount 時 state.tdb==="match-detail" なら replaceState で {match-detail} slot 消費
+- 修正2: handleSaveClick に consumeHistoryEntry 追加 (handleClose と同形、closingByUiRef 共用)
+- 修正対象 7 ファイル (01_constants.js / MatchEditModal.jsx / v4/index.html / DESIGN_LOG.md / R1-smoke-test.md / HANDOFF_v4_S17.md / VERIFY_LOG.md)
+- R1-smoke T1〜T7 全 PASS、個別シナリオ X1〜X5 / R1〜R3 全 PASS、console error 0、build EXITCODE=0
+- HANDOFF 未対応 entry leak 3 件 → 2 件 (handleQuickAddSave / handleMergeConfirm 残)
+- 詳細は当該 commit (badc323) および本ファイル過去版を参照
 
 ### e58da6c (= 4.7.29-S17 試合中データ消失 穴1 / 穴2 修正)
 - 完成条件1・2 直結の確定 2 件の消失穴を塞ぐ実修正

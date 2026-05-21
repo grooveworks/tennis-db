@@ -419,3 +419,56 @@ HANDOFF_v4_S17.md:83-84 で「未対応 entry leak 3 件」と記録されてい
 - APP_VERSION 4.7.29-S17 → 4.7.30-S17（ユーザー承認済）。R1-smoke T1 期待値も同時更新。
 
 ---
+
+## 2026-05-21 R1-2 CDN依存除去 (vendor 同梱化) — R1 条件1・2 後段の前提作り
+
+### §1. 今回の論点 (必須セクション)
+src/_head.html の全 CDN URL (Firebase 4 + React 2 + Phosphor 4 = 計 10 箇所) を v4/vendor/ 配下に同梱して同一オリジン化する。本件で達成するのは「CDN 依存排除」と「後段 Service Worker / App Shell の前提作り」のみ。browser cache 経由の offline reload は副作用としての参考観測に留め、達成基準にしない。ユーザー承認: 詳細設計の N7 を参考観測化、N4 を「Firebase compat SDK が local vendor から読み込まれ、各 SDK 初期化で runtime error なし + dev mode の既存起動が壊れていない」に縮小。APP_VERSION 4.7.30-S17 → 4.7.31-S17 bump 承認済。build.ps1 は不変方針。
+
+### §5. 前提一覧表 (必須セクション、F7/F16 防止)
+| # | 前提 | 根拠分類 | 根拠 | 未確認なら確認方法 |
+|---|---|---|---|---|
+| a | Firebase compat 10.12.0 を維持、別バージョンに上げない | ユーザー明示 / 資料 | _head.html:12-15 でピン済、02_firebase.js が 10.12.0 前提 | — |
+| b | React 18.3.1 固定（unpkg `@18` の resolve 観測値） | 資料 | 直前 DEV network log で unpkg react@18 → 18.3.1 観測 | 同 URL を実際に download して md5 等で確認 |
+| c | Phosphor 2.1.1 固定 | 資料 | _head.html:20-23 でピン済 | — |
+| d | v4/vendor/ は git tracked 静的同梱（build.ps1 で copy しない） | ユーザー明示 | 「build.ps1 は変更しない方針のまま」 | — |
+| e | Firebase compat 各ファイルは内部で別 CDN を再 fetch しない（単一ファイル完結） | 未確認仮説 | gstatic 配布の compat 各ファイルは一般に内部 fetch なし、ただし要確認 | DEV 検証 N2 で network log に外部 host 0 件を実観測 |
+| f | Phosphor CSS の @font-face url() は相対パス参照、同階層に woff2 配置で resolve する | 未確認仮説 | 一般的な webfont パッケージの慣例、ただし要確認 | download した style.css の url() を Read で確認、必要なら rewrite |
+| g | browser cache 経由の offline reload は副作用、本件で達成基準にしない | ユーザー明示 | 2026-05-21 ユーザー指示「N7 は参考観測」 | — |
+| h | N4 は SDK 初期化 runtime error なし + 既存 dev 起動不変、Firestore read/write 確認は過大 | ユーザー明示 | 2026-05-21 ユーザー指示「N4 縮小」 | — |
+| i | APP_VERSION 4.7.30-S17 → 4.7.31-S17 bump 承認済 | ユーザー明示 | 2026-05-21 ユーザー承認 | — |
+
+### §11. 禁止事項 (必須セクション)
+- build.ps1 を変更しない（ユーザー明示）。
+- v4/vendor/ 以外の場所に vendor を配置しない。
+- _head.html の script / link 読み込み順序を変えない。
+- preload / preconnect hint を新規追加しない（最小変更原則）。
+- Service Worker / sw.js / PWA manifest 強化を本件に混ぜない。
+- バージョン更新（Firebase / React / Phosphor）を本件に混ぜない、既存 pin 維持。
+- N7（offline reload）を「PASS 必須」として扱わない、参考観測のみ。
+- N4 を「Firestore read/write」と書かず、SDK 初期化 runtime error なし + 既存起動不変に固定。
+- ROADMAP / HANDOFF / DESIGN_LOG の作業名（R1-2 CDN依存除去）を書き換えない（ユーザー指示）。
+- R1-2a / R1-2b / R1-2c や Gate 1 / Gate 2 ラベルを使わない（ユーザー指示）。
+- license / NOTICE が見当たらない場合に独断で「無しでよい」と判断しない、停止して報告。
+- APP_VERSION の独断変更を本件以外に拡張しない。
+
+### §12. 停止条件 (必須セクション)
+- vendor 取得時に license / NOTICE ファイルが見当たらない → 停止して報告。
+- Phosphor CSS の @font-face url() が同階層 woff2 で resolve しない → 停止して報告（rewrite はユーザー判断）。
+- Firebase compat が runtime で別 CDN を内部 fetch する挙動が判明 → 停止して報告（追加同梱はユーザー判断）。
+- N1〜N6（必須項目）のいずれか FAIL が 1 回最小修正で解消しない → 停止して報告。
+- R1-smoke T1〜T7 のいずれか FAIL → 停止。
+- 触るファイルが本設計スコープ外に広がる → 即停止。
+- vendor 同梱サイズが想定（合計 ~1.5MB）を大きく超過する → 停止して報告。
+- build.ps1 / .claude/hooks / .claude/settings.json を編集したくなった瞬間 → 停止。
+
+### §14. Gate 2 へ必ず転記する制約 (必須セクション)
+- 触るファイル: v4/vendor/ 新規同梱 + src/_head.html + src/core/01_constants.js + v4/index.html (build 出力) + DESIGN_LOG.md + VERIFY_LOG.md + HANDOFF_v4_S17.md のみ。
+- build.ps1 不変、Service Worker なし、PWA manifest 強化なし、preload hint 追加なし。
+- _head.html の script / link 順序不変、URL のみ相対パスに置換。
+- 検証 N1〜N6 を必須 PASS、N7 / N8 を参考観測（PASS/FAIL 判定しない、計測値のみ記録）。
+- N4 文言は「Firebase compat SDK が local vendor から読み込まれ、app/auth/firestore/functions の初期化で runtime error が出ないこと。dev mode の既存起動が壊れていないこと」で固定。
+- APP_VERSION 4.7.30-S17 → 4.7.31-S17、R1-smoke T1 期待値も同時更新。
+- 本件単独で「初回・no-cache・通信ゼロ起動」を達成しないと VERIFY_LOG に明記。
+
+---
