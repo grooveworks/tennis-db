@@ -6,75 +6,93 @@
 
 ## 現行 push 候補
 
-push 候補: 4.7.29-S17 試合中データ消失 穴1 / 穴2 修正 (+ APP_VERSION bump)
-バージョン: 4.7.29-S17
+push 候補: 4.7.30-S17 MatchEditModal history entry 一貫性修繕 (試合経路 entry leak 2 件閉鎖、+ APP_VERSION bump)
+バージョン: 4.7.30-S17
 
 経緯:
-- 完成条件1 (大会当日に端末上で試合記録できる) / 条件2 (通信不安定でも記録が端末に残る) に直結する確定 2 件の消失穴を塞ぐ実修正
-- 穴1: 新規(未保存)試合の下書き孤児化。新規は tournament.id 由来の安定キー、既存は従来 per-id (byte 等価)、新規+tournament.id 不在はフォールバックせず孤児再発を防止
-- 穴2: CO 小窓の書きかけ消失。matchId+afterGame キーで open 中 auto-save、同一 afterGame のみ復元、保存/スキップ/削除でクリア、背景クリック等 onClose は回復目的で保持
-- 挙動変更を伴う実修正のため APP_VERSION 4.7.28-S17 → 4.7.29-S17 (履歴・検証・キャッシュ判定の濁り回避、ユーザー判断で確定)
+- 完成条件1 (大会当日に端末上で試合記録できる) の戻る/フリック導線信頼性に直結する試合経路 entry leak 2 件を閉鎖
+- HANDOFF_v4_S17.md「未対応 entry leak 3 件」のうち試合経路の `MatchDetailView onEdit` を解消、加えて MatchEditModal:258 で「別 hotfix 候補」と注記されていた `handleSaveClick` → `{match-edit-modal}` leak も同時解消
+- 残 2 件 (`handleQuickAddSave` / `handleMergeConfirm`) は試合経路ではないため別 hotfix
+- 挙動変更を伴う hotfix のため APP_VERSION 4.7.29-S17 → 4.7.30-S17 (ユーザー承認済)
 
 修正対象 (= commit 対象 7 ファイル):
-- src/core/01_constants.js (= APP_VERSION 4.7.28-S17 → 4.7.29-S17)
-- src/ui/sessions/MatchEditModal.jsx (= 穴1 下書きキー解決 _resolveMatchDraftKey + CO 下書き一括クリア _clearAllCODraftsForMatch)
-- src/ui/sessions/GameTracker.jsx (= 穴2 CO afterGame 別下書き _coDraftKey + auto-save + 同一 afterGame 復元ガード)
+- src/core/01_constants.js (= APP_VERSION 4.7.29-S17 → 4.7.30-S17)
+- src/ui/sessions/MatchEditModal.jsx (= 修正1: open useEffect で mount 時 state.tdb==="match-detail" なら replaceState で {match-detail} slot 消費 / 修正2: handleSaveClick に consumeHistoryEntry 追加、handleClose と同形ガード+closingByUiRef 共用)
 - v4/index.html (= build 成果物、上記反映)
-- DESIGN_LOG.md (= 設計記録 2026-05-18/19/20 エントリ)
-- R1-smoke-test.md (= R1 実戦信頼性 smoke 固定仕様、T1 期待値 4.7.29-S17 に更新)
+- DESIGN_LOG.md (= 設計記録 2026-05-21 エントリ §1/§5/§11/§12/§14)
+- R1-smoke-test.md (= R1 実戦信頼性 smoke 固定仕様、T1 期待値 4.7.30-S17 に更新)
+- HANDOFF_v4_S17.md (= §第三候補「未対応 entry leak」を 3 件→ 2 件、解消経路 2 件記録)
 - VERIFY_LOG.md (= 本ファイル、実施済み検証ログ)
 
-スコープ外 (= 触らない):
-- SessionEditView / TournamentEditForm / PracticeEditForm の下書きロジック (= 構造上 popstate から _clearSessionDraft に到達不可、不変)
-- heavy 化 / code splitting (= core 内修正のみ、bridge 追加なし)
-- app.jsx popstate / history 系 (= 4.7.23-26 確立ロジック不変)
-- 既存試合の下書きパス (= resolver が _matchDraftKey(m.id) を返す byte 等価)
+スコープ外 (= 触らない、別 hotfix で扱う):
+- handleQuickAddSave / handleMergeConfirm の leak (= 試合経路ではない、別 hotfix で対応)
+- MatchDetailView.jsx (= Design は MatchEditModal-side 完結、不変)
+- SessionDetailView.jsx (= L488 の onEdit 渡し方そのまま)
+- app.jsx popstate listener (= `_SESSIONS_KEEP_OPEN` リスト含め不変)
+- MatchEditModal.jsx の handleClose / consumeHistoryEntry / closingByUiRef ロジック (= 4.7.26 hotfix 不変)
+- silent-close ロジック (= L267-273 不変)
+- 4.7.29 で塞いだ穴1・穴2 関連箇所
+- GameTracker.jsx / SessionEditView.jsx / TournamentEditForm.jsx / PracticeEditForm.jsx
+- R1-2 / CDN / SW / Android / UI 改善 (= 条件1・2 直撃ではない)
 
 全文 Read:
-- 対象ファイル: 済 (MatchEditModal.jsx / GameTracker.jsx 全文)
-- 子コンポーネント: 済 / 該当なし (= _gtCOModal は GameTracker.jsx 内、外部子なし)
+- 対象ファイル: 済 (MatchEditModal.jsx 全文、handleSaveClick / handleClose / open useEffect / popstate handler)
+- 子コンポーネント: 済 / 該当なし (= 本件 history 修正に外部子なし)
 
 依存棚卸し:
-- grep: 済
+- grep: 済 (entry leak / popstate / pushState / history.back / MatchDetailView / closingByUiRef)
+- "match-detail" 文字列出現箇所: MatchDetailView.jsx:28 の唯一経路 (= 他経路に影響なし)
 - 全文確認: 済
+- 新規 ref / 新規 listener 追加: なし (= 既存 closingByUiRef + popstate handler 機構流用のみ)
 - bridge 漏れ: なし (= heavy 化変更なし、core 内修正のみ)
 
 build:
 - build.ps1 EXITCODE=0
-- Core size (v4/index.html): 373417 bytes
-- Heavy size (v4/bundle-heavy.js): 187789 bytes
-- バージョン文字列のみの差分のためサイズ膨張なし
+- Core size (v4/index.html): 373676 bytes (+259 vs 4.7.29)
+- Heavy size (v4/bundle-heavy.js): 187789 bytes (不変)
 
-R1-smoke T1〜T7 (確立 DEV 手順: preview_start → http://localhost:8081/v4/index.html?dev=1 → 検証 → preview_stop、サーバー停止済み):
-- T1 [完成条件1]: PASS  observed=APP_VERSION="4.7.29-S17"
+R1-smoke T1〜T7 (確立 DEV 手順: preview_start "Tennis DB Dev Server" → http://localhost:8081/v4/index.html?dev=1&reset=1 → 検証 → preview_stop、サーバー停止済み):
+- T1 [完成条件1]: PASS  observed=APP_VERSION="4.7.30-S17"
 - T2 [完成条件2]: PASS  observed=__loadHeavyPromise=null / typeof __TennisDBHeavy="undefined"
-- T3 [完成条件1]: PASS  observed=大会詳細(試合記録 4試合)表示=true
+- T3 [完成条件1]: PASS  observed=大会詳細(試合記録 3試合、clean fixture)表示=true
 - T4 [完成条件1]: PASS  observed=[role=dialog][aria-label=試合を編集] 存在=true
 - T5 [完成条件1]: PASS  observed=MatchEditModal 表示後も __loadHeavyPromise=null
 - T6 [完成条件2]: PASS  observed=network 内 bundle-heavy.js request=0件
-- T7 [完成条件1]: PASS  observed=console error=0
+- T7 [完成条件1]: PASS  observed=console error=0 (全工程通算)
 
-穴1 / 穴2 個別検証 (確立 DEV 手順、実値確認):
-- 穴1-自動保存: PASS  新規=yuke-match-draft-new-cal_069-v1 に setScores 保存
-- 穴1-事故閉じ: PASS  silent-close(popstate)後も draft 残存=true
-- 穴1-再表示復元: PASS  同一大会で再「試合を追加」→ score "6-2, 6-1" 復元
-- 穴1-保存で消去: PASS  保存後 new-draft 消去 / 試合記録 3→4 件で永続
-- 穴1-既存回帰: PASS  既存試合は per-id key(yuke-match-draft-mr1775952691476-v1)使用、new-key 生成なし、保存で消去 (byte 等価)
-- 穴2-自動保存: PASS  yuke-co-draft-mpczgjwdra46uz-1-v1 に note 保存
-- 穴2-背景閉じ: PASS  onClose(背景click)後も draft 残存=true (復元用)
-- 穴2-再表示復元: PASS  同一 afterGame=1 で再表示 → note 復元
-- 穴2-保存で消去: PASS  記録(保存)後 co-draft 消去
-- 穴2-CO別離: PASS  afterGame=1 draft 存在中に afterGame=3 を開く → note="" 流用なし(leaked=false)
+個別シナリオ X1〜X5 / R1〜R3 (確立 DEV 手順、history.length と history.state 実値観測):
+- X1 必須: PASS  MatchDetail→編集→MatchEditModal mount / state.tdb="match-edit-modal" / history.length 不変 (=replaceState 機能、{match-detail} slot 消費)
+- X2 必須: PASS  X1 → swipe back / MatchEditModal silent close + 大会詳細維持 / state.tdb="detail" / phantom back なし
+- X3 必須: PASS  MatchDetail→編集→保存 / modal 閉 + 大会詳細維持 / state.tdb="detail" / 試合 3→4 件永続 / MatchDetail 再開なし
+- X4 必須: PASS  X3 後 1 back で大会詳細閉 / state=null / phantom back なし
+- X5 不変: PASS  X1 → dirty 編集 → UI キャンセル → dirty confirm 破棄 / 4.7.26 handleClose 挙動不変 / draft 1 件 clear
+- R1 必須: PASS  +試合追加→保存→1 back で大会詳細閉 / 修正2 で改善 (旧: phantom back 1 回残)
+- R2 不変: PASS  +試合追加→swipe back / modal silent close + new-tournament draft 保持 / 4.7.26 silent-close 不変
+- R3 不変: PASS  TournamentEditForm→試合追加 / mount 時 state.tdb="match-edit-modal" (pushState 分岐) / 閉後 state="detail" / 編集 form 維持
 
-実画面検証: 済 (= 大会詳細 → 試合を編集 → GameTracker CO小窓、click / 遷移 / 戻る / 閉じる / popstate / 背景click 全経路を実画面で実施)
+経路網羅性 (実観測):
+- replaceState 分岐: X1 で実観測 (= mount 時 state.tdb==="match-detail" のみ replaceState、length 不変)
+- pushState 分岐: R1 / R2 / R3 で実観測 (= mount 時 state.tdb==="detail"、従来通り pushState)
+- consumeHistoryEntry 新規 (save 経路): R1 / X3 で機能確認 (= 保存後 stack 消費)
+- consumeHistoryEntry 既存 (close 経路): X5 で挙動不変確認
+
+実画面検証: 済 (= 大会詳細 → 試合 tap → MatchDetailView → 編集 → MatchEditModal、+試合追加、編集 form 内 試合追加、swipe back / 保存 / UI キャンセル / dirty confirm 破棄 全経路を実画面で実施)
 
 console error 0: 済 (= 全工程通算 0 件)
 
 未確認: なし
 
-注: 直前まで本セクションにあった 4.7.27-S17 段階 2-5-3 候補の詳細検証ログは、本 push 候補で上書き (supersede) した。当該候補の確定記録は git 履歴 (本ファイルの過去版) を真とする (= 「Claude 認識ではなく git 履歴を真とする」原則)。
+注: 直前まで本セクションにあった 4.7.29-S17 (e58da6c) の検証ログは、本 push 候補で上書き (supersede) し、過去ログセクションに e58da6c エントリとして要約記録。当該候補の確定記録は git 履歴 (本ファイルの過去版および e58da6c commit) を真とする (= 「Claude 認識ではなく git 履歴を真とする」原則)。
 
 ## 過去 push の検証ログ (= 最新を上、古いを下)
+
+### e58da6c (= 4.7.29-S17 試合中データ消失 穴1 / 穴2 修正)
+- 完成条件1・2 直結の確定 2 件の消失穴を塞ぐ実修正
+- 穴1: 新規(未保存)試合の下書き孤児化解消、tournament.id 由来の安定キー導入、新規+tournament.id 不在は fallback せず孤児再発防止
+- 穴2: CO 小窓書きかけ消失解消、matchId+afterGame キーで open 中 auto-save、同一 afterGame のみ復元、保存/スキップ/削除でクリア
+- 修正対象 7 ファイル (01_constants.js / MatchEditModal.jsx / GameTracker.jsx / v4/index.html / DESIGN_LOG.md / R1-smoke-test.md / VERIFY_LOG.md)
+- R1-smoke T1〜T7 全 PASS、穴1/穴2 個別検証全 PASS、console error 0、build EXITCODE=0
+- 詳細は当該 commit (e58da6c) および本ファイル過去版を参照
 
 ### a854ddd (= docs: HANDOFF を 4.7.26-S17 状態に更新、Tier 1 swipe-back audit 完了記録)
 - HANDOFF_v4_S17.md 更新 (= §0 現在地 / §1 次セッション最初のアクション / §2 Phase 表 / Tier 1 完了経緯 + 確立した検証パターン記録)

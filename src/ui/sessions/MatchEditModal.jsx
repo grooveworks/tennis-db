@@ -198,6 +198,13 @@ function MatchEditModal({ open, match, trnType, tournament, racketNames = [], st
     }
     if (_draftKey) _clearMatchDraft(_draftKey);
     _clearAllCODraftsForMatch(form?.id);
+    // 4.7.30-S17 hotfix (2026-05-21): 保存時も history entry 消費 (= handleClose の consumeHistoryEntry と同形)
+    //   従来 leak で保存後の戻るに phantom back 1 回残る経路を閉鎖 (= 試合経路 entry leak)
+    //   closingByUiRef は handleClose と共用、popstate handler で二重 close 防止
+    if (window.history.state && window.history.state.tdb === "match-edit-modal") {
+      closingByUiRef.current = true;
+      try { window.history.back(); } catch (_) { closingByUiRef.current = false; }
+    }
     onSave && onSave(form);
   }, [form, onSave, _draftKey]);
 
@@ -255,12 +262,19 @@ function MatchEditModal({ open, match, trnType, tournament, racketNames = [], st
   //   popstate で entry を抜けたら silent close (= dirty confirm 通さない、_clearMatchDraft 呼ばない、onClose のみ)
   //   closingByUiRef が true なら UI close 経由の history.back と判定して二重 close を skip + ref クリア
   //   draft auto-save (_saveMatchDraft) の意味は不変、_clearMatchDraft も既存意味不変 (= 別経路で必要時のみ呼ぶ)
-  //   注: handleSaveClick → onSave 経由の close は match-edit-modal entry を leak する (= 別 hotfix 候補、handleSaveClick 不変)
+  //   4.7.30-S17 hotfix (2026-05-21): handleSaveClick にも consumeHistoryEntry 追加 (= 試合経路 entry leak 閉鎖)
+  //   4.7.30-S17 hotfix (2026-05-21): MatchDetailView → 編集 遷移時、{match-detail} entry を leak させない
+  //     mount 時 state.tdb === "match-detail" なら replaceState で slot 消費、それ以外は従来通り pushState
+  //     "match-detail" 文字列が現れるのは MatchDetailView mount の唯一経路 (= 他経路の挙動は不変)
   useEffect(() => {
     if (!open) return;
     try {
       if (!window.history.state || window.history.state.tdb !== "match-edit-modal") {
-        window.history.pushState({ tdb: "match-edit-modal" }, "");
+        if (window.history.state && window.history.state.tdb === "match-detail") {
+          window.history.replaceState({ tdb: "match-edit-modal" }, "");
+        } else {
+          window.history.pushState({ tdb: "match-edit-modal" }, "");
+        }
       }
     } catch (_) {}
     const handler = (e) => {

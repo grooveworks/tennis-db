@@ -16,7 +16,7 @@
 ## 固定テスト項目（ユーザー確定の最小セット。Claude 拡張禁止）
 | # | 項目 | 機械的判定 | 完成条件 |
 |---|---|---|---|
-| T1 | app version 固定 | `window.__TennisDBCore.APP_VERSION === "4.7.29-S17"` | 1 |
+| T1 | app version 固定 | `window.__TennisDBCore.APP_VERSION === "4.7.30-S17"` | 1 |
 | T2 | 起動直後 heavy 未ロード | `window.__loadHeavyPromise === null` かつ `typeof window.__TennisDBHeavy === "undefined"` | 2 |
 | T3 | 大会詳細を開く | 大会カード click 後、詳細（SessionDetailView）が表示される | 1 |
 | T4 | +試合追加で MatchEditModal が開く | `[role="dialog"][aria-label="試合を編集"]` が DOM に存在 | 1 |

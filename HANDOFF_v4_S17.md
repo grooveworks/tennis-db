@@ -80,10 +80,13 @@
 - 4.7.23-26 で確立したパターン (= popstate + history.back + closingByUiRef) を踏襲
 - Tier 1 と同じ作業負担 (= 各 modal 1 push)、新規パターン追加なし
 
-**第三候補: entry leak 一括 cleanup hotfix (= 危険度高、別セッション推奨)**:
-- 検出済 3 件: `handleQuickAddSave` / `handleMergeConfirm` / `MatchDetailView onEdit` (= state transition で history.back を伴わない)
-- すべて save / 削除 / Firestore write 経路と絡む → 検証で「保存」ボタン押下が必要 → テストデータ準備 + 削除取消 / DB 直接 cleanup 等の準備が必要
-- 危険度高、専用セッションで Gate 1 から実 Firestore write 検証込みで着手すべき
+**第三候補: entry leak 一括 cleanup hotfix (= 残 2 件、別セッション推奨)**:
+- 残 2 件: `handleQuickAddSave` / `handleMergeConfirm` (= 試合経路ではない、save / 削除 / Firestore write 系)
+- **解消済**: 4.7.30-S17 (2026-05-21) で試合経路の leak 2 件閉鎖:
+  - `MatchDetailView onEdit` 経路: MatchEditModal open useEffect で mount 時 `state.tdb === "match-detail"` の時のみ replaceState (= {match-detail} slot 消費、他経路は pushState のまま不変)
+  - `handleSaveClick` 経路 (旧 4.7.26 L258 「別 hotfix 候補」と注記されていた `{match-edit-modal}` leak): consumeHistoryEntry を handleClose と同形で追加
+  - DEV 検証 X1-X5 / R1-R3 全 PASS、commit `<TBD>`
+- 残 2 件は試合経路ではないため危険度評価維持、専用セッションで Gate 1 から実 Firestore write 検証込みで着手すべき
 
 **第四候補 (= 後回し可)**:
 - bridge 肥大化整理 (= 計 49+ 件、別ファイル化 `src/core/_bridge.js` 等、段階 2-5 完了後の refactor 候補)
