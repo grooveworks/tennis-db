@@ -89,9 +89,9 @@
 - 残 2 件は試合経路ではないため危険度評価維持、専用セッションで Gate 1 から実 Firestore write 検証込みで着手すべき
 
 **R1-2 進捗** (2026-05-21):
-- **Stage 1 解消済 (4.7.31-S17)**: src/_head.html の全 CDN URL (Firebase 4 + React 2 + Phosphor 4 CSS) を v4/vendor/ 配下に同梱して同一オリジン化。N1〜N6 必須全 PASS、R1-smoke T1〜T7 全 PASS、console error 0。build.ps1 不変、Service Worker なし。本件で達成: CDN 依存排除 + 後段の前提作り。本件で未達: タブレット初期化直後 / no-cache / 通信ゼロ起動 (= Stage 2/3 が必要)
-- Stage 2 (= Service Worker / App Shell pre-cache): 未着手、別セッション。DESIGN_LOG.md:169 で「iOS で予告なく evict されうる、補助扱い」と評価済
-- Stage 3 (= iOS evict 対策の UI 案内 + 運用文言): 未着手、Stage 2 後
+- **Stage 1 解消済 (4.7.31-S17 / 379c477)**: src/_head.html の全 CDN URL (Firebase 4 + React 2 + Phosphor 4 CSS) を v4/vendor/ 配下に同梱して同一オリジン化。N1〜N6 必須全 PASS、R1-smoke T1〜T7 全 PASS、console error 0
+- **Stage 2 解消済 (4.7.32-S17)**: v4/sw.js (Service Worker) で App Shell + vendor 16 ファイルを Cache Storage に固定。navigation = shell-first ./index.html、静的アセット = ignoreSearch:true で bundle-heavy.js?v=... を hit、外部 (firestore.googleapis.com / api.open-meteo.com) は intercept しない pass-through。skipWaiting/clients.claim 使わない (既存タブ動作保護)。CACHE_NAME = `tennisdb-${APP_VERSION}` 手動同期。O1〜O10 必須全 PASS、O11 参考観測、controller 非 null 状態で cache 内容と SW 挙動を実証。本件で達成: 通信ゼロ reload 成立 (= browser 完全終了後の通信ゼロ起動)。本件で未達: 初回 no-cache offline (物理的に不可能)、iOS Safari evict 耐性 (Stage 3 必要)
+- Stage 3 (= PWA manifest 強化 + iOS evict 運用案内 UI): 未着手
 
 **第四候補 (= 後回し可)**:
 - bridge 肥大化整理 (= 計 49+ 件、別ファイル化 `src/core/_bridge.js` 等、段階 2-5 完了後の refactor 候補)

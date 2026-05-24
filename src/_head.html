@@ -94,5 +94,18 @@ window.loadHeavy = function() {
   return window.__loadHeavyPromise;
 };
 </script>
+<!-- 4.7.32-S17 R1-2 Stage 2 (2026-05-21): Service Worker 登録 (App Shell + vendor pre-cache、通信ゼロ reload 成立) -->
+<!-- - sw.js は v4/sw.js に配置、scope="./" で v4/ 配下を制御 -->
+<!-- - skipWaiting/clients.claim 使わない (既存タブ動作保護)、controller セットには 1 回 reload が必要 -->
+<!-- - 登録失敗は console.warn のみ、アプリ全体は落とさない -->
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", function () {
+    navigator.serviceWorker.register("./sw.js", { scope: "./" }).catch(function (err) {
+      console.warn("SW registration failed:", err && err.message);
+    });
+  });
+}
+</script>
 <!-- S17 build 修繕 (2026-05-09 第 2 弾): type="module" で iPhone WebKit JIT deopt 回避 -->
 <script type="module">

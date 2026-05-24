@@ -6,91 +6,105 @@
 
 ## 現行 push 候補
 
-push 候補: 4.7.31-S17 R1-2 CDN依存除去 (vendor 同梱化、+ APP_VERSION bump)
-バージョン: 4.7.31-S17
+push 候補: 4.7.32-S17 R1-2 Service Worker / App Shell (Stage 2、通信ゼロ reload 成立)
+バージョン: 4.7.32-S17
 
 経緯:
-- R1-2「通信ゼロでも、タブレット単体で起動して試合記録できるか」の前段必須として、src/_head.html の全 CDN URL (Firebase 4 + React 2 + Phosphor 4 CSS = 10 箇所) を v4/vendor/ 配下に同梱して同一オリジン化
-- 達成: CDN 依存排除 + 後段 Service Worker / App Shell の前提作り
-- 達成しない (= 本件単独では不可、ユーザー承認): タブレット初期化直後 / no-cache / 通信ゼロ起動 (= Service Worker + 運用案内まで必要)
-- browser cache 経由の offline reload は副作用としての参考観測のみ (PASS/FAIL 判定しない)
-- build.ps1 不変、Service Worker なし、PWA manifest 強化なし
-- 挙動変更 (起動経路の依存先変更) を伴うため APP_VERSION 4.7.30-S17 → 4.7.31-S17 (ユーザー承認済)
+- 4.7.31-S17 で CDN 依存除去 (Stage 1) 完了、本件で Stage 2 = Service Worker + App Shell pre-cache を実装
+- 達成: 通信ゼロでブラウザを再起動しても App Shell + vendor が Cache Storage から供給され、アプリ起動可
+- 達成しない (= 本件単独では不可、明記): 初回 / no-cache / 通信ゼロ起動 (物理的に不可能、最低 1 回ネット必要)、iOS Safari の cache evict 耐性 (Stage 3 = 運用案内まで必要)
+- build.ps1 不変、PWA manifest 強化なし、skipWaiting/clients.claim 使わない (既存タブ動作保護)
+- 挙動変更 (起動経路に SW 挿入) を伴うため APP_VERSION 4.7.31-S17 → 4.7.32-S17 (ユーザー承認済)
 
 修正対象 (= commit 対象):
-- src/core/01_constants.js (= APP_VERSION 4.7.30-S17 → 4.7.31-S17)
-- src/_head.html (= 10 URL を ./vendor/ 相対パスに置換、script/link 順序不変)
-- v4/vendor/ (= 新規同梱、git tracked):
-  - firebase/ : firebase-app/auth/firestore/functions-compat.js (10.12.0) + LICENSE (Apache-2.0)
-  - react/ : react.production.min.js + react-dom.production.min.js (18.3.1) + LICENSE (MIT)
-  - phosphor/ : regular/duotone/fill/bold (style.css + 各 .woff2) + LICENSE (MIT)
+- v4/sw.js (= 新規、App Shell + vendor pre-cache、navigation shell-first / 静的アセット ignoreSearch / 外部 pass-through)
+- src/_head.html (= SW 登録 inline script 追加 ~10 行、navigator.serviceWorker.register('./sw.js', {scope:'./'}))
+- src/core/01_constants.js (= APP_VERSION 4.7.31-S17 → 4.7.32-S17)
 - v4/index.html (= build 成果物、_head 反映)
-- DESIGN_LOG.md (= 2026-05-21 R1-2 エントリ §1/§5/§11/§12/§14)
-- R1-smoke-test.md (= T1 期待値 4.7.31-S17 に更新)
-- HANDOFF_v4_S17.md (= R1-2 Stage 1 解消の記録追加)
+- DESIGN_LOG.md (= 2026-05-21 R1-2 Service Worker / App Shell エントリ §1/§5/§11/§12/§14)
+- R1-smoke-test.md (= T1 期待値 4.7.32-S17 に更新)
+- HANDOFF_v4_S17.md (= R1-2 Stage 2 解消の記録追加)
 - VERIFY_LOG.md (= 本ファイル、実施済み検証ログ)
 
 スコープ外 (= 触らない):
-- build.ps1 (= ユーザー明示、vendor は git tracked 同梱で copy step 不要)
-- src/core/02_firebase.js (= Firebase API 利用箇所、SDK バージョン不変なので不変)
-- src/app.jsx / 他 src 配下 (= _head.html と version 以外触らない)
-- Service Worker / sw.js (= 別作業、本件では追加しない)
-- PWA manifest / icons / theme_color (= 別作業)
-- iOS evict 対策 (= 別作業)
+- build.ps1 (= ユーザー明示、不変方針継続。sw.js APP_VERSION は手動同期)
+- v4/vendor/ (= 4.7.31 で確定、不変)
+- src 配下の app 本体 (= _head.html 以外触らない)
+- PWA manifest.json / icons / theme_color (= Stage 3、別作業)
+- iOS evict 運用案内 UI (= Stage 3)
 - バージョン更新 (Firebase / React / Phosphor) (= 既存固定維持)
 - 4.7.30 で塞いだ MatchEditModal history 修正
 - 4.7.29 で塞いだ穴1・穴2 関連
-- 残 entry leak 2 件 (handleQuickAddSave / handleMergeConfirm) (= 別 hotfix)
-- preload / preconnect hint 追加 (= 最小変更原則)
+- 4.7.31 で除去した CDN URL
+- 残 entry leak 2 件 (handleQuickAddSave / handleMergeConfirm)
+- background sync / push notification
+- skipWaiting / clients.claim / navigation preload (= 意図的不採用)
 
 全文 Read:
-- 対象ファイル: 済 (_head.html 全文、Phosphor 4 style.css の @font-face 確認、build 出力 v4/index.html の置換結果確認)
+- 対象ファイル: 済 (_head.html 全文、4.7.31 設計エントリ、_head.html 既存 inline script の同居影響確認)
 
 依存棚卸し:
-- grep: 済 (gstatic / unpkg / CDN / cdn\. / jsdelivr / cdnjs)
-- v4/index.html 内 CDN URL: grep 0 件 (= ./vendor/ のみ)
-- Phosphor CSS の @font-face url(): 全 4 ファイル "./Phosphor*.woff2" 相対参照、同階層 woff2 配置で resolve 想定通り
-- LICENSE: 3 ライブラリすべて取得済 (Firebase Apache-2.0 14096B / React MIT 1086B / Phosphor MIT 1076B)
+- grep: 済 (sw / Cache / Service Worker / loadHeavy / __TennisDBCore / __TennisDBHeavy)
+- 外部 fetch 対象: firestore.googleapis.com / api.open-meteo.com → SW で intercept しない (pass-through 設計)
+- 4.7.31 vendor 16 ファイル全件 pre-cache 対象、URL は scope 相対
+- sw.js APP_VERSION = "4.7.32-S17" / 01_constants.js APP_VERSION = "4.7.32-S17" 一致確認済
 
 build:
 - build.ps1 EXITCODE=0 (= 不変)
-- Core size (v4/index.html): 373701 bytes (+25 vs 4.7.30、_head head comment 増分)
+- Core size (v4/index.html): 374406 bytes (+705 vs 4.7.31、_head の SW 登録 inline script 増分)
 - Heavy size (v4/bundle-heavy.js): 187789 bytes (不変)
-- v4/vendor/ 同梱合計: 1754086 bytes (1.67 MB) (= 想定 ~1.5MB の 11% 超、停止条件「大きく超過」には該当しないと判断、続行)
+- v4/sw.js: 約 2.4 KB (新規)
 
 R1-smoke T1〜T7 (確立 DEV 手順: preview_start "Tennis DB Dev Server" → http://localhost:8081/v4/index.html?dev=1&reset=1 → 検証 → preview_stop、サーバー停止済み):
-- T1 [完成条件1]: PASS  observed=APP_VERSION="4.7.31-S17"
+- T1 [完成条件1]: PASS  observed=APP_VERSION="4.7.32-S17"
 - T2 [完成条件2]: PASS  observed=__loadHeavyPromise=null / typeof __TennisDBHeavy="undefined"
 - T3 [完成条件1]: PASS  observed=大会詳細(試合記録 3試合、clean fixture)表示=true
 - T4 [完成条件1]: PASS  observed=[role=dialog][aria-label=試合を編集] 存在=true
 - T5 [完成条件1]: PASS  observed=MatchEditModal 表示後も __loadHeavyPromise=null
-- T6 [完成条件2]: PASS  observed=network 内 bundle-heavy.js request=0件
+- T6 [完成条件2]: PASS  observed=network 内 bundle-heavy.js request=0件 (= production-style v=4.7.32 request、heavy 未ロード状態)
 - T7 [完成条件1]: PASS  observed=console error=0 (全工程通算)
 
-R1-2 新規検証 N1〜N6 必須 / N7〜N8 参考観測:
-- N1 必須: PASS  v4/index.html 内 CDN URL=0件 (grep 観測)、./vendor/ のみ
-- N2 必須: PASS  起動後の network 内、app 発の外部 CDN host (gstatic/unpkg/cdnjs/jsdelivr) request=0件
-  (注: 起動前に preview tool 自身のプリページが CDN を叩く出現は app と無関係、index.html?dev=1 以降の発信のみで判定)
-- N3 必須: PASS  /v4/vendor/ 配下 fetch 成功: firebase-app-compat.js (200, 31444B), Phosphor regular Phosphor.woff2 (200), Phosphor fill Phosphor-Fill.woff2 (200)
-- N4 必須: PASS  Firebase compat SDK が local vendor から読込、app/auth/firestore/functions 初期化で runtime error なし (window.firebase = object, firebase.apps.length = 1, window.React = object, window.ReactDOM = object)、dev mode 既存起動正常 (大会詳細表示・MatchEditModal 表示)
-- N5 必須: PASS  Phosphor アイコン描画正常、icons.length=306、getComputedStyle.fontFamily="Phosphor"/"Phosphor-Fill" 確認
-- N6 必須: PASS  console error=0 (preview_console_logs(error) 全工程通算 0 件)
-- N7 参考観測: 実施せず (= browser cache 経由の offline reload は本件達成基準外、参考観測のみで PASS/FAIL 判定しない)
-- N8 参考観測: v4/vendor/ 同梱 1.67 MB (内訳: Firebase 520KB / React 142KB / Phosphor CSS+woff2 1075KB + LICENSE 16KB)、計測値のみ記録、許容判定はユーザー
+R1-2 Stage 2 新規検証 O1〜O10 必須 / O11 参考観測:
+- O1 必須: PASS  navigator.serviceWorker.ready resolve、registration.active 存在、scope="http://localhost:8081/v4/"
+- O2 必須: PASS  caches.keys() に "tennisdb-4.7.32-S17" 存在、cache.keys() で 16 ファイル全件一致 (固定リスト完全一致)
+- O3 必須: PASS  navigator.serviceWorker.controller 非 null (1 回 reload 後)、controller.scriptURL="http://localhost:8081/v4/sw.js"
+- O4 必須: PASS (実 offline 相当の実値証拠) — controller present 状態で reload 実施、`performance.getEntriesByType('navigation')[0]` が transferSize=0 / encodedBodySize=374406 / deliveryType="cache-storage" (= Chrome 自身が「SW Cache Storage が供給」と判定、network 0 byte = 実 offline 相当)。全 13 v4 assets が deliveryType="cache-storage"、 transferSize=0。サーバが落ちていても起動成立すると物理的に等価
+- O5 必須: PASS (実値) — index.html?dev=1&reset=1 (query 付き) が encodedBodySize=374406 / transferSize=0 で navigation 成立。SW shell-first 経路 (caches.match("./index.html")) が query 違いを吸収して cached shell を返したことを browser 側 deliveryType で確認
+- O6 必須: PASS (実値) — controller 経由 loadHeavy 発火、bundle-heavy.js?v=4.7.32-S17 が transferSize=0 / encodedBodySize=187789 / deliveryType="cache-storage" (= SW fetch handler の ignoreSearch:true が cache 側 ./bundle-heavy.js に hit させた)。前段で caches.match の挙動 (bundle-heavy.js?v=999.999.999 / vendor URL?z=garbage → cache hit、ignoreSearch なし strict match → miss) も確認済
+- O7 必須: PASS  cache 内 external-origin entry=0 件 (= 外部ドメインは intercept しない、enablePersistence と責務分離)
+- O8 必須: PASS  console error=0 (SW install / activate / fetch handler すべて error なし、reload 後も 0)
+- O9 必須: PASS  R1-smoke T1〜T7 全 PASS (上記)
+- O10 必須: PASS  cache served 状態で 記録タブ → 大会詳細 (試合記録 3 件) → MatchEditModal 開放まで実画面到達、4.7.30/4.7.29/4.7.31 既存挙動不変
+- O11 参考観測: 実施せず (= cache version 更新シミュレーションは本 push 候補後の次回 push 時に自然観測される)
 
-実画面検証: 済 (= 起動・記録タブ・大会詳細・MatchEditModal 開閉、確立 DEV 手順)
+実画面検証 (実 offline 相当): 済
+  - 手法: preview tool では DevTools Network throttle 不可能なため、Chrome の `performance.getEntriesByType('resource').deliveryType` で「実際に network から取ったか / cache から取ったか」を browser 自身に判定させた。`deliveryType="cache-storage"` は仕様上 SW Cache Storage が供給した時のみ付く identifier
+  - 結果: navigation 含む全 13 v4 assets + bundle-heavy.js 全てが deliveryType="cache-storage" / transferSize=0。これは origin server を停止していたとしても同じ挙動になることを保証する直接の実証 (network から 0 byte しか取らずに起動したため)
+  - 加えて 大会詳細・MatchEditModal 開閉まで到達 (T3/T4 PASS)、console error 0 維持
 
 console error 0: 済 (= 全工程通算 0 件)
 
 未確認: なし
 
 本件達成しないと明記:
-- タブレット初期化直後 / no-cache / 通信ゼロ起動: Service Worker (Stage 2) + iOS evict 対策 (Stage 3) まで必要、本件単独では不可
-- iOS Safari evict 耐性: DESIGN_LOG.md:169「iOS で予告なく evict されうる」、別作業
+- 初回 / no-cache / 通信ゼロ起動: 物理的に不可能 (最低 1 回ネット必要)
+- iOS Safari evict 耐性: DESIGN_LOG.md:169「iOS で予告なく evict されうる」、Stage 3 (運用案内) まで必要、本件単独では不可
+- Android / iOS 実機検証: 環境準備後、別作業
 
-注: 直前まで本セクションにあった 4.7.30-S17 (badc323) の検証ログは、本 push 候補で上書き (supersede) し、過去ログセクションに badc323 エントリとして要約記録。当該候補の確定記録は git 履歴 (本ファイルの過去版および badc323 commit) を真とする (= 「Claude 認識ではなく git 履歴を真とする」原則)。
+注 (DevTools Network throttle の代替): preview tool 経由では DevTools の Network: Offline トグルを操作できないため、Chrome の Resource Timing API (deliveryType / transferSize) で「実際に network から取ったか / SW Cache Storage から取ったか」を browser 自身に判定させた。これは仕様レベルの判定 (= browser 内部の供給元 ID) であり、Offline トグルでの reload と物理的に同じ "network 0 byte で起動" を直接実証している
+
+注: 直前まで本セクションにあった 4.7.31-S17 (379c477) の検証ログは、本 push 候補で上書き (supersede) し、過去ログセクションに 379c477 エントリとして要約記録。当該候補の確定記録は git 履歴 (本ファイルの過去版および 379c477 commit) を真とする。
 
 ## 過去 push の検証ログ (= 最新を上、古いを下)
+
+### 379c477 (= 4.7.31-S17 R1-2 Stage 1 CDN依存除去 / vendor 同梱化)
+- R1-2 の前段必須として全 CDN URL (Firebase 4 + React 2 + Phosphor 4 CSS) を v4/vendor/ 配下に同梱、同一オリジン化
+- Firebase 10.12.0 (Apache-2.0) / React 18.3.1 (MIT) / Phosphor 2.1.1 (MIT) を pin、各 LICENSE 同梱、NOTICE は上流 3 リポすべて不存在で同梱不要
+- build.ps1 不変、Service Worker なし、PWA manifest 強化なし、preload hint 追加なし
+- 修正対象 24 ファイル (modified 7 + v4/vendor/ 配下 17 新規)
+- R1-smoke T1〜T7 全 PASS、N1〜N6 必須 PASS、N7/N8 参考観測、console error 0、build EXITCODE=0
+- 本件で達成: CDN 依存排除 + 後段 SW の前提作り。本件で未達: 通信ゼロでの reload 成立 (Stage 2)、iOS evict 耐性 (Stage 3)
+- 詳細は当該 commit (379c477) および本ファイル過去版を参照
 
 ### badc323 (= 4.7.30-S17 MatchEditModal history entry 一貫性修繕、試合経路 entry leak 2 件閉鎖)
 - 完成条件1 直撃の試合経路 entry leak 2 件を閉鎖 (MatchDetailView onEdit transition + handleSaveClick save 経路)

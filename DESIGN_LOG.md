@@ -472,3 +472,64 @@ src/_head.html の全 CDN URL (Firebase 4 + React 2 + Phosphor 4 = 計 10 箇所
 - 本件単独で「初回・no-cache・通信ゼロ起動」を達成しないと VERIFY_LOG に明記。
 
 ---
+
+## 2026-05-21 R1-2 Service Worker / App Shell (Stage 2) — R1 条件1・2 通信ゼロ reload 成立
+
+### §1. 今回の論点 (必須セクション)
+4.7.31-S17 で CDN 依存除去 (Stage 1) が完了、次に index.html + vendor + bundle-heavy.js を Cache Storage に固定して「browser を完全終了 → 通信ゼロでアプリ起動」を成立させる。修正版設計でユーザー承認 (実装承認・APP_VERSION 4.7.32-S17 bump 承認)。pre-cache 数は 16 ファイル、URL は scope 相対 (GitHub Pages /tennis-db/v4/ 対応)、navigation request は shell-first で index.html cache を返す、静的アセット fetch は ignoreSearch で bundle-heavy.js?v=... を hit させる、skipWaiting/clients.claim は使わない (安全寄り)、controller 非 null 確認を検証必須化。
+
+### §5. 前提一覧表 (必須セクション、F7/F16 防止)
+| # | 前提 | 根拠分類 | 根拠 | 未確認なら確認方法 |
+|---|---|---|---|---|
+| a | pre-cache 対象は 16 ファイル固定 (LICENSE 除外) | ユーザー明示 | 2026-05-21 ユーザー指示「16 ファイルで固定」 | — |
+| b | URL は scope 相対で記述、self.registration.scope で base 解決 | ユーザー明示 | 2026-05-21 ユーザー指示「/v4/ 固定をやめ scope 相対」 | — |
+| c | navigation request は caches.match("./index.html") で shell-first、query 違いを吸収 | ユーザー明示 | 2026-05-21 ユーザー指示「shell-first + ignoreSearch」 | — |
+| d | 静的アセット fetch は ignoreSearch: true で bundle-heavy.js?v= を hit | ユーザー明示 | 同上 | — |
+| e | skipWaiting / clients.claim は使わない (既存タブ動作保護) | ユーザー承認 | 前回設計から継続、ユーザー承認 | — |
+| f | controller 非 null 状態で offline reload 確認を必須化 | ユーザー明示 | 2026-05-21 ユーザー指示 | — |
+| g | APP_VERSION 4.7.31-S17 → 4.7.32-S17 bump | ユーザー明示 | 同上 | — |
+| h | CACHE_NAME は `tennisdb-${APP_VERSION}`、sw.js と 01_constants.js を手動同期 | 設計選択 | build.ps1 不変方針継続のため手動同期 | R6 push 前ゲートに同期確認項目追加 |
+| i | 外部ドメイン (firestore.googleapis.com / api.open-meteo.com) は SW intercept しない、pass-through | 設計選択 | enablePersistence と責務分離、Firestore offline queue は IndexedDB に任せる | — |
+| j | manifest 追加は本 Stage では行わない (既存 apple-mobile-web-app-* メタタグで standalone 最低限維持) | ユーザー承認 | 前回設計から継続、ユーザー承認 | — |
+| k | install 時 1 件でも fetch 失敗で install fail → 旧 SW 維持 (fail-safe) | 設計選択 | addAll() の標準挙動 | — |
+| l | activate 時 "tennisdb-" prefix のうち CACHE_NAME 以外を delete | 設計選択 | 旧 cache 残存防止 | — |
+
+### §11. 禁止事項 (必須セクション)
+- skipWaiting() / clients.claim() を使わない (既存タブ動作保護、ユーザー承認方針)。
+- 外部ドメインを SW intercept しない (Firestore/Open-Meteo は pass-through、責務分離)。
+- ignoreSearch: true を navigation 経路に拡張しない (navigation は shell-first で対応)。
+- ignoreSearch: true を Firestore 等の動的 endpoint に拡張しない (静的アセット限定)。
+- pre-cache 対象を 16 ファイルから増やさない (LICENSE 等を追加しない)。
+- URL 絶対パス (/v4/...) を sw.js に書かない、scope 相対のみ。
+- sw.js APP_VERSION と 01_constants.js APP_VERSION の不一致のまま push しない。
+- manifest.json を本 Stage で追加しない (Stage 3 で扱う)。
+- build.ps1 を編集しない (不変方針継続)。
+- v4/vendor/ 配下のファイルを編集しない (4.7.31 で確定)。
+- PWA install banner / background sync / push notification を本 Stage に混ぜない。
+- 確認前の決め打ち、APP_VERSION の独断変更、--no-verify をしない。
+
+### §12. 停止条件 (必須セクション)
+- SW 登録自体が失敗 (navigator.serviceWorker.register reject) → 即停止、ロールバック優先。
+- pre-cache install で 1 件でも 404 → SW install 失敗、設計の欠陥として停止して報告。
+- O1〜O10 必須項目のいずれか FAIL が 1 回最小修正で解消しない → 停止して報告。
+- O9 (R1-smoke T1〜T7) / O10 (既存挙動不変) で回帰観測 → 即停止、ロールバック優先。
+- 触るファイルが本設計スコープ外 (v4/sw.js + src/_head.html + src/core/01_constants.js + v4/index.html + ログ系) に広がる → 即停止。
+- sw.js APP_VERSION と 01_constants.js APP_VERSION の不一致のまま push しそうになる → 停止。
+- skipWaiting / clients.claim を「動くから」と理由なく入れたくなった瞬間 → 停止。
+- 外部ドメインを intercept したくなった瞬間 → 停止。
+- ignoreSearch を navigation や 動的 endpoint に拡張したくなった瞬間 → 停止。
+- 既存ユーザー (4.7.31 で SW 無し) → 4.7.32 への update path に問題判明 → 停止して報告。
+
+### §14. Gate 2 へ必ず転記する制約 (必須セクション)
+- 触るファイル: v4/sw.js (新規) + src/_head.html (SW 登録 inline script 追加 ~10 行) + src/core/01_constants.js (APP_VERSION bump) + v4/index.html (build 出力) + DESIGN_LOG / VERIFY_LOG / HANDOFF / R1-smoke-test.md のみ。
+- build.ps1 不変、v4/vendor/ 不変、PWA manifest 追加なし。
+- pre-cache 16 ファイル固定リスト、scope 相対 URL、navigation = shell-first ./index.html、その他 = ignoreSearch: true。
+- skipWaiting / clients.claim 不使用。
+- CACHE_NAME = `tennisdb-${APP_VERSION}`、activate で "tennisdb-" prefix の旧 cache 削除。
+- 外部ドメインは pass-through (intercept しない)。
+- 検証 O1〜O10 必須 PASS、O11 (cache version 更新シミュレーション) 参考観測。
+- controller 非 null 確認を offline reload 前に実施。
+- APP_VERSION 4.7.31-S17 → 4.7.32-S17、R1-smoke T1 期待値も同時更新。
+- 本件で達成: 通信ゼロ reload 成立。本件で未達: iOS evict 耐性 (Stage 3)、初回 no-cache offline。
+
+---
