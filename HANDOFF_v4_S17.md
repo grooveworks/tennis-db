@@ -94,7 +94,10 @@
 - Stage 3 (= PWA manifest 強化 + iOS evict 運用案内 UI): 未着手
 
 **条件3 (保存・未同期がユーザーに見える) 進捗** (2026-05-21):
-- **D 解消済 (4.7.33-S17)**: 既存 Header の ☁️ アイコンが `syncing={loading}` (初回ロード中フラグ) のみを反映していた問題を解消。03_storage.js に公開 API (onSyncStateChange / getSyncState) 追加、save() 本体不変。Header を 4 値表示 (error > offline > syncing > idle) に拡張、SyncStatusPopover 新規 (focus trap なし、ESC + 外側 click + tap で開閉)。エラー解除は「次の成功 write」時のみ。online/offline は navigator.onLine + window event。test seam window.__TennisDBSync 同梱 (build.ps1 不変のため bridge 経由ではなく直接 window 露出)。D1〜D12 全 PASS、R1-smoke 回帰なし。残: enablePersistence 失敗経路 (G)、手動再送、retry、バックアップ生成 UI
+- **D 解消済 (4.7.33-S17 / 597e53a)**: 既存 Header の ☁️ アイコンが `syncing={loading}` (初回ロード中フラグ) のみを反映していた問題を解消。03_storage.js に公開 API (onSyncStateChange / getSyncState) 追加、save() 本体不変。Header を 4 値表示 (error > offline > syncing > idle) に拡張、SyncStatusPopover 新規 (focus trap なし、ESC + 外側 click + tap で開閉)。エラー解除は「次の成功 write」時のみ。online/offline は navigator.onLine + window event。test seam window.__TennisDBSync 同梱 (build.ps1 不変のため bridge 経由ではなく直接 window 露出)。D1〜D12 全 PASS、R1-smoke 回帰なし。残: enablePersistence 失敗経路 (G)、手動再送、retry、バックアップ生成 UI
+
+**分析タブ拡張** (2026-05-25):
+- **直近 10 試合 勝率推移カード追加 (4.7.34-S17)**: 4.7.29〜4.7.33 の基礎工事 5 連続でユーザーのやる気消失を受けて、画面で変化が分かる作業に切替。InsightsTab に新カード 1 つ追加: 折れ線 (最新側 10 ローリング点) + W/L チップ列 + 大数字勝率。安定ソート (tournament.date → tournament.id → matches[] 内 index → match.id)、全期間から最新 10 試合 (期間チップ非連動)、カード内に "全期間から最新 10 試合" 明記。SVG 直書きでグラフライブラリ追加なし。dev fixture で 70% / 7勝3敗 / WWWLLWWWWL 描画確認、既存カード回帰なし
 
 **第四候補 (= 後回し可)**:
 - bridge 肥大化整理 (= 計 49+ 件、別ファイル化 `src/core/_bridge.js` 等、段階 2-5 完了後の refactor 候補)

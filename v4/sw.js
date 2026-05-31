@@ -11,7 +11,7 @@
 // - pre-cache 対象 16 ファイル固定 (LICENSE 除外、scope 相対)
 //   GitHub Pages 本番 (/tennis-db/v4/) と localhost (/v4/) の両方で動作
 
-const APP_VERSION = "4.7.33-S17";
+const APP_VERSION = "4.7.34-S17";
 const CACHE_NAME = `tennisdb-${APP_VERSION}`;
 
 const PRECACHE = [

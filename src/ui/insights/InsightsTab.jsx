@@ -133,6 +133,76 @@ const _isStatsByOpponent = (matches) => {
     .sort((a, b) => b.total - a.total);
 };
 
+// ── 4.7.34-S17: 直近 10 試合の安定ソート + ローリング勝率推移
+//   ソート鍵: tournament.date → tournament.id → tournament.matches 内 index → match.id
+//   全期間から最新 10 試合を切り出し、最新側から見たローリング勝率点 (最大 10 点) を算出
+const _isFlattenMatchesStable = (tournaments) => {
+  const out = [];
+  for (const t of (tournaments || [])) {
+    if (!t || !Array.isArray(t.matches)) continue;
+    const tDate = t.date || "";
+    const tId = t.id || "";
+    for (let i = 0; i < t.matches.length; i++) {
+      const m = t.matches[i];
+      if (!m) continue;
+      out.push({
+        ...m,
+        _date: tDate,
+        _tournamentId: tId,
+        _tournamentName: t.name,
+        _matchIdx: i,
+      });
+    }
+  }
+  // 安定ソート: date → tournamentId → matchIdx → match.id
+  out.sort((a, b) => {
+    if (a._date !== b._date) return a._date < b._date ? -1 : 1;
+    if (a._tournamentId !== b._tournamentId) return a._tournamentId < b._tournamentId ? -1 : 1;
+    if (a._matchIdx !== b._matchIdx) return a._matchIdx - b._matchIdx;
+    const ai = a.id || "", bi = b.id || "";
+    return ai < bi ? -1 : ai > bi ? 1 : 0;
+  });
+  return out;
+};
+
+// ローリング勝率トレンド: 最新側から見て、直近 10 個までの 10 試合スライディング勝率
+//   - 入力: 全試合 (date 昇順、win/loss のみで前段絞り込み済)
+//   - 出力: { wlChips: [...10件 最新 10 試合 W/L 配列、新しい順 → 表示は左古右新], trendPoints: [...最大 10 点], requiredMore: number }
+//   - 各 trendPoint.rate は「その点を最新とする直近 10 試合 (= point 含む過去 9 試合) の勝率」
+//   - 例: 試合 30 件あれば、point[9] = 最新試合の 10 試合勝率、point[0] = 9 試合前を最新とした 10 試合勝率
+const _isLast10Trend = (matchesAscWinLoss) => {
+  const M = matchesAscWinLoss.length;
+  // W/L チップ列: 最新 10 試合 (古い→新しい順、左→右)
+  const wlSlice = matchesAscWinLoss.slice(Math.max(0, M - 10));
+  const wlChips = wlSlice.map(m => {
+    const r = _normalizeMatchResult(m.result);
+    return r === "win" ? "W" : r === "loss" ? "L" : null;
+  }).filter(Boolean);
+  // ローリング: 最大 10 点、各点は「その点を最新とする 10 試合の勝率」
+  //   point i (0..9) → matches[M-1-(9-i) - 9 .. M-1-(9-i)]、最後の試合 index は j = M-1-(9-i) = M-10+i
+  //   ただし j-9 >= 0 が必要。j-9 < 0 の点は省略 (試合数不足)
+  const trendPoints = [];
+  for (let i = 0; i < 10; i++) {
+    const j = M - 10 + i;            // この点が最新試合とする位置
+    const start = j - 9;             // 10 試合 window の開始
+    if (j < 0 || start < 0) continue;
+    let win = 0, loss = 0;
+    for (let k = start; k <= j; k++) {
+      const r = _normalizeMatchResult(matchesAscWinLoss[k].result);
+      if (r === "win") win++;
+      else if (r === "loss") loss++;
+    }
+    const total = win + loss;
+    trendPoints.push({
+      idx: i,
+      rate: total > 0 ? Math.round(win / total * 100) : null,
+      win, loss, total,
+    });
+  }
+  const requiredMore = M < 10 ? (10 - M) : 0;
+  return { wlChips, trendPoints, requiredMore, totalMatches: M };
+};
+
 // ── 月別勝率 (直近 6 ヶ月、棒グラフ用)
 const _isMonthlyWinRate = (matches) => {
   const out = []; // [{ ym, win, loss, rate }]
@@ -236,6 +306,127 @@ function _IsMonthlyChart({ months }) {
   );
 }
 
+// ── 4.7.34-S17: 直近 10 試合 勝率推移カード (折れ線 + W/L チップ + 大数字)
+//   props: trend = { wlChips, trendPoints, requiredMore, totalMatches }
+function _IsLast10Card({ trend }) {
+  const { wlChips, trendPoints, requiredMore, totalMatches } = trend;
+  const latest = trendPoints.length > 0 ? trendPoints[trendPoints.length - 1] : null;
+  const _rateColor = (r) => r == null ? C.textMuted
+    : r >= 60 ? "#34C759"
+    : r >= 40 ? "#FF9500"
+    :           "#FF3B30";
+
+  // SVG 折れ線パラメータ
+  const W = 280, H = 90, padLeft = 28, padRight = 8, padTop = 8, padBottom = 18;
+  const plotW = W - padLeft - padRight;
+  const plotH = H - padTop - padBottom;
+  const N = trendPoints.length;
+  // x: 等間隔、最大 10 点を plot 横幅に均等配置 (1 点しかなければ中央)
+  const xAt = (i) => N <= 1 ? padLeft + plotW / 2 : padLeft + (i / (N - 1)) * plotW;
+  const yAt = (rate) => padTop + plotH - (rate / 100) * plotH;
+  // polyline 用 points 文字列
+  const polyPoints = trendPoints
+    .filter(p => p.rate != null)
+    .map((p, idx) => `${xAt(idx)},${yAt(p.rate)}`)
+    .join(" ");
+
+  if (totalMatches === 0) {
+    return (
+      <_IsCard>
+        <_IsSectionHeader icon="chart-line-up" title="直近 10 試合 勝率推移" sub="全期間から最新 10 試合" />
+        <div style={{ fontSize: 12, color: C.textMuted, padding: "16px 0", textAlign: "center" }}>
+          試合データがありません
+        </div>
+      </_IsCard>
+    );
+  }
+
+  return (
+    <_IsCard>
+      <_IsSectionHeader icon="chart-line-up" title="直近 10 試合 勝率推移" sub="全期間から最新 10 試合" />
+      {/* 大数字: 現在の 10 試合勝率 + 内訳 */}
+      <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 6 }}>
+        <div style={{
+          fontSize: 32, fontWeight: 800,
+          color: _rateColor(latest && latest.rate),
+          lineHeight: 1, fontFeatureSettings: '"tnum"',
+        }}>
+          {latest && latest.rate != null ? latest.rate : "—"}
+          {latest && latest.rate != null && (
+            <span style={{ fontSize: 14, fontWeight: 700, marginLeft: 2 }}>%</span>
+          )}
+        </div>
+        <div style={{ fontSize: 12, color: C.textMuted, fontWeight: 600 }}>
+          {latest && latest.total > 0
+            ? `${latest.win}勝 ${latest.loss}敗 / ${latest.total}試合`
+            : ""}
+        </div>
+      </div>
+
+      {/* 折れ線 SVG */}
+      {N > 0 ? (
+        <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ display: "block", maxWidth: "100%" }} aria-label="勝率推移">
+          {/* Y 軸グリッド: 0 / 50 / 100% */}
+          {[0, 50, 100].map(y => (
+            <g key={y}>
+              <line x1={padLeft} y1={yAt(y)} x2={W - padRight} y2={yAt(y)} stroke={C.bg} strokeWidth="1" />
+              <text x={padLeft - 4} y={yAt(y) + 3} fontSize="9" fill={C.textMuted} textAnchor="end">{y}%</text>
+            </g>
+          ))}
+          {/* 折れ線 */}
+          {polyPoints && (
+            <polyline
+              points={polyPoints}
+              fill="none"
+              stroke={C.primary}
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          )}
+          {/* 各点 */}
+          {trendPoints.filter(p => p.rate != null).map((p, idx) => (
+            <circle
+              key={p.idx}
+              cx={xAt(idx)}
+              cy={yAt(p.rate)}
+              r="3"
+              fill={_rateColor(p.rate)}
+            />
+          ))}
+          {/* X 軸ラベル */}
+          <text x={padLeft} y={H - 4} fontSize="9" fill={C.textMuted} textAnchor="start">古い</text>
+          <text x={W - padRight} y={H - 4} fontSize="9" fill={C.textMuted} textAnchor="end">最新</text>
+        </svg>
+      ) : (
+        <div style={{ fontSize: 12, color: C.textMuted, padding: "12px 0", textAlign: "center" }}>
+          {requiredMore > 0 ? `あと ${requiredMore} 試合で推移グラフが出ます` : ""}
+        </div>
+      )}
+
+      {/* W/L チップ列 */}
+      {wlChips.length > 0 && (
+        <div style={{ marginTop: 10 }}>
+          <div style={{ fontSize: 10, color: C.textMuted, fontWeight: 600, marginBottom: 4 }}>
+            直近 {wlChips.length} 試合 (古い → 新しい)
+          </div>
+          <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+            {wlChips.map((wl, i) => (
+              <div key={i} style={{
+                width: 22, height: 22, borderRadius: 11,
+                background: wl === "W" ? "#34C759" : "#FF3B30",
+                color: "#fff", fontSize: 11, fontWeight: 800,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                flexShrink: 0,
+              }}>{wl}</div>
+            ))}
+          </div>
+        </div>
+      )}
+    </_IsCard>
+  );
+}
+
 // ── ランキング行 (ラケット / 対戦相手共通)
 function _IsRankRow({ rank, name, win, loss, rate, sub }) {
   const rateColor = rate == null ? C.textMuted
@@ -321,6 +512,17 @@ function InsightsTab({ tournaments = [], practices = [], trials = [] }) {
   // 月別勝率は期間に関わらず直近 6 ヶ月固定 (推移の見やすさ優先)
   const monthlyWinRate = useMemo(() => _isMonthlyWinRate(_isFlattenMatches(tournaments)), [tournaments]);
 
+  // 4.7.34-S17: 直近 10 試合 勝率推移 (全期間、期間チップと連動しない)
+  //   安定ソート (date → tournamentId → matchIdx → id) → win/loss のみ抽出 → ローリング 10 試合勝率
+  const last10Trend = useMemo(() => {
+    const allStable = _isFlattenMatchesStable(tournaments);
+    const wlOnly = allStable.filter(m => {
+      const r = _normalizeMatchResult(m.result);
+      return r === "win" || r === "loss";
+    });
+    return _isLast10Trend(wlOnly);
+  }, [tournaments]);
+
   const periodLabel = _IS_PERIODS.find(p => p.v === period)?.label || "";
 
   return (
@@ -382,6 +584,9 @@ function InsightsTab({ tournaments = [], practices = [], trials = [] }) {
           <_IsMonthlyChart months={monthlyWinRate} />
         )}
       </_IsCard>
+
+      {/* === 2.5 直近 10 試合 勝率推移 (全期間、期間チップ非連動) === 4.7.34-S17 */}
+      <_IsLast10Card trend={last10Trend} />
 
       {/* === 3. メンタル / フィジカル === */}
       <_IsCard>

@@ -6,99 +6,79 @@
 
 ## 現行 push 候補
 
-push 候補: 4.7.33-S17 書込キュー可視化 (条件3「保存・未同期がユーザーに見える」、D)
-バージョン: 4.7.33-S17
+push 候補: 4.7.34-S17 分析タブ拡張 (直近 10 試合 勝率推移カード追加、画面が変わる作業)
+バージョン: 4.7.34-S17
 
 経緯:
-- 4.7.32-S17 で通信ゼロ reload 経路が構造的に完了。次のボトルネックは「save した後、Firestore に届いたか / 未同期で端末に残っているだけか」が見えないこと
-- 既存 Header の ☁️ アイコンは `syncing={loading}` (初回ロード中フラグ) のみを反映、実 write の pending を反映していない (= 永遠に success 色)
-- 本件で 4 値表示 (error > offline > syncing > idle) + 詳細 Popover (focus trap なし) を導入、エラー解除は「次の成功 write」時のみ
-- ChatGPT は前回 Stage 2 後 R1-2 Stage 3a/3b 継続を推したが、Claude Code が「Stage 2 完了後は条件3 が次のボトルネック」を主張、ユーザー承認で D 採用
-- 挙動変更 (Header semantics 拡張) を伴うため APP_VERSION 4.7.32-S17 → 4.7.33-S17 (ユーザー承認済)
+- 4.7.29〜4.7.33 が全部「画面に出ない基礎工事」5 連続 → ユーザーやる気消失
+- 「画面で変化が分かる」「使う意味が見える」作業を優先する判断、分析タブに新カード 1 つ追加
+- 折れ線 + W/L チップ + 勝率数字、全期間から最新 10 試合 (期間チップ非連動)
+- ユーザー指示 3 点反映: (1) 折れ線は最新側から見た直近10個までのローリング点 (2) 安定ソート (3) "全期間から最新 10 試合" 明記
+- APP_VERSION 4.7.33-S17 → 4.7.34-S17 ユーザー承認済
 
 修正対象 (= commit 対象):
-- src/core/03_storage.js (= 公開 API 追加 onSyncStateChange/getSyncState、save() 本体不変、_lastSyncAt 記録、test seam window.__TennisDBSync)
-- src/app.jsx (= syncState/online/lastError state 追加、onSyncStateChange + onSaveError + online/offline event 統合、4 値 derive、Header に syncStatusBundle prop で渡す)
-- src/ui/common/Header.jsx (= syncing props 廃止 → syncState 4 値表示 (icon/color/aria) + Popover トリガ button)
-- src/ui/common/SyncStatusPopover.jsx (= 新規、focus trap なし、ESC + 外側 click + tap で開閉、status/pending 内訳/最終同期時刻/直近エラー表示)
-- src/core/01_constants.js (= APP_VERSION 4.7.32-S17 → 4.7.33-S17)
-- v4/sw.js (= APP_VERSION 同期 4.7.32-S17 → 4.7.33-S17、CACHE_NAME 連動)
-- v4/index.html (= build 成果物、上記反映)
-- DESIGN_LOG.md (= 2026-05-21 書込キュー可視化エントリ §1/§5/§11/§12/§14)
-- R1-smoke-test.md (= T1 期待値 4.7.33-S17 に更新)
-- HANDOFF_v4_S17.md (= D 完了の記録追加)
-- VERIFY_LOG.md (= 本ファイル、実施済み検証ログ)
+- src/ui/insights/InsightsTab.jsx (= helper 2 個 _isFlattenMatchesStable / _isLast10Trend + Card 1 個 _IsLast10Card + render 挿入)
+- src/core/01_constants.js (= APP_VERSION 4.7.33 → 4.7.34-S17)
+- v4/sw.js (= APP_VERSION 同期、CACHE_NAME 連動)
+- v4/index.html (= build 出力)
+- DESIGN_LOG.md (= 2026-05-25 エントリ)
+- R1-smoke-test.md (= T1 期待値)
+- HANDOFF_v4_S17.md (= 完成条件 5 周辺の進捗追加)
+- VERIFY_LOG.md (= 本ファイル)
 
-スコープ外 (= 触らない):
-- build.ps1 (= ユーザー明示、不変方針継続。sw.js APP_VERSION は手動同期)
-- v4/vendor/ (= 4.7.31 で確定、不変)
-- 既存 save() 本体ロジック (lsSave 先 / Promise chain 直列化 / cleanForFirestore / updatedAt 付与) (= 不変、観測 API 追加のみ)
-- Firestore enablePersistence (= 既存 IndexedDB queue 維持、本件と責務分離)
-- 既存 toast 経路 (notifySaveError → app.jsx:993) (= 不変、setLastError を追加のみで上書きしない)
-- retry / 手動再送 / 同期履歴永続化 / バックアップ生成 UI (= 別作業)
-- Service Worker / manifest 強化 (R1-2 Stage 3) (= 別作業)
-- enablePersistence 失敗経路の表面化 (G 別作業)
-- 残 entry leak 2 件 (handleQuickAddSave / handleMergeConfirm)
-- focus trap / navigation preload / connection RTT 等の高機能 API
-
-全文 Read:
-- 対象ファイル: 済 (03_storage.js 全文、Header.jsx 全文、Icon.jsx の Phosphor name 解決、app.jsx の loading/Header 渡し箇所)
-- Phosphor アイコン: cloud-arrow-up / cloud-check / cloud-slash / cloud-warning すべて vendor CSS に存在確認済
-
-依存棚卸し:
-- grep: 済 (sync / save / pending / notify / onLine / offline / cloud)
-- syncing prop の置換: app.jsx:2472 と Header.jsx:20,75 のみ参照、他経路なし
-- bridge 不要: storage.js は core、Header/Popover も core、相互参照はモジュール scope 内
-- sw.js APP_VERSION = "4.7.33-S17" / 01_constants.js APP_VERSION = "4.7.33-S17" 一致確認済
+スコープ外:
+- 既存 InsightsTab 他カード (全体 / 月別 / メンタル / ラケット / 対戦相手) 不変
+- build.ps1 / v4/vendor/ / 既存 helpers (_isFlattenMatches / _isWinRate 等) 不変
+- グラフライブラリ追加なし、アニメーションなし
 
 build:
 - build.ps1 EXITCODE=0 (= 不変)
-- Core size (v4/index.html): 379531 bytes (+5125 vs 4.7.32、Popover + state 統合 + 4 値表示 + test seam 増分)
-- Heavy size (v4/bundle-heavy.js): 187789 bytes (不変)
+- Core size: 379531 bytes (APP_VERSION 文字列のみ変化、heavy へ移動分は不変)
+- Heavy size: 192088 bytes (+4299 vs 4.7.33、新規 helpers + Card 追加分)
 
-R1-smoke T1〜T7 (確立 DEV 手順: preview_start → ?dev=1&reset=1 → 検証 → preview_stop、サーバー停止済み):
-- T1 [完成条件1]: PASS  observed=APP_VERSION="4.7.33-S17"
-- T2 [完成条件2]: PASS  observed=__loadHeavyPromise=null / typeof __TennisDBHeavy="undefined"
-- T3 [完成条件1]: PASS  observed=大会詳細(試合記録 3試合、clean fixture)表示=true
-- T4 [完成条件1]: PASS  observed=[role=dialog][aria-label=試合を編集] 存在=true
-- T5 [完成条件1]: PASS  observed=MatchEditModal 表示後も __loadHeavyPromise=null
-- T6 [完成条件2]: PASS  observed=network 内 bundle-heavy.js production-style request=0件
-- T7 [完成条件1]: PASS  D テストトリガー外の経路で console error=0 (D7 で意図的に呼んだ notifySaveError 起因のエントリは既存 listener fire 仕様、D の追加コード起因ではない)
+R1-smoke T1〜T7 (確立 DEV 手順、fresh start で観測):
+- T1 [完成条件1]: PASS  observed=APP_VERSION="4.7.34-S17"
+- T2 [完成条件2]: PASS  observed=__loadHeavyPromise=null / heavyType="undefined"
+- T3 [完成条件1]: PASS  大会詳細(試合記録 3試合)表示
+- T4 [完成条件1]: PASS  [role=dialog][aria-label=試合を編集] 存在
+- T5 [完成条件1]: PASS  MatchEditModal 表示後も __loadHeavyPromise=null (= 分析タブ未訪問のため heavy 未ロード)
+- T6 [完成条件2]: PASS  network 内 production-style bundle-heavy.js request=0件
+- T7 [完成条件1]: PASS  console error=0
 
-D 新規検証 D1〜D11 必須 / D12 不変確認:
-- D1 必須: PASS  online + idle で Header data-sync-status="idle" / aria="クラウド同期済" / icon "ph ph-cloud-check"
-- D4 必須: PASS  Object.defineProperty で navigator.onLine=false + offline event dispatch → data-sync-status="offline" / aria="オフライン" / icon "ph ph-cloud-slash"
-- D5 必須: PASS  navigator.onLine=true 復帰 + _devSimulatePending('tournaments', 800ms) → 100ms 後に data-sync-status="syncing" / data-sync-pending="1" / aria="同期中 1 件" / icon "ph ph-cloud-arrow-up"
-- D6 必須: PASS  D5 後 1200ms 待機 → pending 解消、data-sync-status="idle" / pending="0" / icon "ph ph-cloud-check"、lastSyncAt=ISO 時刻記録
-- D7 必須: PASS  notifySaveError('matches', new Error('test error')) → data-sync-status="error" / aria="同期エラー" / icon "ph ph-cloud-warning"
-- D8 必須: PASS  D7 後 _devSimulatePending('matches', 300ms) 成功 → 600ms 後 data-sync-status="idle" / icon "ph ph-cloud-check" (= lastSyncAt > lastError.at で自動 clear、Popover 開閉に依存しない)
-- D11 (a/b/c) 必須: PASS
-  - D11a: ☁️ button tap → Popover (data-popover="sync-status") 表示、内容に "同期済み" + "最後の同期: HH:MM" 含む
-  - D11b: ESC で Popover 閉
-  - D11c: 再 tap で再 open + body click で閉
-- D9 必須: PASS  R1-smoke T1〜T7 全 PASS (上記)
-- D10 必須: PASS  D テスト中も 記録タブ → 大会詳細 → MatchEditModal 開閉まで実画面到達、4.7.32 SW / 4.7.31 vendor / 4.7.30 history / 4.7.29 穴 すべて挙動不変
-- D12 不変: PASS  既存 notifySaveError → toast 経路 (app.jsx:993) も並行発火継続 (D7 で toast 表示観測)、既存 console.error 経路も継続 (D の listener fire は既存仕様の上に setLastError を追加したのみ)
+新カード検証 (実値):
+- 分析タブに「直近 10 試合 勝率推移」カード表示
+- subtitle "全期間から最新 10 試合" 表示
+- 勝率数字 "70%" + 内訳 "7勝 3敗 / 10試合"
+- SVG 折れ線 polyline 1 本 + circle 10 個 (= 10 ローリング点)
+- W/L チップ列 10 個 ("WWWLLWWWWL" = 7W+3L、新カードの 70% と整合)
+- グリッドラベル "0% / 50% / 100% / 古い / 最新" 表示
+- 既存カード (コンディション / ラケット別 / 対戦相手別) 描画不変
+- console error=0
 
-実画面検証: 済 (= Header 4 値表示の DOM 属性実値観測、Popover 開閉、UI 経路 R1-smoke 回帰)
+実画面検証: 済 (= 分析タブで新カード描画確認、既存カードの回帰なし、R1-smoke fresh start で T1〜T7 全 PASS)
 
-console error 0 (D テストトリガー外): 済 (= D7 で意図的に呼んだ notifySaveError 起因 4 件はすべてテスト由来、既存 onSaveError listener の console.error 経路、D の追加コードは新規エラーを発生させない)
+console error 0: 済
 
 未確認: なし
 
 本件達成しないと明記:
-- enablePersistence 失敗経路 (failed-precondition / unimplemented) の表面化: 別作業 (G)
-- 同期失敗時の手動再送ボタン: 別作業
-- retry / バックオフ / 同期履歴の永続化: 別作業
-- バックアップ JSON 生成 / DL UI: 別作業
-- リアルタイム listener 競合の可視化: 別作業
-- Android / iOS 実機検証: 環境準備後
+- データが 10 試合未満の状態での折れ線表示は「あと N 試合」プレースホルダ、本件のメインスコープではない
+- 練習試合と大会試合の区別、セット単位 / ゲーム単位の勝率は別作業
 
-注 (test seam): src/core/03_storage.js 末尾に `window.__TennisDBSync = { onSyncStateChange, getSyncState, notifySaveError, _devSimulatePending }` を追加。build.ps1 不変方針継続のために bridge 経由ではなく直接 window 露出。production でも害なし (アプリ内コードは参照しない、テスト用シムのみ)、将来別の bridge 経路に統合可能
-
-注: 直前まで本セクションにあった 4.7.32-S17 (3748661) の検証ログは、本 push 候補で上書き (supersede) し、過去ログセクションに 3748661 エントリとして要約記録。当該候補の確定記録は git 履歴 (本ファイルの過去版および 3748661 commit) を真とする。
+注: 直前まで本セクションにあった 4.7.33-S17 (597e53a) の検証ログは、本 push 候補で上書き (supersede) し、過去ログセクションに 597e53a エントリとして要約記録。当該候補の確定記録は git 履歴 (本ファイルの過去版および 597e53a commit) を真とする。
 
 ## 過去 push の検証ログ (= 最新を上、古いを下)
+
+### 597e53a (= 4.7.33-S17 書込キュー可視化 / 条件3「保存・未同期がユーザーに見える」)
+- Header の ☁️ が 4 値表示 (idle/syncing/offline/error)、tap で詳細 Popover (focus trap なし、ESC + 外側 click で閉)
+- 03_storage.js に公開 API (onSyncStateChange / getSyncState) 追加、save() 本体不変、_lastSyncAt 記録
+- app.jsx に syncState/online/lastError state、4 値 derive、Header に syncStatusBundle prop
+- エラー解除は「次の成功 write」時のみ (lastSyncAt > lastError.at で auto-clear)
+- offline 判定は navigator.onLine + window 'online'/'offline' event のみ
+- test seam window.__TennisDBSync 同梱 (build.ps1 不変方針継続のため bridge 経由ではなく直接 window 露出)
+- 修正対象 11 ファイル (modified 10 + 新規 SyncStatusPopover.jsx)
+- R1-smoke T1〜T7 全 PASS、D1〜D11 必須 PASS、D12 不変確認 PASS
+- 詳細は当該 commit (597e53a) および本ファイル過去版を参照
 
 ### 3748661 (= 4.7.32-S17 R1-2 Stage 2 Service Worker + App Shell pre-cache)
 - 4.7.31 の CDN 同一オリジン化に続き、v4/sw.js 新規で App Shell + vendor 16 ファイルを Cache Storage に install 時 pre-cache
