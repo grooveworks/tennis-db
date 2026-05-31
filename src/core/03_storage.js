@@ -83,7 +83,31 @@ const notifySaveError=(key,err)=>{
 //   旧: queueMicrotask で fire-and-forget → save(k,A); save(k,B) の到達順がサーバ側で逆転しうる
 //   新: _pendingWrites[k] に直前の Promise を保持し、次の write はその完了を await してから発射
 //   uid もクロージャに束縛 (signOut 中の race を排除)
+//
+// 4.7.33-S17 D (2026-05-21): 同期状態の外部公開 API 追加 (条件3「保存・未同期がユーザーに見える」)。
+//   save() 本体ロジックは不変。pending push/pop で _emitSyncState、成功時に _lastSyncAt 記録、
+//   onSyncStateChange(fn) で listener 登録。getSyncState() で現状取得。
 const _pendingWrites = {};
+let _lastSyncAt = null;            // 最後の成功 write の ISO timestamp
+const _syncListeners = [];
+const getSyncState = () => {
+  const keys = Object.keys(_pendingWrites);
+  return { pendingKeys: keys.slice(), pendingCount: keys.length, lastSyncAt: _lastSyncAt };
+};
+const _emitSyncState = () => {
+  const s = getSyncState();
+  for (let i=0;i<_syncListeners.length;i++){
+    try { _syncListeners[i](s); } catch(_) {}
+  }
+};
+const onSyncStateChange = (fn) => {
+  _syncListeners.push(fn);
+  try { fn(getSyncState()); } catch(_) {}   // 即時 1 回呼ぶ (初期同期)
+  return () => {
+    const i = _syncListeners.indexOf(fn);
+    if (i >= 0) _syncListeners.splice(i, 1);
+  };
+};
 const save=(k,d)=>{
   lsSave(k,d);
   const user=fbAuth.currentUser;
@@ -97,13 +121,46 @@ const save=(k,d)=>{
     try{
       const ref=fbDb.collection("users").doc(uid).collection("data").doc(k);
       await ref.set(payload);
+      _lastSyncAt = new Date().toISOString();  // 成功時のみ記録 (失敗時は更新しない)
     }catch(err){
       notifySaveError(k,err);
     }
   });
   _pendingWrites[k]=next;
+  _emitSyncState();  // pending push を通知
   // chain が無限に伸びないよう完了したら参照を解放
   next.finally(()=>{
     if(_pendingWrites[k]===next)delete _pendingWrites[k];
+    _emitSyncState();  // pending pop を通知 (成功/失敗どちらでも emit、判定は listener 側)
   });
 };
+
+// 4.7.33-S17 D (2026-05-21): 検証用 test seam — window 露出は読取 API + 副作用が
+//   通常の save 経路と同じ関数オブジェクトに限定。本体ロジック不変、build.ps1 不変。
+//   _devSimulatePending: dev mode で Firebase 未認証時に pending writes 経路を模擬する
+//     ためのテスト用シム。本番運用では UI 側から呼ばれない (アプリ内コードで参照無し)。
+if (typeof window !== "undefined") {
+  window.__TennisDBSync = {
+    onSyncStateChange,
+    getSyncState,
+    notifySaveError,                  // テストで赤色化確認用
+    _devSimulatePending: (key, delayMs=200, fail=false) => {
+      // pending 1 件追加 → delayMs 後に解決 (fail=true なら notifySaveError 経由)
+      const prev = _pendingWrites[key] || Promise.resolve();
+      const next = prev.then(() => new Promise((resolve) => setTimeout(() => {
+        if (fail) {
+          try { notifySaveError(key, new Error("simulated failure")); } catch(_){}
+        } else {
+          _lastSyncAt = new Date().toISOString();
+        }
+        resolve();
+      }, delayMs)));
+      _pendingWrites[key] = next;
+      _emitSyncState();
+      next.finally(() => {
+        if (_pendingWrites[key] === next) delete _pendingWrites[key];
+        _emitSyncState();
+      });
+    },
+  };
+}

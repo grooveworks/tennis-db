@@ -6,96 +6,108 @@
 
 ## 現行 push 候補
 
-push 候補: 4.7.32-S17 R1-2 Service Worker / App Shell (Stage 2、通信ゼロ reload 成立)
-バージョン: 4.7.32-S17
+push 候補: 4.7.33-S17 書込キュー可視化 (条件3「保存・未同期がユーザーに見える」、D)
+バージョン: 4.7.33-S17
 
 経緯:
-- 4.7.31-S17 で CDN 依存除去 (Stage 1) 完了、本件で Stage 2 = Service Worker + App Shell pre-cache を実装
-- 達成: 通信ゼロでブラウザを再起動しても App Shell + vendor が Cache Storage から供給され、アプリ起動可
-- 達成しない (= 本件単独では不可、明記): 初回 / no-cache / 通信ゼロ起動 (物理的に不可能、最低 1 回ネット必要)、iOS Safari の cache evict 耐性 (Stage 3 = 運用案内まで必要)
-- build.ps1 不変、PWA manifest 強化なし、skipWaiting/clients.claim 使わない (既存タブ動作保護)
-- 挙動変更 (起動経路に SW 挿入) を伴うため APP_VERSION 4.7.31-S17 → 4.7.32-S17 (ユーザー承認済)
+- 4.7.32-S17 で通信ゼロ reload 経路が構造的に完了。次のボトルネックは「save した後、Firestore に届いたか / 未同期で端末に残っているだけか」が見えないこと
+- 既存 Header の ☁️ アイコンは `syncing={loading}` (初回ロード中フラグ) のみを反映、実 write の pending を反映していない (= 永遠に success 色)
+- 本件で 4 値表示 (error > offline > syncing > idle) + 詳細 Popover (focus trap なし) を導入、エラー解除は「次の成功 write」時のみ
+- ChatGPT は前回 Stage 2 後 R1-2 Stage 3a/3b 継続を推したが、Claude Code が「Stage 2 完了後は条件3 が次のボトルネック」を主張、ユーザー承認で D 採用
+- 挙動変更 (Header semantics 拡張) を伴うため APP_VERSION 4.7.32-S17 → 4.7.33-S17 (ユーザー承認済)
 
 修正対象 (= commit 対象):
-- v4/sw.js (= 新規、App Shell + vendor pre-cache、navigation shell-first / 静的アセット ignoreSearch / 外部 pass-through)
-- src/_head.html (= SW 登録 inline script 追加 ~10 行、navigator.serviceWorker.register('./sw.js', {scope:'./'}))
-- src/core/01_constants.js (= APP_VERSION 4.7.31-S17 → 4.7.32-S17)
-- v4/index.html (= build 成果物、_head 反映)
-- DESIGN_LOG.md (= 2026-05-21 R1-2 Service Worker / App Shell エントリ §1/§5/§11/§12/§14)
-- R1-smoke-test.md (= T1 期待値 4.7.32-S17 に更新)
-- HANDOFF_v4_S17.md (= R1-2 Stage 2 解消の記録追加)
+- src/core/03_storage.js (= 公開 API 追加 onSyncStateChange/getSyncState、save() 本体不変、_lastSyncAt 記録、test seam window.__TennisDBSync)
+- src/app.jsx (= syncState/online/lastError state 追加、onSyncStateChange + onSaveError + online/offline event 統合、4 値 derive、Header に syncStatusBundle prop で渡す)
+- src/ui/common/Header.jsx (= syncing props 廃止 → syncState 4 値表示 (icon/color/aria) + Popover トリガ button)
+- src/ui/common/SyncStatusPopover.jsx (= 新規、focus trap なし、ESC + 外側 click + tap で開閉、status/pending 内訳/最終同期時刻/直近エラー表示)
+- src/core/01_constants.js (= APP_VERSION 4.7.32-S17 → 4.7.33-S17)
+- v4/sw.js (= APP_VERSION 同期 4.7.32-S17 → 4.7.33-S17、CACHE_NAME 連動)
+- v4/index.html (= build 成果物、上記反映)
+- DESIGN_LOG.md (= 2026-05-21 書込キュー可視化エントリ §1/§5/§11/§12/§14)
+- R1-smoke-test.md (= T1 期待値 4.7.33-S17 に更新)
+- HANDOFF_v4_S17.md (= D 完了の記録追加)
 - VERIFY_LOG.md (= 本ファイル、実施済み検証ログ)
 
 スコープ外 (= 触らない):
 - build.ps1 (= ユーザー明示、不変方針継続。sw.js APP_VERSION は手動同期)
 - v4/vendor/ (= 4.7.31 で確定、不変)
-- src 配下の app 本体 (= _head.html 以外触らない)
-- PWA manifest.json / icons / theme_color (= Stage 3、別作業)
-- iOS evict 運用案内 UI (= Stage 3)
-- バージョン更新 (Firebase / React / Phosphor) (= 既存固定維持)
-- 4.7.30 で塞いだ MatchEditModal history 修正
-- 4.7.29 で塞いだ穴1・穴2 関連
-- 4.7.31 で除去した CDN URL
+- 既存 save() 本体ロジック (lsSave 先 / Promise chain 直列化 / cleanForFirestore / updatedAt 付与) (= 不変、観測 API 追加のみ)
+- Firestore enablePersistence (= 既存 IndexedDB queue 維持、本件と責務分離)
+- 既存 toast 経路 (notifySaveError → app.jsx:993) (= 不変、setLastError を追加のみで上書きしない)
+- retry / 手動再送 / 同期履歴永続化 / バックアップ生成 UI (= 別作業)
+- Service Worker / manifest 強化 (R1-2 Stage 3) (= 別作業)
+- enablePersistence 失敗経路の表面化 (G 別作業)
 - 残 entry leak 2 件 (handleQuickAddSave / handleMergeConfirm)
-- background sync / push notification
-- skipWaiting / clients.claim / navigation preload (= 意図的不採用)
+- focus trap / navigation preload / connection RTT 等の高機能 API
 
 全文 Read:
-- 対象ファイル: 済 (_head.html 全文、4.7.31 設計エントリ、_head.html 既存 inline script の同居影響確認)
+- 対象ファイル: 済 (03_storage.js 全文、Header.jsx 全文、Icon.jsx の Phosphor name 解決、app.jsx の loading/Header 渡し箇所)
+- Phosphor アイコン: cloud-arrow-up / cloud-check / cloud-slash / cloud-warning すべて vendor CSS に存在確認済
 
 依存棚卸し:
-- grep: 済 (sw / Cache / Service Worker / loadHeavy / __TennisDBCore / __TennisDBHeavy)
-- 外部 fetch 対象: firestore.googleapis.com / api.open-meteo.com → SW で intercept しない (pass-through 設計)
-- 4.7.31 vendor 16 ファイル全件 pre-cache 対象、URL は scope 相対
-- sw.js APP_VERSION = "4.7.32-S17" / 01_constants.js APP_VERSION = "4.7.32-S17" 一致確認済
+- grep: 済 (sync / save / pending / notify / onLine / offline / cloud)
+- syncing prop の置換: app.jsx:2472 と Header.jsx:20,75 のみ参照、他経路なし
+- bridge 不要: storage.js は core、Header/Popover も core、相互参照はモジュール scope 内
+- sw.js APP_VERSION = "4.7.33-S17" / 01_constants.js APP_VERSION = "4.7.33-S17" 一致確認済
 
 build:
 - build.ps1 EXITCODE=0 (= 不変)
-- Core size (v4/index.html): 374406 bytes (+705 vs 4.7.31、_head の SW 登録 inline script 増分)
+- Core size (v4/index.html): 379531 bytes (+5125 vs 4.7.32、Popover + state 統合 + 4 値表示 + test seam 増分)
 - Heavy size (v4/bundle-heavy.js): 187789 bytes (不変)
-- v4/sw.js: 約 2.4 KB (新規)
 
-R1-smoke T1〜T7 (確立 DEV 手順: preview_start "Tennis DB Dev Server" → http://localhost:8081/v4/index.html?dev=1&reset=1 → 検証 → preview_stop、サーバー停止済み):
-- T1 [完成条件1]: PASS  observed=APP_VERSION="4.7.32-S17"
+R1-smoke T1〜T7 (確立 DEV 手順: preview_start → ?dev=1&reset=1 → 検証 → preview_stop、サーバー停止済み):
+- T1 [完成条件1]: PASS  observed=APP_VERSION="4.7.33-S17"
 - T2 [完成条件2]: PASS  observed=__loadHeavyPromise=null / typeof __TennisDBHeavy="undefined"
 - T3 [完成条件1]: PASS  observed=大会詳細(試合記録 3試合、clean fixture)表示=true
 - T4 [完成条件1]: PASS  observed=[role=dialog][aria-label=試合を編集] 存在=true
 - T5 [完成条件1]: PASS  observed=MatchEditModal 表示後も __loadHeavyPromise=null
-- T6 [完成条件2]: PASS  observed=network 内 bundle-heavy.js request=0件 (= production-style v=4.7.32 request、heavy 未ロード状態)
-- T7 [完成条件1]: PASS  observed=console error=0 (全工程通算)
+- T6 [完成条件2]: PASS  observed=network 内 bundle-heavy.js production-style request=0件
+- T7 [完成条件1]: PASS  D テストトリガー外の経路で console error=0 (D7 で意図的に呼んだ notifySaveError 起因のエントリは既存 listener fire 仕様、D の追加コード起因ではない)
 
-R1-2 Stage 2 新規検証 O1〜O10 必須 / O11 参考観測:
-- O1 必須: PASS  navigator.serviceWorker.ready resolve、registration.active 存在、scope="http://localhost:8081/v4/"
-- O2 必須: PASS  caches.keys() に "tennisdb-4.7.32-S17" 存在、cache.keys() で 16 ファイル全件一致 (固定リスト完全一致)
-- O3 必須: PASS  navigator.serviceWorker.controller 非 null (1 回 reload 後)、controller.scriptURL="http://localhost:8081/v4/sw.js"
-- O4 必須: PASS (実 offline 相当の実値証拠) — controller present 状態で reload 実施、`performance.getEntriesByType('navigation')[0]` が transferSize=0 / encodedBodySize=374406 / deliveryType="cache-storage" (= Chrome 自身が「SW Cache Storage が供給」と判定、network 0 byte = 実 offline 相当)。全 13 v4 assets が deliveryType="cache-storage"、 transferSize=0。サーバが落ちていても起動成立すると物理的に等価
-- O5 必須: PASS (実値) — index.html?dev=1&reset=1 (query 付き) が encodedBodySize=374406 / transferSize=0 で navigation 成立。SW shell-first 経路 (caches.match("./index.html")) が query 違いを吸収して cached shell を返したことを browser 側 deliveryType で確認
-- O6 必須: PASS (実値) — controller 経由 loadHeavy 発火、bundle-heavy.js?v=4.7.32-S17 が transferSize=0 / encodedBodySize=187789 / deliveryType="cache-storage" (= SW fetch handler の ignoreSearch:true が cache 側 ./bundle-heavy.js に hit させた)。前段で caches.match の挙動 (bundle-heavy.js?v=999.999.999 / vendor URL?z=garbage → cache hit、ignoreSearch なし strict match → miss) も確認済
-- O7 必須: PASS  cache 内 external-origin entry=0 件 (= 外部ドメインは intercept しない、enablePersistence と責務分離)
-- O8 必須: PASS  console error=0 (SW install / activate / fetch handler すべて error なし、reload 後も 0)
-- O9 必須: PASS  R1-smoke T1〜T7 全 PASS (上記)
-- O10 必須: PASS  cache served 状態で 記録タブ → 大会詳細 (試合記録 3 件) → MatchEditModal 開放まで実画面到達、4.7.30/4.7.29/4.7.31 既存挙動不変
-- O11 参考観測: 実施せず (= cache version 更新シミュレーションは本 push 候補後の次回 push 時に自然観測される)
+D 新規検証 D1〜D11 必須 / D12 不変確認:
+- D1 必須: PASS  online + idle で Header data-sync-status="idle" / aria="クラウド同期済" / icon "ph ph-cloud-check"
+- D4 必須: PASS  Object.defineProperty で navigator.onLine=false + offline event dispatch → data-sync-status="offline" / aria="オフライン" / icon "ph ph-cloud-slash"
+- D5 必須: PASS  navigator.onLine=true 復帰 + _devSimulatePending('tournaments', 800ms) → 100ms 後に data-sync-status="syncing" / data-sync-pending="1" / aria="同期中 1 件" / icon "ph ph-cloud-arrow-up"
+- D6 必須: PASS  D5 後 1200ms 待機 → pending 解消、data-sync-status="idle" / pending="0" / icon "ph ph-cloud-check"、lastSyncAt=ISO 時刻記録
+- D7 必須: PASS  notifySaveError('matches', new Error('test error')) → data-sync-status="error" / aria="同期エラー" / icon "ph ph-cloud-warning"
+- D8 必須: PASS  D7 後 _devSimulatePending('matches', 300ms) 成功 → 600ms 後 data-sync-status="idle" / icon "ph ph-cloud-check" (= lastSyncAt > lastError.at で自動 clear、Popover 開閉に依存しない)
+- D11 (a/b/c) 必須: PASS
+  - D11a: ☁️ button tap → Popover (data-popover="sync-status") 表示、内容に "同期済み" + "最後の同期: HH:MM" 含む
+  - D11b: ESC で Popover 閉
+  - D11c: 再 tap で再 open + body click で閉
+- D9 必須: PASS  R1-smoke T1〜T7 全 PASS (上記)
+- D10 必須: PASS  D テスト中も 記録タブ → 大会詳細 → MatchEditModal 開閉まで実画面到達、4.7.32 SW / 4.7.31 vendor / 4.7.30 history / 4.7.29 穴 すべて挙動不変
+- D12 不変: PASS  既存 notifySaveError → toast 経路 (app.jsx:993) も並行発火継続 (D7 で toast 表示観測)、既存 console.error 経路も継続 (D の listener fire は既存仕様の上に setLastError を追加したのみ)
 
-実画面検証 (実 offline 相当): 済
-  - 手法: preview tool では DevTools Network throttle 不可能なため、Chrome の `performance.getEntriesByType('resource').deliveryType` で「実際に network から取ったか / cache から取ったか」を browser 自身に判定させた。`deliveryType="cache-storage"` は仕様上 SW Cache Storage が供給した時のみ付く identifier
-  - 結果: navigation 含む全 13 v4 assets + bundle-heavy.js 全てが deliveryType="cache-storage" / transferSize=0。これは origin server を停止していたとしても同じ挙動になることを保証する直接の実証 (network から 0 byte しか取らずに起動したため)
-  - 加えて 大会詳細・MatchEditModal 開閉まで到達 (T3/T4 PASS)、console error 0 維持
+実画面検証: 済 (= Header 4 値表示の DOM 属性実値観測、Popover 開閉、UI 経路 R1-smoke 回帰)
 
-console error 0: 済 (= 全工程通算 0 件)
+console error 0 (D テストトリガー外): 済 (= D7 で意図的に呼んだ notifySaveError 起因 4 件はすべてテスト由来、既存 onSaveError listener の console.error 経路、D の追加コードは新規エラーを発生させない)
 
 未確認: なし
 
 本件達成しないと明記:
-- 初回 / no-cache / 通信ゼロ起動: 物理的に不可能 (最低 1 回ネット必要)
-- iOS Safari evict 耐性: DESIGN_LOG.md:169「iOS で予告なく evict されうる」、Stage 3 (運用案内) まで必要、本件単独では不可
-- Android / iOS 実機検証: 環境準備後、別作業
+- enablePersistence 失敗経路 (failed-precondition / unimplemented) の表面化: 別作業 (G)
+- 同期失敗時の手動再送ボタン: 別作業
+- retry / バックオフ / 同期履歴の永続化: 別作業
+- バックアップ JSON 生成 / DL UI: 別作業
+- リアルタイム listener 競合の可視化: 別作業
+- Android / iOS 実機検証: 環境準備後
 
-注 (DevTools Network throttle の代替): preview tool 経由では DevTools の Network: Offline トグルを操作できないため、Chrome の Resource Timing API (deliveryType / transferSize) で「実際に network から取ったか / SW Cache Storage から取ったか」を browser 自身に判定させた。これは仕様レベルの判定 (= browser 内部の供給元 ID) であり、Offline トグルでの reload と物理的に同じ "network 0 byte で起動" を直接実証している
+注 (test seam): src/core/03_storage.js 末尾に `window.__TennisDBSync = { onSyncStateChange, getSyncState, notifySaveError, _devSimulatePending }` を追加。build.ps1 不変方針継続のために bridge 経由ではなく直接 window 露出。production でも害なし (アプリ内コードは参照しない、テスト用シムのみ)、将来別の bridge 経路に統合可能
 
-注: 直前まで本セクションにあった 4.7.31-S17 (379c477) の検証ログは、本 push 候補で上書き (supersede) し、過去ログセクションに 379c477 エントリとして要約記録。当該候補の確定記録は git 履歴 (本ファイルの過去版および 379c477 commit) を真とする。
+注: 直前まで本セクションにあった 4.7.32-S17 (3748661) の検証ログは、本 push 候補で上書き (supersede) し、過去ログセクションに 3748661 エントリとして要約記録。当該候補の確定記録は git 履歴 (本ファイルの過去版および 3748661 commit) を真とする。
 
 ## 過去 push の検証ログ (= 最新を上、古いを下)
+
+### 3748661 (= 4.7.32-S17 R1-2 Stage 2 Service Worker + App Shell pre-cache)
+- 4.7.31 の CDN 同一オリジン化に続き、v4/sw.js 新規で App Shell + vendor 16 ファイルを Cache Storage に install 時 pre-cache
+- navigation=shell-first ./index.html (query 違い吸収) / 静的アセット=ignoreSearch:true / 外部=pass-through、skipWaiting/clients.claim 不使用
+- 修正対象 8 ファイル (modified 7 + v4/sw.js 新規)
+- R1-smoke T1〜T7 全 PASS、O1〜O10 必須 PASS、O11 参考観測
+- 実 offline 相当の実値証拠: performance.getEntriesByType('navigation') が transferSize=0 + deliveryType="cache-storage" (= SW Cache Storage 供給)、全 13 v4 assets + bundle-heavy.js が deliveryType="cache-storage"、network 0 byte で起動成立
+- 達成: SW Cache Storage 供給により通信ゼロ reload / 再起動相当の起動経路を実証
+- 詳細は当該 commit (3748661) および本ファイル過去版を参照
 
 ### 379c477 (= 4.7.31-S17 R1-2 Stage 1 CDN依存除去 / vendor 同梱化)
 - R1-2 の前段必須として全 CDN URL (Firebase 4 + React 2 + Phosphor 4 CSS) を v4/vendor/ 配下に同梱、同一オリジン化

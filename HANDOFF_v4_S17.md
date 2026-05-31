@@ -90,8 +90,11 @@
 
 **R1-2 進捗** (2026-05-21):
 - **Stage 1 解消済 (4.7.31-S17 / 379c477)**: src/_head.html の全 CDN URL (Firebase 4 + React 2 + Phosphor 4 CSS) を v4/vendor/ 配下に同梱して同一オリジン化。N1〜N6 必須全 PASS、R1-smoke T1〜T7 全 PASS、console error 0
-- **Stage 2 解消済 (4.7.32-S17)**: v4/sw.js (Service Worker) で App Shell + vendor 16 ファイルを Cache Storage に固定。navigation = shell-first ./index.html、静的アセット = ignoreSearch:true で bundle-heavy.js?v=... を hit、外部 (firestore.googleapis.com / api.open-meteo.com) は intercept しない pass-through。skipWaiting/clients.claim 使わない (既存タブ動作保護)。CACHE_NAME = `tennisdb-${APP_VERSION}` 手動同期。O1〜O10 必須全 PASS、O11 参考観測、controller 非 null 状態で cache 内容と SW 挙動を実証。本件で達成: 通信ゼロ reload 成立 (= browser 完全終了後の通信ゼロ起動)。本件で未達: 初回 no-cache offline (物理的に不可能)、iOS Safari evict 耐性 (Stage 3 必要)
+- **Stage 2 解消済 (4.7.32-S17 / 3748661)**: v4/sw.js (Service Worker) で App Shell + vendor 16 ファイルを Cache Storage に固定。navigation = shell-first ./index.html、静的アセット = ignoreSearch:true で bundle-heavy.js?v=... を hit、外部は intercept しない pass-through。skipWaiting/clients.claim 使わない。O1〜O10 必須全 PASS、O11 参考観測、performance.deliveryType="cache-storage" で SW Cache Storage 供給を実証
 - Stage 3 (= PWA manifest 強化 + iOS evict 運用案内 UI): 未着手
+
+**条件3 (保存・未同期がユーザーに見える) 進捗** (2026-05-21):
+- **D 解消済 (4.7.33-S17)**: 既存 Header の ☁️ アイコンが `syncing={loading}` (初回ロード中フラグ) のみを反映していた問題を解消。03_storage.js に公開 API (onSyncStateChange / getSyncState) 追加、save() 本体不変。Header を 4 値表示 (error > offline > syncing > idle) に拡張、SyncStatusPopover 新規 (focus trap なし、ESC + 外側 click + tap で開閉)。エラー解除は「次の成功 write」時のみ。online/offline は navigator.onLine + window event。test seam window.__TennisDBSync 同梱 (build.ps1 不変のため bridge 経由ではなく直接 window 露出)。D1〜D12 全 PASS、R1-smoke 回帰なし。残: enablePersistence 失敗経路 (G)、手動再送、retry、バックアップ生成 UI
 
 **第四候補 (= 後回し可)**:
 - bridge 肥大化整理 (= 計 49+ 件、別ファイル化 `src/core/_bridge.js` 等、段階 2-5 完了後の refactor 候補)

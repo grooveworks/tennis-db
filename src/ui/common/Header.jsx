@@ -12,14 +12,32 @@
 //   tabTitle: 現在のタブ名 (例: "ホーム" / "Sessions")、サブ行に表示
 //   onLogoClick: ロゴタップ時のコールバック (home に遷移)
 //   user: firebase user オブジェクト (cloud アイコン表示判定用)
-//   syncing: 同期中フラグ (true なら☁️ をハイライト)
+//   syncState: 4.7.33-S17 D 追加。{ status: "idle"|"syncing"|"offline"|"error", pendingCount, pendingKeys, lastSyncAt, lastError, online }
+//     旧 syncing prop は廃止、status の semantics に統合 (loading は app.jsx で syncing にマージ)
 //   onLogout: ログアウトコールバック
 //   onWeatherClick: 天気タップコールバック (S14 で Open-Meteo 詳細 Modal を開く)、null 時は無反応
 //   weather: { temp: number, code: number } | null (S14 で実装、S13.5 では null = "—°" placeholder)
 //   onSettingsClick: ⚙️ 設定アイコンタップ (S15.5.7 で SettingsModal を開く)
-function Header({ tabTitle, onLogoClick, user, syncing, onLogout, onWeatherClick, weather, onSettingsClick }) {
+function Header({ tabTitle, onLogoClick, user, syncState, onLogout, onWeatherClick, weather, onSettingsClick }) {
   const hasWeather = weather && typeof weather.temp === "number";
   const tempStr = hasWeather ? `${Math.round(weather.temp)}°` : "";
+  // 4.7.33-S17 D: Popover open state (focus trap なし、ESC + 外側 click + tap で開閉)
+  const [popoverOpen, setPopoverOpen] = useState(false);
+  // 4.7.33-S17 D: syncState 4 値からアイコン/色/aria を派生 (優先順位 error > offline > syncing > idle)
+  const _status = (syncState && syncState.status) || "idle";
+  const _pendingCount = (syncState && syncState.pendingCount) || 0;
+  const _syncIconName = _status === "error" ? "cloud-warning"
+    : _status === "offline" ? "cloud-slash"
+    : _status === "syncing" ? "cloud-arrow-up"
+    : "cloud-check";
+  const _syncIconColor = _status === "error" ? C.error
+    : _status === "offline" ? C.textMuted
+    : _status === "syncing" ? C.warning
+    : C.success;
+  const _syncAria = _status === "error" ? "同期エラー"
+    : _status === "offline" ? (_pendingCount > 0 ? `オフライン、端末に保存済 ${_pendingCount} 件` : "オフライン")
+    : _status === "syncing" ? (_pendingCount > 0 ? `同期中 ${_pendingCount} 件` : "同期中")
+    : "クラウド同期済";
 
   return (
     <header style={{
@@ -31,6 +49,8 @@ function Header({ tabTitle, onLogoClick, user, syncing, onLogout, onWeatherClick
       borderBottom: "1px solid rgba(0,0,0,0.08)",
       flexShrink: 0,
       zIndex: 5,
+      // 4.7.33-S17 D: SyncStatusPopover を absolute で配置するため relative にする
+      position: "relative",
       // iOS PWA standalone モード対応: ステータスバー (時刻 / 電池等) の裏に潜らないよう
       // safe-area-inset-top 分だけ上端に padding を確保。Safari ブラウザモードでは env() = 0
       paddingTop: "env(safe-area-inset-top, 0)",
@@ -69,24 +89,32 @@ function Header({ tabTitle, onLogoClick, user, syncing, onLogout, onWeatherClick
 
         {/* 右側メタ (3 要素まで、§10.8) */}
         <div style={{ display: "flex", alignItems: "center", gap: 6, marginLeft: 8 }}>
-          {/* 同期状態 (user ログイン時のみ) */}
+          {/* 同期状態 (user ログイン時のみ)
+              4.7.33-S17 D: 4 値表示 + tap で Popover (focus trap なし) */}
           {user && (
-            <span
-              aria-label={syncing ? "同期中" : "同期済"}
+            <button
+              type="button"
+              onClick={() => setPopoverOpen(o => !o)}
+              aria-label={_syncAria}
+              aria-expanded={popoverOpen}
+              data-sync-status={_status}
+              data-sync-pending={_pendingCount}
               style={{
                 display: "flex", alignItems: "center",
                 width: 28, height: 28,
                 justifyContent: "center",
+                background: "transparent", border: "none", padding: 0,
+                cursor: "pointer", borderRadius: 6,
               }}
             >
               <Icon
-                name="cloud"
+                name={_syncIconName}
                 size={18}
-                color={syncing ? C.warning : C.success}
+                color={_syncIconColor}
                 weight="regular"
-                ariaLabel={syncing ? "クラウド同期中" : "クラウド同期済"}
+                ariaLabel={_syncAria}
               />
-            </span>
+            </button>
           )}
 
           {/* 天気スロット (S13.5: Open-Meteo 接続済、データ取得後のみ表示) */}
@@ -157,6 +185,14 @@ function Header({ tabTitle, onLogoClick, user, syncing, onLogout, onWeatherClick
         }}>
           {tabTitle}
         </div>
+      )}
+      {/* 4.7.33-S17 D: 同期状態 Popover (focus trap なし、ESC + 外側 click + tap で開閉) */}
+      {user && (
+        <SyncStatusPopover
+          open={popoverOpen}
+          syncState={syncState}
+          onClose={() => setPopoverOpen(false)}
+        />
       )}
     </header>
   );

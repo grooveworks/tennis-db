@@ -533,3 +533,60 @@ src/_head.html の全 CDN URL (Firebase 4 + React 2 + Phosphor 4 = 計 10 箇所
 - 本件で達成: 通信ゼロ reload 成立。本件で未達: iOS evict 耐性 (Stage 3)、初回 no-cache offline。
 
 ---
+
+## 2026-05-21 書込キュー可視化 (条件3 「保存・未同期がユーザーに見える」) — D
+
+### §1. 今回の論点 (必須セクション)
+4.7.32-S17 で通信ゼロ reload 経路は構造的に完了。次のボトルネックは「save した後、Firestore に届いたか / 未同期で端末に残っているだけか」が見えないこと。既存 Header の ☁️ アイコンは `syncing={loading}` (初回ロード中フラグ) のみを反映、実 write の pending を反映していない (= 永遠に success 色)。これを正確化し、4 値 (同期済/同期中/オフライン/エラー) で可視化 + 詳細 Popover (focus trap なし)。エラー解除は「次の成功 write」時のみ。APP_VERSION 4.7.32-S17 → 4.7.33-S17 ユーザー承認済。
+
+### §5. 前提一覧表 (必須セクション、F7/F16 防止)
+| # | 前提 | 根拠分類 | 根拠 | 未確認なら確認方法 |
+|---|---|---|---|---|
+| a | _pendingWrites の存在/件数は外部に出ていない、観測 API を追加すれば既存 save() を変えずに可視化可 | 資料 | `src/core/03_storage.js:86-109` 実コード確認 | — |
+| b | 既存 save() のロジック (lsSave 先 / Promise chain 直列化 / cleanForFirestore / updatedAt 付与) を変えない | 設計選択 | 既存挙動の回帰防止 | — |
+| c | Header.syncing は `app.jsx:2472 syncing={loading}` で初回 read flag のみを反映、write pending は未連動 | 資料 | `src/app.jsx:2472` + `Header.jsx:20,75` 実コード確認 | — |
+| d | Popover は focus trap なし、ESC + 外側 click + tap で開閉 | ユーザー明示 | 2026-05-21 ユーザー指示「focus trap なし、モーダルではなく状態表示」 | — |
+| e | オフライン表示と pending 表示を検証で混同しない、別項目で確認 | ユーザー明示 | 2026-05-21 ユーザー指示「擬似 offline と pending 永続を混同しない」 | — |
+| f | エラー解除条件は「次の成功 write」のみ、Popover 開で消さない | ユーザー明示 | 2026-05-21 ユーザー指示「見逃し防止が目的、成功確認まで残す」 | — |
+| g | navigator.onLine + online/offline event のみで offline 判定、SW fetch error 等は使わない | 設計選択 | 軽量・確実、§11 禁止 |  — |
+| h | APP_VERSION 4.7.32-S17 → 4.7.33-S17 bump 承認済 | ユーザー明示 | 2026-05-21 ユーザー承認 | — |
+| i | 4 値の優先順位: error > offline > syncing > idle | 設計選択 | 赤が最強信号、見逃し防止 | — |
+| j | 既存 loading (初回 read) も "syncing" に統合表示、UX 後退なし | 設計選択 | 既存 Header 表示の semantics を壊さない | — |
+
+### §11. 禁止事項 (必須セクション)
+- 既存 save() のロジック (lsSave 先 / Promise chain / cleanForFirestore / updatedAt 付与 / 直列化) を変えない。
+- _pendingWrites の semantics (key 単位、Promise chain) を変えない。観測 listener 追加のみ。
+- Popover に focus trap を入れない、新規ボタン/フォームを入れない、軽量な状態表示に留める。
+- エラー赤色を Popover 開閉では消さない、次の成功 write でのみ消す。
+- offline 判定に SW fetch error / connection RTT / 高機能 API を使わない、navigator.onLine + online/offline event のみ。
+- retry / 手動再送 / 同期履歴 / バックアップ生成 UI を本件に混ぜない。
+- Service Worker / manifest 強化 (R1-2 Stage 3) を本件に混ぜない。
+- enablePersistence 失敗経路の表面化を本件に混ぜない (G 別作業)。
+- 残 entry leak 2 件 (handleQuickAddSave / handleMergeConfirm) に手を出さない。
+- 既存 toast 経路 (notifySaveError → app.jsx:993) を壊さない。
+- APP_VERSION の独断変更 / Stage 番号 -S18 系への独断変更 / build.ps1 編集を禁止。
+
+### §12. 停止条件 (必須セクション)
+- 既存 save() 経路の挙動が変化する兆候 (race / 順序逆転 / cleanForFirestore 動作変化) → 即停止、ロールバック優先。
+- 既存 toast 経路 (notifySaveError → app.jsx:993) で回帰観測 → 即停止。
+- D1〜D12 必須項目のいずれか FAIL が 1 回最小修正で解消しない → 停止。
+- D9 (R1-smoke) / D10 (既存 4.7.29-32 挙動) で回帰観測 → 即停止、ロールバック。
+- Header レイアウトが大きく崩れる / 既存 weather/settings/logout アイコンの位置がずれる → 停止。
+- Popover 実装が「最小状態表示」を超える (フォーム / 設定 / list scroll 等) → 停止。
+- 触るファイルが本設計スコープ外 (03_storage.js / app.jsx / Header.jsx / SyncStatusPopover.jsx 新規 / 01_constants.js / ログ系) に広がる → 即停止。
+- focus trap / retry / 再送ボタン / 同期履歴を入れたくなった瞬間 → 停止。
+- offline 判定を service worker fetch error などで高機能化したくなった瞬間 → 停止。
+
+### §14. Gate 2 へ必ず転記する制約 (必須セクション)
+- 触るファイル: src/core/03_storage.js (公開 API 追加のみ、save() 本体不変) + src/app.jsx (state 統合) + src/ui/common/Header.jsx (4 値表示) + src/ui/common/SyncStatusPopover.jsx (新規、focus trap なし) + src/core/01_constants.js (APP_VERSION bump) + v4/index.html (build 出力) + ログ系のみ。
+- build.ps1 / v4/sw.js / v4/vendor/ / 既存 save() / Firestore enablePersistence 不変。
+- 4 値: error > offline > syncing > idle、優先順位はこの順。
+- syncing 統合: pendingCount > 0 OR (既存) loading。
+- Popover は focus trap なし、ESC + 外側 click + tap で開閉、新規ボタン無し。
+- エラー解除は「次の成功 write 観測時」のみ。
+- offline 判定は navigator.onLine + window 'online'/'offline' event のみ。
+- 検証 D1〜D12 必須 PASS、D4 (offline 表示) と D5 (save 直後 pending > 0) と D6 (pending 解消で復帰) を別項目で分離、D7 (error 表示) と D8 (次の成功 write でクリア) も別項目。
+- APP_VERSION 4.7.32-S17 → 4.7.33-S17、R1-smoke T1 期待値も同時更新。
+- 本件で達成: 条件3「保存・未同期がユーザーに見える」を Header 4 値 + Popover で可視化。本件で未達: enablePersistence 失敗経路の表面化、手動再送、retry、バックアップ生成 UI。
+
+---

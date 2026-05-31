@@ -911,6 +911,13 @@ function TennisDB() {
   const [loading, setLoading] = useState(false);
   const [detail, setDetail] = useState(null); // S10: { type, session, mode } | null
   const [weather, setWeather] = useState(null); // S13.5: Open-Meteo 当日気温 { temp, code } | null
+  // 4.7.33-S17 D (2026-05-21): 条件3「保存・未同期がユーザーに見える」の状態
+  //   syncState: { pendingKeys, pendingCount, lastSyncAt } (03_storage.js から)
+  //   online: navigator.onLine + online/offline event
+  //   lastError: notifySaveError の最後の情報 (次の成功 write で auto-clear)
+  const [syncState, setSyncState] = useState({ pendingKeys: [], pendingCount: 0, lastSyncAt: null });
+  const [online, setOnline] = useState(typeof navigator !== "undefined" ? navigator.onLine : true);
+  const [lastError, setLastError] = useState(null);
   const toast = useToast();
   const cfm = useConfirm();
 
@@ -989,14 +996,61 @@ function TennisDB() {
 
   // S16.11 F8: lsSave / Firestore save エラーを toast で通知 (silent fail 廃止)
   //   storage.js の notifySaveError から listener 経由で受信 → 即時 toast
+  // 4.7.33-S17 D: 同時に lastError state を更新 (Header 赤色表示用)、toast 経路は不変
   useEffect(() => {
     const unsubscribe = onSaveError((errInfo) => {
       const msg = `保存エラー (${errInfo.key}): ${errInfo.message}`;
       console.error(msg);
       toast.show(msg, "error");
+      setLastError(errInfo);
     });
     return unsubscribe;
   }, [toast]);
+
+  // 4.7.33-S17 D: 同期状態 (pending writes) を 03_storage.js から購読
+  useEffect(() => {
+    const unsubscribe = onSyncStateChange((s) => setSyncState(s));
+    return unsubscribe;
+  }, []);
+
+  // 4.7.33-S17 D: lastSyncAt が lastError の発生時刻より新しくなったらエラー自動クリア
+  //   (= 「次の成功 write」が観測されたタイミング)
+  useEffect(() => {
+    if (!lastError || !syncState.lastSyncAt) return;
+    if (new Date(syncState.lastSyncAt) > new Date(lastError.at)) {
+      setLastError(null);
+    }
+  }, [syncState.lastSyncAt, lastError]);
+
+  // 4.7.33-S17 D: online/offline 検知 (navigator.onLine + window events)
+  useEffect(() => {
+    const goOnline = () => setOnline(true);
+    const goOffline = () => setOnline(false);
+    window.addEventListener("online", goOnline);
+    window.addEventListener("offline", goOffline);
+    return () => {
+      window.removeEventListener("online", goOnline);
+      window.removeEventListener("offline", goOffline);
+    };
+  }, []);
+
+  // 4.7.33-S17 D: Header に渡す syncState 派生値 (4 値: error > offline > syncing > idle)
+  //   syncing は pendingCount > 0 OR 既存 loading (初回 read) を統合
+  const syncStatusBundle = useMemo(() => {
+    let status;
+    if (lastError) status = "error";
+    else if (!online) status = "offline";
+    else if (syncState.pendingCount > 0 || loading) status = "syncing";
+    else status = "idle";
+    return {
+      status,
+      pendingCount: syncState.pendingCount,
+      pendingKeys: syncState.pendingKeys,
+      lastSyncAt: syncState.lastSyncAt,
+      lastError,
+      online,
+    };
+  }, [lastError, online, syncState.pendingCount, syncState.pendingKeys, syncState.lastSyncAt, loading]);
 
   // S14: 天気取得 拡張 (Open-Meteo、key 不要、CORS 対応)
   //   current: 気温 / 天気コード / 降水確率 / 風速 / 体感気温
@@ -2464,12 +2518,13 @@ function TennisDB() {
           DEV MODE — ローカル fixture で動作中、本番 Firestore には書き込みません (URL に &reset=1 で初期化)
         </div>
       )}
-      {/* S13.5 共通 Header: Tennis*DB* + version + ☁️ + 🌤 + 👤 (§10.8 / DECISIONS S13.5) */}
+      {/* S13.5 共通 Header: Tennis*DB* + version + ☁️ + 🌤 + 👤 (§10.8 / DECISIONS S13.5)
+          4.7.33-S17 D: syncState を渡して 4 値表示 + Popover (条件3 可視化) */}
       <Header
         tabTitle={tabTitles[tab] || ""}
         onLogoClick={() => setTab("home")}
         user={user}
-        syncing={loading}
+        syncState={syncStatusBundle}
         onLogout={handleLogout}
         weather={weather}
         onWeatherClick={handleWeatherClick}
