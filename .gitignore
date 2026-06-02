@@ -16,3 +16,19 @@ test-results/
 # OS / エディタ
 .DS_Store
 Thumbs.db
+
+# === Firebase サービスアカウント鍵 (絶対に commit しない・データ全体のマスターキー) ===
+# 万一リポジトリ内に置かれても GitHub に上がらないよう防御。原則はリポジトリ外に保管。
+*adminsdk*.json
+*serviceaccount*.json
+*service-account*.json
+*-firebase-key.json
+.claude/firebase-key.json
+.claude/secrets/
+# Firestore から取得した最新データ (実データ、git 管理外)
+.claude/data-latest.json
+.claude/firestore-dump*.json
+
+# === テニス議論の書庫・状態・決定 (個人ログ、絶対に commit しない) ===
+# 過去チャット由来の個人データを含むため公開リポに上げない。原本は D:/Downloads に保管。
+.claude/tennis/
