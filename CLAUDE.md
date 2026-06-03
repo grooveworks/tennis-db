@@ -99,7 +99,7 @@
 
 ## コミット規律
 
-1 タスク = 1 push。push 前に明示的承認を取る。バンドル承認禁止 (1 コミット = 1 承認)。push できたら HANDOFF を更新。
+1 タスク = 1 push。push 前に明示的承認を取る。バンドル承認禁止 (1 コミット = 1 承認)。push できたら `現在地.md` を更新。
 
 ---
 
@@ -199,7 +199,7 @@ Phase 2 で空欄チェック追加予定 (別ターン実装)。
 - 全論点共通: CLAUDE.md R6/R7 / CLAUDE_failures.md
 - 機能・要件論点: REQUIREMENTS_v4.md
 - 進行・凍結論点: ROADMAP_v4.md
-- 着手タスク: HANDOFF_v4_S<N>.md
+- プロジェクト現在地 / 着手タスク: `現在地.md`（単一の真実。旧 `HANDOFF_v4_S17.md` は archive）
 - UI/UX 論点: WIREFRAMES_v4.md / DESIGN_SYSTEM_v4.md
 - 保存・同期・信頼性論点: src/core/02_firebase.js / src/core/03_storage.js / Firestore 関連
 - 過去発言: MEMORY 該当エントリ
@@ -256,7 +256,7 @@ Firestore / save / sync / localStorage / IndexedDB / offline / loadHeavy / __Ten
 
 - `CLAUDE_failures.md` — 過去の失敗パターン詳細 (違反しそうな時に参照)
 - `DECISIONS_v4.md` — 全 Stage の決定事項蓄積 (連続性担保)
-- `HANDOFF_v4_S(N).md` — 直近 Stage の起動タスク (50 行以内)
+- `現在地.md` — プロジェクト現在地（単一の真実、毎セッション最初に読む。旧 `HANDOFF_v4_S(N).md` は archive・履歴参照のみ）
 - `TENNIS_RULES.md` — テニス公式ルール参照 (CO 判定等)
 - `MEMORY.md` — クロスセッション記憶 (auto memory)
 
