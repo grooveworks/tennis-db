@@ -134,6 +134,9 @@ AppendLine "  computeAutoMatchResult: computeAutoMatchResult,"
 AppendLine "  LS_PREFIX: LS_PREFIX,"
 AppendLine "  // 段階 2-5-3 (2026-05-13): YearHeatmap/WeatherModal/HomeDayPanel heavy 化のため追加 (WeekPanel が result badge 表示で参照)"
 AppendLine "  Badge: Badge,"
+AppendLine "  // 2026-06-04: SettingsModal (heavy) の「現在地コピー」が参照 (clipboard + consult 書き出し)"
+AppendLine "  copyToClipboard: copyToClipboard,"
+AppendLine "  buildConsultExport: buildConsultExport,"
 AppendLine "};"
 
 # ── Step 2: 一時ファイルに書き出して esbuild に渡す
@@ -257,7 +260,7 @@ $heavySb = New-Object System.Text.StringBuilder
 [void]$heavySb.AppendLine("if (!window.__TennisDBCore) {")
 [void]$heavySb.AppendLine('  throw new Error("TennisDB core bridge is not available");')
 [void]$heavySb.AppendLine("}")
-[void]$heavySb.AppendLine("const { C, font, Icon, Modal, Input, Textarea, NumWheel, sortByStatusAndOrder, RACKET_STATUS_PRIORITY, STRING_STATUS_PRIORITY, fbFunctions, RADIUS, normDate, _normalizeMatchResult, genId, Button, SCHEMA, isEmptyVal, useFocusTrap, computeMergeDiff, applyMerge, countRelinks, computeRacketUsage, formatRacketStringDisplay, formatRacketTensionDisplay, computeSettingHistory, lsLoad, KEYS, APP_VERSION, Select, MasterField, TimeWheel, SetupPickerButton, _SetupPickerButton, _computeRecentSetups, LinkedSessionPicker, GameTracker, blankMatch, computeCascade, describeCascadeMessage, formatFromPreset, formatLabel, formatRuleSummary, DEFAULT_MATCH_FORMAT, resolveMatchFormat, computeSetScoresFromGames, applyTbDetails, computeAutoMatchResult, LS_PREFIX, Badge, MatchEditModal } = window.__TennisDBCore;")
+[void]$heavySb.AppendLine("const { C, font, Icon, Modal, Input, Textarea, NumWheel, sortByStatusAndOrder, RACKET_STATUS_PRIORITY, STRING_STATUS_PRIORITY, fbFunctions, RADIUS, normDate, _normalizeMatchResult, genId, Button, SCHEMA, isEmptyVal, useFocusTrap, computeMergeDiff, applyMerge, countRelinks, computeRacketUsage, formatRacketStringDisplay, formatRacketTensionDisplay, computeSettingHistory, lsLoad, KEYS, APP_VERSION, Select, MasterField, TimeWheel, SetupPickerButton, _SetupPickerButton, _computeRecentSetups, LinkedSessionPicker, GameTracker, blankMatch, computeCascade, describeCascadeMessage, formatFromPreset, formatLabel, formatRuleSummary, DEFAULT_MATCH_FORMAT, resolveMatchFormat, computeSetScoresFromGames, applyTbDetails, computeAutoMatchResult, LS_PREFIX, Badge, MatchEditModal, copyToClipboard, buildConsultExport } = window.__TennisDBCore;")
 [void]$heavySb.AppendLine("const { useState, useEffect, useMemo, useRef, useCallback } = React;")
 [void]$heavySb.AppendLine("")
 

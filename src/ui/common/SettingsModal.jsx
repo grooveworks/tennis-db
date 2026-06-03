@@ -67,11 +67,27 @@ function SettingsModal({ open, fontScale, onFontScaleChange, onClose, toast, onB
   // インポート用 hidden file input ref
   const importFileRef = useRef(null);
   const trapRef = useFocusTrap(open); // Round 5: a11y focus trap
+  const [copyingState, setCopyingState] = useState(false); // 「現在地コピー」処理中フラグ
   const handleImportFileChange = (e) => {
     const file = e.target.files && e.target.files[0];
     if (file && onImportCalendarJson) onImportCalendarJson(file);
     // 同じファイルを再選択できるようリセット
     if (e.target) e.target.value = "";
+  };
+  // 現在地を Claude (Project) 用テキストに書き出してクリップボードへ (consult_export.js)
+  const handleCopyState = async () => {
+    if (copyingState) return;
+    setCopyingState(true);
+    try {
+      const text = await buildConsultExport();
+      const ok = await copyToClipboard(text);
+      if (ok && toast) toast.show("現在地をコピーしました。Claude に貼り付けてください", "success");
+      else if (toast) toast.show("コピーに失敗しました", "error");
+    } catch (e) {
+      if (toast) toast.show("書き出しに失敗しました: " + ((e && e.message) || ""), "error");
+    } finally {
+      setCopyingState(false);
+    }
   };
   useEffect(() => {
     if (!open) return;
@@ -223,6 +239,29 @@ function SettingsModal({ open, fontScale, onFontScaleChange, onClose, toast, onB
           >
             <Icon name="download-simple" size={16} color={C.primary} />
             全データを JSON で保存
+          </button>
+
+          {/* 2026-06-04: 現在地を Claude (Project) 用にコピー (鮮度の橋、手動ナレッジ更新を廃す) */}
+          <div style={{ fontSize: 11, color: C.textMuted, margin: "10px 0 8px", lineHeight: 1.5 }}>
+            今の機材・直近の試打/戦績・保留をまとめてコピー。Claude の「テニス」Project の会話に貼って深い相談に使う (手でナレッジ更新しなくて済む)。
+          </div>
+          <button
+            type="button"
+            onClick={handleCopyState}
+            disabled={copyingState}
+            style={{
+              width: "100%", minHeight: 44, padding: "8px 16px",
+              border: `1px solid ${copyingState ? C.border : C.primary}`, borderRadius: 8,
+              background: copyingState ? C.panel2 : C.primaryLight,
+              color: copyingState ? C.textMuted : C.primary,
+              fontSize: 14, fontWeight: 700, cursor: copyingState ? "not-allowed" : "pointer",
+              fontFamily: font,
+              display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
+              marginBottom: 8,
+            }}
+          >
+            <Icon name="copy" size={16} color={copyingState ? C.textMuted : C.primary} />
+            {copyingState ? "コピー中…" : "Claude用に現在地をコピー"}
           </button>
 
           {/* Google カレンダー予定の取り込み (1 ボタン、ファイル選択不要) */}

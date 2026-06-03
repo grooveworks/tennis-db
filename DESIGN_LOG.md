@@ -792,3 +792,68 @@ src/_head.html の全 CDN URL (Firebase 4 + React 2 + Phosphor 4 = 計 10 箇所
 - APP_VERSION 4.7.33-S17 → 4.7.34-S17、sw.js / R1-smoke T1 同期。
 
 ---
+
+## 2026-06-04 — 「現在地コピー」書き出しボタン（4.8.4-S17 予定）
+
+### §1. 今回の論点
+ClaudeアプリのProjectナレッジが手更新前提で約2ヶ月腐った（更新めんどくさい→やらない→古い→議論にならない→使わない の悪循環）。**手更新を廃し**、TennisDBアプリから「現在地」を1タップで貼り付け用テキストに書き出し、外部Claude Projectの会話に貼る**鮮度の橋**を作る。アプリはFirestoreを毎回読むので常に最新。
+
+### §2. 読んだ資料（選定理由）
+- src/domain/claudeFormatter.js（既存整形を流用：formatTrialForClaude / formatTournamentAllForClaude が存在）
+- src/core/06_clipboard.js（copyToClipboard = Promise<boolean> を流用）
+- src/ui/sessions/SessionDetailView.jsx:262（既存 handleClaudeCopy パターンを踏襲）
+- src/ui/common/SettingsModal.jsx（_exportAllData が lsLoad(KEYS.x) で全データ参照＝同方式でボタン追加可）
+
+### §3. 過去制約
+- **データ変換ロジック禁止**（raw のままコピー。データ破壊事故 2026-05-03）→ 整形は表示用のみ、値を改変しない。
+- 紐付けを切らない（試打は弦+テンション+ラケット+イベント）。
+
+### §4. Claude が置いている前提
+- 書き出しは client が lsLoad で持つ生データ（機材・試打・戦績）+ Firestore aiContext（保留/決定）から組む。
+- 出力は外部Claude Projectの**会話に貼る**用途（ナレッジ更新ではない）。
+
+### §5. 各前提の根拠分類
+| 前提 | 分類 | 根拠 / 確認方法 |
+|---|---|---|
+| lsLoad(KEYS.x) で全データ参照可 | 資料 | SettingsModal _exportAllData が同方式（実装確認済） |
+| formatTrial/Tournament 流用可 | 資料 | claudeFormatter.js に存在・SessionDetailView で使用中 |
+| aiContext.obj.sets に保留/決定がある | 資料 | functions saveSet + 私の dump で2件着弾確認済 |
+| aiContext は localStorage 同期外 | 未確認仮説 | KEYS に無い＝storage同期外と推定。export では fbDb 直読みで吸収 |
+| 置き場所=設定のデータ欄が妥当 | ユーザー明示 | 確定案提示→ユーザー「作る」。要望あれば移設 |
+
+### §6. 複数あり得るパターン
+- 置き場所: (a)設定 (b)Header (c)Home。content: (x)データのみ (y)データ+保留/決定。
+
+### §7. 今回対象にするパターン
+- (a)設定のデータ欄 + (y)データ+保留/決定（＝ループ完全閉じ：保存したワンセットも書き出しに乗る）。
+
+### §8. 対象外パターンと理由
+- Header/Home 直置きは今回見送り（Header はタップ領域過密リスク、Home は別途UI設計が要る）。設定で到達可。要望あれば次段で移設。
+
+### §9. 未確認の前提
+- aiContext が localStorage に無いか（fbDb 直読みで吸収するので実害なし）。
+- dev(no-login) では aiContext read 失敗 → その節だけ graceful 省略。
+
+### §10. ユーザー確認が必要な点
+- 置き場所（設定で良いか）、content 4種で過不足ないか → 確定案提示済、違えば指示。
+
+### §11. 禁止事項
+- データ変換・値改変禁止（raw 整形のみ）。
+- build.ps1 編集しない（新 src/domain/*.js は CORE 自動取込）。
+- 01_constants APP_VERSION 編集はユーザー承認後（hook 保護）。
+- push は名前指定 add（個人データJSON/preview の混入防止）。
+
+### §12. 停止条件
+- aiContext read で例外 → 握りつぶさず保留節を省きユーザーに見える形に。
+- build EXITCODE≠0 → 停止。
+- dev で console error → 停止して原因調査。
+- 触るファイルが consult_export.js（新規）+ SettingsModal.jsx + APP_VERSION 系 を超える → 停止。
+
+### §14. Gate 2 へ必ず転記する制約
+- copyToClipboard は Promise<boolean>、失敗時 toast error（silent fail 禁止）。
+- 新規 src/domain/consult_export.js は CORE 自動取込（build.ps1 不変）。
+- 既存 formatTrialForClaude / formatTournamentAllForClaude / lsLoad / KEYS / normDate / fbDb / fbAuth を呼ぶ。
+- APP_VERSION 4.8.3-S17 → 4.8.4-S17（Stage S17 維持、ユーザー承認要）、sw.js 同期。
+- push は名前指定 add（個人データ混入防止）。別 push・別承認。
+
+---

@@ -6,7 +6,33 @@
 
 ## 現行 push 候補
 
-### 4.8.3-S17 — アプリ内AI相談 (ConsultModal) + ワンセット保存のクラウド化 (2026-06-04)
+### 4.8.4-S17 — 「現在地コピー」書き出しボタン (2026-06-04)
+push 候補: 設定 > データ欄に「Claude用に現在地をコピー」ボタン追加。今の機材・直近の試打/戦績・保留(aiContext)を**生Firestoreから1タップ**で貼り付け用テキストに書き出し → 外部Claude Project会話に貼る**鮮度の橋**(手動ナレッジ更新を廃す)。
+
+バージョン: 4.8.4-S17 (4.8.3 → 4.8.4、Stage S17 維持)
+
+修正対象 (名前指定 add):
+- src/domain/consult_export.js (新規、buildConsultExport = 機材/試打/戦績/保留を整形。既存 formatTrial/Tournament 流用、値変換なし)
+- src/ui/common/SettingsModal.jsx (handleCopyState + ボタン1個)
+- build.ps1 (bridge に copyToClipboard + buildConsultExport 追加 = SettingsModal heavy の bridge 漏れ修正)
+- src/core/01_constants.js (4.8.4-S17) / v4/sw.js (同期) / v4/index.html (build)
+- DESIGN_LOG.md (2026-06-04 エントリ §1-14) / VERIFY_LOG.md
+
+build: Core 398007 / Heavy 193658 bytes。bridge: index.html に両関数を key 露出、bundle-heavy.js が `copyToClipboard:fn,buildConsultExport:yn}=window.__TennisDBCore` で destructure (両確認済)。
+
+実画面検証: 済
+- dev fresh start (SW全消し+reload で `tennisdb-4.8.4-S17` ロード): window.__TennisDBCore に両関数あり、buildConsultExport() 実行成功 (8649字・「現在の機材/直近の試打/戦績」構造・throw なし = bridge 疎通実証)、設定モーダル起動 → 「Claude用に現在地をコピー」描画 → クリック → ボタン正常復帰 (固まらない)
+- **bridge 漏れ (R6 #3) を push 前に発見・修正**: build 時に handleCopyState が index.html に無い = SettingsModal heavy と判明 → buildConsultExport/copyToClipboard が bridge 未登録の ReferenceError を実機前に検出 → build.ps1 で bridge 追加 → 再 build + 再検証で疎通確認
+
+console error 0: 済
+- dev で設定起動 + コピー実行後 console error 0 件 (preview level=error → "No console logs")
+
+未確認: なし
+- dev は no-login のため 保留/決定(aiContext) 節は graceful 省略。本番(ログイン)では aiContext から実取得。機材/試打/戦績の整形は dev fixture で実出力確認済。
+
+---
+
+### 4.8.3-S17 — アプリ内AI相談 (ConsultModal) + ワンセット保存のクラウド化 (2026-06-04) ← **push 済 (a9d99cd / 15b4c6b)**
 push 候補: 試合中/外出先でもスマホから使える「文脈つきAI相談」をアプリ内に新設。Header 💬 → ConsultModal (fast=試合中 haiku / deep=深掘り opus)、Firestore 現データを文脈に Anthropic API で応答。議論の作法/口調/反ループ規律を system prompt 化。M2 ループ閉じ: 相談結論を「ワンセット」下書き (draftSet) → aiContext.obj.sets に保存。保存は offline persistence で端末止まりになる事故があったため、**サーバー側 Cloud Function 直書き (mode=saveSet) に変更**し確実化 (30秒 timeout)。
 
 バージョン: 4.8.3-S17 (4.7.34 → 4.8.0 → 4.8.1 → 4.8.2 → 4.8.3。**Stage S17 維持**、ユーザー承認済)
