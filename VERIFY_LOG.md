@@ -6,7 +6,30 @@
 
 ## 現行 push 候補
 
-### 4.8.4-S17 — 「現在地コピー」書き出しボタン (2026-06-04)
+### 4.8.5-S17 — 相談モーダルのアイコン統一 (絵文字→Phosphor) (2026-06-04)
+push 候補: ConsultModal が絵文字/文字記号 (📂📌⚡＋ ‹ ↑) を使い、アプリ本体の Phosphor アイコンと不揃いだったのを Phosphor `<Icon>` に統一。📂→folder-open / 📌→push-pin / ⚡→lightning(3箇所) / ‹→caret-left(2箇所) / ↑→arrow-up / ＋→plus。weight=regular で本体と同トーン。ロジック変更なし、見た目のみ。
+
+バージョン: 4.8.5-S17 (4.8.4 → 4.8.5、Stage S17 維持)
+
+修正対象 (名前指定 add):
+- src/ui/common/ConsultModal.jsx (絵文字9箇所 → Icon、ボタンに flex 中央寄せ追加)
+- src/core/01_constants.js (4.8.5-S17) / v4/sw.js (同期) / v4/index.html (build)
+- VERIFY_LOG.md
+
+build: Core 398821 / Heavy 193658 bytes、4.8.5-S17 確認。UIバンドル内の 📌⚡📂＋ 残数 = 0 (全置換)。
+
+実画面検証: 済
+- dev fresh start (SW全消し+reload で `tennisdb-4.8.5-S17` ロード): 相談モーダル起動 + 定型文シート展開、Phosphor アイコン 23個描画、**screenshot で目視確認** — 戻る(caret-left)/バナー(folder-open)/定型文(lightning)/追加(plus) が全て細線 Phosphor で本体と統一、絵文字の色ムラ消失。
+- 既存の Header(chat-circle) / Settings(copy, download-simple) との見た目一致を確認。
+
+console error 0: 済
+- dev で相談モーダル + 定型文シート展開後 console error 0 件 (preview level=error → "No console logs")
+
+未確認: なし
+
+---
+
+### 4.8.4-S17 — 「現在地コピー」書き出しボタン (2026-06-04) ← **push 済 (2dea204)**
 push 候補: 設定 > データ欄に「Claude用に現在地をコピー」ボタン追加。今の機材・直近の試打/戦績・保留(aiContext)を**生Firestoreから1タップ**で貼り付け用テキストに書き出し → 外部Claude Project会話に貼る**鮮度の橋**(手動ナレッジ更新を廃す)。
 
 バージョン: 4.8.4-S17 (4.8.3 → 4.8.4、Stage S17 維持)

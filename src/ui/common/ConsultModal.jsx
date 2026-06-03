@@ -202,7 +202,7 @@ function ConsultModal({ open, onClose }) {
         background: C.panel, borderBottom: "1px solid " + C.divider,
         padding: "12px 12px", display: "flex", alignItems: "center", gap: 8, flexShrink: 0,
       }}>
-        <button onClick={onClose} style={{ border: 0, background: "transparent", color: C.primary, fontSize: 26, lineHeight: 1, padding: "0 4px" }}>‹</button>
+        <button onClick={onClose} aria-label="閉じる" style={{ border: 0, background: "transparent", color: C.primary, padding: "0 4px", display: "flex", alignItems: "center" }}><Icon name="caret-left" size={28} color={C.primary} /></button>
         <div style={{ flex: "0 0 auto" }}>
           <div style={{ fontSize: 17, fontWeight: 700, color: C.text }}>AI相談</div>
           <div style={{ fontSize: 11, color: C.textMuted }}>あなたの文脈を読んだ相手</div>
@@ -219,7 +219,7 @@ function ConsultModal({ open, onClose }) {
         borderRadius: 12, padding: "9px 12px", fontSize: 11.5, color: "#0b7a44",
         display: "flex", gap: 7, alignItems: "flex-start", flexShrink: 0,
       }}>
-        <span>📂</span>
+        <Icon name="folder-open" size={15} color="#0b7a44" style={{ marginTop: 1, flexShrink: 0 }} />
         <span><b style={{ color: "#08673a" }}>読込済:</b> 決定・保留・試打・戦績・あなたの癖。<b style={{ color: "#08673a" }}>説明し直さなくてOK。</b></span>
       </div>
 
@@ -227,7 +227,7 @@ function ConsultModal({ open, onClose }) {
       <div ref={convRef} style={{ flex: 1, overflowY: "auto", padding: "8px 12px 12px" }}>
         {msgs.length === 0 && !loading && (
           <div style={{ color: C.textMuted, fontSize: 14, textAlign: "center", marginTop: 40, lineHeight: 1.7 }}>
-            質問を打つか、下の <b>⚡</b> から定型文をタップ。<br />
+            質問を打つか、下の <Icon name="lightning" size={13} color={C.primary} style={{ verticalAlign: "-2px" }} /> から定型文をタップ。<br />
             {mode === "fast" ? "試合中モード: 短く・即行動できる答え。" : "深掘りモード: データで事実と推測を分けて分析。"}
           </div>
         )}
@@ -257,15 +257,15 @@ function ConsultModal({ open, onClose }) {
       {msgs.length > 0 && (
         <div style={{ background: C.panel, borderTop: "1px solid " + C.divider, padding: "8px 11px 0", flexShrink: 0, display: "flex", gap: 8 }}>
           <button onClick={clearConvo} disabled={loading || draftBusy} style={{ border: "1px solid " + C.border, background: C.panel, color: C.textSecondary, fontFamily: font, fontSize: 13, fontWeight: 600, padding: "9px 13px", borderRadius: 12, flexShrink: 0 }}>新規</button>
-          <button onClick={startDraft} disabled={draftBusy} style={{ flex: 1, border: "1px solid " + C.trialAccent, background: draftBusy ? C.panel2 : C.trialLight, color: C.trialAccent, fontFamily: font, fontSize: 13.5, fontWeight: 700, padding: "9px", borderRadius: 12 }}>
-            {draftBusy ? "下書き中…" : "📌 決定/保留として残す"}
+          <button onClick={startDraft} disabled={draftBusy} style={{ flex: 1, border: "1px solid " + C.trialAccent, background: draftBusy ? C.panel2 : C.trialLight, color: C.trialAccent, fontFamily: font, fontSize: 13.5, fontWeight: 700, padding: "9px", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+            {draftBusy ? "下書き中…" : (<><Icon name="push-pin" size={15} color={C.trialAccent} />決定/保留として残す</>)}
           </button>
         </div>
       )}
 
       {/* 入力行: ⚡定型文 + textarea + 送信 */}
       <div style={{ background: C.panel, borderTop: "1px solid " + C.divider, padding: "9px 11px", display: "flex", gap: 8, alignItems: "flex-end", flexShrink: 0 }}>
-        <button onClick={() => setSheet(true)} aria-label="定型文" style={{ width: 42, height: 42, border: "1px solid " + C.border, borderRadius: "50%", background: sheet ? C.primaryLight : C.panel, color: C.primary, fontSize: 19, flexShrink: 0 }}>⚡</button>
+        <button onClick={() => setSheet(true)} aria-label="定型文" style={{ width: 42, height: 42, border: "1px solid " + C.border, borderRadius: "50%", background: sheet ? C.primaryLight : C.panel, color: C.primary, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name="lightning" size={20} color={C.primary} /></button>
         <textarea
           value={input}
           onChange={(e) => setInput(e.target.value)}
@@ -273,7 +273,7 @@ function ConsultModal({ open, onClose }) {
           rows={1}
           style={{ flex: 1, border: "1px solid " + C.border, borderRadius: 18, padding: "10px 14px", fontFamily: font, fontSize: 15, color: C.text, resize: "none", height: 42, lineHeight: 1.4 }}
         />
-        <button onClick={() => send()} disabled={loading || !input.trim()} aria-label="送信" style={{ width: 42, height: 42, border: 0, borderRadius: "50%", background: (loading || !input.trim()) ? C.appleGray4 : C.primary, color: "#fff", fontSize: 18, flexShrink: 0 }}>↑</button>
+        <button onClick={() => send()} disabled={loading || !input.trim()} aria-label="送信" style={{ width: 42, height: 42, border: 0, borderRadius: "50%", background: (loading || !input.trim()) ? C.appleGray4 : C.primary, color: "#fff", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name="arrow-up" size={20} color="#fff" /></button>
       </div>
 
       {/* 定型文シート (⚡ で開く) */}
@@ -283,13 +283,13 @@ function ConsultModal({ open, onClose }) {
           <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, background: C.panel, borderRadius: "20px 20px 0 0", padding: "8px 0 calc(12px + env(safe-area-inset-bottom,0))", boxShadow: "0 -6px 24px rgba(0,0,0,.18)", maxHeight: "70%", overflowY: "auto" }}>
             <div style={{ width: 38, height: 5, borderRadius: 3, background: "#d0d0d4", margin: "4px auto 8px" }} />
             <div style={{ fontSize: 13, fontWeight: 700, color: C.text, padding: "0 18px 6px", display: "flex", alignItems: "center", gap: 6 }}>
-              ⚡ 定型文（タップで送信）
+              <Icon name="lightning" size={14} color={C.text} />定型文（タップで送信）
               <span style={{ fontSize: 11, color: C.textMuted, fontWeight: 400, marginLeft: "auto" }}>{mode === "fast" ? "試合中" : "深掘り"}モード</span>
             </div>
             {presets.map((p, i) => (
               <button key={i} onClick={() => send(p)} style={{ display: "block", width: "100%", textAlign: "left", border: 0, borderTop: "1px solid " + C.divider, background: C.panel, fontFamily: font, fontSize: 16, color: C.text, padding: "14px 18px" }}>{p}</button>
             ))}
-            <button onClick={addPreset} style={{ display: "block", width: "100%", textAlign: "left", border: 0, borderTop: "1px solid " + C.divider, background: C.panel, fontFamily: font, fontSize: 15, color: C.primary, fontWeight: 600, padding: "14px 18px" }}>＋ 自分の定型文を追加</button>
+            <button onClick={addPreset} style={{ width: "100%", textAlign: "left", border: 0, borderTop: "1px solid " + C.divider, background: C.panel, fontFamily: font, fontSize: 15, color: C.primary, fontWeight: 600, padding: "14px 18px", display: "flex", alignItems: "center", gap: 6 }}><Icon name="plus" size={15} color={C.primary} />自分の定型文を追加</button>
           </div>
         </div>
       )}
@@ -298,7 +298,7 @@ function ConsultModal({ open, onClose }) {
       {draftView && (
         <div style={{ position: "fixed", inset: 0, zIndex: 4200, background: C.bg, display: "flex", flexDirection: "column", paddingBottom: "env(safe-area-inset-bottom, 0)" }}>
           <div style={{ background: C.panel, borderBottom: "1px solid " + C.divider, padding: "12px 12px", display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-            <button onClick={() => setDraftView(false)} style={{ border: 0, background: "transparent", color: C.primary, fontSize: 26, lineHeight: 1, padding: "0 4px" }}>‹</button>
+            <button onClick={() => setDraftView(false)} aria-label="戻る" style={{ border: 0, background: "transparent", color: C.primary, padding: "0 4px", display: "flex", alignItems: "center" }}><Icon name="caret-left" size={28} color={C.primary} /></button>
             <div style={{ fontSize: 17, fontWeight: 700, color: C.text }}>決定/保留として残す</div>
           </div>
           <div style={{ background: C.warningLight, color: "#9a6b00", fontSize: 12.5, padding: "9px 14px", lineHeight: 1.5, flexShrink: 0 }}>
