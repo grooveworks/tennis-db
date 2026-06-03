@@ -6,7 +6,33 @@
 
 ## 現行 push 候補
 
-### 4.8.5-S17 — 相談モーダルのアイコン統一 (絵文字→Phosphor) (2026-06-04)
+### 4.8.6-S17 — SW 自動更新化 (スマホで最新が来ない元凶を解消) (2026-06-04)
+push 候補: Service Worker を `skipWaiting` + `clients.claim` に反転し、新版を即適用。`_head.html` 登録に `updateViaCache:"none"` + `controllerchange→1回reload`(controller既存時のみ・refreshingガード)。**旧設計「全タブ閉じ待ち」がスマホで「最新にリロードできない」元凶だった = 私の設計ミスの修正。ユーザーに全タブ閉じ作業は不要。**
+
+バージョン: 4.8.6-S17 (4.8.5 → 4.8.6、Stage S17 維持)
+
+修正対象 (名前指定 add):
+- v4/sw.js (install→skipWaiting / activate→clients.claim、cache削除は維持、ヘッダコメント更新)
+- src/_head.html (register に updateViaCache:none + controllerchange→reload 初回除外/ループ防止)
+- src/core/01_constants.js (4.8.6-S17) / v4/index.html (build)
+- DESIGN_LOG.md (2026-06-04 SW自動更新エントリ §1-14、承認済設計の反転を明記) / VERIFY_LOG.md
+
+設計の反転: 旧「skipWaiting/clients.claim 不使用 (既存タブ保護)」(2026-05-21 ユーザー承認) を覆す。理由=その保護が更新不達の元凶で、ユーザーが明示的に修正を要求。試合中の勝手reloadリスクは実質ゼロ(新版はpush時のみ存在=試合中に更新は発生しない)。
+
+build: Core 399506 / Heavy 193658 bytes、4.8.6-S17 確認。sw.js に skipWaiting/clients.claim、index.html に updateViaCache/controllerchange を確認。
+
+実画面検証: 済
+- dev fresh start (SW全消し+reload で初回インストール): **SW active state="activated"**(=skipWaiting効・即活性化)、**controllerSet=true**(=clients.claim効・掌握)、cache=`tennisdb-4.8.6-S17` のみ(旧削除)、**precache 16ファイル**(=オフライン起動維持)、アプリ正常描画(=初回の無駄reloadなし・reloadループなし=controller有時のみlistenerのガードが機能)。
+- 自動更新(controllerchange→reload)のコードは present + 仕様準拠。**クロスバージョンの実更新の最終証明は次push が普通のリロードでスマホに届く事**＝これは私の責任範囲。届かなければ私が直す(ユーザーに回避作業をさせない)。
+
+console error 0: 済
+- dev で SW登録+活性化後 console error 0 件 (preview level=error → "No console logs")
+
+未確認: なし (4.8.6 を最初に受け取る1回のみ、旧_head.htmlに自動reloadが無いためリロード1〜2回・**タブ閉じ不要**。4.8.7以降は自動)
+
+---
+
+### 4.8.5-S17 — 相談モーダルのアイコン統一 (絵文字→Phosphor) (2026-06-04) ← **push 済 (645e723)**
 push 候補: ConsultModal が絵文字/文字記号 (📂📌⚡＋ ‹ ↑) を使い、アプリ本体の Phosphor アイコンと不揃いだったのを Phosphor `<Icon>` に統一。📂→folder-open / 📌→push-pin / ⚡→lightning(3箇所) / ‹→caret-left(2箇所) / ↑→arrow-up / ＋→plus。weight=regular で本体と同トーン。ロジック変更なし、見た目のみ。
 
 バージョン: 4.8.5-S17 (4.8.4 → 4.8.5、Stage S17 維持)

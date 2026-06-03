@@ -4,14 +4,14 @@
 //
 // 重要:
 // - APP_VERSION は src/core/01_constants.js と手動同期、push 毎に両方を同じ値で更新
-// - skipWaiting() / clients.claim() は使わない (既存タブ動作保護)
+// - 4.8.6: skipWaiting() + clients.claim() で自動更新化 (旧設計の「全タブ閉じ待ち」がスマホで更新不達の元凶だったため反転)
 // - 外部ドメイン (firestore.googleapis.com / api.open-meteo.com 等) は intercept しない (pass-through)
 // - navigation request は shell-first で ./index.html を返す (query 違いを吸収)
 // - 静的アセット fetch は ignoreSearch で bundle-heavy.js?v=... 等を hit
 // - pre-cache 対象 16 ファイル固定 (LICENSE 除外、scope 相対)
 //   GitHub Pages 本番 (/tennis-db/v4/) と localhost (/v4/) の両方で動作
 
-const APP_VERSION = "4.8.5-S17";
+const APP_VERSION = "4.8.6-S17";
 const CACHE_NAME = `tennisdb-${APP_VERSION}`;
 
 const PRECACHE = [
@@ -35,6 +35,8 @@ const PRECACHE = [
 
 // install: 新 cache 開いて pre-cache。1 件でも fail で install fail (旧 SW 維持、fail-safe)
 self.addEventListener("install", (event) => {
+  // 4.8.6: 新版を即適用 (全タブ閉じ待ちを廃止 = スマホで「最新にリロードできない」元凶を解消)
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE))
   );
@@ -42,6 +44,7 @@ self.addEventListener("install", (event) => {
 
 // activate: 旧 cache 削除 ("tennisdb-" prefix のうち現行以外)
 self.addEventListener("activate", (event) => {
+  // 旧 cache 削除 → 起動中クライアントを新 SW が掌握 (controllerchange を発火 → _head.html 側で 1 回だけ reload)
   event.waitUntil(
     caches.keys().then((names) =>
       Promise.all(
@@ -49,7 +52,7 @@ self.addEventListener("activate", (event) => {
           .filter((n) => n.startsWith("tennisdb-") && n !== CACHE_NAME)
           .map((n) => caches.delete(n))
       )
-    )
+    ).then(() => self.clients.claim())
   );
 });
 

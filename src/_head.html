@@ -94,14 +94,25 @@ window.loadHeavy = function() {
   return window.__loadHeavyPromise;
 };
 </script>
-<!-- 4.7.32-S17 R1-2 Stage 2 (2026-05-21): Service Worker 登録 (App Shell + vendor pre-cache、通信ゼロ reload 成立) -->
-<!-- - sw.js は v4/sw.js に配置、scope="./" で v4/ 配下を制御 -->
-<!-- - skipWaiting/clients.claim 使わない (既存タブ動作保護)、controller セットには 1 回 reload が必要 -->
+<!-- 4.8.6-S17 (2026-06-04): Service Worker 登録 + 自動更新化 -->
+<!-- - skipWaiting/clients.claim へ反転 (旧「全タブ閉じ待ち」がスマホで「最新にリロードできない」元凶だったため) -->
+<!-- - register に updateViaCache:"none" = sw.js 自体を HTTP キャッシュさせず毎回更新検知 -->
+<!-- - controllerchange で 1 回だけ reload (controller 既存時のみ = 初回訪問の無駄 reload を回避、refreshing でループ防止) -->
 <!-- - 登録失敗は console.warn のみ、アプリ全体は落とさない -->
 <script>
 if ("serviceWorker" in navigator) {
+  // 既に SW が制御中 = 2 回目以降の訪問。更新で新 SW が掌握したら 1 回だけ reload して最新へ。
+  // (初回訪問は controller が無いので listener を付けない = 無駄な reload を防ぐ)
+  if (navigator.serviceWorker.controller) {
+    var _swRefreshing = false;
+    navigator.serviceWorker.addEventListener("controllerchange", function () {
+      if (_swRefreshing) return;
+      _swRefreshing = true;
+      window.location.reload();
+    });
+  }
   window.addEventListener("load", function () {
-    navigator.serviceWorker.register("./sw.js", { scope: "./" }).catch(function (err) {
+    navigator.serviceWorker.register("./sw.js", { scope: "./", updateViaCache: "none" }).catch(function (err) {
       console.warn("SW registration failed:", err && err.message);
     });
   });

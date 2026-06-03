@@ -857,3 +857,64 @@ ClaudeアプリのProjectナレッジが手更新前提で約2ヶ月腐った（
 - push は名前指定 add（個人データ混入防止）。別 push・別承認。
 
 ---
+
+## 2026-06-04 — SW 自動更新化（スマホで最新が来ない元凶を解消、4.8.6-S17 予定）
+
+### §1. 今回の論点
+スマホ(Chrome/Safari)で最新版にリロードできない。原因はコードで確定：SW が `skipWaiting` 不使用で新版が「全クライアントが閉じるまで待機」、スマホはタブを閉じないので新版が永久待機。その間 navigation=shell-first で旧 index.html を返す → リロードしても旧のまま。**これは私の設計ミス。ユーザーに全タブ閉じを強いていた（しかも不要だった）。**
+
+### §2. 読んだ資料（選定理由）
+- v4/sw.js（install/activate/fetch の挙動を実確認）
+- src/_head.html L97-109（登録コード = register のみ、update 検知/controllerchange なし を確認）
+
+### §3. 過去制約
+- 旧設計「skipWaiting/clients.claim 不使用（既存タブ動作保護）」は**ユーザー承認済**（2026-05-21 DESIGN_LOG）。**今回これを覆す**＝その"保護"が更新不達の元凶であり、ユーザーが「直せ」と明示したため。
+- オフライン(試合中)動作は維持必須（SW の存在意義）。
+
+### §4. Claude が置いている前提
+- 新 sw.js の `install→skipWaiting` は、旧 SW(no-skipWaiting) から来ても新 SW 自身の install で発火 → 全タブ閉じ不要で新版が活性化する。
+- `clients.claim` + controllerchange→1回 reload(ガード付) で、更新時に自動で最新へ。
+
+### §5. 各前提の根拠分類
+| 前提 | 分類 | 根拠 / 確認方法 |
+|---|---|---|
+| skipWaiting 不使用で全タブ閉じ待ちになる | 資料(事実) | sw.js に skipWaiting 無し、登録コードに update 処理無し |
+| 新 SW の skipWaiting は旧 SW から来ても効く | 仕様(強い確信) | SW 仕様：skipWaiting は当該 SW の install で waiting を飛ばす。dev で活性化を確認する |
+| オフラインは cache-first 維持で保たれる | 資料 | fetch の cache 経路は維持、skipWaiting/claim は更新タイミングのみ変える |
+| 試合中の勝手 reload リスクは実質ゼロ | 過去ログ推定 | 新版は push 時のみ存在＝試合中に更新は発生しない |
+
+### §6. 複数あり得るパターン
+- (a) skipWaiting+clients.claim+controllerchange→reload（自動更新） (b) network-first navigation (c) 更新バナー(手動適用)
+
+### §7. 今回対象にするパターン
+- (a)。最も確実に「リロードで最新」。controllerchange→reload は `navigator.serviceWorker.controller` 有時のみ listener 設置（初回訪問の余計な reload を防止）+ refreshing ガード（ループ防止）。
+
+### §8. 対象外パターンと理由
+- (b) network-first：オフライン起動が遅くなる懸念（試合会場の不安定回線で待たされる）→ 不採用。
+- (c) 更新バナー：UI 追加 + 手動適用の手間 → ユーザーの「操作したくない」に反するので不採用。
+
+### §9. 未確認の前提
+- GitHub Pages の sw.js HTTP キャッシュで update 検知が遅れる可能性 → 新登録に `updateViaCache:"none"` を付けて回避。
+- 4.8.6 を受け取る最初の1回：旧 _head.html に controllerchange listener が無いため、自動 reload は 4.8.7 以降から。4.8.6 自体は「リロード1〜2回・タブ閉じ不要」。
+
+### §10. ユーザー確認が必要な点
+- 承認済設計の反転 → ユーザーが「直せ」と明示済（= 承認）。全タブ閉じ不要に訂正済。
+
+### §11. 禁止事項
+- オフライン cache 経路を壊さない（precache + cache-first 維持）。
+- 初回訪問で無駄な reload を起こさない（controller 有時のみ listener）。
+- reload ループを作らない（refreshing ガード）。
+- build.ps1 不変 / _head.html 経由で index.html 再生成（index.html 直編集しない）。
+
+### §12. 停止条件
+- dev で SW 登録失敗 / オフライン cache 供給が壊れた → 即停止・ロールバック。
+- reload ループの兆候 → 即停止。
+- console error → 停止して原因調査。
+
+### §14. Gate 2 へ必ず転記する制約
+- sw.js: install に `self.skipWaiting()`、activate に `self.clients.claim()`（cache 削除は維持）。
+- _head.html: register に `updateViaCache:"none"`、controllerchange→reload（controller 有時のみ・refreshing ガード）。
+- APP_VERSION 4.8.5-S17 → 4.8.6-S17（Stage S17 維持）、sw.js 同期。
+- 検証の負担は私が持つ：dev で 登録/活性化/オフライン cache/console error を確認。最終証明は次 push が普通のリロードで届く事（届かなければ私の責任で直す、ユーザーに回避作業をさせない）。
+
+---
