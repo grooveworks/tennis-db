@@ -113,6 +113,168 @@ VERIFY_LOG.md と対をなす設計フェーズ用ログ。
 
 ---
 
+## 2026-06-03 アプリ内 AI 相談 (B) — M1 app側 (client helper + 最小UI)
+
+> 2026-06-02 の B 設計の継続 (日付変更のため当日エントリを追加)。本体設計は下の 2026-06-02 エントリを参照。
+
+### §1. 今回の論点 (必須セクション)
+実装済の aiConsult Cloud Function をアプリから呼ぶ client helper (`src/domain/ai_consult.js`) と最小の相談UIを作る。**deploy(課金)はしない。** ビルド構造(core/heavy, bridge)を壊さない範囲で最小追加。
+
+### §2. 読んだ資料 (選定理由含む)
+- DESIGN_LOG 2026-06-02 エントリ (B 設計本体)
+- functions/index.js aiConsult (実装済・本ターンで確認)
+- src/domain/plan_assist.js / summarize.js (client helper の既存パターン= fbFunctions.httpsCallable)
+- build.ps1 (選定理由: 新規 domain/UI を bundle に正しく載せる方法を推測でなく確認するため)
+
+### §5. 前提一覧表 (必須セクション)
+| # | 前提 | 根拠分類 | 根拠 | 未確認なら確認方法 |
+|---|---|---|---|---|
+| a | build.ps1 が src/domain/*.js を自動取り込みする | 未確認仮説 | 既存 helper が bundle されている事実 | build.ps1 全文を読む(本ターン) |
+| b | 相談UIは既存 heavy component に最小追加できる | 未確認仮説 | InsightsTab/PlanTab が heavy | build.ps1 + 対象component 読む |
+| c | deploy しなければ課金ゼロ | 資料 | Cloud Function は deploy 後にのみ稼働・課金 | — |
+| d | fbFunctions("asia-northeast1") は既に初期化済 | 資料 | src/core/02_firebase.js で確認済 | — |
+
+### §11. 禁止事項 (必須セクション)
+- deploy しない (課金はユーザー明示OK後のみ)
+- build.ps1 をユーザー承認なく編集しない (保護ファイル)
+- MatchEditModal / GameTracker を触らない
+- 既存 summarizeMemo/planAssist/各タブを壊さない
+- API キーを出さない / 未確認仮説を事実扱いしない
+- UI は可能なら preview 先行 (feedback_two_stage_preview)
+
+### §12. 停止条件 (必須セクション)
+- build.ps1 編集が必要と判明 → ユーザーOK待ち
+- deploy 直前 (課金) → ユーザーOK待ち
+- 同一ファイル 3 回 Edit / bridge・依存漏れ 1 件 → 対象全文再 Read
+- console error / 既存機能回帰 → 即停止
+
+### §14. Gate 2 へ必ず転記する制約 (必須セクション)
+- deploy・課金はユーザー明示OK後
+- build.ps1 編集はユーザーOK後 (保護ファイル)
+- 既存機能不破壊 / API キー秘匿 / 未確認は推測として扱う
+
+---
+
+## 2026-06-02 アプリ内 AI 相談 (B) — 文脈つき会話 / Plan・分析タブの本体
+
+### §1. 今回の論点 (必須セクション)
+アプリ内に「文脈つき AI 相談」(B) を載せる。既存 planAssist/summarizeMemo の one-shot パターンを、複数ターン・全文脈注入(現データ+決定/状態)・prompt caching・ユーザー原則を焼いた system prompt の会話型 `aiConsult` に拡張する。これが Plan(準備相談)・分析(データ質問)タブの本体。試合中も使えるゼロ摩擦が絶対条件。
+
+### §2. 読んだ資料 (選定理由含む)
+- functions/index.js 全文 (選定理由: B が拡張する既存 callable パターン = secret 鍵/region/auth/messages.create/モデルを正確に把握。推測で設計しない)
+- src/domain/plan_assist.js / summarize.js 全文 (選定理由: クライアント側 httpsCallable 呼出・in-memory キャッシュ・fbFunctions 前提の把握)
+- 現在地.md (選定理由: planAssist 休眠状態・方針転換=AI先行 の確認)
+- .claude/tennis/決定.md・状態.md (選定理由: B が文脈として読む信号の中身=保留・制約・本命setup)
+- data-latest.json 由来の Firestore モデル (選定理由: 文脈データの所在 users/{uid}/data/{key})
+
+### §3. 過去制約
+- API キーは Firebase secret、コードに埋めない (functions/index.js 既存方針)
+- region asia-northeast1 (低レイテンシ)、auth 必須
+- 試合中=短文・速い・iPhone で読める (user_match_day_usage / feedback_iphone_build_priority)
+- build.ps1 不変方針 / MatchEditModal・GameTracker は core 維持 (現在地.md 規律)
+- 3者議論・段階的最小実装・push前ゲート・UI preview先行 (CLAUDE.md R6/R7, feedback_two_stage_preview)
+- ゼロ摩擦が絶対条件 (ユーザー 2026-06-02「めんどくさくなってやらなくなる」)
+
+### §4. Claude が置いている前提
+| # | 前提 |
+|---|---|
+| a | 決定/状態を Firestore に置けば aiConsult 関数が文脈として読める |
+| b | 会話履歴は messages 配列で多ターン化できる |
+| c | prompt caching で大文脈の再送を避けられる |
+| d | 深い議論には haiku より上位モデルが要る場合がある |
+| e | 既存 planAssist/summarizeMemo を壊さず新関数を足せる |
+
+### §5. 前提一覧表 (必須セクション、F7/F16 防止)
+
+| # | 前提 | 根拠分類 | 根拠 | 未確認なら確認方法 |
+|---|---|---|---|---|
+| a | 決定/状態を Firestore に置けば関数が読める | 過去ログ推定 | 既存 summarizeMemo が Firestore 連携構造、functions は firestore アクセス可 | M0 で doc 作成 → 関数から読めるか実測 |
+| b | 多ターンは messages[] で実現 | 資料 | Anthropic SDK の messages.create messages 配列 (functions/index.js で確認) | M2 実装で確認 |
+| c | prompt caching で文脈再送回避 | 未確認仮説 | Anthropic 機能だが haiku でのキャッシュ最小トークン/対応未確認 | 実装時 claude-api skill + 実測 |
+| d | 深い議論に上位モデルが要る | 未確認仮説 | 既存は haiku 固定、議論用途は未検証 | M1 を haiku で試し議論成立を運用判定 |
+| e | 新関数追加で既存不破壊 | 資料 | functions/index.js は exports 独立関数 | deploy 後に summarizeMemo 回帰確認 |
+| f | 1相談のコストは許容範囲 | 未確認仮説 | haiku 低コストだが文脈大で増 | M1 で token/cost 実測 |
+
+### §6. 複数あり得るパターン
+
+| パターン | 内容 | 制約 | 今回対象か |
+|---|---|---|---|
+| X | planAssist に mode "consult" を足す | 責務混在で両方の保守が崩れる | 対象外 |
+| Y | 文脈をクライアントが毎回全送信 | 送信量大・摩擦・iPhone負荷 | 対象外 |
+| Z | 新関数 aiConsult、文脈は関数が Firestore から読む | 送信ゼロ摩擦、責務分離 | 対象 |
+
+### §7. 今回対象にするパターン
+Z。新関数 `aiConsult`(planAssist と別)。クライアントは質問+会話履歴だけ送り、決定/状態+必要データは関数側が Firestore から読む。system prompt にユーザー原則。prompt caching。モデルはティア(試合=haiku/深掘り=上位)。UIは最小(Plan・分析に相談入口、専用タブ化は後)。
+
+### §8. 対象外パターンと理由
+- X (planAssist 拡張): 会話型・大文脈・キャッシュは one-shot と責務が違う。混ぜると両方壊れる。
+- Y (クライアント全送信): ゼロ摩擦原則に反し送信量も問題。会話履歴のみクライアント保持なら可。
+
+### §9. 未確認の前提
+- prompt caching の haiku 対応/最小トークン (§5c)
+- 決定/状態の Firestore スキーマ: 新 key (例 data/aiContext) か既存 profile 相乗りか
+- 会話履歴の保存場所: Firestore 永続か セッション内のみか
+- 1相談あたりコスト (§5f)
+- haiku で議論成立するか (§5d)
+
+### §10. ユーザー確認が必要な点
+1. M0 で決定/状態を Firestore に**新規 doc として書く** (既存データ不変・追記のみ) = OK か
+2. deploy は **API 課金が発生** → M1 deploy 前に明示 OK
+3. 会話履歴を Firestore に残すか (プライバシー/コスト) → M2 で確認
+4. haiku で議論が浅ければ上位モデルへ (コスト増) → M1 運用判定後に確認
+
+### §11. 禁止事項 (必須セクション)
+- API キーをコード/ログ/リポに出さない (secret のまま)
+- 既存 summarizeMemo / planAssist の挙動を壊さない
+- build.ps1 / MatchEditModal / GameTracker を触らない
+- 既存 Firestore データの変換・上書き・削除をしない (M0 は追記のみ)
+- 未確認仮説 (caching/モデル/コスト) を事実として扱わない
+- 検証を実機・実データでやらず「dev で動いた」で済ませない
+- ユーザーに技術判断を投げない / deploy・課金・データ書込は plain 語で事前 OK
+
+### §12. 停止条件 (必須セクション)
+- bridge / 依存漏れ 1 件 → 対象ファイル全文再 Read
+- 同一ファイル 3 回目 Edit
+- deploy 直前 (課金) → ユーザー OK 待ち
+- Firestore 書込直前 → ユーザー OK 待ち
+- console error / 既存機能回帰 → 即停止
+- コスト想定が立たない → 停止して報告
+
+---
+
+### §13. 前提対立軸チェック (固定 7 軸、空欄禁止)
+
+| 軸 | 今回の扱い | 根拠 | 未確認 |
+|---|---|---|---|
+| 試合中 / 試合後 | 両方。試合中=haiku 速応答、試合後=深掘り | ユーザー用途 | 試合中の入力方法(音声/ボタン) |
+| 通信あり / なし | 通信あり前提 (AI相談は API 必須) | API 呼出 | offline 時のエラー表示 |
+| 本番データ / dev fixture | 本番 Firestore (文脈は実データ) | 文脈が実データ要 | dev での擬似文脈 |
+| 表示のみ / 保存・削除・同期 | M0=追記書込、M2=決定書き戻し | 文脈 doc/履歴 | 書込スキーマ |
+| 1 経路 / 複数 state host | UI は最小 1 経路から | 最小実装 | 後で Plan/分析 両入口 |
+| PC dev / 実機 | 両方。最終は実機(試合) | 試合用途 | 実機検証 |
+| core 削減 / 信頼性 | 信頼性側 (AI は functions/heavy、core 不変) | core 不変方針 | — |
+
+---
+
+### §14. Gate 2 へ必ず転記する制約 (必須セクション)
+- API キーは secret のまま、コードに出さない
+- M0 は Firestore 追記のみ (既存データ不変)
+- deploy 前・Firestore 書込前は plain 語でユーザー OK
+- 既存 summarizeMemo/planAssist 不破壊・build.ps1/MatchEditModal/GameTracker 不触
+- 未確認 (caching/モデル/コスト) は推測として扱い運用で確認
+
+### §15. Gate 2 転記確認
+
+| 制約 | Gate 2 禁止事項/停止条件へ転記したか |
+|---|---|
+| 鍵 secret のまま | □ (実装着手時に転記) |
+| Firestore 追記のみ | □ |
+| deploy/書込前に OK | □ |
+| 既存不破壊 | □ |
+| 未確認は推測扱い | □ |
+
+---
+
 ## 2026-05-18 MatchEditModal core 復帰 (Release 1-1 実戦信頼性 / ウォーム運用)
 
 ### §1. 今回の論点 (必須セクション)

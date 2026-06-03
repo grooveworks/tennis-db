@@ -1828,6 +1828,8 @@ function TennisDB() {
   //   Sessions FAB = "tournament" | "practice" (試打は除外、DECISIONS S12)
   //   Home 3 ボタン = "tournament" | "practice" | "trial" (S14、QuickAddModal trial 拡張)
   const [quickAddType, setQuickAddType] = useState(null);
+  // 2026-06: アプリ内 AI 相談 (B) の開閉。Header の 💬 で開く
+  const [consultOpen, setConsultOpen] = useState(false);
   const handleFabClick = (type) => {
     if (type === "tournament" || type === "practice") {
       setQuickAddType(type);
@@ -2529,6 +2531,7 @@ function TennisDB() {
         weather={weather}
         onWeatherClick={handleWeatherClick}
         onSettingsClick={handleSettingsClick}
+        onConsultClick={() => setConsultOpen(true)}
       />
       {tabContent}
       <TabBar tab={tab} onTabChange={setTab} />
@@ -2611,6 +2614,11 @@ function TennisDB() {
         onBulkSummarize={handleBulkSummarize}
         bulkSummarizeProgress={bulkSummarizeProgress}
         onImportCalendarJson={handleImportCalendarJson}
+      />
+      {/* 2026-06: アプリ内 AI 相談 (B)。core 同梱の ConsultModal。回答は Cloud Function aiConsult の deploy 後に動く */}
+      <ConsultModal
+        open={consultOpen}
+        onClose={() => setConsultOpen(false)}
       />
       {/* S16 Phase 4-A: ストリング編集 Modal (Gear タブ Manage Masters → 行タップ / + 追加 で起動) */}
       <StringEditModal

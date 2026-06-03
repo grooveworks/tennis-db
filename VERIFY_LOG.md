@@ -6,12 +6,48 @@
 
 ## 現行 push 候補
 
-### 5cf39fd ほか (= docs: テニス議論システムの導線 / 設定のみ、2026-06-02)
-push 候補: CLAUDE.md にセッション開始時の状態ファイル導線を追加 + .gitignore で個人ログ書庫 (.claude/tennis/) / Firebase鍵 / data-latest を公開リポから除外。
-種別: **ドキュメント / 設定のみ。src/ ・ v4/ ・ build.ps1 ・ APP_VERSION 一切不変。アプリ挙動の変更なし。**
-実画面検証: **該当なし** (= コード・UI 変更がゼロのため、開いて確認すべき実画面が存在しない。偽の「済」は記録しない)
-console error: **該当なし** (= 同上)
-pre-push ゲート通過の根拠: 下記 4.7.34-S17 (a0d6ff7、push 済) の**真実の**「実画面検証: 済」「console error 0: 済」記録が VERIFY_LOG 内に保持されているため。本 docs push に対して検証を偽装しない (= ゲートが存在する理由そのものを守る)。
+### 4.8.3-S17 — アプリ内AI相談 (ConsultModal) + ワンセット保存のクラウド化 (2026-06-04)
+push 候補: 試合中/外出先でもスマホから使える「文脈つきAI相談」をアプリ内に新設。Header 💬 → ConsultModal (fast=試合中 haiku / deep=深掘り opus)、Firestore 現データを文脈に Anthropic API で応答。議論の作法/口調/反ループ規律を system prompt 化。M2 ループ閉じ: 相談結論を「ワンセット」下書き (draftSet) → aiContext.obj.sets に保存。保存は offline persistence で端末止まりになる事故があったため、**サーバー側 Cloud Function 直書き (mode=saveSet) に変更**し確実化 (30秒 timeout)。
+
+バージョン: 4.8.3-S17 (4.7.34 → 4.8.0 → 4.8.1 → 4.8.2 → 4.8.3。**Stage S17 維持**、ユーザー承認済)
+
+修正対象 (= commit 対象、**名前指定で add**。未追跡の個人データJSON/preview は add しない):
+- functions/index.js (aiConsult onCall: fast/deep/draftSet/**saveSet** モード、_CONSULT_PRINCIPLES、_buildTennisContext、admin 初期化)
+- src/domain/ai_consult.js (新規、httpsCallable ラッパ)
+- src/ui/common/ConsultModal.jsx (新規、全画面相談UI + localStorage会話保持 + timeout + 定型文 + draftSet/saveSet クラウド保存)
+- src/ui/common/Header.jsx (💬 AI相談ボタン追加)
+- src/app.jsx (consultOpen state + ConsultModal マウント)
+- src/core/01_constants.js (APP_VERSION 4.8.3-S17)
+- v4/sw.js (APP_VERSION 同期、CACHE_NAME 連動)
+- v4/index.html (build 出力)
+- DESIGN_LOG.md (2026-06-02 B設計 + 06-03 M1/M2 エントリ)
+- VERIFY_LOG.md (本ファイル)
+- .gitignore (個人テニスデータ .md を公開リポから除外 = 安全策、ユーザー承認済)
+- CLAUDE.md (HANDOFF → 現在地.md ポインタ更新 3箇所)
+- HANDOFF_v4_S17.md (冒頭に ARCHIVED 警告)
+- 現在地.md (新規、単一の真実ドキュメント、HANDOFF置換。開発状態のみ=個人テニスデータ無し)
+
+スコープ外:
+- 「現在地コピー」書き出しボタンは本 push に含まない (= 次の 4.8.4 で別途、検証後に別 push)
+- planAssist の deploy / Plan AI 起動は別 (現在地.md 参照)
+
+build:
+- build.ps1 実行済、Core 395013 bytes / Heavy 192088 bytes、4.8.3-S17 文字列確認済
+- functions: node --check PASS、firebase deploy --only functions:aiConsult 完了 (saveSet モード稼働)
+
+実画面検証: 済
+- **本番 (ユーザー・実機 iPhone/PC)**: Header 💬 → ConsultModal 起動、fast/deep 相談で実 AI 応答取得、口調調整を複数往復、ワンセット保存 (saveSet) 成功 → Firestore aiContext.obj.sets を私が dump で確認し **2件着弾・既存 decisions/status 不破壊**を実証 (= サーバー直書きの確実性を実データで証明)
+- **dev (Claude・fresh start)**: SW全消し+reload で `tennisdb-4.8.3-S17` cache をロード (= 旧shell排除を実証)、consult button (aria-label=AI相談) + ConsultModal + textarea 描画確認、Home/Header 回帰なし
+
+console error 0: 済
+- dev fresh start で ConsultModal 起動後 console error = **0 件** (preview_console_logs level=error → "No console logs")
+
+未確認: なし
+- dev は no-login のため AI 実応答/実保存の通信は本番ユーザー検証に依拠 (dev では auth エラーで graceful close)。本番でユーザーが実応答取得+保存成功+サーバー着弾を確認済のため穴ではない。
+
+---
+
+(過去: 5cf39fd / 21c63c7 = docs+gitignore push 済。4.7.34-S17 = a0d6ff7 = 前回コード push 済。記録は下記過去ログに保持)
 
 ---
 

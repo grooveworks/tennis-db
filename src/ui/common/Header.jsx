@@ -18,7 +18,7 @@
 //   onWeatherClick: 天気タップコールバック (S14 で Open-Meteo 詳細 Modal を開く)、null 時は無反応
 //   weather: { temp: number, code: number } | null (S14 で実装、S13.5 では null = "—°" placeholder)
 //   onSettingsClick: ⚙️ 設定アイコンタップ (S15.5.7 で SettingsModal を開く)
-function Header({ tabTitle, onLogoClick, user, syncState, onLogout, onWeatherClick, weather, onSettingsClick }) {
+function Header({ tabTitle, onLogoClick, user, syncState, onLogout, onWeatherClick, weather, onSettingsClick, onConsultClick }) {
   const hasWeather = weather && typeof weather.temp === "number";
   const tempStr = hasWeather ? `${Math.round(weather.temp)}°` : "";
   // 4.7.33-S17 D: Popover open state (focus trap なし、ESC + 外側 click + tap で開閉)
@@ -135,6 +135,23 @@ function Header({ tabTitle, onLogoClick, user, syncState, onLogout, onWeatherCli
               <Icon name="sun" size={14} color={C.applePeach} weight="fill" />
               <span style={{ fontFeatureSettings: '"tnum"' }}>{tempStr}</span>
             </div>
+          )}
+
+          {/* AI相談 (2026-06: B). primary 色で目立たせる、天気と設定の間 */}
+          {onConsultClick && (
+            <button
+              onClick={onConsultClick}
+              aria-label="AI相談"
+              style={{
+                width: 32, height: 32,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                color: C.primary, cursor: "pointer",
+                border: "none", background: "transparent",
+                borderRadius: 8, padding: 0,
+              }}
+            >
+              <Icon name="chat-circle" size={21} color={C.primary} weight="regular" />
+            </button>
           )}
 
           {/* S15.5.7: ⚙️ 設定 (天気とユーザーアイコンの間) */}
