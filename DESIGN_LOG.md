@@ -918,3 +918,70 @@ ClaudeアプリのProjectナレッジが手更新前提で約2ヶ月腐った（
 - 検証の負担は私が持つ：dev で 登録/活性化/オフライン cache/console error を確認。最終証明は次 push が普通のリロードで届く事（届かなければ私の責任で直す、ユーザーに回避作業をさせない）。
 
 ---
+
+## 2026-06-04 R1 実戦信頼性ゲート（smoke を pre-push で固定）
+
+### §1. 今回の論点 (必須)
+R1 の検証をユーザーの時間に依存させず、「壊れたら push できない」自動ゲートにする。R1-smoke-test.md §47-51（ユーザー確定の進め方＝自動化できる部分だけスクリプト化→pre-push 固定）の実装。
+
+### §2. 読んだ資料 (選定理由含む)
+- R1-smoke-test.md: T1-T7+保存残存の固定仕様、自動化対象/対象外が明記（選定理由: ゲートの根拠仕様）
+- .git/hooks/pre-push: 既存 VERIFY_LOG ゲート（pure sh grep, fail-closed）（選定理由: 追記先・様式踏襲）
+- 01_constants.js / v4/sw.js / v4/index.html: APP_VERSION 記載箇所（選定理由: 同期チェックの抽出パターン確定）
+
+### §3. 過去制約
+- 「Memory は読まない/省く → HOOK/pre-push で物理的に縛る」(CLAUDE.md R6, 2026-05-12)
+- 「Playwright / CI は作らない、自動化できる部分だけ」(R1-smoke-test.md §50)
+- SW/constants の version desync が「スマホで最新が来ない」元凶だった (4.8.6 修正の経緯)
+
+### §5. 前提一覧表 (必須セクション)
+| # | 前提 | 根拠分類 | 根拠 | 未確認なら確認方法 |
+|---|---|---|---|---|
+| a | runtime な T2-T7/保存残存はブラウザ無しの pre-push では機械判定不可 | 資料 | §50「Playwrightは作らない」+ sh hook にブラウザ無し | — |
+| b | version desync が実害の中心 | ユーザー明示 | 4.8.6 修正の経緯（SW更新不達） | — |
+| c | index.html に APP_VERSION 文字列が出る | 資料(検証) | grep で 4.8.6-S17 ×2 確認済 | — |
+| d | 「試合経路が core」を静的grepで見るのは脆い（esbuildで\u化・名前圧縮） | 過去ログ推定 | esbuild が日本語を\u化（既知） | dev smoke（手動・私が実施）で担保 |
+
+### §6. 複数あり得るパターン
+| パターン | 内容 | 制約 | 今回対象か |
+|---|---|---|---|
+| X | フル smoke を pre-push で実行(Playwright) | §50 で禁止 | 対象外 |
+| Y | 何もしない（手動 smoke のみ） | 退行が静かに通る | 対象外 |
+| Z | 静的に確実な部分(version同期)だけ pre-push 固定＋runtime smoke は私が手動 dev で実施し VERIFY_LOG 記録 | §50準拠・fail-closed | 対象 |
+
+### §7. 今回対象にするパターン
+Z。version 同期（01_constants==sw==index.html に存在）を pre-push で fail-closed 固定。runtime smoke(T2-T7+保存残存)は私が dev で実施し VERIFY_LOG に記録（ユーザー時間ゼロ）。
+
+### §8. 対象外パターンと理由
+- X: ユーザー確定仕様(§50)が Playwright/CI を禁止
+- Y: 「壊れたら止まる」アンカーが無く R6 思想に反する
+
+### §9. 未確認の前提
+- 試合経路 core 在席の静的検査は今回入れない（脆いため）。手動 smoke で担保（§5-d）。
+
+### §10. ユーザー確認が必要な点
+1. R1-smoke-test.md T1 期待値 4.7.34→4.8.6（承認済）
+2. pre-push に version 同期チェック追加（承認済「自動チェック＋pre-push固定」）
+
+### §11. 禁止事項 (必須セクション)
+- T1-T7 の項目を勝手に増減しない（§16 仕様）。今回は T1 の数字更新と「自動ゲート節」追加のみ。
+- 偽の検証「済」を書かない。runtime 未確認を pre-push の静的合格で「検証済」と言い換えない。
+- pre-push を fail-open にしない（抽出失敗時も block）。
+
+### §12. 停止条件 (必須セクション)
+- ゲートが現状(4.8.6 揃い)で PASS しない / desync 模擬で FAIL しない → 実装が誤り、停止して再設計。
+- push 承認は別途（tracked docs のみ commit、pre-push hook は machine-local で非追跡）。
+
+### §13. 設計詳細
+- pre-push 追記(pure sh): `V_CONST`=grep 01_constants.js, `V_SW`=grep sw.js（空白差を吸収する正規表現）、不一致 or index.html に `V_CONST` 無し → exit 1。既存 VERIFY_LOG チェックの後段に追加。
+- R1-smoke-test.md: T1 番号更新 + 「## 自動ゲート (pre-push)」節（enforced check は同期式・runtime は手動 smoke で担保、を明記）。
+
+### §14. Gate 2 へ必ず転記する制約
+- pre-push は fail-closed（抽出失敗も block）。
+- runtime smoke を pre-push 合格で代替表現しない（VERIFY_LOG に手動 smoke 結果を別途記録）。
+- .git/hooks/pre-push は非追跡（machine-local）＝既存ゲートと同方針、durability はローカル。
+
+### §15. Gate 2 転記確認
+実装時に §14 の 3 点を pre-push コメント + VERIFY_LOG に反映する。
+
+---

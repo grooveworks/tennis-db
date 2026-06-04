@@ -16,7 +16,7 @@
 ## 固定テスト項目（ユーザー確定の最小セット。Claude 拡張禁止）
 | # | 項目 | 機械的判定 | 完成条件 |
 |---|---|---|---|
-| T1 | app version 固定 | `window.__TennisDBCore.APP_VERSION === "4.7.34-S17"` | 1 |
+| T1 | app version 固定 | `window.__TennisDBCore.APP_VERSION === "4.8.6-S17"` | 1 |
 | T2 | 起動直後 heavy 未ロード | `window.__loadHeavyPromise === null` かつ `typeof window.__TennisDBHeavy === "undefined"` | 2 |
 | T3 | 大会詳細を開く | 大会カード click 後、詳細（SessionDetailView）が表示される | 1 |
 | T4 | +試合追加で MatchEditModal が開く | `[role="dialog"][aria-label="試合を編集"]` が DOM に存在 | 1 |
@@ -49,3 +49,10 @@
 2. 手動で毎回同一手順を確認
 3. 自動化できる部分だけスクリプト化（大きなテスト基盤 / Playwright / CI は作らない）
 4. pre-push に組み込み「通らないと push できない」状態にする（最終アンカー）
+
+## 自動ゲート (pre-push) — 2026-06-04 実装
+
+- **enforced（pre-push が物理ブロック・fail-closed）**: APP_VERSION の同期。`src/core/01_constants.js` と `v4/sw.js` の APP_VERSION が一致し、かつ built `v4/index.html` にその値が存在する事。← SW/constants の desync（=「スマホで最新が来ない」元凶）と build 忘れを止める。pure sh/grep、抽出失敗時も block（fail-open しない）。
+- **manual（Claude が dev で毎回実施し VERIFY_LOG に記録）**: T2-T7 + 保存→リロード→残存。ブラウザ runtime が要るため pre-push では機械判定不可（§50 で Playwright/CI は禁止）。ユーザーの時間は使わない。
+- **T1 の数字について**: 上表 T1 のバージョン文字列は「その時点のスナップショット」。enforced 側は固定値でなく同期チェックなので、version を上げても自動ゲートは古びない（T1 表の数字だけ push 時に更新）。
+- **実行記録**: 2026-06-04、4.8.6-S17 で T1-T7 + 保存残存を Claude が dev で実施 → 全 PASS（T1 は当時 4.7.34 期待値が古く 4.8.6 へ更新）。生ログは VERIFY_LOG.md。

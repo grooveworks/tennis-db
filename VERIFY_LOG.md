@@ -6,7 +6,42 @@
 
 ## 現行 push 候補
 
-### docs: 全体設計を完成契約ベースで正式文書に統合 (2026-06-04)
+### docs+gate: R1 自動ゲート (pre-push version同期) + R1 smoke 実施記録 (2026-06-04)
+push 候補: R1-smoke-test.md (T1 期待値 4.7.34→4.8.6 + 「自動ゲート(pre-push)」節追加) / DESIGN_LOG.md (R1ゲート設計エントリ §1-15) / VERIFY_LOG.md。`.git/hooks/pre-push` に APP_VERSION 同期チェック追加 (machine-local・非追跡・commit されない)。
+
+バージョン: 変更なし (4.8.6-S17 維持) — コード/ビルド/デプロイ なし。
+
+修正対象 (名前指定 add):
+- R1-smoke-test.md / DESIGN_LOG.md / VERIFY_LOG.md (本ファイル)
+- .git/hooks/pre-push (非追跡・このマシンのみ・push されない)
+
+R1 smoke 実施 (DEV localhost:8081 ?dev=1, Claude が実施・ユーザー時間ゼロ):
+- T1 [条件1] version       : observed=4.8.6-S17 (旧期待値 4.7.34 が古い→4.8.6 へ更新)
+- T2 [条件2] ホームで heavy 未ロード   : PASS observed=promise null & __TennisDBHeavy undefined
+- T3 [条件1] 大会詳細を開く          : PASS observed=[aria-label="大会詳細"]表示
+- T4 [条件1] 試合追加→MatchEditModal : PASS observed=[aria-label="試合を編集"]存在
+- T5 [条件1] 試合編集でも heavy 不発  : PASS observed=未ロード継続・heavyFetch=0
+- T6 [条件2] ホームで heavyバンドル取得: PASS observed=0件
+- T7 [条件1] console error          : PASS observed=0件
+- 保存→リロード→残存 [条件2]        : PASS observed=cal_069 試合 3→4、reload(navType=navigate)後も4、追加「勝利」残存 → reset でクリーンアップ済
+- 注: 起動時 heavy ロードは「分析タブ復元」が原因 (重いタブは設計通り)。試合経路(ホーム→大会→試合編集)は上記の通り軽量維持。
+
+自動ゲート検証:
+- 実フック実行 `sh .git/hooks/pre-push` → exit=0 (R1 gate passed: APP_VERSION 同期 OK 4.8.6-S17 + VERIFY_LOG gate passed)
+- desync 模擬(sw=9.9.9) / index.html version 欠落 模擬 → 両方 BLOCK 確認 (fail-closed 成立)
+
+実画面検証: 済
+- 上記 R1 smoke を dev で実際に画面操作 (ホーム→記録→大会詳細→試合追加→保存→リロード) して観測。
+
+console error 0: 済
+- dev で全操作中 console error 0 件 (preview level=error → "No console logs")
+
+未確認: なし
+- DEV は no-login のためクラウド往復は対象外 (R1-smoke §42-43)。クラウド同期は本番稼働中・同期表示出荷済。「端末に残る」(条件2核心) は保存→リロード残存で実証。
+
+---
+
+### docs: 全体設計を完成契約ベースで正式文書に統合 (2026-06-04) ← **push 済 (4ed62f6)**
 push 候補: 全 Claude Code ログ精査で再構築した全体設計を、追跡対象の正式文書に一本化。ROADMAP_v4.md 冒頭に「★現行ロードマップ(完成契約ベース)」新設(旧 S0-S21 は履歴として下に保持) / DECISIONS_v4.md に「2026-06-04 土台決定 D1〜D5」追記 / 現在地.md を実態(4.8.6-S17・4.8.3〜4.8.6 push 反映)に更新し ROADMAP★・DECISIONS D1-D5 を単一の真実として指す。
 
 バージョン: 変更なし (4.8.6-S17 維持) — コード/ビルド/デプロイ なし、docs のみ。
