@@ -6,6 +6,24 @@
 
 ## 現行 push 候補
 
+### feat: Racketpediaパイプライン強化 + 応答規律R8 フック (2026-07-02)
+push 候補: commit 1074c9e (racketpedia コード+文書のみ、収集データは .gitignore で除外) / commit bac8ab8 (CLAUDE.md R8 + hooks + settings.json)。
+
+バージョン: 変更なし (4.8.6-S17 維持) — **アプリ (v4/, src/) には一切触れていない**。ビルド/デプロイ対象のアプリコード変更ゼロ。
+
+実画面検証: 済
+- アプリ画面の変更なしのため対象外。代わりに変更対象そのもの (取込パイプライン) を実 Chrome で end-to-end 検証:
+  翻訳された実ページ→スクリプトv1.1発火(原文2回目GETの痕跡確認)→受け口→英語で保存 (listener.log [ingest] 行) →カタログ自動再生成 (更新時刻で確認)。
+- 翻訳まみれ payload の upsert で既存データ無傷 (status=same)、重複ゼロ (1104本=uniq 1104)。
+
+console error 0: 済
+- アプリコード変更なしのため該当なし。取込検証中のブラウザ console にエラーなし (moment.js の既存 deprecation warning のみ、当方変更と無関係)。
+
+未確認: なし
+- 会員ログイン状態での取込 (⑤) は会員登録後に別途検証予定 (README 記載済)。
+
+---
+
 ### docs+gate: R1 自動ゲート (pre-push version同期) + R1 smoke 実施記録 (2026-06-04)
 push 候補: R1-smoke-test.md (T1 期待値 4.7.34→4.8.6 + 「自動ゲート(pre-push)」節追加) / DESIGN_LOG.md (R1ゲート設計エントリ §1-15) / VERIFY_LOG.md。`.git/hooks/pre-push` に APP_VERSION 同期チェック追加 (machine-local・非追跡・commit されない)。
 
