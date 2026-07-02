@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ストリング比較</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  :root{
+    --bg:#F2F2F7; --panel:#FFFFFF; --border:#DADCE0; --divider:#E8EAED;
+    --text:#202124; --sec:#5F6368; --muted:#80868B; --gray4:#C7C7CC;
+    --obj:#007AFF; --subj:#FF9500; --subjtext:#E07B00;
+    --mono:"SF Mono",Menlo,Consolas,"Roboto Mono",monospace;
+  }
+  html,body{ font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Helvetica Neue",Arial,sans-serif; color:var(--text); background:var(--bg); line-height:1.5; }
+  .wrap{ padding:28px 32px 64px; }
+  .inner{ max-width:1340px; margin:0 auto; }
+  .head{ display:flex; align-items:flex-end; justify-content:space-between; gap:24px; flex-wrap:wrap; }
+  .title{ font-size:22px; font-weight:700; letter-spacing:-0.01em; display:flex; align-items:center; gap:9px; }
+  .subtitle{ font-size:13px; color:var(--sec); margin-top:5px; }
+  .summary{ font-size:12px; color:var(--sec); background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:8px 14px; }
+  .controls{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:18px; }
+  .search{ position:relative; flex:0 0 248px; }
+  .search svg{ position:absolute; left:11px; top:50%; transform:translateY(-50%); }
+  .search input{ width:100%; height:38px; padding:0 12px 0 36px; border:1px solid var(--border); border-radius:12px; background:var(--panel); font-size:13px; font-family:inherit; color:var(--text); outline:none; }
+  .search input:focus{ border-color:var(--obj); box-shadow:0 0 0 2px #E1F0FF; }
+  select{ height:38px; padding:0 30px 0 12px; border:1px solid var(--border); border-radius:12px; background:var(--panel); font-size:13px; font-family:inherit; color:var(--text); outline:none; cursor:pointer; appearance:none; -webkit-appearance:none;
+    background-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="10" height="6"><path d="M1 1l4 4 4-4" fill="none" stroke="%2380868B" stroke-width="1.5"/></svg>'); background-repeat:no-repeat; background-position:right 12px center; }
+  select:focus{ border-color:var(--obj); }
+  .spacer{ flex:1; }
+  .legend{ display:flex; align-items:center; gap:14px; font-size:12px; color:var(--sec); flex-wrap:wrap; }
+  .legend span{ display:flex; align-items:center; gap:6px; }
+  .sw{ width:11px; height:11px; border-radius:3px; display:inline-block; }
+  .framenote{ margin-top:12px; display:flex; align-items:center; gap:9px; background:#E6F4EA; border:1px solid #B7E1C9; border-radius:12px; padding:9px 14px; font-size:12.5px; color:#0A5B35; }
+  .tablecard{ margin-top:16px; background:var(--panel); border:1px solid var(--border); border-radius:20px; overflow:hidden; }
+  .scroller{ overflow-x:auto; }
+  table{ width:100%; border-collapse:collapse; font-size:13px; min-width:1000px; }
+  thead tr{ background:#FAFAFB; border-bottom:1px solid var(--divider); }
+  th{ font-size:11px; font-weight:600; color:var(--muted); white-space:nowrap; padding:11px 10px; text-align:left; }
+  th.c{ text-align:center; padding:11px 8px; }
+  th.sortable{ cursor:pointer; user-select:none; }
+  th.sortable:hover{ color:var(--obj); }
+  th.active{ color:var(--obj); }
+  th .unit{ font-size:9px; font-weight:400; color:#9AA0A6; }
+  th.eval, td.eval{ position:sticky; right:0; z-index:1; border-left:1px solid var(--divider); box-shadow:-6px 0 8px -6px rgba(0,0,0,0.07); }
+  th.eval{ z-index:3; background:#FAFAFB; padding:11px 14px; }
+  tbody tr.data{ cursor:pointer; transition:background 150ms ease; background:var(--panel); }
+  tbody tr.data:hover{ background:#F7F8FA; }
+  tbody tr.data.expanded{ background:#F3F7FF; }
+  td{ padding:11px 10px; border-bottom:1px solid #F1F3F4; vertical-align:middle; white-space:nowrap; }
+  table.compact td{ padding:7px 10px; }
+  table.compact th{ padding-top:9px; padding-bottom:9px; }
+  td.c{ text-align:center; }
+  td.mono{ font-family:var(--mono); }
+  td.eval{ background:var(--panel); padding:11px 14px; }
+  tr.expanded td.eval{ background:#F3F7FF; }
+  .name{ font-weight:600; font-size:13.5px; }
+  .brand{ font-size:11px; color:var(--muted); margin-top:1px; }
+  .namecell{ display:flex; align-items:center; gap:7px; }
+  .caret{ color:var(--muted); width:12px; flex:0 0 12px; transition:transform 150ms ease; }
+  tr.expanded .caret{ transform:rotate(90deg); }
+  .pill{ display:inline-block; font-size:11px; font-weight:600; line-height:1; border-radius:6px; padding:4px 8px; white-space:nowrap; border:1px solid; }
+  .rec{ font-size:10px; font-weight:700; color:#0A5B35; background:#E6F4EA; border:1px solid #8FD0A8; border-radius:6px; padding:2px 6px; margin-left:7px; white-space:nowrap; }
+  .obj{ color:var(--obj); font-weight:600; }
+  .objnull{ color:var(--gray4); }
+  .subj{ color:var(--subjtext); font-weight:600; font-size:11px; }
+  td.big{ background:#FCE3C4; }
+  .axisval{ font-family:var(--mono); font-size:13px; line-height:1.15; }
+  .axissubj{ font-family:var(--mono); font-size:11px; line-height:1.3; }
+  /* panel */
+  .panel{ display:flex; gap:28px; padding:22px 24px 26px; flex-wrap:wrap; animation:enter 150ms ease-out; }
+  @keyframes enter{ from{opacity:0;transform:translateY(-6px);} to{opacity:1;transform:translateY(0);} }
+  td.panelcell{ padding:0; border-bottom:1px solid var(--divider); background:#FBFBFC; white-space:normal; }
+  .pcol-radar{ flex:0 0 auto; }
+  .pcol-bars{ flex:1 1 340px; min-width:300px; }
+  .pcol-notes{ flex:1 1 300px; min-width:260px; display:flex; flex-direction:column; gap:16px; }
+  .plabel{ font-size:12px; font-weight:600; color:var(--sec); margin-bottom:8px; }
+  .plabel-sm{ font-size:11px; font-weight:600; color:var(--muted); margin-bottom:6px; }
+  .radarlegend{ display:flex; gap:16px; font-size:11.5px; color:var(--sec); margin-top:2px; justify-content:center; }
+  .radarlegend span{ display:flex; align-items:center; gap:5px; }
+  .rl{ width:18px; height:3px; display:inline-block; border-radius:2px; }
+  .nolab{ width:240px; height:240px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; border:1px dashed var(--border); border-radius:16px; color:var(--muted); text-align:center; padding:0 24px; font-size:12px; line-height:1.6; }
+  .bar-row{ display:flex; align-items:center; gap:12px; margin-bottom:9px; }
+  .bar-row.big{ background:#FFF6E9; margin:0 -8px 9px; padding:5px 8px; border-radius:8px; }
+  .bar-label{ flex:0 0 86px; font-size:12px; }
+  .bar-tracks{ flex:1; display:flex; flex-direction:column; gap:3px; }
+  .track{ height:7px; background:#EEF0F2; border-radius:4px; overflow:hidden; }
+  .track > div{ height:100%; border-radius:4px; }
+  .bar-nums{ flex:0 0 80px; text-align:right; font-family:var(--mono); font-size:12px; }
+  .bar-delta{ flex:0 0 52px; text-align:right; }
+  .deltabadge{ font-size:10px; font-weight:700; color:#A04F00; background:#FCE3C4; border-radius:6px; padding:2px 6px; white-space:nowrap; }
+  .memo{ font-size:13px; line-height:1.6; background:var(--panel); border:1px solid var(--divider); border-radius:12px; padding:11px 13px; }
+  .memo.empty{ color:var(--muted); }
+  .stiffbox{ background:var(--panel); border:1px solid var(--divider); border-radius:12px; padding:11px 13px; display:flex; flex-direction:column; gap:7px; }
+  .stiffrow{ display:flex; justify-content:space-between; font-size:12.5px; }
+  .stiffrow .k{ color:var(--sec); }
+  .stiffrow .v{ font-family:var(--mono); font-weight:600; }
+  .stiffrow .vmuted{ color:var(--muted); }
+  .stiffhint{ font-size:11px; color:var(--muted); line-height:1.5; border-top:1px solid #F1F3F4; padding-top:7px; }
+  .foot{ margin-top:12px; font-size:11.5px; color:var(--muted); line-height:1.6; }
+  /* settings */
+  .settings{ display:flex; align-items:center; gap:18px; flex-wrap:wrap; margin-top:14px; background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:11px 16px; }
+  .settings .grp{ display:flex; align-items:center; gap:9px; font-size:12.5px; color:var(--sec); }
+  .settings .grp.sep{ border-left:1px solid var(--divider); padding-left:18px; }
+  .switch{ position:relative; width:38px; height:22px; flex:0 0 38px; }
+  .switch input{ opacity:0; width:0; height:0; position:absolute; }
+  .slider{ position:absolute; inset:0; background:#E0E2E6; border-radius:22px; transition:background 150ms ease; cursor:pointer; }
+  .slider::before{ content:""; position:absolute; width:18px; height:18px; left:2px; top:2px; background:#fff; border-radius:50%; transition:transform 150ms ease; box-shadow:0 1px 2px rgba(0,0,0,0.2); }
+  .switch input:checked + .slider{ background:var(--obj); }
+  .switch input:checked + .slider::before{ transform:translateX(16px); }
+  .seg{ display:inline-flex; border:1px solid var(--border); border-radius:10px; overflow:hidden; }
+  .seg button{ font:inherit; font-size:12px; padding:5px 12px; border:none; background:var(--panel); color:var(--sec); cursor:pointer; }
+  .seg button.on{ background:#E1F0FF; color:var(--obj); font-weight:500; }
+  .settings input[type=range]{ accent-color:var(--obj); cursor:pointer; }
+  .thval{ font-family:var(--mono); font-size:12px; color:var(--text); min-width:34px; }
+  ::-webkit-scrollbar{ width:8px; height:8px; }
+  ::-webkit-scrollbar-thumb{ background:rgba(0,0,0,0.18); border-radius:4px; }
+  ::-webkit-scrollbar-track{ background:transparent; }
+  @media (prefers-reduced-motion: reduce){ *{ animation-duration:0.01ms !important; transition-duration:0.01ms !important; } }
+</style>
+</head>
+<body>
+<div class="wrap"><div class="inner">
+  <div class="head">
+    <div>
+      <div class="title">
+        <svg width="22" height="22" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5" fill="none" stroke="#9334E0" stroke-width="2"/><path d="M4 7c3.5 2 3.5 8 0 10M20 7c-3.5 2-3.5 8 0 10" fill="none" stroke="#9334E0" stroke-width="2"/></svg>
+        ストリング比較
+      </div>
+      <div class="subtitle">客観データ（ラボ計測）と自分の試打体感を 8 軸で重ねて、ラケットに合う弦を選ぶ。</div>
+    </div>
+    <div class="summary" id="summary"></div>
+  </div>
+
+  <div class="controls">
+    <div class="search">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#80868B" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+      <input id="search" placeholder="名前で検索">
+    </div>
+    <select id="brand">
+      <option value="">メーカー：すべて</option>
+      <option value="Head">Head</option>
+      <option value="Yonex">Yonex</option>
+      <option value="Babolat">Babolat</option>
+      <option value="Tecnifibre">Tecnifibre</option>
+      <option value="Big Breakers">Big Breakers</option>
+    </select>
+    <select id="material">
+      <option value="">素材：すべて</option>
+      <option value="コポリエステル">コポリエステル</option>
+      <option value="コポリアミド">コポリアミド</option>
+      <option value="ナチュラルガット">ナチュラルガット</option>
+    </select>
+    <select id="shape">
+      <option value="">形状：すべて</option>
+      <option value="ラウンド">ラウンド</option>
+      <option value="八角">八角</option>
+    </select>
+    <select id="frame">
+      <option value="">フレーム：指定なし</option>
+      <option value="boom">BOOM PRO（低パワー）</option>
+      <option value="ezone">EZONE 98（高パワー）</option>
+      <option value="pure">Pure Drive（高パワー）</option>
+    </select>
+    <div class="spacer"></div>
+    <div class="legend">
+      <span><span class="sw" style="background:#007AFF"></span>客観（ラボ）</span>
+      <span><span class="sw" style="background:#FF9500"></span>主観（試打）</span>
+      <span><span class="sw" style="background:#FCE3C4;border:1px solid #F0B968"></span>ズレ大</span>
+    </div>
+  </div>
+
+  <div id="framenote"></div>
+
+  <div class="settings">
+    <div class="grp">
+      <label class="switch"><input type="checkbox" id="set-highlight" checked><span class="slider"></span></label>
+      <span>ズレを強調</span>
+    </div>
+    <div class="grp">
+      <span>強調する差</span>
+      <input type="range" id="set-threshold" min="10" max="40" step="5" value="20">
+      <span class="thval" id="set-threshold-val">20pt</span>
+    </div>
+    <div class="grp sep">
+      <label class="switch"><input type="checkbox" id="set-subj" checked><span class="slider"></span></label>
+      <span>主観スコアを併記</span>
+    </div>
+    <div class="grp sep">
+      <span>行の密度</span>
+      <div class="seg" id="set-density">
+        <button data-d="標準" class="on">標準</button>
+        <button data-d="コンパクト">コンパクト</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="tablecard"><div class="scroller">
+    <table>
+      <thead><tr id="headrow"></tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div></div>
+
+  <div class="foot">行をクリックすると 8 軸レーダー・バー・試打メモが開きます。動的剛性／帯別剛性／8軸スコアは有料会員のラボデータ。未取得は「空欄（—）」で表示し、推測で埋めていません。</div>
+</div></div>
+
+<script>
+(function(){
+  "use strict";
+
+  var AXES = ["パワー","弾き","弾性","スピン","コントロール","維持","安定","快適"];
+  var AXES_SHORT = ["パワー","弾き","弾性","スピン","コント","維持","安定","快適"];
+
+  var DATA = [
+    { id:1,  brand:"Head",         name:"Lynx 無印",     gauge:"1.25", structure:"モノ",   material:"コポリエステル", shape:"ラウンド", stiff:0.70, obj:null,                       subj:null,                    evalCat:"honmei", evalText:"本命",       memo:"" },
+    { id:2,  brand:"Head",         name:"Hawk Power",    gauge:"1.25", structure:"モノ",   material:"コポリエステル", shape:"ラウンド", stiff:0.75, obj:[85,75,50,90,75,70,60,70], subj:null,                    evalCat:"bimyo",  evalText:"微妙",       memo:"" },
+    { id:3,  brand:"Head",         name:"Lynx Touch",    gauge:"1.25", structure:"モノ",   material:"コポリエステル", shape:"ラウンド", stiff:0.95, obj:null,                       subj:null,                    evalCat:"kyakka", evalText:"却下",       memo:"" },
+    { id:4,  brand:"Yonex",        name:"Poly Tour Pro", gauge:"1.25", structure:"モノ",   material:"コポリエステル", shape:"ラウンド", stiff:1.05, obj:[80,85,50,95,95,70,65,65], subj:null,                    evalCat:"ka",     evalText:"可",         memo:"" },
+    { id:5,  brand:"Head",         name:"Hawk Touch",    gauge:"1.25", structure:"モノ",   material:"コポリエステル", shape:"ラウンド", stiff:1.05, obj:[75,75,60,95,100,70,65,60],subj:[85,80,65,90,45,60,50,60],evalCat:"kyakka", evalText:"却下（浮く）", memo:"客観コントロール100に対し体感は45。打感が浮いて、面の安定が掴めなかった。スピンと弾きは数値どおり良いが、自分の手には合わず却下。" },
+    { id:6,  brand:"Big Breakers", name:"Meteor",        gauge:"1.25", structure:"モノ",   material:"コポリエステル", shape:"ラウンド", stiff:1.05, obj:[90,80,55,95,95,100,80,65],subj:null,                    evalCat:"mishida",evalText:"未試打",     memo:"" },
+    { id:7,  brand:"Tecnifibre",   name:"Razor Soft",    gauge:"1.25", structure:"モノ",   material:"コポリエステル", shape:"ラウンド", stiff:1.15, obj:null,                       subj:null,                    evalCat:"kyakka", evalText:"全ダメ",     memo:"" },
+    { id:8,  brand:"Babolat",      name:"RPM Blast",     gauge:"1.25", structure:"モノ",   material:"コポリエステル", shape:"八角",   stiff:1.18, obj:null,                       subj:null,                    evalCat:"ka",     evalText:"可",         memo:"" },
+    { id:9,  brand:"Babolat",      name:"M7",            gauge:"1.25", structure:"マルチ", material:"コポリアミド",   shape:"ラウンド", stiff:0.68, obj:null,                       subj:null,                    evalCat:"mishida",evalText:"未試打",     memo:"" },
+    { id:10, brand:"Babolat",      name:"VS Team",       gauge:"1.25", structure:"ガット", material:"ナチュラルガット", shape:"ラウンド", stiff:0.60, obj:null,                       subj:null,                    evalCat:"mishida",evalText:"未試打",     memo:"" }
+  ];
+
+  var FRAMES = {
+    boom: { label:"BOOM PRO", power:"低", lo:0.55, hi:0.95, advice:"柔らかめ" },
+    ezone:{ label:"EZONE 98", power:"高", lo:1.05, hi:1.25, advice:"硬め" },
+    pure: { label:"Pure Drive", power:"高", lo:1.05, hi:1.25, advice:"硬め" }
+  };
+
+  var PILL = {
+    honmei: { fg:"#0057B8", bg:"#E1F0FF", bd:"#A9D2FF" },
+    ka:     { fg:"#0A5B35", bg:"#E6F4EA", bd:"#A9D9BE" },
+    bimyo:  { fg:"#7E5D00", bg:"#FEF7E0", bd:"#EAD79A" },
+    kyakka: { fg:"#A31511", bg:"#FCE8E6", bd:"#EFB7B2" },
+    mishida:{ fg:"#5F6368", bg:"#F1F3F4", bd:"#DADCE0" }
+  };
+
+  var state = { search:"", brand:"", material:"", shape:"", frame:"", sortKey:"stiff", sortDir:"asc", expandedId:null,
+    highlightDelta:true, threshold:20, showSubjective:true, density:"標準" };
+
+  function esc(s){ return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+
+  function radarPoints(vals){
+    return vals.map(function(v,i){
+      var ang=(-90+i*45)*Math.PI/180, r=(v/100)*90;
+      return (120+r*Math.cos(ang)).toFixed(1)+","+(120+r*Math.sin(ang)).toFixed(1);
+    }).join(" ");
+  }
+
+  function axesGeom(){
+    return AXES.map(function(label,i){
+      var ang=(-90+i*45)*Math.PI/180, c=Math.cos(ang), s=Math.sin(ang), anchor="middle";
+      if(c>0.3) anchor="start"; else if(c<-0.3) anchor="end";
+      return { label:label, ex:(120+90*c).toFixed(1), ey:(120+90*s).toFixed(1), lx:(120+110*c).toFixed(1), ly:(120+110*s+3).toFixed(1), anchor:anchor };
+    });
+  }
+
+  function radarSVG(obj, subj){
+    var axes=axesGeom(), p="";
+    p+='<svg width="240" height="240" style="display:block;overflow:visible">';
+    [25,50,75,100].forEach(function(v){ p+='<polygon points="'+radarPoints([v,v,v,v,v,v,v,v])+'" fill="none" stroke="#E8EAED" stroke-width="1"/>'; });
+    axes.forEach(function(a){ p+='<line x1="120" y1="120" x2="'+a.ex+'" y2="'+a.ey+'" stroke="#E8EAED" stroke-width="1"/>'; });
+    p+='<polygon points="'+radarPoints(obj)+'" fill="rgba(0,122,255,0.15)" stroke="#007AFF" stroke-width="2" stroke-linejoin="round"/>';
+    if(subj) p+='<polygon points="'+radarPoints(subj)+'" fill="rgba(255,149,0,0.10)" stroke="#FF9500" stroke-width="2" stroke-linejoin="round"/>';
+    axes.forEach(function(a){ p+='<text x="'+a.lx+'" y="'+a.ly+'" font-size="10" fill="#5F6368" text-anchor="'+a.anchor+'">'+a.label+'</text>'; });
+    p+='</svg>';
+    return p;
+  }
+
+  function stiffHint(d){
+    if(!d.obj && d.evalCat==="mishida") return "未試打。静的剛性のみ把握。試打して体感を重ねたい候補。";
+    if(!d.obj) return "ラボの8軸スコアは未取得。静的剛性のみ把握。";
+    if(d.stiff<=0.85) return "静的剛性は柔らかめの帯。低パワーフレーム向き。";
+    if(d.stiff>=1.10) return "静的剛性は硬めの帯。高パワーフレーム向き。";
+    return "静的剛性は中間帯。汎用的に合わせやすい。";
+  }
+
+  function getFrame(){ return FRAMES[state.frame]||null; }
+
+  function filteredSorted(){
+    var f=getFrame();
+    var list=DATA.filter(function(d){
+      if(state.search && (d.brand+" "+d.name).toLowerCase().indexOf(state.search.toLowerCase())===-1) return false;
+      if(state.brand && d.brand!==state.brand) return false;
+      if(state.material && d.material!==state.material) return false;
+      if(state.shape && d.shape!==state.shape) return false;
+      return true;
+    });
+    var dir=state.sortDir==="asc"?1:-1;
+    list=list.slice().sort(function(a,b){
+      var av,bv;
+      if(state.sortKey==="stiff"){ av=a.stiff; bv=b.stiff; }
+      else { av=a.obj?a.obj[state.sortKey]:null; bv=b.obj?b.obj[state.sortKey]:null; }
+      if(av==null && bv==null) return 0;
+      if(av==null) return 1;
+      if(bv==null) return -1;
+      return (av-bv)*dir;
+    });
+    return list;
+  }
+
+  function renderHead(){
+    var h=document.getElementById("headrow");
+    var html="";
+    html+='<th>弦名</th><th>構造・素材</th><th>形状</th>';
+    html+='<th class="c">ゲージ (mm)</th>';
+    var sa=state.sortKey==="stiff";
+    html+='<th class="c sortable'+(sa?' active':'')+'" data-sort="stiff">静的剛性'+(sa?(state.sortDir==="asc"?" ▲":" ▼"):"")+'<div class="unit">kg/mm</div></th>';
+    html+='<th class="c">動的剛性<div class="unit">g/mm</div></th>';
+    AXES_SHORT.forEach(function(s,i){
+      var act=state.sortKey===i;
+      html+='<th class="c sortable'+(act?' active':'')+'" data-sort="'+i+'" title="'+AXES[i]+'">'+s+(act?(state.sortDir==="asc"?" ▲":" ▼"):"")+'</th>';
+    });
+    html+='<th class="eval">評価</th>';
+    h.innerHTML=html;
+    [].forEach.call(h.querySelectorAll(".sortable"),function(th){
+      th.addEventListener("click",function(){ setSort(th.getAttribute("data-sort")); });
+    });
+  }
+
+  function setSort(key){
+    if(key!=="stiff") key=parseInt(key,10);
+    if(state.sortKey===key){ state.sortDir=state.sortDir==="asc"?"desc":"asc"; }
+    else { state.sortKey=key; state.sortDir=(key==="stiff")?"asc":"desc"; }
+    render();
+  }
+
+  function axisCell(d,i){
+    var o=d.obj?d.obj[i]:null, sv=d.subj?d.subj[i]:null;
+    var delta=(o!=null&&sv!=null)?Math.abs(o-sv):0;
+    var big=state.highlightDelta && delta>=state.threshold;
+    var html='<td class="c'+(big?' big':'')+'">';
+    html+='<div class="axisval '+(o!=null?'obj':'objnull')+'">'+(o!=null?o:"—")+'</div>';
+    if(sv!=null && state.showSubjective) html+='<div class="axissubj subj">'+sv+'</div>';
+    html+='</td>';
+    return html;
+  }
+
+  function renderRow(d, frame){
+    var p=PILL[d.evalCat];
+    var rec=!!(frame && d.stiff>=frame.lo && d.stiff<=frame.hi);
+    var expanded=state.expandedId===d.id;
+    var html='<tr class="data'+(expanded?' expanded':'')+'" data-id="'+d.id+'">';
+    html+='<td><div class="namecell"><svg class="caret" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#80868B" stroke-width="2.5"><path d="M9 6l6 6-6 6"/></svg><div><div class="name">'+esc(d.name)+'</div><div class="brand">'+esc(d.brand)+'</div></div></div></td>';
+    html+='<td style="color:#5F6368">'+esc(d.structure)+'・'+esc(d.material)+'</td>';
+    html+='<td style="color:#5F6368">'+esc(d.shape)+'</td>';
+    html+='<td class="c mono" style="color:#5F6368">'+d.gauge+'</td>';
+    html+='<td class="c mono" style="font-weight:600">'+d.stiff.toFixed(2)+'</td>';
+    html+='<td class="c mono" style="color:#C7C7CC">—</td>';
+    for(var i=0;i<8;i++) html+=axisCell(d,i);
+    html+='<td class="eval"><span class="pill" style="color:'+p.fg+';background:'+p.bg+';border-color:'+p.bd+'">'+esc(d.evalText)+'</span>'+(rec?'<span class="rec">推奨</span>':'')+'</td>';
+    html+='</tr>';
+    if(expanded) html+=renderPanel(d);
+    return html;
+  }
+
+  function renderPanel(d){
+    var html='<tr class="expanded"><td class="panelcell" colspan="15"><div class="panel">';
+    // radar
+    html+='<div class="pcol-radar"><div class="plabel">8軸レーダー（客観 / 主観の重ね）</div>';
+    if(d.obj){
+      html+=radarSVG(d.obj,d.subj);
+      html+='<div class="radarlegend"><span><span class="rl" style="background:#007AFF"></span>客観</span>'+(d.subj?'<span><span class="rl" style="background:#FF9500"></span>主観</span>':'')+'</div>';
+    } else {
+      html+='<div class="nolab"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#80868B" stroke-width="1.8"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><div>ラボデータ未取得<br>（有料会員のラボ計測）</div></div>';
+    }
+    html+='</div>';
+    // bars
+    if(d.obj){
+      html+='<div class="pcol-bars"><div class="plabel">軸ごとのスコア</div>';
+      for(var i=0;i<8;i++){
+        var o=d.obj[i], sv=d.subj?d.subj[i]:null, delta=sv!=null?Math.abs(o-sv):0, big=state.highlightDelta && delta>=state.threshold;
+        html+='<div class="bar-row'+(big?' big':'')+'">';
+        html+='<div class="bar-label">'+AXES[i]+'</div>';
+        html+='<div class="bar-tracks"><div class="track"><div style="width:'+o+'%;background:#007AFF"></div></div>'+(sv!=null?'<div class="track"><div style="width:'+sv+'%;background:#FF9500"></div></div>':'')+'</div>';
+        html+='<div class="bar-nums"><span style="color:#007AFF;font-weight:600">'+o+'</span>'+(sv!=null?'<span style="color:#80868B"> / </span><span style="color:#E07B00;font-weight:600">'+sv+'</span>':'')+'</div>';
+        html+='<div class="bar-delta">'+(big?'<span class="deltabadge">差'+delta+'</span>':'')+'</div>';
+        html+='</div>';
+      }
+      html+='</div>';
+    }
+    // notes
+    html+='<div class="pcol-notes">';
+    html+='<div><div class="plabel-sm">試打メモ</div><div class="memo'+(d.memo?'':' empty')+'">'+(d.memo?esc(d.memo):"メモなし")+'</div></div>';
+    html+='<div><div class="plabel-sm">剛性の裏付け</div><div class="stiffbox">';
+    html+='<div class="stiffrow"><span class="k">静的剛性</span><span class="v">'+d.stiff.toFixed(2)+' kg/mm</span></div>';
+    html+='<div class="stiffrow"><span class="k">動的剛性</span><span class="vmuted">空欄（未取得）</span></div>';
+    html+='<div class="stiffhint">'+stiffHint(d)+'</div>';
+    html+='</div></div>';
+    html+='</div>';
+    html+='</div></td></tr>';
+    return html;
+  }
+
+  function renderFrameNote(){
+    var fn=document.getElementById("framenote"); var f=getFrame();
+    if(!f){ fn.innerHTML=""; return; }
+    fn.innerHTML='<div class="framenote"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0A5B35" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5" fill="#0A5B35"/></svg><span>'+f.label+'（'+f.power+'パワー）→ '+f.advice+'（静的剛性 '+f.lo.toFixed(2)+'–'+f.hi.toFixed(2)+' kg/mm）を推奨。低パワーは柔らかめ・高パワーは硬めの逆相関。</span></div>';
+  }
+
+  function render(){
+    renderHead();
+    renderFrameNote();
+    var frame=getFrame();
+    var list=filteredSorted();
+    var tb=document.getElementById("tbody");
+    tb.parentNode.className=(state.density==="コンパクト"?"compact":"");
+    tb.innerHTML=list.map(function(d){ return renderRow(d,frame); }).join("");
+    [].forEach.call(tb.querySelectorAll("tr.data"),function(tr){
+      tr.addEventListener("click",function(){
+        var id=parseInt(tr.getAttribute("data-id"),10);
+        state.expandedId=(state.expandedId===id)?null:id;
+        render();
+      });
+    });
+    var labN=DATA.filter(function(d){return d.obj;}).length;
+    var trialN=DATA.filter(function(d){return d.subj;}).length;
+    document.getElementById("summary").textContent="全"+DATA.length+"件 · ラボデータ "+labN+"件 · 試打体感 "+trialN+"件";
+  }
+
+  document.getElementById("search").addEventListener("input",function(e){ state.search=e.target.value; render(); });
+  document.getElementById("brand").addEventListener("change",function(e){ state.brand=e.target.value; render(); });
+  document.getElementById("material").addEventListener("change",function(e){ state.material=e.target.value; render(); });
+  document.getElementById("shape").addEventListener("change",function(e){ state.shape=e.target.value; render(); });
+  document.getElementById("frame").addEventListener("change",function(e){ state.frame=e.target.value; render(); });
+
+  document.getElementById("set-highlight").addEventListener("change",function(e){ state.highlightDelta=e.target.checked; render(); });
+  document.getElementById("set-subj").addEventListener("change",function(e){ state.showSubjective=e.target.checked; render(); });
+  document.getElementById("set-threshold").addEventListener("input",function(e){ state.threshold=parseInt(e.target.value,10); document.getElementById("set-threshold-val").textContent=state.threshold+"pt"; render(); });
+  [].forEach.call(document.querySelectorAll("#set-density button"),function(b){
+    b.addEventListener("click",function(){
+      state.density=b.getAttribute("data-d");
+      [].forEach.call(document.querySelectorAll("#set-density button"),function(x){ x.className=(x===b?"on":""); });
+      render();
+    });
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>

@@ -3,7 +3,7 @@
 127.0.0.1 のみ待受 (外部公開しない)。個人利用専用。
 起動: python racketpedia/listener.py   (Windows ログイン時に自動起動も可)
 """
-import sys, io, os, json
+import sys, io, os, json, datetime
 from http.server import HTTPServer, BaseHTTPRequestHandler
 sys.path.insert(0, 'racketpedia')
 import store
@@ -32,7 +32,16 @@ class Handler(BaseHTTPRequestHandler):
         self._cors()
         self.end_headers()
 
-    def do_GET(self):  # ヘルスチェック用
+    def do_GET(self):  # ヘルスチェック + 比較ページ配信 (レイアウト検証用・このパスのみ)
+        if self.path == '/compare':
+            p = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'string_compare.html')
+            body = open(p, 'rb').read()
+            self.send_response(200)
+            self._cors()
+            self.send_header('Content-Type', 'text/html; charset=utf-8')
+            self.end_headers()
+            self.wfile.write(body)
+            return
         self.send_response(200)
         self._cors()
         self.send_header('Content-Type', 'application/json')
@@ -52,6 +61,13 @@ class Handler(BaseHTTPRequestHandler):
             kind, slug, status, name = store.ingest_html(html_text, S2B)
             if kind:
                 store.rebuild(kind)
+            else:
+                # 未対応ページは捨てずに保管箱へ (新ページ種の解析器を後から作れるように)
+                inbox = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'cache', 'inbox')
+                os.makedirs(inbox, exist_ok=True)
+                fn = datetime.datetime.now().strftime('%Y%m%d_%H%M%S') + '.html'
+                open(os.path.join(inbox, fn), 'w', encoding='utf-8').write(html_text)
+                status = f'inbox:{fn}'
             resp = {'kind': kind, 'slug': slug, 'status': status, 'name': name}
             print(f"[ingest] {kind or 'skip':7} {status:7} {slug or '-'}  {name or ''}")
         except Exception as e:

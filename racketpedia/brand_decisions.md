@@ -47,6 +47,16 @@
   - 修正: 3名を正式名（Babolat Blast 1.25 / Yonex Poly Tour Pro 1.25 / Prince Phantom Spin 17 / 1.24）へ。マスター実在チェック付き。全5参照がマスターに解決＝完了。
   - 元に戻す: `--restore 2026-06-30T02-02-12-381Z`。これは名前を合わせる即時修正で、根本（名前参照）は③のID化で断つ。
 
+## 2026-07-03 会員データ取込 + 比較ページ完成 (未commit)
+- 有料会員化。会員限定データ (動的剛性/帯別剛性/伸び率/平均比±) の取込を実装・実証 (RPM Blast で全項目一致検証)
+- 平均比 (average-related ±N) 8軸を新フィールド radar_delta_* で取得。「Equal to average」=0 も対応
+- モデルページ (/tennis-strings/model/*) 対応: 1閲覧で全バリエーション一括取込。userscript v1.2 (原文取り寄せ+model URL)
+- listener に inbox (未対応ページの保管箱)。取込→比較ページ自動再生成 (build_compare --no-import) まで全自動化
+- string_compare.html 完成形: メーカー順初期表示 / F5状態維持 / 動的剛性列 / 詳細バッジ / 詳細画面 (p3承認: 平均比色分け・?解説・バリエーション比較・lbs換算) / 複数比較 (チェック→最大4本、平均比色分け)
+- タブレット持ち出し = ファイルコピーで可 (1ファイル完結)。恒久解 = Firebase「器は公開・中身は本人」方式 (設計済・未着手)
+- 公開カタログは6月末公開分で凍結方針 (会員データの横流し防止)。データは racketpedia/out/ (git外)
+- 次: SEデモ後 → Firebase 方式着手 / 今日の分の commit 待ち (ユーザー承認後)
+
 ## 2026-07-02 ライブ取込 開通 + 自動翻訳ガード
 - Tampermonkey 開通 (Chrome「ユーザースクリプトを許可」ON が必要だった)。閲覧だけで取込が動くことを実証 (yonex-poly-tour-strike-grey-125 がライブで届いた)
 - 【訂正】当初「radar 8軸が enrich された」と説明したが誤り。radar は 6月末公開時点で取得済み (HEAD カタログと一致で確認)。今日の 'changed' は自動翻訳による name 上書きのみ

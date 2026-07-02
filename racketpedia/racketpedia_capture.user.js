@@ -1,10 +1,12 @@
 // ==UserScript==
 // @name         Racketpedia personal capture
 // @namespace    tennisdb.local
-// @version      1.1
+// @version      1.2
 // @description  自分が閲覧した弦/ラケットのページを、ローカルの受け口へ自動送信して個人記録化する(個人利用限定・巡回はしない)
 // @match        https://www.racketpedia.com/en-GB/tennis-string/*
 // @match        https://www.racketpedia.com/en-GB/tennis-racket/*
+// @match        https://www.racketpedia.com/en-GB/tennis-strings/model/*
+// @match        https://www.racketpedia.com/en-GB/tennis-rackets/model/*
 // @run-at       document-idle
 // @grant        GM_xmlhttpRequest
 // @grant        GM_setValue

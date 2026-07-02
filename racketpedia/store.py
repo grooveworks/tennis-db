@@ -18,6 +18,8 @@ STRING_FIELDS = ['name', 'brand', 'lab_data', 'typology', 'shape', 'composition'
                  'dynamic_stiffness_gmm', 'dynamic_stiffness_sim_lbsin', 'elongation_5_35_mm',
                  'radar_power', 'radar_resilience', 'radar_elasticity', 'radar_spin', 'radar_control',
                  'radar_tension_holding', 'radar_stability', 'radar_comfort',
+                 'radar_delta_power', 'radar_delta_resilience', 'radar_delta_elasticity', 'radar_delta_spin',
+                 'radar_delta_control', 'radar_delta_tension_holding', 'radar_delta_stability', 'radar_delta_comfort',
                  'tension_range', 'resilience_range', 'playing_life', 'prestretch',
                  'progressive_plasticization', 'stiffness_badge', 'test_published', 'tags', 'source_url']
 
@@ -64,8 +66,10 @@ def string_row(slug, d, s2b=None):
               'progressive_plasticization', 'stiffness_badge', 'test_published']:
         r[k] = d.get(k)
     rad = d.get('radar') or {}
+    dlt = d.get('radar_delta') or {}
     for k in ['power', 'resilience', 'elasticity', 'spin', 'control', 'tension_holding', 'stability', 'comfort']:
         r['radar_' + k] = rad.get(k)
+        r['radar_delta_' + k] = dlt.get(k)
     r['brand'] = s2b.get(slug, slug.split('-')[0])
     r['lab_data'] = 'full' if d.get('has_full_lab') else 'specs-only'
     r['tags'] = ", ".join(d.get('tags') or [])
@@ -136,16 +140,29 @@ def upsert(kind, slug, data):
 
 
 def ingest_html(html_text, s2b=None):
-    """生HTML -> 種類判定 -> 解析 -> upsert。戻り値 (kind, slug, status, name)。"""
+    """生HTML -> 種類判定 -> 解析 -> upsert。戻り値 (kind, slug, status, name)。
+    個別ページ (og:url) を最優先、次に モデルページ (全バリエーション一括)。"""
     kind, slug = extract.detect_kind(html_text)
-    if not kind or not slug:
-        return (None, None, 'skip', None)
-    if kind == 'string':
-        row = string_row(slug, extract.parse_detail(html_text), s2b)
-    else:
-        row = racket_row(slug, extract.parse_racket(html_text))
-    status = upsert(kind, slug, row)
-    return (kind, slug, status, row.get('name'))
+    if kind and slug:
+        if kind == 'string':
+            row = string_row(slug, extract.parse_detail(html_text), s2b)
+        else:
+            row = racket_row(slug, extract.parse_racket(html_text))
+        status = upsert(kind, slug, row)
+        return (kind, slug, status, row.get('name'))
+    mkind, mslug = extract.detect_model(html_text)
+    if mkind == 'string_model':
+        pm = extract.parse_model(html_text)
+        results = []
+        for v in pm['variants']:
+            row = string_row(v['slug'], v['data'], s2b)
+            row['lab_data'] = None  # ダイジェストで個別ページの full 判定を上書きしない
+            results.append(upsert('string', v['slug'], row))
+        if results:
+            agg = f"new:{results.count('new')} chg:{results.count('changed')} same:{results.count('same')}"
+            return ('string', f"model:{mslug}", agg, pm.get('name'))
+    # racket_model はまだ解析器なし -> None を返して listener の inbox 保管に回す
+    return (None, None, 'skip', None)
 
 
 def rebuild(kind):
@@ -176,4 +193,10 @@ def rebuild(kind):
             build_catalog.build_catalog()
         except Exception as e:
             print('  (catalog 再生成スキップ:', e, ')')
+        try:  # 比較ページも自動再生成 (デザイン取り込みはスキップ = --no-import)
+            import subprocess, sys as _sys
+            subprocess.run([_sys.executable, os.path.join('racketpedia', 'build_compare.py'), '--no-import'],
+                           capture_output=True, timeout=60)
+        except Exception as e:
+            print('  (比較ページ再生成スキップ:', e, ')')
     return len(rows)

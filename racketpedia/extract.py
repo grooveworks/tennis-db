@@ -99,6 +99,23 @@ def parse_detail(t):
     mp = re.search(r'Test published on\s+([\d/]+)', plain)
     test_published = mp.group(1) if mp else None
 
+    # --- 8軸の平均比 (±N average-related、会員ページ 2026-07 確認) ---
+    # 行構造: <td class=align-middle>Label <a popover>... <td>85 / 100 <progress>... <td><i 矢印> <span>-2 average-related</span>
+    radar_delta = {}
+    for key, label in [('power', 'Power'), ('resilience', 'Resilience peak'), ('elasticity', 'Elasticity'),
+                       ('spin', 'Spin'), ('control', 'Control'), ('tension_holding', 'Tension holding'),
+                       ('stability', 'Stability'), ('comfort', 'Comfort')]:
+        mrow = re.search(r'align-middle>\s*' + re.escape(label) + r'\s*<a', t)
+        if mrow:
+            seg = t[mrow.end():mrow.end() + 900]
+            md = re.search(r'([+-]?\d+)\s*average-related', seg)
+            if md:
+                radar_delta[key] = int(md.group(1))
+            elif 'Equal to average' in seg:  # 平均と同値の時は数字なしの別表記
+                radar_delta[key] = 0
+    if not radar_delta:
+        radar_delta = None
+
     # --- 硬さバッジ (Tough/Soft/Medium) ---
     # str-stiff-lab は Soft/Medium/Tough のスケール目盛(3個)。
     # str-stiff-lab-l (-l付き) がこの弦のアクティブ位置 = 実際の硬さ判定。
@@ -120,6 +137,7 @@ def parse_detail(t):
         'radar': dict(zip(
             ['power', 'resilience', 'elasticity', 'spin', 'control', 'tension_holding', 'stability', 'comfort'],
             main_radar)) if main_radar else None,
+        'radar_delta': radar_delta,  # 8軸の平均比 (±N)、判断軸。会員ページのみ
         'band_curve': band,
         'static_stiffness_avg': static_avg,
         **ss,
@@ -149,6 +167,70 @@ def detect_kind(t):
     if ns or nr:
         return ('string' if ns >= nr else 'racket'), None
     return None, None
+
+
+def detect_model(t):
+    """モデルページ判定 -> (kind, model_slug)。ページ内自己リンク /tennis-strings/model/<slug> で判定。
+    注意: 個別ページにもモデルへのリンクが出るため、必ず detect_kind (og:url) を先に試すこと。"""
+    m = re.search(r'/en-GB/tennis-(strings|rackets)/model/([a-z0-9\-]+)', t)
+    if m:
+        return ('string_model' if m.group(1) == 'strings' else 'racket_model'), m.group(2)
+    return None, None
+
+
+def _norm_name(s):
+    return re.sub(r'[^a-z0-9]', '', (s or '').lower())
+
+
+def parse_model(t):
+    """弦モデルページ HTML -> {'name', 'variants': [{'slug', 'data'}]}。
+    モデルページは全バリエーションのダイジェスト (radar 8軸 / 動的剛性 g/mm / 平均静的剛性 kg/mm) を
+    1枚に持つ (会員時)。帯別剛性・伸び率等の完全ラボデータは個別ページのみ。
+    値の対応付けは バリエーション見出し(card-label)ごとのブロック分割 + 名前⇔slug 正規化突合。"""
+    mt = re.search(r'<title>([^<]+)</title>', t)
+    model_name = mt.group(1).strip() if mt else None
+
+    slugs = sorted(set(re.findall(r'/en-GB/tennis-string/([a-z0-9\-]+)', t)))
+    slug_by_norm = {_norm_name(s): s for s in slugs}
+
+    # radar series (レーダー/棒グラフの2箇所に同値で出る、setdefault で先勝ち)
+    radars = {}
+    for nm, arr in re.findall(r'name:"([^"]+)",data:\[(\d+(?:,\d+){7})\]', t):
+        radars.setdefault(nm, [int(x) for x in arr.split(',')])
+
+    # バリエーション行ブロック: 見出し直後のテキスト = バリエーション名、ブロック内に g/mm と kg/mm
+    per = {}
+    blocks = re.split(r'class="card-label[^"]*"[^>]*>', t)[1:]
+    for b in blocks:
+        mn = re.match(r'\s*([^<&]+)', b)
+        if not mn:
+            continue
+        vname = mn.group(1).strip()
+        if _norm_name(vname) not in slug_by_norm:
+            continue
+        md = re.search(r'([\d.]+)\s*g/mm', b)
+        ms = re.search(r'([\d.]+)\s*kg/mm', b)
+        per[vname] = {
+            'dynamic_stiffness_gmm': float(md.group(1)) if md else None,
+            'static_stiffness_avg': float(ms.group(1)) if ms else None,
+        }
+
+    variants = []
+    names = set(per) | {nm for nm in radars if _norm_name(nm) in slug_by_norm}
+    for vname in sorted(names):
+        slug = slug_by_norm.get(_norm_name(vname))
+        if not slug:
+            continue
+        rad = radars.get(vname)
+        data = {
+            'name': vname,
+            'radar': dict(zip(
+                ['power', 'resilience', 'elasticity', 'spin', 'control',
+                 'tension_holding', 'stability', 'comfort'], rad)) if rad else None,
+            **per.get(vname, {}),
+        }
+        variants.append({'slug': slug, 'data': data})
+    return {'name': model_name, 'variants': variants}
 
 
 def parse_racket(t):

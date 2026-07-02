@@ -56,3 +56,7 @@ racketpedia/out/
 racketpedia/state/
 racketpedia/__pycache__/
 racketpedia/listener.log
+# 生成物 (会員データ埋め込みのため公開リポに絶対上げない。build_compare.py で再生成可)
+racketpedia/string_compare.html
+# 本家解説文の抽出 (racketpedia の文章のため公開しない)
+racketpedia/axis_definitions.json

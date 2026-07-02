@@ -1,0 +1,33 @@
+# 日本で入手可のブランド (slug)。1行1ブランド。先頭 # はコメント・除外。
+# ここを編集して「更新した」と言えば反映されます。
+# 大手・国内流通
+yonex
+head
+babolat
+wilson
+tecnifibre
+luxilon
+solinco
+gosen
+toalson
+prince
+dunlop
+# 専門店流通(ポリ系)
+signum-pro
+kirschbaum
+volkl
+polyfibre
+msv
+gamma
+tourna
+isospeed
+genesis
+diadem
+pro-kennex
+pacific
+ashaway
+weiss-cannon
+toroline
+topspin
+mantis
+ytex
