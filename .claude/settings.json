@@ -59,6 +59,18 @@
             "shell": "powershell",
             "command": "& '.claude/hooks/design-phase-guard.ps1'",
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "shell": "powershell",
+            "command": "& '.claude/hooks/current-state-guard.ps1'",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "shell": "powershell",
+            "command": "& '.claude/hooks/response-discipline-guard.ps1'",
+            "timeout": 10
           }
         ]
       }

@@ -28,6 +28,8 @@ Thumbs.db
 # Firestore から取得した最新データ (実データ、git 管理外)
 .claude/data-latest.json
 .claude/firestore-dump*.json
+# Firestore 変更前の控え (実データ、git 管理外、2026-07-02 追加)
+.claude/backup/
 
 # === テニス議論の書庫・状態・決定 (個人ログ、絶対に commit しない) ===
 # 過去チャット由来の個人データを含むため公開リポに上げない。原本は D:/Downloads に保管。

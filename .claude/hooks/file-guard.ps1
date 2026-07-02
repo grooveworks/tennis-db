@@ -20,6 +20,22 @@ if (-not $file) {
   exit 0
 }
 
+# 2026-07-01: 新規 preview_*.html (ワークシート/ツール) 作成を検知して現状調査を確認 (再発明防止)
+$writeContent = ""
+if ($obj.tool_input.content) { $writeContent = $obj.tool_input.content }
+if ($writeContent -and ($file -match 'preview_.*\.html$') -and (-not (Test-Path $file))) {
+  $reasonCS = "新規プレビュー/ツール ($file) を作成しようとしています。アプリに同等の既存機能が無いか (src/ui, src/core/05_schema.js, src/domain, 実データ .claude/data-latest.json) を grep/Read で調べ、現状を報告しましたか? 再発明 (例: 主観8軸ワークシート) 防止のため、未調査なら止まって現状調査を先にしてください。(memory: feedback_investigate_current_app_first)"
+  $outputCS = @{
+    hookSpecificOutput = @{
+      hookEventName = "PreToolUse"
+      permissionDecision = "ask"
+      permissionDecisionReason = $reasonCS
+    }
+  } | ConvertTo-Json -Compress -Depth 10
+  Write-Output $outputCS
+  exit 0
+}
+
 # 監視対象ファイル (パスに含まれていればマッチ)
 $criticalPatterns = @(
   '01_constants.js',   # APP_VERSION 含む
@@ -31,6 +47,7 @@ $criticalPatterns = @(
   'git-guard.ps1',
   'user-keyword-guard.ps1',
   'design-phase-guard.ps1',  # R7 設計フェーズ hook 自体 (2026-05-17 追加)
+  'current-state-guard.ps1', # 現状調査ゲート hook 自体 (2026-07-01 追加)
   'CLAUDE.md',               # 行動規範本体 (R7 追加に伴い保護、2026-05-17)
   'CLAUDE_failures.md'       # 失敗パターン記録 (R7 / F16 追加に伴い保護、2026-05-17)
 )
