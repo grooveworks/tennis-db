@@ -45,3 +45,12 @@ Thumbs.db
 EZONE98_2025_リサーチまとめ.md
 FX500TOUR_リサーチまとめ.md
 Prince_TOUR100_305g_リサーチまとめ.md
+
+# === Racketpedia 収集データ (絶対に commit しない、2026-07-02 追加) ===
+# このリポは GitHub Pages で丸ごと公開される。収集した生HTML/DB を上げると
+# racketpedia.com のデータ(将来は会員限定データ含む)を公開してしまう。コードと文書のみ commit。
+racketpedia/cache/
+racketpedia/out/
+racketpedia/state/
+racketpedia/__pycache__/
+racketpedia/listener.log
