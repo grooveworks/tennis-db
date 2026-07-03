@@ -462,3 +462,50 @@ exports.aiConsult = onCall(
     return { answer, model, usage };
   }
 );
+
+// ===================================================================
+// gcalSync: Google カレンダー ICS (非公開 URL) の読み取り専用プロキシ
+//   (DESIGN_LOG 2026-07-03。ブラウザから calendar.google.com を直接 fetch
+//    できない (CORS) ため、ここで取得・展開・仕分けして返す)
+//   - Firestore への書き込みは一切しない (書き込み主体は client)
+//   - SSRF ガード: calendar.google.com/calendar/ical/ 配下のみ許可
+//   - 入力: { urls: string[] } (最大 4 本) / 出力: calendar_import v30 互換
+// ===================================================================
+exports.gcalSync = onCall(
+  {
+    region: "asia-northeast1",
+    timeoutSeconds: 60,
+    memory: "256MiB",
+    cors: true,
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "ログインが必要です");
+    }
+    const raw = request.data && request.data.urls;
+    const urls = (Array.isArray(raw) ? raw : [])
+      .filter((u) => typeof u === "string" && u.trim())
+      .map((u) => u.trim());
+    if (urls.length === 0) {
+      throw new HttpsError("invalid-argument", "カレンダー URL が設定されていません");
+    }
+    if (urls.length > 4) {
+      throw new HttpsError("invalid-argument", "カレンダー URL は最大 4 本までです");
+    }
+    for (const u of urls) {
+      if (!/^https:\/\/calendar\.google\.com\/calendar\/ical\/[^\s]+\.ics(\?[^\s]*)?$/.test(u)) {
+        throw new HttpsError(
+          "invalid-argument",
+          "Google カレンダーの「iCal 形式の非公開 URL」のみ対応です (https://calendar.google.com/calendar/ical/... で終わりが .ics)"
+        );
+      }
+    }
+    const { syncFromIcs } = require("./gcal");
+    try {
+      return await syncFromIcs(urls);
+    } catch (err) {
+      console.error("gcalSync error:", err?.message || err);
+      throw new HttpsError("internal", err?.message || "カレンダー同期に失敗しました");
+    }
+  }
+);

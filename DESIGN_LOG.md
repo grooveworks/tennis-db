@@ -113,6 +113,106 @@ VERIFY_LOG.md と対をなす設計フェーズ用ログ。
 
 ---
 
+## 2026-07-03 Googleカレンダー自動同期 (gcalSync callable + アプリ内マージ)
+
+### §1. 今回の論点 (必須セクション)
+GCal 予定 (プライマリ + 仕事関係) を手動 JSON インポート無しでアプリに自動反映する。ユーザー明示要求 (緊急)。
+
+### §2. 読んだ資料 (選定理由含む)
+- `.claude/extract_gcal.ps1`: 分類・会場正規化の移植元 (選定理由: 2026-04-18 実運用済の実績ロジック)
+- `src/core/03_storage.js`: save() = 配列丸ごと 1 doc set と確認 (選定理由: 保存・同期論点の必読、サーバー直書き可否の判断根拠)
+- `src/app.jsx` handleImportCalendarJson (1154行): id 重複 skip・新規のみ追加のマージ実績 (選定理由: 合流路の再利用元)
+- `functions/index.js` + `package.json`: onCall + auth check + asia-northeast1 パターン (選定理由: 新 callable の型)
+- `src/core/01_constants.js`: KEYS 構造 = Firestore パス users/{uid}/data/{KEY} (選定理由: 設定の保存先設計)
+
+### §3. 過去制約
+- MEMORY reference_gcal: テニス予定はプライマリ + 仕事関係の 2 カレンダー分散、片方だけ見ない
+- MEMORY feedback_data_destruction: 値変換ロジック禁止・暗黙確定禁止・build.ps1 は承認後のみ
+- 設計フロー「予定・暮らし」: 取得→仕分け→突合せ→人が選ぶ→上書き防止→紐付け
+
+### §4. Claude が置いている前提
+| # | 前提 |
+|---|---|
+| a | ICS 非公開 URL 方式が最小摩擦 (OAuth/GCP コンソール不要) |
+| b | 定期予定は RRULE で来るため展開が必要 |
+
+### §5. 前提一覧表 (必須セクション、F7/F16 防止)
+
+| # | 前提 | 根拠分類 | 根拠 | 未確認なら確認方法 |
+|---|---|---|---|---|
+| a | テニス予定は 2 カレンダーに分散 | 資料 | MEMORY reference_gcal | - |
+| b | サーバーから users/{uid}/data/* へ直書きすると client の全置換 save と競合し消失し得る | 資料 | 03_storage.js save() = ref.set(全配列) | - |
+| c | 分類キーワードは extract_gcal.ps1 が実運用済で正 | 資料 | 2026-04 実インポートで使用 | - |
+| d | ICS 非公開 URL は Google 側キャッシュで反映が数時間遅れ得る | 過去ログ推定 | Google の ICS 配信仕様 (一般知識) | 運用で観測。問題なら Calendar API+SA へ切替 |
+| e | 定期予定 (毎週スクール) は RRULE で来る | 未確認仮説 | 火曜イトマン等の定期予定の存在から推定 | 実 ICS をローカル fetch して構造確認 |
+| f | fbFunctions.httpsCallable が client で使える | 資料 | plan_assist.js が同パターン | - |
+
+### §6. 複数あり得るパターン
+
+| パターン | 内容 | 制約 | 今回対象か |
+|---|---|---|---|
+| X | client 直 OAuth (gapi) | iPhone は 192.168.1.4 経由 = OAuth origin 不可、GCP 設定重い | 対象外 |
+| Y | Function 定期実行 + Firestore 直書き | §5-b の消失リスク、スケジューラ課金 | 対象外 |
+| Z | Function = 読取専用プロキシ (ICS fetch+分類+返却)、書き込みは client マージのみ | ICS 反映遅延あり (許容) | 対象 |
+
+### §7. 今回対象にするパターン
+Z。書き込み主体を client に一本化することで既存 save 構造と衝突しない。実績あるインポート合流路を再利用。
+
+### §8. 対象外パターンと理由
+- X: iPhone の LAN IP アクセスで OAuth origin が通らない + 非エンジニアに GCP 設定を負わせる
+- Y: 全置換 save と競合しデータ消失リスク (5/3 事故と同型)
+
+### §9. 未確認の前提
+- §5-e (RRULE): 実装後、実 ICS で展開結果をローカル検証してから deploy
+- §5-d (反映遅延): 運用観測。ユーザーへ事前告知済
+
+### §10. ユーザー確認が必要な点
+1. ICS 非公開 URL 2 本のアプリ設定画面への貼付 (ユーザー作業、告知済)
+2. firebase login --reauth (deploy 時 1 回、告知済)
+
+### §11. 禁止事項 (必須セクション)
+- Cloud Function から users/{uid}/data/* への直接書き込み (§5-b)
+- 既存レコードの更新・削除 (新規 id のみ追加 = 上書き事故ゼロ)
+- ICS URL のコード埋め込み / git 混入 (アプリ設定から入力、data/gcalConfig に保存)
+- 任意 URL fetch (SSRF): calendar.google.com/calendar/ical/ 配下のみ許可
+- APP_VERSION / build.ps1 の無承認変更 (フック ask に従う)
+- 既存 3 functions (summarizeMemo/planAssist/aiConsult) のコード変更
+
+### §12. 停止条件 (必須セクション)
+- RRULE 展開の日付ズレ (TZ 起因) がローカル検証で解消できない → 方式再検討を報告して停止
+- functions deploy が reauth 後も失敗 → 状況報告して停止
+- 既存 functions に影響する変更が必要になった → 報告して停止
+
+---
+
+### §13. 前提対立軸チェック (固定 7 軸、空欄禁止)
+
+| 軸 | 今回の扱い | 根拠 | 未確認 |
+|---|---|---|---|
+| 試合中 / 試合後 | 対象外 (予定の事前取込のみ、試合中経路に触れない) | 変更は設定画面+起動時同期のみ | なし |
+| 通信あり / なし | 同期は通信ありのみ動作、失敗時 silent (起動を止めない) | R1 原則 (試合中信頼性を損なわない) | なし |
+| 本番データ / dev fixture | 本番 (ユーザーの実カレンダー)。検証はまず私のローカルで実 ICS | §9 | ICS 構造 |
+| 表示のみ / 保存・削除・同期 | 保存あり: 新規追加のみ・削除なし・既存更新なし | §11 | なし |
+| 1 経路 / 複数 state host | 書き込みは client save() の 1 経路のみ | §7 | なし |
+| PC dev / 実機 | PC で検証後、iPhone は同じ Firestore 設定が同期される | gcalConfig も data/ 配下 | 実機確認は最後 |
+| core 削減 / 信頼性 | core 不変 (追加は設定 UI + 起動時 hook のみ) | 試合中必須経路に非依存 | なし |
+
+---
+
+### §14. Gate 2 へ必ず転記する制約 (必須セクション)
+- マージは「新規 id のみ追加」(handleImportCalendarJson と同一契約) + 同日同名 skip (手動入力との重複防止)
+- 書き込み主体は client のみ。Function は読み取り専用プロキシ
+- id は gcal_ 接頭辞踏襲、定期予定は日付サフィックスで一意化
+- SSRF ガード: calendar.google.com/calendar/ical/ 配下のみ
+
+### §15. Gate 2 転記確認
+
+| 制約 | Gate 2 禁止事項/停止条件へ転記したか |
+|---|---|
+| 新規のみ追加+同日同名 skip / client のみ書く / id 採番 / SSRF ガード | ☑ 実装応答内に明記 (本ターン) |
+
+---
+
 ## 2026-06-03 アプリ内 AI 相談 (B) — M1 app側 (client helper + 最小UI)
 
 > 2026-06-02 の B 設計の継続 (日付変更のため当日エントリを追加)。本体設計は下の 2026-06-02 エントリを参照。

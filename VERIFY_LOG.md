@@ -6,6 +6,35 @@
 
 ## 現行 push 候補
 
+### feat: Googleカレンダー自動同期 (gcalSync callable + 設定UI + 起動時自動マージ) (2026-07-03)
+push 候補: functions/{index.js,gcal.js,package.json,package-lock.json} / src/{core/01_constants.js, app.jsx, ui/common/SettingsModal.jsx, domain/gcal_sync.js} / DESIGN_LOG.md / VERIFY_LOG.md / v4/ ビルド成果物。
+
+バージョン: **4.8.6-S17 → 4.8.7-S17** (Z+1)。
+
+設計 (DESIGN_LOG 2026-07-03 エントリ):
+- Function = 読み取り専用プロキシ (ICS fetch + RRULE展開 + 分類のみ、Firestore 書き込みゼロ)
+- 書き込みは client のみ (新規 id のみ追加 + 同日同名 skip = 既存レコード無変更、上書き事故ゼロ)
+- 分類/会場正規化は extract_gcal.ps1 (2026-04 実運用) の忠実移植
+- SSRF ガード: calendar.google.com/calendar/ical/ 配下のみ / 認証必須 (request.auth)
+
+ローカル検証 (deploy 前、.build_tmp/test_gcal.js):
+- TZ=UTC / Asia/Tokyo / America/New_York の 3 環境で出力ハッシュ完全一致 (TZ 非依存)
+- 定期予定の週次展開 / EXDATE 除外 / 振替 (RECURRENCE-ID) / 全日大会 / 会場推定 (金曜20時→ベアーズ、火曜→イトマン) / 分類除外 (締切・非テニス) / id 一意性 = 全 PASS
+
+実画面検証: 済
+- preview (localhost:8081, ?dev=1): 4.8.7-S17 起動 → ⚙設定を開く → 「Google カレンダー自動同期」欄表示 (URL入力2 + 今すぐ同期) → URL 入力 blur → localStorage yuke-gcalConfig-v1 保存を確認 → 未ログインで同期押下 → ガード toast「ログイン後に同期できます」表示 → テスト値クリーンアップ済
+- 本番 end-to-end (ユーザー実施・本人確認済「出来ました」): 実ログイン + 実 URL 2本貼付 → 今すぐ同期 → 成功
+- サーバー側ログ (firebase functions:log): 2026-07-02T22:37 (JST 07-03 07:37) callable 実呼出 auth=VALID・エラーなしを確認
+- deploy: gcalSync (asia-northeast1) Successful create operation / 既存 3 functions 無変更
+
+console error 0: 済
+- preview 起動時・設定操作中とも level=error → "No console logs"
+
+未確認: なし
+- ICS 反映遅延 (Google 側キャッシュ、数時間) は仕様としてユーザーへ事前告知済。iPhone 側は同一 Firestore 設定 (gcalConfig) が同期されるため追加作業なし (次回 iPhone 起動時に自動適用)。
+
+---
+
 ### feat: Racketpediaパイプライン強化 + 応答規律R8 フック (2026-07-02)
 push 候補: commit 1074c9e (racketpedia コード+文書のみ、収集データは .gitignore で除外) / commit bac8ab8 (CLAUDE.md R8 + hooks + settings.json)。
 

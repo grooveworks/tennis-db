@@ -19,8 +19,8 @@ const loadSessionsFromFirestore = async (user) => {
   // S14: next も読込追加 (Home Current Context / Next Actions で使用)
   // S16 Phase 4-A: stringSetups を読込追加 (Manage Masters セッティング組合せ用、現状は読込のみ、UI は Phase 4-B)
   // S17: plan を読込追加 (Plan タブ作戦室、単一オブジェクトなので save() の obj 形式で保存される)
-  const keys = ["tournaments", "practices", "trials", "rackets", "strings", "venues", "opponents", "next", "quickTrialCards", "stringSetups", "plan"];
-  const _OBJ_KEYS = new Set(["plan"]); // S17: items 配列でなく obj 単体で保存される key
+  const keys = ["tournaments", "practices", "trials", "rackets", "strings", "venues", "opponents", "next", "quickTrialCards", "stringSetups", "plan", "gcalConfig"];
+  const _OBJ_KEYS = new Set(["plan", "gcalConfig"]); // S17: items 配列でなく obj 単体で保存される key (2026-07-03: gcalConfig 追加)
   const results = {};
   for (const k of keys) results[k] = _OBJ_KEYS.has(k) ? {} : []; // 既定値 (plan は {}、他は [])
   try {
@@ -885,6 +885,10 @@ function TennisDB() {
   const [next, setNext] = useState([]);
   // S17: plan (Plan タブ作戦室、Target / Strategy / Gear Decision の単一オブジェクト)
   const [plan, setPlan] = useState({});
+  // 2026-07-03: GCal 自動同期設定 { primaryUrl, shigotoUrl, lastSyncAt } (単一オブジェクト)
+  const [gcalConfig, setGcalConfig] = useState({});
+  const [gcalSyncing, setGcalSyncing] = useState(false);
+  const gcalAutoRanRef = useRef(false); // 起動時自動同期は 1 セッション 1 回
   // S17.x Phase A1 (2026-05-10、3 者議論): profile (= AI が参照する Player Model コア情報)
   //   v2 profile を v4 に移植した単一オブジェクト。Phase A1 はデータ移植のみ、UI は Phase A2。
   //   normalizeProfile() で v2/v4 自動判別、racket/stringing は除外、gearPolicy 新規。
@@ -934,6 +938,8 @@ function TennisDB() {
     setNext(lsLoad(KEYS.next) || []);
     // S17: plan もローカルから初期ロード (単一オブジェクト、未設定時は空 {})
     setPlan(lsLoad(KEYS.plan) || {});
+    // 2026-07-03: gcalConfig もローカルから初期ロード
+    setGcalConfig(lsLoad(KEYS.gcalConfig) || {});
     // S17.x Phase A1: profile も localStorage から (v2/v4 自動判別 + racket/stringing 除外)
     setProfile(normalizeProfile(lsLoad(KEYS.profile)));
     // S15.5: quickTrialCards もローカルから
@@ -1200,6 +1206,81 @@ function TennisDB() {
     }
   }, [tournaments, practices, toast]);
 
+  // ── 2026-07-03: Google カレンダー自動同期 (DESIGN_LOG 2026-07-03) ─────────────
+  // 設定変更 (URL 貼付) の保存。gcalConfig = { primaryUrl, shigotoUrl, lastSyncAt }
+  const handleGcalConfigChange = useCallback((cfg) => {
+    const next = cfg && typeof cfg === "object" ? cfg : {};
+    setGcalConfig(next);
+    save(KEYS.gcalConfig, next);
+  }, []);
+
+  // 同期本体。Gate 2 契約: 新規 id のみ追加 + 同日同名 skip。既存レコードの更新・削除は一切しない。
+  // 書き込みは client のこの経路のみ (Function は読み取り専用プロキシ)。
+  // manual=true: 設定画面の「今すぐ同期」(結果を必ず toast) / false: 起動時自動 (新規ありの時だけ toast)
+  const handleGcalSync = useCallback(async (manual) => {
+    const urls = [gcalConfig.primaryUrl, gcalConfig.shigotoUrl].filter(u => u && u.trim());
+    if (urls.length === 0) {
+      if (manual) toast.show("カレンダー URL が未設定です (欄に貼り付けてから同期してください)", "info");
+      return;
+    }
+    if (!fbAuth.currentUser) {
+      if (manual) toast.show("ログイン後に同期できます", "info");
+      return;
+    }
+    if (gcalSyncing) return;
+    setGcalSyncing(true);
+    try {
+      const data = await gcalSyncFetch(urls);
+      // マージ契約: handleImportCalendarJson と同一 (id 重複 skip) + 同日同名 skip (手動入力との重複防止)
+      const existingTourIds = new Set((tournaments || []).map(t => t && t.id).filter(Boolean));
+      const existingPracIds = new Set((practices || []).map(p => p && p.id).filter(Boolean));
+      const tourDayName = new Set((tournaments || []).map(t => t ? `${t.date}|${(t.name || "").trim()}` : ""));
+      const pracDayName = new Set((practices || []).map(p => p ? `${p.date}|${(p.title || "").trim()}` : ""));
+      const newTour = (data.tournaments || []).filter(t =>
+        t && t.id && !existingTourIds.has(t.id) && !tourDayName.has(`${t.date}|${(t.name || "").trim()}`));
+      const newPrac = (data.practices || []).filter(p =>
+        p && p.id && !existingPracIds.has(p.id) && !pracDayName.has(`${p.date}|${(p.title || "").trim()}`));
+      if (newTour.length > 0) {
+        const merged = [...newTour, ...(tournaments || [])];
+        setTournaments(merged);
+        save(KEYS.tournaments, merged);
+      }
+      if (newPrac.length > 0) {
+        const merged = [...newPrac, ...(practices || [])];
+        setPractices(merged);
+        save(KEYS.practices, merged);
+      }
+      // lastSyncAt を記録 (設定画面の「最終同期」表示用)
+      setGcalConfig(prev => {
+        const cfg = { ...prev, lastSyncAt: new Date().toISOString() };
+        save(KEYS.gcalConfig, cfg);
+        return cfg;
+      });
+      if (manual) {
+        toast.show(`同期完了: 大会 +${newTour.length} / 練習 +${newPrac.length}`, "success");
+      } else if (newTour.length + newPrac.length > 0) {
+        toast.show(`Googleカレンダーから 大会 +${newTour.length} / 練習 +${newPrac.length} を取り込みました`, "success");
+      }
+    } catch (err) {
+      console.error("GCal sync failed:", err);
+      if (manual) toast.show(`同期失敗: ${err?.message || err}`, "error");
+    } finally {
+      setGcalSyncing(false);
+    }
+  }, [gcalConfig, gcalSyncing, tournaments, practices, toast]);
+
+  // 起動時自動同期: ログイン済 + URL 設定済なら 1 セッション 1 回、起動 8 秒後に実行
+  //   (8 秒 = Firestore 初回ロード完了を待つ余裕。失敗しても起動は止めない = R1 原則)
+  useEffect(() => {
+    if (gcalAutoRanRef.current) return;
+    if (!user) return;
+    const urls = [gcalConfig.primaryUrl, gcalConfig.shigotoUrl].filter(u => u && u.trim());
+    if (urls.length === 0) return;
+    gcalAutoRanRef.current = true;
+    const t = setTimeout(() => { handleGcalSync(false); }, 8000);
+    return () => clearTimeout(t);
+  }, [user, gcalConfig, handleGcalSync]);
+
   // 31-2: 既存セッションのメモを一括 AI 要約
   //   全 tournaments / practices / trials を走査、memoSummaries 未保存の field を summarizeSessionMemos で要約
   //   Cloud Functions 呼出は逐次 (rate limit 配慮)、進捗は state で UI に伝播
@@ -1374,6 +1455,8 @@ function TennisDB() {
             setNext(data.next || []);
             // S17: plan も (単一オブジェクト、loadSessionsFromFirestore 内で {} 既定値)
             setPlan(data.plan && typeof data.plan === "object" ? data.plan : {});
+            // 2026-07-03: gcalConfig も (単一オブジェクト、iPhone/PC 間で URL 設定を共有)
+            setGcalConfig(data.gcalConfig && typeof data.gcalConfig === "object" ? data.gcalConfig : {});
             // S17.x Phase A1: profile も Firestore から (v2/v4 自動判別、racket/stringing 除外)
             //   v2 形式の場合は v4 形式に変換して state に保持。書き戻しは Phase A2 で UI 経由のみ。
             setProfile(normalizeProfile(data.profile));
@@ -1391,6 +1474,7 @@ function TennisDB() {
             lsSave(KEYS.opponents, data.opponents);
             lsSave(KEYS.next, data.next);
             lsSave(KEYS.plan, data.plan || {});
+            lsSave(KEYS.gcalConfig, data.gcalConfig || {});
             lsSave(KEYS.quickTrialCards, data.quickTrialCards);
             lsSave(KEYS.stringSetups, data.stringSetups);
             toast.show("クラウドから読み込みました", "success");
@@ -2614,6 +2698,10 @@ function TennisDB() {
         onBulkSummarize={handleBulkSummarize}
         bulkSummarizeProgress={bulkSummarizeProgress}
         onImportCalendarJson={handleImportCalendarJson}
+        gcalConfig={gcalConfig}
+        onGcalConfigChange={handleGcalConfigChange}
+        onGcalSyncNow={() => handleGcalSync(true)}
+        gcalSyncing={gcalSyncing}
       />
       {/* 2026-06: アプリ内 AI 相談 (B)。core 同梱の ConsultModal。回答は Cloud Function aiConsult の deploy 後に動く */}
       <ConsultModal

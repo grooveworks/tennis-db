@@ -63,7 +63,7 @@ const _exportAllData = (toast) => {
   }
 };
 
-function SettingsModal({ open, fontScale, onFontScaleChange, onClose, toast, onBulkSummarize, bulkSummarizeProgress, onImportCalendarJson }) {
+function SettingsModal({ open, fontScale, onFontScaleChange, onClose, toast, onBulkSummarize, bulkSummarizeProgress, onImportCalendarJson, gcalConfig, onGcalConfigChange, onGcalSyncNow, gcalSyncing }) {
   // インポート用 hidden file input ref
   const importFileRef = useRef(null);
   const trapRef = useFocusTrap(open); // Round 5: a11y focus trap
@@ -307,6 +307,72 @@ function SettingsModal({ open, fontScale, onFontScaleChange, onClose, toast, onB
           >
             (任意の JSON ファイルから取り込む)
           </button>
+        </div>
+
+        {/* 2026-07-03: Google カレンダー自動同期 (DESIGN_LOG 2026-07-03) */}
+        <div style={{ marginBottom: 22 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 4 }}>
+            Google カレンダー自動同期
+          </div>
+          <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 10, lineHeight: 1.5 }}>
+            カレンダーの「iCal 形式の非公開 URL」を貼ると、アプリを開くたびに予定 (大会・練習) を自動で取り込みます (新規のみ追加、既存の記録は変更しません)。
+            URL は Google カレンダー設定 → 各カレンダー → 「カレンダーの統合」にあります。
+          </div>
+          <input
+            type="url"
+            defaultValue={(gcalConfig && gcalConfig.primaryUrl) || ""}
+            placeholder="プライマリ カレンダーの非公開 URL (…/basic.ics)"
+            onBlur={(e) => {
+              const v = e.target.value.trim();
+              if (onGcalConfigChange && v !== ((gcalConfig && gcalConfig.primaryUrl) || "")) {
+                onGcalConfigChange({ ...(gcalConfig || {}), primaryUrl: v });
+              }
+            }}
+            style={{
+              width: "100%", boxSizing: "border-box", minHeight: 40, padding: "8px 10px",
+              border: `1px solid ${C.border}`, borderRadius: 8, marginBottom: 8,
+              fontSize: 12, fontFamily: font, color: C.text, background: C.panel,
+            }}
+          />
+          <input
+            type="url"
+            defaultValue={(gcalConfig && gcalConfig.shigotoUrl) || ""}
+            placeholder="仕事関係 カレンダーの非公開 URL (…/basic.ics)"
+            onBlur={(e) => {
+              const v = e.target.value.trim();
+              if (onGcalConfigChange && v !== ((gcalConfig && gcalConfig.shigotoUrl) || "")) {
+                onGcalConfigChange({ ...(gcalConfig || {}), shigotoUrl: v });
+              }
+            }}
+            style={{
+              width: "100%", boxSizing: "border-box", minHeight: 40, padding: "8px 10px",
+              border: `1px solid ${C.border}`, borderRadius: 8, marginBottom: 8,
+              fontSize: 12, fontFamily: font, color: C.text, background: C.panel,
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => onGcalSyncNow && onGcalSyncNow()}
+            disabled={gcalSyncing || !onGcalSyncNow}
+            style={{
+              width: "100%", minHeight: 44, padding: "8px 16px",
+              border: `1px solid ${gcalSyncing ? C.border : C.primary}`, borderRadius: 8,
+              background: gcalSyncing ? C.panel2 : C.primaryLight,
+              color: gcalSyncing ? C.textMuted : C.primary,
+              fontSize: 14, fontWeight: 700,
+              cursor: gcalSyncing ? "not-allowed" : "pointer",
+              fontFamily: font,
+              display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
+            }}
+          >
+            <Icon name="calendar" size={16} color={gcalSyncing ? C.textMuted : C.primary} />
+            {gcalSyncing ? "同期中…" : "今すぐ同期"}
+          </button>
+          {gcalConfig && gcalConfig.lastSyncAt ? (
+            <div style={{ fontSize: 11, color: C.textMuted, marginTop: 6 }}>
+              最終同期: {new Date(gcalConfig.lastSyncAt).toLocaleString("ja-JP")}
+            </div>
+          ) : null}
         </div>
 
         {/* 31-2: 既存データの AI 一括要約 */}
