@@ -56,7 +56,22 @@ racketpedia/out/
 racketpedia/state/
 racketpedia/__pycache__/
 racketpedia/listener.log
-# 生成物 (会員データ埋め込みのため公開リポに絶対上げない。build_compare.py で再生成可)
+# 生成物 (会員データ埋め込みのため公開リポに絶対上げない。build_*.py で再生成可)
 racketpedia/string_compare.html
+racketpedia/string_compare_mobile.html
+racketpedia/racket_compare.html
+
+# === tennis-one.jp 個人アーカイブ (記事の著作権は同サイトに帰属。公開リポに絶対上げない) ===
+tennisone/data/
+tennisone/reader.html
+tennisone/__pycache__/
+
+# === デザイン引継フォルダ (会員データ入りの現物HTMLを含むため公開しない) ===
+racketpedia/design_handoff_v2/
+racketpedia/design_handoff_string_compare/
 # 本家解説文の抽出 (racketpedia の文章のため公開しない)
 racketpedia/axis_definitions.json
+
+# === tennis-one.jp 個人アーカイブ (記事本文・公開リポに絶対上げない、2026-07-03 追加) ===
+tennisone/data/
+tennisone/reader.html

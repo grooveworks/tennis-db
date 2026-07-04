@@ -1,0 +1,1148 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<title>ストリング比較 — モバイル</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  :root{
+    --bg:#F2F2F7; --panel:#FFFFFF; --border:#DADCE0; --divider:#E8EAED;
+    --text:#202124; --sec:#5F6368; --muted:#80868B; --gray4:#C7C7CC;
+    --primary:#007AFF; --primlight:#E1F0FF;
+    --obj:#007AFF; --subj:#FF9500; --subjtext:#E07B00;
+    --mono:"SF Mono",Menlo,Consolas,"Roboto Mono",monospace;
+  }
+  html,body{ font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Helvetica Neue",Arial,sans-serif; color:var(--text); background:#E5E5EA; line-height:1.5; -webkit-text-size-adjust:100%; }
+  .app{ max-width:440px; margin:0 auto; height:100vh; height:100dvh; background:var(--bg); position:relative; display:flex; flex-direction:column; overflow:hidden; }
+
+  /* Tennis DB app shell */
+  .appheader{ flex:0 0 auto; background:var(--panel); border-bottom:1px solid var(--divider); padding:calc(env(safe-area-inset-top) + 7px) 14px 0; }
+  .appheader-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .appbrand{ font-size:19px; font-weight:600; display:flex; align-items:center; gap:6px; letter-spacing:-0.01em; }
+  .appbrand b{ color:var(--primary); font-weight:800; }
+  .appicons{ display:flex; align-items:center; gap:12px; color:var(--sec); }
+  .appicons .wx{ display:flex; align-items:center; gap:3px; font-size:12px; color:#E8820C; border:1px solid #F3D9AE; background:#FFF6E6; border-radius:12px; padding:2px 7px; }
+  .appcrumb{ font-size:12px; color:var(--sec); padding:4px 2px 4px; }
+  .scrollarea{ flex:1 1 auto; overflow-y:auto; -webkit-overflow-scrolling:touch; position:relative; }
+  .tabbar{ flex:0 0 auto; background:var(--panel); border-top:1px solid var(--divider); display:flex; padding:4px 4px calc(env(safe-area-inset-bottom) + 4px); }
+  .tab{ flex:1; display:flex; flex-direction:column; align-items:center; gap:2px; padding:4px 0; font-size:10px; color:var(--muted); cursor:pointer; border-radius:12px; }
+  .tab.on{ color:var(--primary); }
+  .tab.on .tabic{ background:var(--primlight); }
+  .tabic{ width:42px; height:24px; display:flex; align-items:center; justify-content:center; border-radius:12px; }
+
+  /* header */
+  .topbar{ background:var(--bg); padding:6px 16px 6px; }
+  .controls{ position:sticky; top:0; z-index:20; background:rgba(255,255,255,0.94); backdrop-filter:saturate(180%) blur(12px); -webkit-backdrop-filter:saturate(180%) blur(12px); border-bottom:1px solid var(--divider); padding:0 16px 6px; }
+  .h-title{ font-size:17px; font-weight:700; letter-spacing:-0.01em; display:flex; align-items:center; gap:7px; }
+  .h-sub{ font-size:11.5px; color:var(--sec); margin-top:2px; }
+  .search{ position:relative; margin-top:0; }
+  .search svg{ position:absolute; left:11px; top:50%; transform:translateY(-50%); }
+  .search input{ width:100%; height:36px; padding:0 40px 0 36px; border:1px solid var(--border); border-radius:11px; background:var(--panel); font-size:14px; font-family:inherit; color:var(--text); outline:none; }
+  .searchclose{ position:absolute; right:6px; top:50%; transform:translateY(-50%); width:28px; height:28px; display:flex; align-items:center; justify-content:center; border:none; background:transparent; color:var(--muted); cursor:pointer; }
+  .search input:focus{ box-shadow:0 0 0 2px var(--primlight); }
+
+  /* view bar + controls merged into one row */
+  .controlrow{ display:flex; align-items:center; gap:8px; margin-top:2px; }
+  .viewbar{ flex:1 1 auto; min-width:0; display:flex; gap:1px; overflow-x:auto; scrollbar-width:none; }
+  .viewbar::-webkit-scrollbar{ display:none; }
+  .vb{ flex:0 0 auto; display:flex; align-items:center; justify-content:center; padding:7px 2px; font-size:12.5px; color:var(--sec); border-bottom:2px solid transparent; cursor:pointer; white-space:nowrap; }
+  .vb.on{ color:var(--primary); border-bottom-color:var(--primary); font-weight:600; }
+
+  /* control icon buttons (sort/filter/display) */
+  .chiprow{ flex:0 0 auto; display:flex; align-items:center; gap:4px; }
+  .cbtn{ position:relative; display:inline-flex; align-items:center; justify-content:center; width:28px; height:31px; border-radius:8px; border:1px solid var(--border); background:var(--panel); color:var(--sec); cursor:pointer; }
+  .cbtn.active{ background:var(--primlight); border-color:#A9D2FF; color:var(--primary); }
+  .cbadge{ position:absolute; top:-5px; right:-5px; display:inline-flex; align-items:center; justify-content:center; min-width:15px; height:15px; padding:0 3px; border-radius:8px; background:var(--primary); color:#fff; font-size:9.5px; font-weight:700; line-height:1; border:1.5px solid var(--panel); }
+
+  /* filter chips */
+  /* filter sheet */
+  .fsec{ padding:12px 4px 4px; }
+  .fsec-h{ font-size:11px; font-weight:600; color:var(--muted); margin-bottom:8px; }
+  .fchips{ display:flex; flex-wrap:wrap; gap:8px; }
+  .fchip{ display:inline-flex; align-items:center; height:34px; padding:0 14px; border-radius:17px; border:1px solid var(--border); background:var(--panel); font-size:13px; color:var(--text); cursor:pointer; }
+  .fchip.on{ background:var(--primlight); border-color:#A9D2FF; color:var(--primary); font-weight:600; }
+  .fclear{ padding:16px 4px 8px; }
+  .fclear button{ width:100%; height:42px; border:1px solid var(--border); border-radius:12px; background:var(--panel); font:inherit; font-size:13px; color:var(--error,#D93025); cursor:pointer; }
+
+  .statusline{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin:10px 16px 0; flex-wrap:wrap; }
+  .summary{ font-size:11.5px; color:var(--sec); white-space:nowrap; }
+  .framenote{ margin:10px 16px 0; display:flex; align-items:flex-start; gap:8px; background:#E6F4EA; border:1px solid #B7E1C9; border-radius:12px; padding:9px 12px; font-size:12px; color:#0A5B35; line-height:1.5; }
+  .framenote svg{ flex:0 0 auto; margin-top:1px; }
+  .legend{ display:flex; gap:12px; flex-wrap:wrap; font-size:11px; color:var(--sec); }
+  .legend span{ display:flex; align-items:center; gap:5px; }
+  .sw{ width:10px; height:10px; border-radius:3px; display:inline-block; }
+
+  .content{ padding:12px 16px 24px; }
+  .pill{ display:inline-block; font-size:11px; font-weight:600; line-height:1; border-radius:6px; padding:4px 8px; white-space:nowrap; border:1px solid; }
+  .mono{ font-family:var(--mono); }
+  .empty-list{ text-align:center; color:var(--muted); font-size:13px; padding:48px 16px; }
+
+  /* ── compact rows ── */
+  .clist{ background:var(--panel); border:1px solid var(--border); border-radius:16px; overflow:hidden; }
+  .crow{ display:flex; align-items:center; gap:10px; padding:11px 14px 11px 16px; position:relative; cursor:pointer; border-bottom:1px solid #F1F3F4; }
+  .crow:last-child{ border-bottom:none; }
+  .crow:active{ background:#F7F8FA; }
+  .crow.expanded{ background:#F3F7FF; }
+  .crow .cbar{ position:absolute; left:0; top:8px; bottom:8px; width:3px; border-radius:3px; }
+  .crow .cmain{ flex:1; min-width:0; }
+  .crow .cn{ font-size:14.5px; font-weight:600; letter-spacing:-0.01em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .crow .cmeta{ font-size:11px; color:var(--muted); margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .crow .cmeta .s{ font-family:var(--mono); color:var(--sec); }
+  .crow .cright{ flex:0 0 auto; display:flex; align-items:center; gap:8px; }
+  .crow .pill{ padding:4px 8px; font-size:10.5px; }
+  .crow .crec{ width:8px; height:8px; border-radius:50%; background:#0F9D58; flex:0 0 8px; }
+  .crow .cchev{ color:var(--gray4); transition:transform 150ms ease; }
+  .crow.expanded .cchev{ transform:rotate(90deg); }
+  .cpanel{ padding:4px 16px 16px; border-bottom:1px solid #F1F3F4; background:#FBFBFC; animation:enter 160ms ease-out; }
+  .cpanel:last-child{ border-bottom:none; }
+  .cpanel .axes{ margin-left:0; }
+
+  /* ── cards ── */
+  .cardlist{ display:flex; flex-direction:column; gap:10px; }
+  .card{ background:var(--panel); border:1px solid var(--border); border-radius:18px; padding:14px 14px 12px; position:relative; cursor:pointer; transition:box-shadow 150ms ease; }
+  .card.expanded{ border-color:#A9D2FF; box-shadow:0 0 0 3px rgba(0,122,255,0.12); }
+  .card .bar{ position:absolute; left:0; top:14px; bottom:14px; width:3px; border-radius:3px; }
+  .c-top{ display:flex; align-items:flex-start; justify-content:space-between; gap:10px; padding-left:8px; }
+  .c-top > div:first-child{ min-width:0; flex:1; }
+  .c-name{ font-size:15px; font-weight:700; letter-spacing:-0.01em; }
+  .c-brand{ font-size:11.5px; color:var(--muted); margin-top:1px; }
+  .rec{ display:inline-block; font-size:10px; font-weight:700; color:#0A5B35; background:#E6F4EA; border:1px solid #8FD0A8; border-radius:6px; padding:3px 7px; margin-top:5px; white-space:nowrap; }
+  .c-meta{ padding-left:8px; margin-top:7px; font-size:11.5px; color:var(--sec); display:flex; flex-wrap:wrap; align-items:center; }
+  .c-meta .dot{ margin:0 7px; color:var(--gray4); }
+  .c-meta .stiff{ font-family:var(--mono); font-weight:600; color:var(--text); }
+  .c-foot{ padding-left:8px; margin-top:10px; display:flex; align-items:center; justify-content:center; gap:5px; font-size:11.5px; color:var(--primary); }
+  .c-foot svg{ transition:transform 150ms ease; }
+  .card.expanded .c-foot svg{ transform:rotate(180deg); }
+
+  /* axis grid (shared) */
+  .axes{ margin-top:11px; display:grid; grid-template-columns:repeat(4,1fr); gap:6px; }
+  .card .axes{ margin-left:8px; }
+  .ax{ background:#F7F8FA; border-radius:9px; padding:6px 4px 5px; text-align:center; }
+  .ax.big{ background:#FCE3C4; }
+  .ax-l{ font-size:9.5px; color:var(--muted); line-height:1.1; }
+  .ax-o{ font-family:var(--mono); font-size:14px; font-weight:600; color:var(--obj); line-height:1.2; margin-top:2px; }
+  .ax-o.nullv{ color:var(--gray4); }
+  .ax-s{ font-family:var(--mono); font-size:11px; font-weight:600; color:var(--subjtext); line-height:1.2; }
+  .ax-s.empty{ visibility:hidden; }
+
+  /* ── shared detail panel ── */
+  .panel{ margin:12px 0 2px; padding-top:14px; border-top:1px solid var(--divider); animation:enter 160ms ease-out; }
+  @keyframes enter{ from{opacity:0;transform:translateY(-4px);} to{opacity:1;transform:translateY(0);} }
+  .plabel{ font-size:11px; font-weight:600; color:var(--muted); margin-bottom:8px; }
+  .radarwrap{ display:flex; flex-direction:column; align-items:center; }
+  .radarlegend{ display:flex; gap:16px; font-size:11px; color:var(--sec); margin-top:2px; }
+  .radarlegend span{ display:flex; align-items:center; gap:5px; }
+  .rl{ width:16px; height:3px; display:inline-block; border-radius:2px; }
+  .nolab{ width:100%; height:150px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; border:1px dashed var(--border); border-radius:14px; color:var(--muted); text-align:center; font-size:12px; line-height:1.6; }
+  .bars{ margin-top:16px; }
+  .bar-row{ display:flex; align-items:center; gap:9px; margin-bottom:8px; }
+  .bar-row.big{ background:#FFF6E9; margin:0 -6px 8px; padding:5px 6px; border-radius:8px; }
+  .bar-label{ flex:0 0 62px; font-size:11.5px; }
+  .bar-tracks{ flex:1; display:flex; flex-direction:column; gap:3px; }
+  .track{ height:6px; background:#EEF0F2; border-radius:3px; overflow:hidden; }
+  .track > div{ height:100%; border-radius:3px; }
+  .bar-nums{ flex:0 0 62px; text-align:right; font-family:var(--mono); font-size:11.5px; }
+  .bar-delta{ flex:0 0 38px; text-align:right; }
+  .deltabadge{ font-size:9.5px; font-weight:700; color:#A04F00; background:#FCE3C4; border-radius:5px; padding:2px 5px; white-space:nowrap; }
+  .memo{ font-size:12.5px; line-height:1.6; background:#FBFBFC; border:1px solid var(--divider); border-radius:11px; padding:10px 12px; }
+  .memo.empty{ color:var(--muted); }
+  .stiffbox{ background:#FBFBFC; border:1px solid var(--divider); border-radius:11px; padding:10px 12px; display:flex; flex-direction:column; gap:6px; }
+  .stiffrow{ display:flex; justify-content:space-between; font-size:12px; }
+  .stiffrow .k{ color:var(--sec); }
+  .stiffrow .v{ font-family:var(--mono); font-weight:600; }
+  .stiffrow .vmuted{ color:var(--muted); }
+  .stiffhint{ font-size:11px; color:var(--muted); line-height:1.5; border-top:1px solid #F1F3F4; padding-top:7px; }
+  .psec{ margin-top:16px; }
+
+  /* ── 案A map ── */
+  .maptoolbar{ display:flex; align-items:center; gap:10px; margin-bottom:10px; flex-wrap:wrap; }
+  .usedtoggle{ display:inline-flex; align-items:center; gap:5px; height:30px; padding:0 11px; border-radius:15px; border:1px solid var(--border); background:var(--panel); font-size:12.5px; color:var(--sec); cursor:pointer; white-space:nowrap; flex:0 0 auto; }
+  .usedtoggle.on{ background:#E6F4EA; border-color:#8FD0A8; color:#0A5B35; font-weight:600; }
+  .usedtoggle .utc{ display:inline-flex; align-items:center; justify-content:center; min-width:16px; height:16px; padding:0 4px; border-radius:8px; background:rgba(15,157,88,0.15); color:#0A5B35; font-size:10px; font-weight:700; }
+  .maplegend{ display:flex; gap:12px; font-size:10.5px; color:var(--muted); margin-left:auto; }
+  .maplegend span{ display:flex; align-items:center; gap:4px; }
+  .mk-used{ width:14px; height:14px; border-radius:50%; background:#0F9D58; display:inline-flex; align-items:center; justify-content:center; }
+  .mk-consider{ width:12px; height:12px; border-radius:3px; border:1.5px dashed #5856D6; display:inline-block; }
+  .maphint{ font-size:11.5px; color:var(--sec); margin:0 0 14px; display:flex; align-items:flex-start; gap:6px; }
+  .maphint svg{ flex:0 0 auto; margin-top:1px; }
+  .map{ position:relative; padding-left:52px; }
+  .axisline{ position:absolute; left:46px; top:6px; bottom:6px; width:2px; background:var(--border); }
+  .tick{ position:absolute; left:0; width:40px; text-align:right; font-family:var(--mono); font-size:11px; color:var(--muted); transform:translateY(-50%); }
+  .tickmark{ position:absolute; left:42px; width:8px; height:2px; background:var(--border); transform:translateY(-50%); }
+  .band{ position:absolute; left:42px; right:0; background:rgba(15,157,88,0.10); border-top:1px dashed #8FD0A8; border-bottom:1px dashed #8FD0A8; }
+  .band-l{ position:absolute; right:6px; font-size:10px; font-weight:600; color:#0A5B35; }
+  .mapdot{ position:absolute; left:40px; width:13px; height:13px; border-radius:50%; border:2px solid #fff; box-shadow:0 0 0 1px var(--border); transform:translateY(-50%); z-index:2; }
+  .mapconn{ position:absolute; height:1.5px; background:var(--border); transform-origin:left center; z-index:1; }
+  .nodecard{ position:absolute; left:66px; transform:translateY(-50%); background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:5px 9px; display:flex; align-items:center; gap:7px; box-shadow:0 1px 3px rgba(0,0,0,0.08); cursor:pointer; z-index:3; }
+  .nodecard.rec{ border-color:#8FD0A8; box-shadow:0 0 0 2px rgba(15,157,88,0.15); }
+  .nodecard.considering{ border-color:#5856D6; border-style:dashed; }
+  .nodecard.considering.rec{ box-shadow:0 0 0 2px rgba(88,86,214,0.15); }
+  .nc-main{ min-width:0; }
+  .cardmark{ position:absolute; top:-6px; width:16px; height:16px; border-radius:50%; display:flex; align-items:center; justify-content:center; border:1.5px solid var(--panel); }
+  .cardmark.used{ right:-6px; background:#0F9D58; }
+  .cardmark.consider{ right:12px; background:#5856D6; }
+  .nu{ display:flex; align-items:center; gap:3px; font-size:9.5px; color:#0A5B35; margin-top:2px; }
+  .nu svg{ flex:0 0 auto; }
+  .nn{ font-size:12.5px; font-weight:600; white-space:nowrap; }
+  .nb{ font-size:10px; color:var(--muted); white-space:nowrap; }
+  .ns{ font-family:var(--mono); font-size:11px; color:var(--sec); margin-left:auto; padding-left:6px; }
+
+  /* ── 案B groups ── */
+  .grp{ background:var(--panel); border:1px solid var(--border); border-radius:14px; margin-bottom:10px; overflow:hidden; }
+  .grp-h{ display:flex; align-items:center; gap:9px; padding:12px 14px; cursor:pointer; }
+  .grp-dot{ width:10px; height:10px; border-radius:3px; flex:0 0 10px; }
+  .grp-t{ font-size:14px; font-weight:600; }
+  .grp-c{ font-size:12px; color:var(--muted); }
+  .grp-chev{ margin-left:auto; color:var(--gray4); transition:transform 150ms ease; }
+  .grp.collapsed .grp-chev{ transform:rotate(-90deg); }
+  .grp-body{ border-top:1px solid var(--divider); }
+  .grp.collapsed .grp-body{ display:none; }
+  .grow{ display:flex; align-items:center; gap:10px; padding:10px 14px; border-bottom:1px solid #F4F5F6; cursor:pointer; }
+  .grow:last-child{ border-bottom:none; }
+  .grow:active{ background:#F7F8FA; }
+  .grow .gn{ font-size:13.5px; font-weight:600; }
+  .grow .gm{ font-size:11px; color:var(--muted); margin-top:1px; }
+  .grow .gright{ margin-left:auto; text-align:right; display:flex; align-items:center; gap:8px; }
+  .grow .grec{ width:8px; height:8px; border-radius:50%; background:#0F9D58; }
+  .grow .gstiff{ font-family:var(--mono); font-size:12.5px; font-weight:600; }
+  .grow .gstifl{ font-size:9.5px; color:var(--muted); }
+  .minibars{ display:flex; gap:2px; margin-top:4px; align-items:flex-end; height:18px; }
+  .minibars i{ width:5px; border-radius:1px; display:inline-block; }
+
+  /* ── 案C compare ── */
+  .cmptop{ font-size:11.5px; color:var(--sec); margin-bottom:8px; }
+  .radarbox{ position:relative; background:var(--panel); border:1px solid var(--border); border-radius:16px; padding:8px 12px 10px; display:flex; flex-direction:column; align-items:center; margin-bottom:8px; cursor:pointer; }
+  .radarzoom{ position:absolute; top:8px; right:8px; width:24px; height:24px; display:flex; align-items:center; justify-content:center; border-radius:8px; background:var(--panel2); color:var(--muted); }
+  .cmp{ background:var(--panel); border:1px solid var(--border); border-radius:14px; overflow:hidden; }
+  .cmp-h{ display:grid; border-bottom:1px solid var(--divider); }
+  .cmp-h > div{ padding:5px 6px; font-size:11px; font-weight:600; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .cmp-h .axn{ text-align:left; color:var(--muted); font-size:10px; align-self:center; }
+  .cmp-row{ display:grid; border-bottom:1px solid #F4F5F6; }
+  .cmp-row:last-child{ border-bottom:none; }
+  .cmp-row .axn{ padding:4px 10px; font-size:12px; color:var(--sec); align-self:center; }
+  .cmp-cell{ padding:4px 6px; text-align:center; font-family:var(--mono); font-size:13px; font-weight:600; align-self:center; }
+  .cmp-cell.win{ background:#E6F4EA; color:#0A5B35; }
+  .cmp-empty{ text-align:center; color:var(--muted); font-size:13px; padding:40px 16px; line-height:1.7; }
+  .tray{ position:sticky; bottom:0; background:rgba(255,255,255,0.94); backdrop-filter:blur(12px); border-top:1px solid var(--divider); padding:11px 16px calc(env(safe-area-inset-bottom) + 11px); display:flex; align-items:center; gap:8px; margin:14px -16px 0; flex-wrap:wrap; }
+  .traychip{ font-size:11.5px; background:var(--primlight); color:var(--primary); border-radius:14px; padding:5px 6px 5px 11px; display:flex; align-items:center; gap:4px; }
+  .traychip .x{ font-size:15px; cursor:pointer; padding:0 3px; }
+  .traybtn{ margin-left:auto; background:var(--primary); color:#fff; font-size:13px; font-weight:600; border:none; border-radius:11px; padding:9px 16px; cursor:pointer; }
+  .traybtn:disabled{ background:var(--gray4); }
+
+  /* bottom sheet */
+  .scrim{ position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:40; opacity:0; pointer-events:none; transition:opacity 200ms ease; }
+  .scrim.show{ opacity:1; pointer-events:auto; }
+  .sheet{ position:fixed; left:0; right:0; bottom:0; z-index:41; max-width:440px; margin:0 auto; background:var(--panel); border-radius:20px 20px 0 0; padding:8px 0 calc(env(safe-area-inset-bottom) + 12px); transform:translateY(100%); transition:transform 240ms cubic-bezier(0.32,0.72,0,1); max-height:84vh; display:flex; flex-direction:column; }
+  .sheet.show{ transform:translateY(0); }
+  .grip{ width:36px; height:5px; border-radius:3px; background:#D5D7DB; margin:6px auto 4px; }
+  .sheet-title{ font-size:13px; font-weight:600; text-align:center; padding:6px 16px 10px; border-bottom:1px solid var(--divider); }
+  .sheet-list{ overflow-y:auto; padding:6px 0; }
+  .opt{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:13px 20px; font-size:15px; cursor:pointer; }
+  .opt:active{ background:#F1F3F4; }
+  .opt.sel{ color:var(--primary); font-weight:600; }
+  .opt.disabled{ color:var(--gray4); pointer-events:none; }
+  .opt .sub{ font-size:11px; color:var(--muted); font-weight:400; }
+  .sheet-section{ font-size:11px; font-weight:600; color:var(--muted); padding:12px 20px 4px; }
+  .sheet-detail{ overflow-y:auto; padding:0 16px 8px; }
+
+  .set-row{ display:flex; align-items:center; justify-content:space-between; gap:12px; padding:13px 20px; }
+  .set-row .lab{ font-size:14.5px; }
+  .switch{ position:relative; width:50px; height:30px; flex:0 0 50px; }
+  .switch input{ opacity:0; width:0; height:0; position:absolute; }
+  .slider{ position:absolute; inset:0; background:#E0E2E6; border-radius:30px; transition:background 150ms ease; cursor:pointer; }
+  .slider::before{ content:""; position:absolute; width:26px; height:26px; left:2px; top:2px; background:#fff; border-radius:50%; transition:transform 150ms ease; box-shadow:0 1px 3px rgba(0,0,0,0.25); }
+  .switch input:checked + .slider{ background:var(--primary); }
+  .switch input:checked + .slider::before{ transform:translateX(20px); }
+  .set-slider{ display:flex; align-items:center; gap:12px; padding:8px 20px 14px; }
+  .set-slider input[type=range]{ flex:1; accent-color:var(--primary); }
+  .set-slider .thval{ font-family:var(--mono); font-size:13px; min-width:38px; text-align:right; }
+
+  @media (prefers-reduced-motion: reduce){ *{ animation-duration:0.01ms !important; transition-duration:0.01ms !important; } }
+
+  .mapaxis{ display:flex; gap:6px; overflow-x:auto; padding:8px 16px 2px; -webkit-overflow-scrolling:touch; }
+  .mapaxis::-webkit-scrollbar{ display:none; }
+  .mx{ flex:0 0 auto; font-size:11.5px; font-weight:600; color:#5F6368; background:#FFFFFF; border:1px solid #DADCE0; border-radius:14px; padding:5px 11px; cursor:pointer; white-space:nowrap; }
+  .mx.on{ color:#0057B8; background:#E1F0FF; border-color:#A9D2FF; }
+  .pkchips{ display:flex; gap:6px; overflow-x:auto; padding:0 16px 8px; }
+  .pkchips::-webkit-scrollbar{ display:none; }
+  .pkc{ flex:0 0 auto; font-size:11.5px; font-weight:600; color:#5F6368; background:#F1F3F4; border:1px solid #DADCE0; border-radius:13px; padding:4px 10px; cursor:pointer; white-space:nowrap; }
+  .pkc.on{ color:#0057B8; background:#E1F0FF; border-color:#A9D2FF; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="appheader">
+    <div class="appheader-row">
+      <div class="appbrand"><svg width="20" height="20" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5" fill="none" stroke="#007AFF" stroke-width="2"/><path d="M4 7c3.5 2 3.5 8 0 10M20 7c-3.5 2-3.5 8 0 10" fill="none" stroke="#007AFF" stroke-width="2"/></svg>Tennis <b>DB</b></div>
+      <div class="appicons">
+        <span class="wx"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"/></svg>26°</span>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8A8.5 8.5 0 0 1 12.5 3 8.5 8.5 0 0 1 21 11.5z"/></svg>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+      </div>
+    </div>
+    <div class="appcrumb">機材 › ストリング比較</div>
+  </div>
+  <div class="scrollarea">
+  <div class="topbar" id="topbar" style="display:none">
+    <div class="search">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#80868B" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+      <input id="search" placeholder="名前で検索">
+      <button class="searchclose" id="searchclose" title="閉じる"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
+  </div>
+  <div class="controls">
+    <div class="controlrow">
+      <div class="viewbar" id="viewbar"></div>
+      <div class="chiprow" id="chiprow"></div>
+    </div>
+  </div>
+  <div id="framenote"></div>
+  <div class="statusline">
+    <span class="summary" id="summary"></span>
+    <span class="legend" id="legend">
+      <span><span class="sw" style="background:#007AFF"></span>客観</span>
+      <span><span class="sw" style="background:#FF9500"></span>主観</span>
+      <span><span class="sw" style="background:#FCE3C4;border:1px solid #F0B968"></span>ズレ</span>
+    </span>
+  </div>
+
+  <div class="content" id="content"></div>
+  </div>
+  <div class="tabbar">
+    <div class="tab"><span class="tabic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 10.5L12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg></span>ホーム</div>
+    <div class="tab"><span class="tabic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16M4 12h16M4 18h16"/></svg></span>記録</div>
+    <div class="tab on"><span class="tabic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="3" width="6" height="7" rx="1.5"/><path d="M10 10v10a2 2 0 0 0 4 0V10"/></svg></span>機材</div>
+    <div class="tab"><span class="tabic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></span>計画</div>
+    <div class="tab"><span class="tabic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></span>分析</div>
+  </div>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<div class="sheet" id="sheet">
+  <div class="grip"></div>
+  <div class="sheet-title" id="sheet-title"></div>
+  <div class="sheet-list" id="sheet-body"></div>
+</div>
+
+<script type="text/plain" id="appsrc">
+(function(){
+  "use strict";
+
+  var AXES = ["パワー","弾き","弾性","スピン","コントロール","維持","安定","快適"];
+  var AXES_SHORT = ["パワー","弾き","弾性","スピン","コント","維持","安定","快適"];
+
+  var DATA = window.__CLOUD_DATA__;
+
+  // 使用実績のある「ラケット＋弦」の組み合わせ / 検討中マーク
+  var COMBO = {};
+  DATA.forEach(function(d){ var c=COMBO[d.id]||{}; d.usedWith=c.usedWith||null; d.considering=!!c.considering; });
+
+  var FRAMES = {
+    boom: { label:"BOOM PRO", power:"低", lo:0.55, hi:0.95, advice:"柔らかめ" },
+    ezone:{ label:"EZONE 98", power:"高", lo:1.05, hi:1.25, advice:"硬め" },
+    pure: { label:"Pure Drive", power:"高", lo:1.05, hi:1.25, advice:"硬め" }
+  };
+
+  var PILL = {
+    honmei: { fg:"#0057B8", bg:"#E1F0FF", bd:"#A9D2FF" },
+    ka:     { fg:"#0A5B35", bg:"#E6F4EA", bd:"#A9D9BE" },
+    bimyo:  { fg:"#7E5D00", bg:"#FEF7E0", bd:"#EAD79A" },
+    kyakka: { fg:"#A31511", bg:"#FCE8E6", bd:"#EFB7B2" },
+    mishida:{ fg:"#5F6368", bg:"#F1F3F4", bd:"#DADCE0" }
+  };
+  var CATBAR = { honmei:"#007AFF", ka:"#0F9D58", bimyo:"#FBBC04", kyakka:"#D93025", mishida:"#C7C7CC" };
+  var EVAL_ORDER = [["honmei","本命"],["ka","可"],["bimyo","微妙"],["kyakka","却下"],["mishida","未試打"]];
+  var EVAL_RANK = { honmei:0, ka:1, bimyo:2, kyakka:3, mishida:4 };
+  var CMP_COLORS = ["#9334E0","#007AFF","#FF9500"];
+
+  var SORTS = [
+    { key:"stiff", dir:"asc",  label:"剛性 低い順" },
+    { key:"stiff", dir:"desc", label:"剛性 高い順" },
+    { key:"eval",  dir:"asc",  label:"評価順" },
+    { key:0, dir:"desc", label:"パワー 高い順" },
+    { key:3, dir:"desc", label:"スピン 高い順" },
+    { key:4, dir:"desc", label:"コントロール 高い順" }
+  ];
+
+  var VIEWS = [
+    { id:"compact", label:"一覧", icon:'' },
+    { id:"card",    label:"カード",     icon:'<rect x="4" y="4" width="16" height="7" rx="1.5"/><rect x="4" y="13" width="16" height="7" rx="1.5"/>' },
+    { id:"map",     label:"マップ",     icon:'<line x1="6" y1="3" x2="6" y2="21"/><circle cx="6" cy="8" r="2.2" fill="currentColor" stroke="none"/><circle cx="6" cy="16" r="2.2" fill="currentColor" stroke="none"/><line x1="10" y1="8" x2="20" y2="8"/><line x1="10" y1="16" x2="20" y2="16"/>' },
+    { id:"group",   label:"グループ",   icon:'<rect x="4" y="4" width="16" height="4.5" rx="1.5"/><rect x="4" y="11" width="16" height="4.5" rx="1.5"/><rect x="4" y="18" width="16" height="2.5" rx="1.25"/>' },
+    { id:"compare", label:"比較",       icon:'<path d="M12 3v18"/><path d="M5 8l-3 4 3 4"/><path d="M19 8l3 4-3 4"/>' }
+  ];
+
+  var state = { search:"", searchOpen:false, usedOnly:false, brand:"", material:"", shape:"", frame:"", sortIdx:0, expandedId:null, view:"compact",
+    groupCollapsed:{ bimyo:true, kyakka:true, mishida:true },
+    compareIds:[],
+    highlightDelta:true, threshold:20, showSubjective:true };
+
+  function esc(s){ return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  function byId(id){ for(var i=0;i<DATA.length;i++) if(DATA[i].id===id) return DATA[i]; return null; }
+  function getFrame(){ return FRAMES[state.frame]||null; }
+
+  // ── radar ──
+  function radarPoints(vals,r0){
+    return vals.map(function(v,i){
+      var ang=(-90+i*45)*Math.PI/180, r=(v/100)*r0;
+      return (90+r*Math.cos(ang)).toFixed(1)+","+(90+r*Math.sin(ang)).toFixed(1);
+    }).join(" ");
+  }
+  function axesGeom(r0,lr){
+    return AXES.map(function(label,i){
+      var ang=(-90+i*45)*Math.PI/180, c=Math.cos(ang), s=Math.sin(ang), anchor="middle";
+      if(c>0.3) anchor="start"; else if(c<-0.3) anchor="end";
+      return { label:label, ex:(90+r0*c).toFixed(1), ey:(90+r0*s).toFixed(1), lx:(90+lr*c).toFixed(1), ly:(90+lr*s+3).toFixed(1), anchor:anchor };
+    });
+  }
+  function radarSVG(obj, subj){
+    var r0=70, axes=axesGeom(r0,84), p="";
+    p+='<svg width="200" height="200" viewBox="0 0 180 180" style="display:block;overflow:visible">';
+    [25,50,75,100].forEach(function(v){ p+='<polygon points="'+radarPoints([v,v,v,v,v,v,v,v],r0)+'" fill="none" stroke="#E8EAED" stroke-width="1"/>'; });
+    axes.forEach(function(a){ p+='<line x1="90" y1="90" x2="'+a.ex+'" y2="'+a.ey+'" stroke="#E8EAED" stroke-width="1"/>'; });
+    p+='<polygon points="'+radarPoints(obj,r0)+'" fill="rgba(0,122,255,0.15)" stroke="#007AFF" stroke-width="2" stroke-linejoin="round"/>';
+    if(subj) p+='<polygon points="'+radarPoints(subj,r0)+'" fill="rgba(255,149,0,0.10)" stroke="#FF9500" stroke-width="2" stroke-linejoin="round"/>';
+    axes.forEach(function(a){ p+='<text x="'+a.lx+'" y="'+a.ly+'" font-size="9" fill="#5F6368" text-anchor="'+a.anchor+'">'+a.label+'</text>'; });
+    p+='</svg>';
+    return p;
+  }
+  function radarOverlaySVG(items){
+    var r0=70, axes=axesGeom(r0,84), p="";
+    p+='<svg width="125" height="125" viewBox="0 0 180 180" style="display:block;overflow:visible">';
+    [25,50,75,100].forEach(function(v){ p+='<polygon points="'+radarPoints([v,v,v,v,v,v,v,v],r0)+'" fill="none" stroke="#E8EAED" stroke-width="1"/>'; });
+    axes.forEach(function(a){ p+='<line x1="90" y1="90" x2="'+a.ex+'" y2="'+a.ey+'" stroke="#E8EAED" stroke-width="1"/>'; });
+    items.forEach(function(it,i){
+      var c=CMP_COLORS[i%3];
+      p+='<polygon points="'+radarPoints(it.obj,r0)+'" fill="'+hexA(c,0.12)+'" stroke="'+c+'" stroke-width="2" stroke-linejoin="round"/>';
+    });
+    axes.forEach(function(a){ p+='<text x="'+a.lx+'" y="'+a.ly+'" font-size="9" fill="#5F6368" text-anchor="'+a.anchor+'">'+a.label+'</text>'; });
+    p+='</svg>';
+    return p;
+  }
+  function hexA(hex,a){ var n=parseInt(hex.slice(1),16); return "rgba("+((n>>16)&255)+","+((n>>8)&255)+","+(n&255)+","+a+")"; }
+  function radarOverlaySVGBig(items){
+    var r0=70, axes=axesGeom(r0,90), p="";
+    p+='<svg width="300" height="300" viewBox="0 0 180 180" style="display:block;overflow:visible">';
+    [25,50,75,100].forEach(function(v){ p+='<polygon points="'+radarPoints([v,v,v,v,v,v,v,v],r0)+'" fill="none" stroke="#E8EAED" stroke-width="0.8"/>'; });
+    axes.forEach(function(a){ p+='<line x1="90" y1="90" x2="'+a.ex+'" y2="'+a.ey+'" stroke="#E8EAED" stroke-width="0.8"/>'; });
+    items.forEach(function(it,i){
+      var c=CMP_COLORS[i%3];
+      p+='<polygon points="'+radarPoints(it.obj,r0)+'" fill="'+hexA(c,0.12)+'" stroke="'+c+'" stroke-width="1.6" stroke-linejoin="round"/>';
+    });
+    axes.forEach(function(a){ p+='<text x="'+a.lx+'" y="'+a.ly+'" font-size="7.5" fill="#5F6368" text-anchor="'+a.anchor+'">'+a.label+'</text>'; });
+    p+='</svg>';
+    return p;
+  }
+
+  function stiffHint(d){
+    if(!d.obj && d.evalCat==="mishida") return "未試打。静的剛性のみ把握。試打して体感を重ねたい候補。";
+    if(!d.obj) return "ラボの8軸スコアは未取得。静的剛性のみ把握。";
+    if(d.stiff<=0.85) return "静的剛性は柔らかめの帯。低パワーフレーム向き。";
+    if(d.stiff>=1.10) return "静的剛性は硬めの帯。高パワーフレーム向き。";
+    return "静的剛性は中間帯。汎用的に合わせやすい。";
+  }
+
+  function passFilter(d){
+    if(state.search && (d.brand+" "+d.name).toLowerCase().indexOf(state.search.toLowerCase())===-1) return false;
+    if(state.brand && d.brand!==state.brand) return false;
+    if(state.material && d.material!==state.material) return false;
+    if(state.shape && d.shape!==state.shape) return false;
+    return true;
+  }
+  function filteredSorted(){
+    var list=DATA.filter(passFilter);
+    var s=SORTS[state.sortIdx], dir=s.dir==="asc"?1:-1;
+    list=list.slice().sort(function(a,b){
+      var av,bv;
+      if(s.key==="stiff"){ return (a.stiff-b.stiff)*dir; }
+      if(s.key==="eval"){ return (EVAL_RANK[a.evalCat]-EVAL_RANK[b.evalCat]); }
+      av=a.obj?a.obj[s.key]:null; bv=b.obj?b.obj[s.key]:null;
+      if(av==null && bv==null) return 0;
+      if(av==null) return 1; if(bv==null) return -1;
+      return (av-bv)*dir;
+    });
+    return list;
+  }
+
+  function axesGridHTML(d){
+    var h='<div class="axes">';
+    for(var i=0;i<8;i++){
+      var o=d.obj?d.obj[i]:null, sv=d.subj?d.subj[i]:null;
+      var delta=(o!=null&&sv!=null)?Math.abs(o-sv):0;
+      var big=state.highlightDelta && delta>=state.threshold;
+      h+='<div class="ax'+(big?' big':'')+'">';
+      h+='<div class="ax-l">'+AXES_SHORT[i]+'</div>';
+      h+='<div class="ax-o'+(o!=null?'':' nullv')+'">'+(o!=null?o:"—")+'</div>';
+      if(state.showSubjective){ h+='<div class="ax-s'+(sv!=null?'':' empty')+'">'+(sv!=null?sv:"–")+'</div>'; }
+      h+='</div>';
+    }
+    h+='</div>';
+    return h;
+  }
+
+  function renderPanel(d){
+    var h='<div class="panel">';
+    h+='<div class="plabel">8軸レーダー（客観 / 主観の重ね）</div>';
+    if(d.obj){
+      h+='<div class="radarwrap">'+radarSVG(d.obj,d.subj);
+      h+='<div class="radarlegend"><span><span class="rl" style="background:#007AFF"></span>客観</span>'+(d.subj?'<span><span class="rl" style="background:#FF9500"></span>主観</span>':'')+'</div></div>';
+      h+='<div class="bars">';
+      for(var i=0;i<8;i++){
+        var o=d.obj[i], sv=d.subj?d.subj[i]:null, delta=sv!=null?Math.abs(o-sv):0, big=state.highlightDelta&&delta>=state.threshold;
+        h+='<div class="bar-row'+(big?' big':'')+'">';
+        h+='<div class="bar-label">'+AXES[i]+'</div>';
+        h+='<div class="bar-tracks"><div class="track"><div style="width:'+o+'%;background:#007AFF"></div></div>'+(sv!=null?'<div class="track"><div style="width:'+sv+'%;background:#FF9500"></div></div>':'')+'</div>';
+        h+='<div class="bar-nums"><span style="color:#007AFF;font-weight:600">'+o+'</span>'+(sv!=null?'<span style="color:#80868B"> / </span><span style="color:#E07B00;font-weight:600">'+sv+'</span>':'')+'</div>';
+        h+='<div class="bar-delta">'+(big?'<span class="deltabadge">差'+delta+'</span>':'')+'</div>';
+        h+='</div>';
+      }
+      h+='</div>';
+    } else {
+      h+='<div class="nolab"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#80868B" stroke-width="1.8"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><div>ラボデータ未取得<br>（有料会員のラボ計測）</div></div>';
+    }
+    h+='<div class="psec"><div class="plabel">試打メモ</div><div class="memo'+(d.memo?'':' empty')+'">'+(d.memo?esc(d.memo):"メモなし")+'</div></div>';
+    h+='<div class="psec"><div class="plabel">剛性の裏付け</div><div class="stiffbox">';
+    h+='<div class="stiffrow"><span class="k">静的剛性</span><span class="v">'+d.stiff.toFixed(2)+' kg/mm</span></div>';
+    h+='<div class="stiffrow"><span class="k">動的剛性</span><span class="vmuted">空欄（未取得）</span></div>';
+    h+='<div class="stiffhint">'+stiffHint(d)+'</div>';
+    h+='</div></div>';
+    h+='</div>';
+    return h;
+  }
+
+  // ── compact ──
+  function renderCompactRow(d, frame){
+    var p=PILL[d.evalCat];
+    var rec=!!(frame && d.stiff>=frame.lo && d.stiff<=frame.hi);
+    var expanded=state.expandedId===d.id;
+    var h='<div class="crow'+(expanded?' expanded':'')+'" data-id="'+d.id+'">';
+    h+='<div class="cbar" style="background:'+CATBAR[d.evalCat]+'"></div>';
+    h+='<div class="cmain"><div class="cn">'+esc(d.name)+'</div>';
+    h+='<div class="cmeta">'+esc(d.brand)+' · '+esc(d.shape)+' · '+d.gauge+'mm · <span class="s">'+d.stiff.toFixed(2)+'</span> kg/mm</div></div>';
+    h+='<div class="cright">';
+    if(rec) h+='<span class="crec" title="推奨"></span>';
+    h+='<span class="pill" style="color:'+p.fg+';background:'+p.bg+';border-color:'+p.bd+'">'+esc(d.evalText)+'</span>';
+    h+='<svg class="cchev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 6l6 6-6 6"/></svg>';
+    h+='</div></div>';
+    if(expanded){ h+='<div class="cpanel">'+axesGridHTML(d)+renderPanel(d)+'</div>'; }
+    return h;
+  }
+
+  // ── card ──
+  function renderCard(d, frame){
+    var p=PILL[d.evalCat];
+    var rec=!!(frame && d.stiff>=frame.lo && d.stiff<=frame.hi);
+    var expanded=state.expandedId===d.id;
+    var h='<div class="card'+(expanded?' expanded':'')+'" data-id="'+d.id+'">';
+    h+='<div class="bar" style="background:'+CATBAR[d.evalCat]+'"></div>';
+    h+='<div class="c-top"><div><div class="c-name">'+esc(d.name)+'</div><div class="c-brand">'+esc(d.brand)+'</div></div>';
+    h+='<div style="text-align:right"><span class="pill" style="color:'+p.fg+';background:'+p.bg+';border-color:'+p.bd+'">'+esc(d.evalText)+'</span>'+(rec?'<div><span class="rec">推奨</span></div>':'')+'</div></div>';
+    h+='<div class="c-meta">'+esc(d.structure)+'・'+esc(d.material)+'<span class="dot">·</span>'+esc(d.shape)+'<span class="dot">·</span>'+d.gauge+'mm<span class="dot">·</span><span class="stiff">'+d.stiff.toFixed(2)+'</span>&nbsp;kg/mm</div>';
+    h+=axesGridHTML(d);
+    h+='<div class="c-foot">'+(expanded?"閉じる":(d.obj?"レーダーと詳細":"詳細"))+'<svg width="11" height="7" viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></div>';
+    if(expanded) h+=renderPanel(d);
+    h+='</div>';
+    return h;
+  }
+
+  // ── 案A map ──
+  function renderMap(list, frame){
+    var lo=0.55, hi=1.25, padTop=22, padBot=22, cardGap=50, axisX=46, cardX=66;
+    // sort hard→soft (top→bottom). collision-free card layout.
+    var nodes=list.slice();
+    if(state.usedOnly) nodes=nodes.filter(function(d){ return d.usedWith; });
+    nodes.sort(function(a,b){ return b.stiff-a.stiff; });
+    var span=Math.max(360, nodes.length*cardGap+padTop+padBot);
+    function y(v){ return padTop + (1-(v-lo)/(hi-lo))*(span-padTop-padBot); }
+    // assign card Y with min-gap, keep dot at true value
+    var prev=-Infinity;
+    nodes.forEach(function(d){
+      d._dotY=y(d.stiff);
+      d._cardY=Math.max(d._dotY, prev+cardGap);
+      prev=d._cardY;
+    });
+    var H=Math.max(span, (nodes.length?nodes[nodes.length-1]._cardY:0)+padBot+24);
+
+    var html='';
+    var usedN=list.filter(function(d){ return d.usedWith; }).length;
+    html+='<div class="maptoolbar">';
+    html+='<div class="usedtoggle'+(state.usedOnly?' on':'')+'" id="usedonly"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6L9 17l-5-5"/></svg>実績のみ<span class="utc">'+usedN+'</span></div>';
+    html+='<div class="maplegend"><span><span class="mk-used"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="4"><path d="M20 6L9 17l-5-5"/></svg></span>使用実績</span><span><span class="mk-consider"></span>検討中</span></div>';
+    html+='</div>';
+    html+='<div class="maphint"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#0A5B35" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/></svg>';
+    html+= frame ? (frame.label+'（'+frame.power+'パワー）→ '+frame.advice+' '+frame.lo.toFixed(2)+'–'+frame.hi.toFixed(2)+' を推奨。帯内の弦が候補。') : 'フレームを選ぶと推奨帯が光ります（上のフィルター）。縦軸＝柔→硬。';
+    html+='</div>';
+    if(nodes.length===0){ html+='<div class="empty-list">使用実績のある組み合わせはありません</div>'; return html; }
+    html+='<div class="map" style="height:'+H+'px">';
+    html+='<div class="axisline"></div>';
+    if(frame){
+      var yTop=y(frame.hi), yBot=y(frame.lo);
+      html+='<div class="band" style="top:'+yTop+'px;height:'+(yBot-yTop)+'px"></div><div class="band-l" style="top:'+(yTop+4)+'px">推奨帯</div>';
+    }
+    [0.6,0.8,1.0,1.2].forEach(function(t){
+      html+='<div class="tick" style="top:'+y(t)+'px">'+t.toFixed(1)+'</div><div class="tickmark" style="top:'+y(t)+'px"></div>';
+    });
+    nodes.forEach(function(d){
+      var rec=!!(frame && d.stiff>=frame.lo && d.stiff<=frame.hi);
+      // connector from dot (axisX+6, dotY) to card (cardX, cardY)
+      var x1=axisX+7, y1=d._dotY, x2=cardX, y2=d._cardY;
+      var dx=x2-x1, dy=y2-y1, len=Math.sqrt(dx*dx+dy*dy), ang=Math.atan2(dy,dx)*180/Math.PI;
+      html+='<div class="mapconn" style="left:'+x1+'px;top:'+y1+'px;width:'+len+'px;transform:translateY(-50%) rotate('+ang+'deg)"></div>';
+      html+='<div class="mapdot" style="top:'+d._dotY+'px;background:'+CATBAR[d.evalCat]+'"></div>';
+      var cls='nodecard'+(rec?' rec':'')+(d.usedWith?' used':'')+(d.considering?' considering':'');
+      var marks='';
+      if(d.considering) marks+='<span class="cardmark consider" title="検討中"></span>';
+      if(d.usedWith) marks+='<span class="cardmark used" title="使用実績"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="4"><path d="M20 6L9 17l-5-5"/></svg></span>';
+      var usedLine=d.usedWith?'<div class="nu"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M4 6h16M6 6v13a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V6"/></svg>'+esc(d.usedWith)+'</div>':'';
+      html+='<div class="'+cls+'" data-id="'+d.id+'" style="top:'+d._cardY+'px">'+marks+'<div class="nc-main"><div class="nn">'+esc(d.name)+'</div><div class="nb">'+esc(d.brand)+'</div>'+usedLine+'</div><div class="ns">'+d.stiff.toFixed(2)+'</div></div>';
+    });
+    html+='</div>';
+    return html;
+  }
+
+  // ── 案B group ──
+  function renderGroup(frame){
+    var html='';
+    EVAL_ORDER.forEach(function(o){
+      var cat=o[0], label=o[1];
+      var rows=DATA.filter(function(d){ return d.evalCat===cat && passFilter(d); });
+      if(rows.length===0) return;
+      rows.sort(function(a,b){ return a.stiff-b.stiff; });
+      var collapsed=!!state.groupCollapsed[cat];
+      html+='<div class="grp'+(collapsed?' collapsed':'')+'" data-cat="'+cat+'">';
+      html+='<div class="grp-h"><span class="grp-dot" style="background:'+CATBAR[cat]+'"></span><span class="grp-t">'+label+'</span><span class="grp-c">'+rows.length+'件</span><span class="grp-chev"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></span></div>';
+      html+='<div class="grp-body">';
+      rows.forEach(function(d){
+        var rec=!!(frame && d.stiff>=frame.lo && d.stiff<=frame.hi);
+        html+='<div class="grow" data-id="'+d.id+'"><div><div class="gn">'+esc(d.name)+'</div><div class="gm">'+esc(d.brand)+' · '+esc(d.shape)+' · '+d.gauge+'mm</div>';
+        if(d.obj){
+          html+='<div class="minibars">';
+          d.obj.forEach(function(v){ html+='<i style="height:'+(4+v/100*14)+'px;background:'+(v>=85?"#007AFF":v>=60?"#7FB5F0":"#CFE0F5")+'"></i>'; });
+          html+='</div>';
+        }
+        html+='</div><div class="gright">'+(rec?'<span class="grec" title="推奨"></span>':'')+'<div><div class="gstiff">'+d.stiff.toFixed(2)+'</div><div class="gstifl">kg/mm</div></div></div></div>';
+      });
+      html+='</div></div>';
+    });
+    return html || '<div class="empty-list">該当する弦がありません</div>';
+  }
+
+  // ── 案C compare ──
+  function renderCompare(){
+    var items=state.compareIds.map(byId).filter(function(d){ return d && d.obj; });
+    var html='';
+    if(items.length<2) html+='<div class="cmptop">'+(items.length?'もう1本選ぶとレーダーと表が出ます':'比較する弦を追加してください（ラボデータのある弦）')+'</div>';
+    if(items.length>=2){
+      html+='<div class="radarbox" id="radarbox"><span class="radarzoom"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></span>'+radarOverlaySVG(items)+'</div>';
+      var cols='74px '+items.map(function(){return '1fr';}).join(' ');
+      html+='<div class="cmp"><div class="cmp-h" style="grid-template-columns:'+cols+'"><div class="axn">軸</div>'+items.map(function(it,i){ return '<div style="color:'+CMP_COLORS[i%3]+'">'+esc(it.name)+'</div>'; }).join("")+'</div>';
+      AXES.forEach(function(label,ai){
+        var vals=items.map(function(it){ return it.obj[ai]; });
+        var max=Math.max.apply(null,vals);
+        html+='<div class="cmp-row" style="grid-template-columns:'+cols+'"><div class="axn">'+AXES_SHORT[ai]+'</div>';
+        vals.forEach(function(v){ html+='<div class="cmp-cell'+(v===max?' win':'')+'">'+v+'</div>'; });
+        html+='</div>';
+      });
+      html+='</div>';
+    } else {
+      html+='<div class="cmp-empty">レーダーと表は 2 本以上で表示されます。<br>下の「＋ 追加」から弦を選んでください。</div>';
+    }
+    // tray
+    html+='<div class="tray">';
+    if(items.length===0){ html+='<span style="font-size:12px;color:var(--muted)">未選択</span>'; }
+    items.forEach(function(it,i){ html+='<span class="traychip" style="background:'+hexA(CMP_COLORS[i%3],0.13)+';color:'+CMP_COLORS[i%3]+'">'+esc(it.name)+'<span class="x" data-remove="'+it.id+'">×</span></span>'; });
+    html+='<button class="traybtn" id="cmp-add"'+(items.length>=3?' disabled':'')+'>＋ 追加</button>';
+    html+='</div>';
+    return html;
+  }
+
+  // ── chips ──
+  function renderChips(){
+    if(state.view==="compare"){ document.getElementById("chiprow").style.display="none"; return; }
+    document.getElementById("chiprow").style.display="";
+    var activeCount=(state.frame?1:0)+(state.brand?1:0)+(state.material?1:0)+(state.shape?1:0);
+    var defs=[];
+    if(state.view!=="group") defs.push({ id:"sort", label:SORTS[state.sortIdx].label, active:true, caret:true });
+    defs.push({ id:"filters", label:"絞り込み", active:activeCount>0, count:activeCount });
+    defs.push({ id:"settings", label:"表示", active:false, gear:true });
+    var SORT_IC='<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h12M3 12h9M3 18h6M17 8v10M17 18l3-3M17 18l-3-3"/></svg>';
+    var FILT_IC='<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 5h18M6 12h12M10 19h4"/></svg>';
+    var GEAR_IC='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
+    var row=document.getElementById("chiprow");
+    var html="";
+    var SEARCH_IC='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>';
+    html+='<div class="cbtn'+(state.search?' active':'')+'" data-chip="search" title="検索">'+SEARCH_IC+(state.search?'<span class="cbadge">•</span>':'')+'</div>';
+    if(state.view!=="group") html+='<div class="cbtn" data-chip="sort" title="並べ替え：'+esc(SORTS[state.sortIdx].label)+'">'+SORT_IC+'</div>';
+    html+='<div class="cbtn'+(activeCount>0?' active':'')+'" data-chip="filters" title="絞り込み">'+FILT_IC+(activeCount>0?'<span class="cbadge">'+activeCount+'</span>':'')+'</div>';
+    html+='<div class="cbtn" data-chip="settings" title="表示設定">'+GEAR_IC+'</div>';
+    row.innerHTML=html;
+    [].forEach.call(row.querySelectorAll(".cbtn"),function(ch){
+      ch.addEventListener("click",function(){ onChip(ch.getAttribute("data-chip")); });
+    });
+  }
+  function onChip(id){
+    if(id==="search"){ toggleSearch(); return; }
+    if(id==="filters"){ openFilters(); return; }
+    openSheet(id);
+  }
+  function toggleSearch(){
+    state.searchOpen=!state.searchOpen;
+    var tb=document.getElementById("topbar"), inp=document.getElementById("search");
+    if(state.searchOpen){ tb.style.display=""; setTimeout(function(){ inp.focus(); },30); }
+    else { tb.style.display="none"; if(state.search){ state.search=""; inp.value=""; } }
+    render();
+  }
+
+  // ── sheets ──
+  var sheet=document.getElementById("sheet"), scrim=document.getElementById("scrim");
+  function showSheet(){ scrim.classList.add("show"); sheet.classList.add("show"); }
+  function hideSheet(){ scrim.classList.remove("show"); sheet.classList.remove("show"); }
+  scrim.addEventListener("click", hideSheet);
+
+  function sheetOptions(title, options, current, onPick){
+    document.getElementById("sheet-title").textContent=title;
+    var body=document.getElementById("sheet-body"); body.className="sheet-list";
+    body.innerHTML=options.map(function(o,i){
+      var sel=o.value===current;
+      return '<div class="opt'+(sel?' sel':'')+(o.disabled?' disabled':'')+'" data-i="'+i+'">'+esc(o.label)+(o.sub?' <span class="sub">'+esc(o.sub)+'</span>':'')+(sel?'<span class="check"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 13l4 4L19 7"/></svg></span>':'')+'</div>';
+    }).join("");
+    [].forEach.call(body.querySelectorAll(".opt"),function(el){
+      el.addEventListener("click",function(){ onPick(options[parseInt(el.getAttribute("data-i"),10)].value); hideSheet(); render(); });
+    });
+    showSheet();
+  }
+  function openSheet(id){
+    if(id==="sort"){
+      sheetOptions("並べ替え", SORTS.map(function(s,i){return {label:s.label, value:i};}), state.sortIdx, function(v){ state.sortIdx=v; });
+    } else if(id==="frame"){
+      var opts=[{label:"指定なし",value:""}].concat(Object.keys(FRAMES).map(function(k){return {label:FRAMES[k].label+"（"+FRAMES[k].power+"パワー）", value:k};}));
+      sheetOptions("フレーム適合", opts, state.frame, function(v){ state.frame=v; });
+    } else if(id==="brand"){
+      sheetOptions("メーカー", [""].concat(uniq("brand")).map(function(b){return {label:b||"すべて", value:b};}), state.brand, function(v){ state.brand=v; });
+    } else if(id==="material"){
+      sheetOptions("素材", [""].concat(uniq("material")).map(function(m){return {label:m||"すべて", value:m};}), state.material, function(v){ state.material=v; });
+    } else if(id==="shape"){
+      sheetOptions("形状", [""].concat(uniq("shape")).map(function(s){return {label:s||"すべて", value:s};}), state.shape, function(v){ state.shape=v; });
+    } else if(id==="settings"){ openSettings(); }
+  }
+  function uniq(field){ var seen=[],out=[]; DATA.forEach(function(d){ if(seen.indexOf(d[field])===-1){ seen.push(d[field]); out.push(d[field]); } }); return out; }
+
+  function openFilters(){
+    document.getElementById("sheet-title").textContent="絞り込み";
+    var body=document.getElementById("sheet-body"); body.className="sheet-detail";
+    function section(key, title, cur, opts){
+      var h='<div class="fsec"><div class="fsec-h">'+title+'</div><div class="fchips">';
+      h+='<span class="fchip'+(cur===""?' on':'')+'" data-key="'+key+'" data-val="">すべて</span>';
+      opts.forEach(function(o){
+        h+='<span class="fchip'+(cur===o.value?' on':'')+'" data-key="'+key+'" data-val="'+esc(o.value)+'">'+esc(o.label)+'</span>';
+      });
+      h+='</div></div>';
+      return h;
+    }
+    var frameOpts=Object.keys(FRAMES).map(function(k){return {label:FRAMES[k].label+"（"+FRAMES[k].power+"）", value:k};});
+    var html='';
+    html+=section("frame","フレーム適合", state.frame, frameOpts);
+    html+=section("brand","メーカー", state.brand, uniq("brand").map(function(b){return {label:b,value:b};}));
+    html+=section("material","素材", state.material, uniq("material").map(function(m){return {label:m,value:m};}));
+    html+=section("shape","形状", state.shape, uniq("shape").map(function(s){return {label:s,value:s};}));
+    html+='<div class="fclear"><button id="f-clear">絞り込みをすべて解除</button></div>';
+    body.innerHTML=html;
+    [].forEach.call(body.querySelectorAll(".fchip"),function(ch){
+      ch.addEventListener("click",function(){
+        var k=ch.getAttribute("data-key"), v=ch.getAttribute("data-val");
+        state[k]=v; openFilters(); render();
+      });
+    });
+    body.querySelector("#f-clear").addEventListener("click",function(){
+      state.frame=""; state.brand=""; state.material=""; state.shape=""; openFilters(); render();
+    });
+    showSheet();
+  }
+
+  function openSettings(){
+    document.getElementById("sheet-title").textContent="表示の設定";
+    var body=document.getElementById("sheet-body"); body.className="sheet-list";
+    body.innerHTML=
+      '<div class="set-row"><span class="lab">ズレを強調</span><label class="switch"><input type="checkbox" id="s-hl"'+(state.highlightDelta?" checked":"")+'><span class="slider"></span></label></div>'+
+      '<div class="sheet-section">強調する差（'+state.threshold+'pt 以上）</div>'+
+      '<div class="set-slider"><input type="range" id="s-th" min="10" max="40" step="5" value="'+state.threshold+'"><span class="thval" id="s-thv">'+state.threshold+'pt</span></div>'+
+      '<div class="set-row" style="border-top:1px solid var(--divider)"><span class="lab">主観スコアを併記</span><label class="switch"><input type="checkbox" id="s-subj"'+(state.showSubjective?" checked":"")+'><span class="slider"></span></label></div>';
+    body.querySelector("#s-hl").addEventListener("change",function(e){ state.highlightDelta=e.target.checked; render(); });
+    body.querySelector("#s-subj").addEventListener("change",function(e){ state.showSubjective=e.target.checked; render(); });
+    body.querySelector("#s-th").addEventListener("input",function(e){ state.threshold=parseInt(e.target.value,10); document.getElementById("s-thv").textContent=state.threshold+"pt"; render(); });
+    showSheet();
+  }
+
+  function openDetail(id){
+    var d=byId(id); if(!d) return;
+    document.getElementById("sheet-title").textContent=d.name+" · "+d.brand;
+    var body=document.getElementById("sheet-body"); body.className="sheet-detail";
+    body.innerHTML=axesGridHTML(d)+renderPanel(d);
+    showSheet();
+  }
+
+  function openCompareRadar(){
+    var items=state.compareIds.map(byId).filter(function(d){ return d && d.obj; });
+    if(items.length<2) return;
+    document.getElementById("sheet-title").textContent="8軸レーダー（拡大）";
+    var body=document.getElementById("sheet-body"); body.className="sheet-detail";
+    var html='<div style="display:flex;flex-direction:column;align-items:center;padding:14px 0 10px;">';
+    html+=radarOverlaySVGBig(items);
+    html+='<div class="radarlegend" style="margin-top:14px;gap:18px;flex-wrap:wrap;justify-content:center;">'+items.map(function(it,i){ return '<span style="font-size:13px"><span class="rl" style="background:'+CMP_COLORS[i%3]+'"></span>'+esc(it.name)+'</span>'; }).join("")+'</div>';
+    html+='</div>';
+    body.innerHTML=html;
+    showSheet();
+  }
+
+  function openCompareAdd(){
+    document.getElementById("sheet-title").textContent="比較に追加（ラボデータのある弦）";
+    var body=document.getElementById("sheet-body"); body.className="sheet-list";
+    var opts=DATA.map(function(d){
+      var inSel=state.compareIds.indexOf(d.id)!==-1;
+      return { label:d.name, sub:d.brand+(d.obj?"":" · ラボ未取得"), value:d.id, disabled:(!d.obj || inSel) };
+    });
+    body.innerHTML=opts.map(function(o){
+      return '<div class="opt'+(o.disabled?' disabled':'')+'" data-id="'+o.value+'">'+esc(o.label)+' <span class="sub">'+esc(o.sub)+'</span></div>';
+    }).join("");
+    [].forEach.call(body.querySelectorAll(".opt:not(.disabled)"),function(el){
+      el.addEventListener("click",function(){
+        var id=parseInt(el.getAttribute("data-id"),10);
+        if(state.compareIds.length<3 && state.compareIds.indexOf(id)===-1) state.compareIds.push(id);
+        hideSheet(); render();
+      });
+    });
+    showSheet();
+  }
+
+  // ── view bar ──
+  function renderViewBar(){
+    var vb=document.getElementById("viewbar");
+    vb.innerHTML=VIEWS.map(function(v){
+      return '<div class="vb'+(state.view===v.id?" on":"")+'" data-v="'+v.id+'">'+v.label+'</div>';
+    }).join("");
+    [].forEach.call(vb.querySelectorAll(".vb"),function(b){
+      b.addEventListener("click",function(){ state.view=b.getAttribute("data-v"); state.expandedId=null; render(); });
+    });
+  }
+
+  function render(){
+    renderViewBar();
+    renderChips();
+    var frame=getFrame();
+    var content=document.getElementById("content");
+    var summary=document.getElementById("summary"), legend=document.getElementById("legend"), fn=document.getElementById("framenote");
+
+    // frame note (not in compare)
+    if(frame && state.view!=="compare"){
+      fn.innerHTML='<div class="framenote"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0A5B35" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5" fill="#0A5B35"/></svg><span>'+frame.label+'（'+frame.power+'パワー）→ '+frame.advice+'（静的剛性 '+frame.lo.toFixed(2)+'–'+frame.hi.toFixed(2)+' kg/mm）を推奨。推奨弦をマーク。</span></div>';
+    } else fn.innerHTML="";
+
+    var list=filteredSorted();
+
+    if(state.view==="compare"){
+      summary.style.display="none"; legend.style.display="none"; fn.innerHTML="";
+      content.innerHTML=renderCompare();
+      var addBtn=document.getElementById("cmp-add");
+      if(addBtn) addBtn.addEventListener("click", openCompareAdd);
+      var rb=document.getElementById("radarbox");
+      if(rb) rb.addEventListener("click", openCompareRadar);
+      [].forEach.call(content.querySelectorAll(".traychip .x"),function(x){
+        x.addEventListener("click",function(){ var id=parseInt(x.getAttribute("data-remove"),10); state.compareIds=state.compareIds.filter(function(c){return c!==id;}); render(); });
+      });
+      return;
+    }
+    summary.style.display=""; legend.style.display="flex";
+
+    if(state.view==="map"){
+      legend.style.display="none";
+      content.innerHTML=list.length?renderMap(list,frame):'<div class="empty-list">該当する弦がありません</div>';
+      var uo=document.getElementById("usedonly");
+      if(uo) uo.addEventListener("click",function(){ state.usedOnly=!state.usedOnly; render(); });
+      [].forEach.call(content.querySelectorAll(".nodecard"),function(n){
+        n.addEventListener("click",function(){ openDetail(parseInt(n.getAttribute("data-id"),10)); });
+      });
+    } else if(state.view==="group"){
+      content.innerHTML=renderGroup(frame);
+      [].forEach.call(content.querySelectorAll(".grp-h"),function(h){
+        h.addEventListener("click",function(){ var cat=h.parentNode.getAttribute("data-cat"); state.groupCollapsed[cat]=!state.groupCollapsed[cat]; render(); });
+      });
+      [].forEach.call(content.querySelectorAll(".grow"),function(r){
+        r.addEventListener("click",function(){ openDetail(parseInt(r.getAttribute("data-id"),10)); });
+      });
+    } else if(state.view==="card"){
+      content.innerHTML=list.length?'<div class="cardlist">'+list.map(function(d){return renderCard(d,frame);}).join("")+'</div>':'<div class="empty-list">該当する弦がありません</div>';
+      bindExpand(content);
+    } else {
+      content.innerHTML=list.length?'<div class="clist">'+list.map(function(d){return renderCompactRow(d,frame);}).join("")+'</div>':'<div class="empty-list">該当する弦がありません</div>';
+      bindExpand(content);
+    }
+
+    var labN=DATA.filter(function(d){return d.obj;}).length;
+    var trialN=DATA.filter(function(d){return d.subj;}).length;
+    summary.textContent="表示 "+list.length+"/"+DATA.length+"件 · ラボ"+labN+" · 試打"+trialN;
+  }
+
+  function bindExpand(content){
+    [].forEach.call(content.querySelectorAll(".card, .crow"),function(c){
+      c.addEventListener("click",function(ev){
+        if(ev.target.closest(".cpanel, .panel")) return;
+        var id=parseInt(c.getAttribute("data-id"),10);
+        state.expandedId=(state.expandedId===id)?null:id;
+        render();
+      });
+    });
+  }
+
+  document.getElementById("search").addEventListener("input",function(e){ state.search=e.target.value; render(); });
+  document.getElementById("searchclose").addEventListener("click", toggleSearch);
+
+
+  (function(){
+    // ===== a. 複数選択フィルタ (メーカー/素材/形状) =====
+    state.brands=[]; state.materials=[]; state.shapes=[];
+    passFilter = function(d){
+      if(state.search && (d.brand+" "+d.name).toLowerCase().indexOf(state.search.toLowerCase())===-1) return false;
+      if(state.brands.length && state.brands.indexOf(d.brand)===-1) return false;
+      if(state.materials.length && state.materials.indexOf(d.material)===-1) return false;
+      if(state.shapes.length && state.shapes.indexOf(d.shape)===-1) return false;
+      return true;
+    };
+    renderChips = (function(_orig){
+      return function(){
+        // activeCount を複数選択に対応させるため、単一値を擬似的に同期してから元実装を呼ぶ
+        state.brand   = state.brands.length   ? state.brands.length+"社"   : "";
+        state.material= state.materials.length? state.materials.length+"種": "";
+        state.shape   = state.shapes.length   ? state.shapes.length+"種"   : "";
+        _orig();
+      };
+    })(renderChips);
+    openFilters = function(){
+      document.getElementById("sheet-title").textContent="絞り込み（複数選択可）";
+      var body=document.getElementById("sheet-body");
+      body.className="sheet-detail";
+      function uniqVals(k){ var m={}; DATA.forEach(function(d){ if(d[k]) m[d[k]]=1; }); return Object.keys(m).sort(function(a,b){ return a.localeCompare(b,"ja"); }); }
+      function section(key, arrKey, title, opts){
+        var cur=state[arrKey];
+        var h='<div class="fsec"><div class="fsec-h">'+title+(cur.length?'（'+cur.length+'）':'')+'</div><div class="fchips">';
+        h+='<span class="fchip'+(cur.length===0?' on':'')+'" data-arr="'+arrKey+'" data-val="">すべて</span>';
+        opts.forEach(function(v){
+          h+='<span class="fchip'+(cur.indexOf(v)!==-1?' on':'')+'" data-arr="'+arrKey+'" data-val="'+esc(v)+'">'+esc(v)+'</span>';
+        });
+        h+='</div></div>';
+        return h;
+      }
+      var frameOpts=Object.keys(FRAMES).map(function(k){ return {label:FRAMES[k].label+"（"+FRAMES[k].power+"）", value:k}; });
+      var html='<div class="fsec"><div class="fsec-h">フレーム適合（1つ）</div><div class="fchips">';
+      html+='<span class="fchip'+(state.frame===""?' on':'')+'" data-frame="">なし</span>';
+      frameOpts.forEach(function(o){ html+='<span class="fchip'+(state.frame===o.value?' on':'')+'" data-frame="'+o.value+'">'+esc(o.label)+'</span>'; });
+      html+='</div></div>';
+      html+=section("brand","brands","メーカー",uniqVals("brand"));
+      html+=section("material","materials","素材",uniqVals("material"));
+      html+=section("shape","shapes","形状",uniqVals("shape"));
+      html+='<div class="fclear"><button id="f-clear">絞り込みをすべて解除</button></div>';
+      body.innerHTML=html;
+      [].forEach.call(body.querySelectorAll(".fchip"),function(ch){
+        ch.addEventListener("click",function(){
+          if(ch.hasAttribute("data-frame")){ state.frame=ch.getAttribute("data-frame"); }
+          else {
+            var arrKey=ch.getAttribute("data-arr"), val=ch.getAttribute("data-val");
+            if(val===""){ state[arrKey]=[]; }
+            else {
+              var i=state[arrKey].indexOf(val);
+              if(i===-1) state[arrKey].push(val); else state[arrKey].splice(i,1);
+            }
+          }
+          openFilters(); render();  // シートは開いたまま選択を重ねられる
+        });
+      });
+      var fc=document.getElementById("f-clear");
+      if(fc) fc.addEventListener("click",function(){ state.frame=""; state.brands=[]; state.materials=[]; state.shapes=[]; openFilters(); render(); });
+      showSheet();
+    };
+
+    // ===== b. マップ軸切替 (静的剛性/動的剛性/8軸) =====
+    state.mapAxis="stiff";
+    var MAPAXES=[{k:"stiff",label:"静的剛性",unit:"kg/mm",fmt:function(v){return v.toFixed(2);},get:function(d){return d.stiff;}},
+                 {k:"dyn",label:"動的剛性",unit:"g/mm",fmt:function(v){return Math.round(v);},get:function(d){return d.tech?d.tech.dyn:null;}}];
+    AXES.forEach(function(a,i){ MAPAXES.push({k:String(i),label:a,unit:"/100",fmt:function(v){return Math.round(v);},get:function(d){return d.obj?d.obj[i]:null;}}); });
+    renderMap = function(list, frame){
+      // 設計オリジナル準拠: 1本=1カード (縦に長くてOK。弦の名前が全部見えることが目的)。
+      // 追加点は 軸切替 / 値なし弦の除外 / カード右端の値が選択軸の値になること のみ。
+      var ax=MAPAXES.filter(function(m){return m.k===state.mapAxis;})[0]||MAPAXES[0];
+      var chips='<div class="mapaxis">'+MAPAXES.map(function(m){
+        return '<span class="mx'+(m.k===state.mapAxis?' on':'')+'" data-mx="'+m.k+'">'+m.label+'</span>';
+      }).join("")+'</div>';
+      var padTop=22, padBot=22, cardGap=50, axisX=46, cardX=66;
+      var pool=list.filter(function(d){ var v=ax.get(d); return v!=null; });
+      var nodes=pool.slice();
+      if(state.usedOnly) nodes=nodes.filter(function(d){ return d.usedWith; });
+      nodes.sort(function(a,b){ return ax.get(b)-ax.get(a); });
+      var note='<div class="maphint">軸: '+ax.label+'（'+ax.unit+'）・値のある弦 '+pool.length+' / '+list.length+' 本'
+        +(ax.k==="stiff"?'。フレームを選ぶと推奨帯が光る':'')+'</div>';
+      var html=chips;
+      var usedN=pool.filter(function(d){ return d.usedWith; }).length;
+      html+='<div class="maptoolbar">';
+      html+='<div class="usedtoggle'+(state.usedOnly?' on':'')+'" id="usedonly"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6L9 17l-5-5"/></svg>実績のみ<span class="utc">'+usedN+'</span></div>';
+      html+='<div class="maplegend"><span><span class="mk-used"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="4"><path d="M20 6L9 17l-5-5"/></svg></span>使用実績</span><span><span class="mk-consider"></span>検討中</span></div>';
+      html+='</div>';
+      html+=note;
+      if(nodes.length===0){ html+='<div class="empty-list">この軸の値がある弦がありません（絞り込みを見直してください）</div>'; return html; }
+      // デザインの語彙のみ (軸・ドット・帯・目盛り・カード・接続線) で、高さ固定の窓方式:
+      // 左軸 = 全弦のドットを実寸配置した全体地図 (密集が濃淡で見える)。
+      // 右 = 注目値の近くの弦 12本をカード表示。軸タップで注目位置が動く。
+      // デザイン原型 100% (縦軸=値の比例配置・ドット・接続線・カード・推奨帯・目盛り)。
+      // マップは「絞り込んでから使う」道具。多い時は上に一言添えるだけで、挙動は変えない。
+      if(nodes.length>50){
+        html+='<div class="maphint" style="color:#7E5D00;background:#FEF7E0;border:1px solid #EAD79A;border-radius:10px;margin:6px 16px;padding:8px 12px">'+nodes.length+'本を表示中。メーカー・検索・フレームで絞るとマップが見やすくなります</div>';
+      }
+      var vals=nodes.map(function(d){ return ax.get(d); });
+      var vmax=Math.max.apply(null,vals), vmin=Math.min.apply(null,vals);
+      var vpad=(vmax-vmin)*0.05||0.5; var hi=vmax+vpad, lo=vmin-vpad;
+      var span=Math.max(360, nodes.length*cardGap+padTop+padBot);
+      function y(v){ return padTop+(1-(v-lo)/(hi-lo))*(span-padTop-padBot); }
+      var prev=-Infinity;
+      nodes.forEach(function(d){ d._dotY=y(ax.get(d)); d._cardY=Math.max(d._dotY, prev+cardGap); prev=d._cardY; });
+      var H=Math.max(span,(nodes.length?nodes[nodes.length-1]._cardY:0)+padBot+24);
+      html+='<div class="map" style="height:'+H+'px">';
+      html+='<div class="axisline"></div>';
+      if(ax.k==="stiff" && frame){
+        var yT=y(Math.min(frame.hi,hi)), yB=y(Math.max(frame.lo,lo));
+        html+='<div class="band" style="top:'+yT+'px;height:'+(yB-yT)+'px"></div><div class="band-l" style="top:'+(yT+4)+'px">推奨帯</div>';
+      }
+      for(var t=0;t<4;t++){
+        var tv=lo+(hi-lo)*(t+0.5)/4;
+        html+='<div class="tick" style="top:'+y(tv)+'px">'+ax.fmt(tv)+'</div><div class="tickmark" style="top:'+y(tv)+'px"></div>';
+      }
+      nodes.forEach(function(d){
+        var v=ax.get(d);
+        var rec=!!(ax.k==="stiff" && frame && v>=frame.lo && v<=frame.hi);
+        var x1=axisX+7, y1=d._dotY, x2=cardX, y2=d._cardY;
+        var dx=x2-x1, dy=y2-y1, len=Math.sqrt(dx*dx+dy*dy), ang=Math.atan2(dy,dx)*180/Math.PI;
+        html+='<div class="mapconn" style="left:'+x1+'px;top:'+y1+'px;width:'+len+'px;transform:translateY(-50%) rotate('+ang+'deg)"></div>';
+        html+='<div class="mapdot" style="top:'+d._dotY+'px;background:'+CATBAR[d.evalCat]+'"></div>';
+        var cls='nodecard'+(rec?' rec':'')+(d.usedWith?' used':'')+(d.considering?' considering':'');
+        var marks='';
+        if(d.considering) marks+='<span class="cardmark consider" title="検討中"></span>';
+        if(d.usedWith) marks+='<span class="cardmark used" title="使用実績"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="4"><path d="M20 6L9 17l-5-5"/></svg></span>';
+        var usedLine=d.usedWith?'<div class="nu">'+esc(d.usedWith)+'</div>':'';
+        html+='<div class="'+cls+'" data-id="'+d.id+'" style="top:'+d._cardY+'px">'+marks+'<div class="nc-main"><div class="nn">'+esc(d.name)+'</div><div class="nb">'+esc(d.brand)+'</div>'+usedLine+'</div><div class="ns">'+ax.fmt(v)+'</div></div>';
+      });
+      html+='</div>';
+      return html;
+    };
+    document.addEventListener("click",function(e){
+      var mx=e.target.closest(".mx");
+      if(mx){ state.mapAxis=mx.getAttribute("data-mx"); render(); }
+    });
+
+    // ===== c. 比較追加: メーカーチップで絞る + 検索補助 + ラボ取得済みのみ + ゲージ表記 =====
+    var pkBrand="";
+    openCompareAdd = function(){
+      document.getElementById("sheet-title").textContent="比較に追加（ラボデータのある弦）";
+      var body=document.getElementById("sheet-body");
+      body.className="sheet-list";
+      var pool=DATA.filter(function(d){ return d.obj && state.compareIds.indexOf(d.id)===-1; })
+        .sort(function(a,b){ return (a.brand+" "+a.name).localeCompare(b.brand+" "+b.name,"ja"); });
+      var brands={}; pool.forEach(function(d){ brands[d.brand]=(brands[d.brand]||0)+1; });
+      var bkeys=Object.keys(brands).sort();
+      // メーカーチップは絞り込みシートと同じ折り返し表示 (29社全部が見える。横スクロールで隠さない)
+      body.innerHTML='<div class="fsec" style="padding:0 16px"><div class="fchips" id="pkchips"></div></div>'
+        +'<div style="padding:8px 16px 10px"><input id="cmpq" placeholder="検索（補助）" style="width:100%;height:34px;padding:0 12px;border:1px solid #DADCE0;border-radius:10px;font:inherit;font-size:13px;outline:none"></div>'
+        +'<div id="cmplist"></div>';
+      function paintChips(){
+        var el=document.getElementById("pkchips");
+        el.innerHTML='<span class="fchip'+(pkBrand===""?' on':'')+'" data-pk="">すべて（'+pool.length+'）</span>'
+          +bkeys.map(function(b){ return '<span class="fchip'+(pkBrand===b?' on':'')+'" data-pk="'+esc(b)+'">'+esc(b)+'（'+brands[b]+'）</span>'; }).join("");
+        [].forEach.call(el.querySelectorAll(".fchip"),function(c){
+          c.addEventListener("click",function(){ pkBrand=c.getAttribute("data-pk"); paintChips(); paintList(); });
+        });
+      }
+      function paintList(){
+        var q=(document.getElementById("cmpq")||{}).value||"";
+        var items=pool.filter(function(d){
+          if(pkBrand && d.brand!==pkBrand) return false;
+          return !q || (d.brand+" "+d.name).toLowerCase().indexOf(q.toLowerCase())!==-1;
+        });
+        var listEl=document.getElementById("cmplist");
+        listEl.innerHTML=items.slice(0,150).map(function(d){
+          return '<div class="opt" data-id="'+d.id+'"><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(d.name)
+            +' <span style="color:#80868B;font-size:12px">'+esc(d.gauge)+'mm</span></span><span class="sub" style="flex:0 0 auto">'+esc(d.brand)+' · '+d.stiff.toFixed(2)+' kg/mm</span></div>';
+        }).join("")
+        +(items.length>150?'<div style="padding:10px 16px;font-size:12px;color:#80868B">他 '+(items.length-150)+' 本 — メーカーか検索で絞ってください</div>':'')
+        +(items.length===0?'<div style="padding:14px 16px;font-size:13px;color:#80868B">該当なし</div>':'');
+        [].forEach.call(listEl.querySelectorAll(".opt"),function(el2){
+          el2.addEventListener("click",function(){
+            var id=parseInt(el2.getAttribute("data-id"),10);
+            if(state.compareIds.length<3 && state.compareIds.indexOf(id)===-1) state.compareIds.push(id);
+            hideSheet(); render();
+          });
+        });
+      }
+      paintChips(); paintList();
+      document.getElementById("cmpq").addEventListener("input",paintList);
+      showSheet();
+    };
+  })();
+  render();
+})();
+</script>
+<style id="xnavcss">#xnav{position:fixed;top:8px;right:8px;z-index:2000;display:flex;gap:4px;font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",Arial,sans-serif;}#xnav a{font-size:11px;font-weight:700;text-decoration:none;color:#5F6368;background:rgba(255,255,255,0.92);border:1px solid #DADCE0;border-radius:9px;padding:4px 9px;}#xnav a.cur{color:#0057B8;background:#E1F0FF;border-color:#A9D2FF;}</style><div id="xnav"><a href="strings.html">弦</a><a href="strings-mobile.html" class="cur">弦📱</a><a href="rackets.html">ラケット</a><a href="reader.html">記事</a></div><style>
+  #cloudgate{ position:fixed; inset:0; background:#F2F2F7; z-index:9999; display:flex; align-items:center; justify-content:center; font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Helvetica Neue",Arial,sans-serif; }
+  #cloudgate .gbox{ background:#fff; border:1px solid #DADCE0; border-radius:20px; padding:34px 30px; text-align:center; max-width:340px; }
+  #cloudgate h1{ font-size:17px; font-weight:700; color:#202124; margin:0 0 6px; }
+  #cloudgate p{ font-size:12.5px; color:#5F6368; margin:0 0 18px; line-height:1.7; }
+  #cloudgate button{ font:inherit; font-size:14px; font-weight:700; color:#fff; background:#007AFF; border:none; border-radius:12px; padding:12px 22px; cursor:pointer; }
+  #cloudgate .gst{ font-size:12px; color:#80868B; margin-top:14px; min-height:18px; }
+</style><div id="cloudgate"><div class="gbox"><h1>ストリング比較 (モバイル)</h1><p>データは本人の Firebase にのみ保存。<br>Google ログインで表示します。</p><button id="glogin">Google でログイン</button><div class="gst" id="gst"></div></div></div><script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script><script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script><script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script><script>
+(function(){
+  var CFG = {
+    apiKey:"AIzaSyAXWAtHjBOi31FoNXZiAwW-A7ywZcDY2mM",
+    authDomain:"tennis-db-ca9ae.firebaseapp.com",
+    projectId:"tennis-db-ca9ae",
+    storageBucket:"tennis-db-ca9ae.firebasestorage.app",
+    messagingSenderId:"1031131288345",
+    appId:"1:1031131288345:web:2adcb9f2eeafa5801ceb88"
+  };
+  var BLOB = "strings";
+  firebase.apps.length ? firebase.app() : firebase.initializeApp(CFG);
+  var st = function(t){ var el=document.getElementById("gst"); if(el) el.textContent=t; };
+  function boot(data){
+    window.__CLOUD_DATA__ = data;
+    var src = document.getElementById("appsrc").textContent;
+    var s = document.createElement("script");
+    s.textContent = src;
+    document.body.appendChild(s);
+    var g = document.getElementById("cloudgate");
+    if(g) g.remove();
+  }
+  function load(user){
+    st("データ取得中…");
+    var col = firebase.firestore().collection("users").doc(user.uid).collection("cloudpages");
+    col.doc(BLOB + "__meta").get().then(function(meta){
+      if(!meta.exists){ st("このアカウントにはデータがありません"); return; }
+      var total = meta.data().total;
+      var jobs = [];
+      for(var i=0;i<total;i++) jobs.push(col.doc(BLOB + "__" + i).get());
+      Promise.all(jobs).then(function(parts){
+        var json = parts.map(function(p){ return p.data().part; }).join("");
+        st("展開中…");
+        boot(JSON.parse(json));
+      }).catch(function(e){ st("取得エラー: " + e.message); });
+    }).catch(function(e){ st("取得エラー: " + e.message); });
+  }
+  firebase.auth().onAuthStateChanged(function(user){
+    if(user){ load(user); }
+    else { st(""); }
+  });
+  document.getElementById("glogin").addEventListener("click", function(){
+    var p = new firebase.auth.GoogleAuthProvider();
+    st("ログイン中…");
+    firebase.auth().signInWithPopup(p).catch(function(){
+      firebase.auth().signInWithRedirect(p);
+    });
+  });
+})();
+</script></body>
+</html>

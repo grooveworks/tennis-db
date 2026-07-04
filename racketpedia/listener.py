@@ -33,8 +33,11 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):  # ヘルスチェック + 比較ページ配信 (レイアウト検証用・このパスのみ)
-        if self.path == '/compare':
-            p = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'string_compare.html')
+        if self.path in ('/compare', '/compare-racket', '/compare-mobile', '/reader'):
+            fn = {'/compare': 'string_compare.html', '/compare-racket': 'racket_compare.html',
+                  '/compare-mobile': 'string_compare_mobile.html',
+                  '/reader': os.path.join('..', 'tennisone', 'reader.html')}[self.path]
+            p = os.path.join(os.path.dirname(os.path.abspath(__file__)), fn)
             body = open(p, 'rb').read()
             self.send_response(200)
             self._cors()
@@ -52,6 +55,18 @@ class Handler(BaseHTTPRequestHandler):
         try:
             n = int(self.headers.get('Content-Length', 0))
             body = self.rfile.read(n).decode('utf-8', 'replace')
+            if self.path == '/sample':  # 解析器開発用: 生HTMLをそのまま保管 (取込はしない)
+                inbox = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'cache', 'inbox')
+                os.makedirs(inbox, exist_ok=True)
+                fn = 'sample_' + datetime.datetime.now().strftime('%Y%m%d_%H%M%S') + '.html'
+                open(os.path.join(inbox, fn), 'w', encoding='utf-8').write(body)
+                out = json.dumps({'saved': fn}).encode('utf-8')
+                self.send_response(200)
+                self._cors()
+                self.send_header('Content-Type', 'application/json')
+                self.end_headers()
+                self.wfile.write(out)
+                return
             html_text = body
             if body[:1] == '{':  # {html:...} 形式も許容
                 try:

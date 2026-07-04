@@ -26,7 +26,12 @@ STRING_FIELDS = ['name', 'brand', 'lab_data', 'typology', 'shape', 'composition'
 RACKET_FIELDS = ['name', 'brand', 'year', 'lab_data', 'head_size', 'weight', 'balance', 'swingweight',
                  'spinweight', 'twistweight', 'beam', 'length', 'string_pattern', 'materials',
                  'flex_hz', 'dra', 'radar_power', 'radar_spin', 'radar_control', 'radar_maneuverability',
-                 'radar_stability', 'radar_comfort', 'test_published', 'source_url']
+                 'radar_stability', 'radar_comfort',
+                 'ra_stiffness', 'torsion_beam', 'recoil_weight', 'vertical_bending', 'grip',
+                 'profile_mm', 'unstrung_weight', 'unstrung_balance',
+                 'sweetspot_head', 'sweetspot_center', 'sweetspot_side', 'sweetspot_bottom',
+                 'sweetspot_img', 'flex_flexional', 'flex_stiffness',
+                 'test_published', 'source_url']
 
 FIELDS = {'string': STRING_FIELDS, 'racket': RACKET_FIELDS}
 
@@ -80,7 +85,11 @@ def string_row(slug, d, s2b=None):
 def racket_row(slug, d):
     r = {f: None for f in RACKET_FIELDS}
     for k in ['name', 'year', 'head_size', 'weight', 'balance', 'swingweight', 'spinweight',
-              'twistweight', 'beam', 'length', 'string_pattern', 'materials', 'flex_hz', 'dra', 'test_published']:
+              'twistweight', 'beam', 'length', 'string_pattern', 'materials', 'flex_hz', 'dra', 'test_published',
+              'ra_stiffness', 'torsion_beam', 'recoil_weight', 'vertical_bending', 'grip',
+              'profile_mm', 'unstrung_weight', 'unstrung_balance',
+              'sweetspot_head', 'sweetspot_center', 'sweetspot_side', 'sweetspot_bottom',
+              'sweetspot_img', 'flex_flexional', 'flex_stiffness']:
         r[k] = d.get(k)
     rad = d.get('radar') or {}
     for k in ['power', 'spin', 'control', 'maneuverability', 'stability', 'comfort']:
@@ -193,10 +202,41 @@ def rebuild(kind):
             build_catalog.build_catalog()
         except Exception as e:
             print('  (catalog 再生成スキップ:', e, ')')
-        try:  # 比較ページも自動再生成 (デザイン取り込みはスキップ = --no-import)
+        try:  # 比較ページも自動再生成 (デザイン取り込みはスキップ = --no-import)。モバイル版も続けて同期
             import subprocess, sys as _sys
             subprocess.run([_sys.executable, os.path.join('racketpedia', 'build_compare.py'), '--no-import'],
                            capture_output=True, timeout=60)
+            subprocess.run([_sys.executable, os.path.join('racketpedia', 'build_mobile_compare.py')],
+                           capture_output=True, timeout=60)
+            subprocess.run([_sys.executable, os.path.join('racketpedia', 'add_nav.py')],
+                           capture_output=True, timeout=30)
+            _cloud_sync()
         except Exception as e:
             print('  (比較ページ再生成スキップ:', e, ')')
+    if kind == 'racket':  # ラケット比較ページも自動再生成
+        try:
+            import subprocess, sys as _sys
+            subprocess.run([_sys.executable, os.path.join('racketpedia', 'build_racket_compare.py')],
+                           capture_output=True, timeout=60)
+            subprocess.run([_sys.executable, os.path.join('racketpedia', 'add_nav.py')],
+                           capture_output=True, timeout=30)
+            _cloud_sync()
+        except Exception as e:
+            print('  (ラケット比較ページ再生成スキップ:', e, ')')
     return len(rows)
+
+
+_CLOUD_KEY = 'D:/Downloads/tennis-db-ca9ae-firebase-adminsdk-fbsvc-36d6de85c9.json'
+
+
+def _cloud_sync():
+    """クラウド版 (gear/) のデータを本人専用 Firestore へ非同期アップロード。
+    受け口の応答を遅らせないよう投げっぱなし (Popen)。鍵が無い環境では静かにスキップ。"""
+    try:
+        import subprocess
+        if not os.path.exists(_CLOUD_KEY):
+            return
+        subprocess.Popen(['node', os.path.join('.claude', 'cloud-upload.js'), _CLOUD_KEY, '--apply'],
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except Exception as e:
+        print('  (クラウド同期スキップ:', e, ')')

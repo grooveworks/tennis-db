@@ -277,6 +277,48 @@ def parse_racket(t):
     mtp = re.search(r'Test published on\s+([\d/]+)', plain)
     test_published = mtp.group(1) if mtp else None
 
+    # --- スイートスポット分布 (4箇所 %、2026-07-03 追加) ---
+    ss = {}
+    for lab, key in [('Head', 'sweetspot_head'), ('Center', 'sweetspot_center'),
+                     ('Side', 'sweetspot_side'), ('Bottom', 'sweetspot_bottom')]:
+        m = re.search(r'>' + lab + r' sweetspot</span>\s*<span[^>]*>\s*(\d+)\s*%', t)
+        ss[key] = int(m.group(1)) if m else None
+
+    # --- 測定カード群 (Stiffness RA / TorsionBeam / Recoilweight / Vertical bending) ---
+    cards = dict(re.findall(
+        r'>([A-Za-z ]+?)\s*<i class="fas fa-question-circle"></i></span>\s*'
+        r'<span class="d-block text-center fw-bolder fs-3">\s*([^<]+?)\s*</span>', t))
+    mra = re.search(r'(\d+)\s*RA', cards.get('Stiffness', ''))
+    ra = int(mra.group(1)) if mra else None
+    torsion = cards.get('TorsionBeam') or None
+    mrw = re.search(r'([\d.]+)', cards.get('Recoilweight', ''))
+    recoil = float(mrw.group(1)) if mrw else None
+    mvb = re.search(r'(\d+)\s*RA', cards.get('Vertical bending', ''))
+    vertical = int(mvb.group(1)) if mvb else None
+
+    # --- グリップ / 公称データ (Declared data カード) ---
+    mg = re.search(r'>Grip</span>\s*<span[^>]*>([^<]+)<', t)
+    grip = mg.group(1).strip() if mg else None
+    dseg = t[t.find('Declared data'):t.find('Declared data') + 2500] if 'Declared data' in t else ''
+    dplain = _plain(dseg)
+    mprof = re.search(r'Profile\s+([\d,.\-]+\s*mm)', dplain)
+    munw = re.search(r'Weight \(unstrung\)\s+([\d.]+)\s*g', dplain)
+    munb = re.search(r'Balance \(unstrung\)\s+([\d.]+)\s*mm', dplain)
+
+    # --- フレックスポイント分析 (7点 x 2系列: 曲げ剛性 EJ / 剛性)。大きい方が flexional ---
+    flex_ej = flex_st = None
+    for m in re.finditer(r'data:\s*\[([^\]\[]{5,200})\]', t):
+        vals = m.group(1).split(',')
+        if len(vals) == 7:
+            try:
+                nums = [float(x) for x in vals]
+            except ValueError:
+                continue
+            if max(nums) > 500:
+                flex_ej = ','.join(vals)
+            else:
+                flex_st = ','.join(vals)
+
     return {
         'name': name, 'year': year,
         'has_full_lab': radar is not None,
@@ -285,6 +327,17 @@ def parse_racket(t):
         'swingweight': swingweight, 'spinweight': spinweight, 'twistweight': twistweight,
         'beam': beam, 'length': length, 'string_pattern': string_pattern, 'materials': materials,
         'flex_hz': flex_hz, 'dra': dra, 'test_published': test_published,
+        'ra_stiffness': ra, 'torsion_beam': torsion, 'recoil_weight': recoil, 'vertical_bending': vertical,
+        'grip': grip,
+        'profile_mm': mprof.group(1).strip() if mprof else None,
+        'unstrung_weight': float(munw.group(1)) if munw else None,
+        'unstrung_balance': float(munb.group(1)) if munb else None,
+        **ss,
+        'flex_flexional': flex_ej, 'flex_stiffness': flex_st,
+        # 本家のスイートスポット完成画像 (ラケットごとの専用PNG、%入り)
+        'sweetspot_img': (re.search(
+            r'(https://cdn\.racketpedia\.com/media/rackets-data-sheets/[^"\'\s>]+sweetspot[^"\'\s>]+\.png)', t)
+            or [None, None])[1] if 'sweetspot' in t else None,
     }
 
 
