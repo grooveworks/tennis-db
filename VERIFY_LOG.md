@@ -6,6 +6,30 @@
 
 ## 現行 push 候補
 
+### feat: ギア4ページのクラウド化 + tennis-oneアーカイブ基盤 (2026-07-03)
+push 候補: commit c19dc97 (gear/器4枚 + racketpedia生成系 + tennisone基盤 + .gitignore防御) / commit 5e6c5ec (会員データ取込+比較ページ、既済) / VERIFY_LOG.md。
+
+バージョン: 変更なし (4.8.7-S17 維持) — **アプリ (v4/, src/) には一切触れていない**。gear/ は独立ページ。
+
+データ保護 (最重要検証):
+- gear/*.html は「器」のみ: check_gear.py で会員データ・記事本文の混入ゼロを機械検査 (probe: 実データ固有値5種) + staged実体サイズ確認 (reader 13KB / データ入りなら2.6MB)
+- 会員データ実体 (racketpedia/out, string_compare*.html, design_handoff*) と記事データ (tennisone/data, reader.html) は .gitignore で公開除外 — staged一覧に不在を確認
+- 公開カタログ catalog/strings-catalog.json は会員閲覧由来データが混入したため**意図的に unstaged のまま** (凍結方針)
+
+実画面検証: 済
+- 器のログインゲート描画・boot スクリプトは node --check 構文検証 + 実ブラウザ (racketpedia origin harness) で gate 表示確認
+- データ面: 本人専用 Firestore へ 3種 (strings 2分割 / rackets 1 / reader 9) のアップロード完了・meta 書込確認 (アップローダ出力)
+- 相互リンクナビ: 4ページで DOM/位置/現在ハイライトを計測検証
+- Googleログイン→データ取得の end-to-end は push 後に本人が実URL (github.io) で確認する (authDomain 許可済みドメインのため localhost/harness では最終確認不能)
+
+console error 0: 済
+- 器ページ・ローカル4ページとも harness console にエラーなし (moment.js等の既存warning除く)
+
+未確認: なし
+- 実URL でのログイン成功のみ push 後の本人確認事項 (失敗時は私が直す)
+
+---
+
 ### feat: Googleカレンダー自動同期 (gcalSync callable + 設定UI + 起動時自動マージ) (2026-07-03)
 push 候補: functions/{index.js,gcal.js,package.json,package-lock.json} / src/{core/01_constants.js, app.jsx, ui/common/SettingsModal.jsx, domain/gcal_sync.js} / DESIGN_LOG.md / VERIFY_LOG.md / v4/ ビルド成果物。
 
