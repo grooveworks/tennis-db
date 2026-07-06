@@ -33,6 +33,7 @@
     <div style="display:flex;gap:4px;margin-top:18px;border-bottom:1px solid #E1E3E6;">
       <div onClick="{{ onTable }}" style="{{ tabTableStyle }}"><i class="ph-bold ph-table" style="font-size:15px;"></i>表</div>
       <div onClick="{{ onScatter }}" style="{{ tabScatterStyle }}"><i class="ph-bold ph-chart-scatter" style="font-size:15px;"></i>マップ</div>
+      <div onClick="{{ on3D }}" style="{{ tab3DStyle }}"><i class="ph-bold ph-cube" style="font-size:15px;"></i>3Dマップ</div>
     </div>
 
     <!-- Shared controls -->
@@ -172,6 +173,55 @@
         </sc-if>
       </div>
       <div style="margin-top:10px;font-size:11.5px;color:#9AA0A6;line-height:1.6;">点をクリックすると詳細（8軸レーダー・数値）を表示。色は素材（ポリエステル／ナイロン系／ナチュラルガット／アラミド／その他）、大きめの点はラボ8軸あり。静的剛性は全 650 本、8軸スコアはラボ計測の 110 本、動的剛性は 60 本のみ（未計測は「—」で表示し、推測で埋めていません）。</div>
+    </sc-if>
+
+    <!-- ===== 3D MAP ===== -->
+    <sc-if value="{{ threeView }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:16px;">
+        <span style="font-size:12px;color:#80868B;">X軸</span>
+        <select value="{{ xAxis }}" onChange="{{ onX }}" class="scsel"><sc-for list="{{ axisOptions }}" as="o" hint-placeholder-count="10"><option value="{{ o.k }}">{{ o.label }}</option></sc-for></select>
+        <span style="font-size:12px;color:#80868B;margin-left:6px;">Y軸</span>
+        <select value="{{ yAxis }}" onChange="{{ onY }}" class="scsel"><sc-for list="{{ axisOptions }}" as="o" hint-placeholder-count="10"><option value="{{ o.k }}">{{ o.label }}</option></sc-for></select>
+        <span style="font-size:12px;color:#80868B;margin-left:6px;">Z軸</span>
+        <select value="{{ zAxis }}" onChange="{{ onZ }}" class="scsel"><sc-for list="{{ axisOptions }}" as="o" hint-placeholder-count="10"><option value="{{ o.k }}">{{ o.label }}</option></sc-for></select>
+      </div>
+
+      <div style="margin-top:10px;border-top:1px solid #F1F3F4;padding-top:10px;">
+        <div style="font-size:12px;color:#80868B;margin-bottom:6px;">断面平面（3面を同時に使えます）</div>
+        <sc-for list="{{ planeRows }}" as="p" hint-placeholder-count="3">
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:7px;">
+            <label onClick="{{ p.onToggle }}" style="display:flex;align-items:center;gap:7px;cursor:pointer;min-width:210px;">
+              <span style="{{ p.boxStyle }}"><sc-if value="{{ p.on }}" hint-placeholder-val="{{ false }}"><i class="ph-bold ph-check" style="font-size:11px;color:#fff;"></i></sc-if></span>
+              <span style="width:11px;height:11px;border-radius:3px;background:{{ p.col }};display:inline-block;"></span>
+              <span style="font-size:12.5px;color:#202124;">{{ p.label }}</span>
+            </label>
+            <sc-if value="{{ p.on }}" hint-placeholder-val="{{ false }}">
+              <input type="range" min="-1" max="1" step="0.02" value="{{ p.frac }}" onInput="{{ p.onFrac }}" style="width:160px;accent-color:{{ p.col }};cursor:pointer;" />
+              <span style="font-size:12px;color:#202124;font-family:'SF Mono',Menlo,Consolas,monospace;min-width:150px;">{{ p.valueText }}</span>
+              <select value="{{ p.trim }}" onChange="{{ p.onTrim }}" class="scsel" style="height:32px;">
+                <option value="none">両側表示</option>
+                <option value="plus">＋側のみ</option>
+                <option value="minus">−側のみ</option>
+              </select>
+            </sc-if>
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="margin-top:14px;background:#fff;border:1px solid #DADCE0;border-radius:20px;padding:16px 16px 14px;">
+        <div id="sc3d-host" style="position:relative;width:100%;height:620px;border:1px solid #E8EAED;border-radius:12px;overflow:hidden;background:radial-gradient(circle at 50% 35%,#FCFCFD,#F4F5F7);cursor:grab;"></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:12px;">
+          <div style="display:flex;align-items:center;gap:14px;font-size:11.5px;color:#5F6368;flex-wrap:wrap;">
+            <span style="display:flex;align-items:center;gap:5px;"><span style="width:9px;height:9px;border-radius:50%;background:#007AFF;display:inline-block;"></span>ポリエステル</span>
+            <span style="display:flex;align-items:center;gap:5px;"><span style="width:9px;height:9px;border-radius:50%;background:#0F9D58;display:inline-block;"></span>ナイロン系</span>
+            <span style="display:flex;align-items:center;gap:5px;"><span style="width:9px;height:9px;border-radius:50%;background:#9334E0;display:inline-block;"></span>ナチュラルガット</span>
+            <span style="display:flex;align-items:center;gap:5px;"><span style="width:9px;height:9px;border-radius:50%;background:#F9AB00;display:inline-block;"></span>アラミド</span>
+            <span style="display:flex;align-items:center;gap:5px;"><span style="width:9px;height:9px;border-radius:50%;background:#80868B;display:inline-block;"></span>その他</span>
+          </div>
+          <div style="font-size:11.5px;color:#9AA0A6;">{{ threeStatus }}</div>
+        </div>
+        <div style="margin-top:8px;font-size:11.5px;color:#9AA0A6;line-height:1.6;">ドラッグで回転・ホイールでズーム・右ドラッグで平行移動。点にカーソルを合わせると弦名と3軸の値、クリックで詳細。3軸すべてに実測値がある弦のみ表示（推測で埋めていません）。</div>
+      </div>
     </sc-if>
 
     <!-- ===== TABLE ===== -->
@@ -344,6 +394,8 @@ class Component extends DCLogic {
     view: "table",
     xAxis: "0",   // パワー
     yAxis: "3",   // スピン
+    zAxis: "stiff", // 静的剛性
+    planes: { xy:{on:false,frac:0,trim:"none"}, yz:{on:false,frac:0,trim:"none"}, zx:{on:false,frac:0,trim:"none"} },
     search: "", brand: "", mat: "", shape: "",
     brands: [], brandOpen: false,
     centerMean: false,
@@ -381,9 +433,234 @@ class Component extends DCLogic {
     document.addEventListener('mousedown', this._onDocDown, true);
     document.addEventListener('keydown', this._onKey);
   }
-  componentWillUnmount() { if (this._iv) clearInterval(this._iv); if (this._onResize) window.removeEventListener('resize', this._onResize); if (this._onDocDown) document.removeEventListener('mousedown', this._onDocDown, true); if (this._onKey) document.removeEventListener('keydown', this._onKey); }
+  componentWillUnmount() { if (this._iv) clearInterval(this._iv); if (this._onResize) window.removeEventListener('resize', this._onResize); this.stop3D(); if (this._onDocDown) document.removeEventListener('mousedown', this._onDocDown, true); if (this._onKey) document.removeEventListener('keydown', this._onKey); }
 
-  componentDidUpdate() { if (this._dd) clearTimeout(this._dd); this._dd = setTimeout(() => this.dedupeLabels(), 60); }
+  componentDidUpdate() { if (this._dd) clearTimeout(this._dd); this._dd = setTimeout(() => this.dedupeLabels(), 60); this.ensure3D(); }
+
+  // ---------- 3D map (Three.js) ----------
+  _loadScript(src) {
+    return new Promise((resolve, reject) => {
+      const existing = document.querySelector('script[data-sc3d="' + src + '"]');
+      if (existing) { if (existing._loaded) resolve(); else { existing.addEventListener('load', () => resolve()); existing.addEventListener('error', reject); } return; }
+      const el = document.createElement('script');
+      el.src = src; el.async = false; el.setAttribute('data-sc3d', src);
+      el.addEventListener('load', () => { el._loaded = true; resolve(); });
+      el.addEventListener('error', reject);
+      document.head.appendChild(el);
+    });
+  }
+  loadThreeLibs() {
+    if (this._threeLibsPromise) return this._threeLibsPromise;
+    this._threeLibsPromise = (async () => {
+      if (typeof THREE === "undefined" || !window.THREE) {
+        await this._loadScript("https://unpkg.com/three@0.128.0/build/three.min.js");
+      }
+      if (!window.THREE.OrbitControls) {
+        await this._loadScript("https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js");
+      }
+    })();
+    return this._threeLibsPromise;
+  }
+  ensure3D() {
+    if (this.state.view !== "threed") { this.stop3D(); return; }
+    if (typeof window.THREE === "undefined" || !window.THREE.OrbitControls) {
+      // deterministically load three.js then OrbitControls (in order), then re-render
+      if (!this._3dLoading) {
+        this._3dLoading = true;
+        this.loadThreeLibs().then(() => { this._3dLoading = false; this.forceUpdate(); })
+          .catch(() => { this._3dLoading = false; });
+      }
+      return;
+    }
+    const host = document.getElementById("sc3d-host");
+    if (!host) return;
+    if (!this._three) this.init3D(host);
+    const key = this.state.xAxis + "|" + this.state.yAxis + "|" + this.state.zAxis + "|" + JSON.stringify(this.state.planes) + "|" + this._filterKey();
+    if (key !== this._3dKey) { this._3dKey = key; this.build3D(); }
+    this._three.renderer.setAnimationLoop(() => {
+      this._three.controls.update();
+      this._three.renderer.render(this._three.scene, this._three.camera);
+    });
+  }
+  stop3D() { if (this._three) { this._three.renderer.setAnimationLoop(null); } }
+  _filterKey() {
+    const s = this.state;
+    return s.search + "~" + (s.brands||[]).join(",") + "~" + s.mat + "~" + s.shape;
+  }
+  init3D(host) {
+    const W = host.clientWidth, H = host.clientHeight;
+    const scene = new THREE.Scene();
+    scene.background = null;
+    const camera = new THREE.PerspectiveCamera(45, W/H, 1, 4000);
+    camera.position.set(150, 120, 180);
+    const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true, preserveDrawingBuffer:true });
+    renderer.setPixelRatio(window.devicePixelRatio || 1);
+    renderer.setSize(W, H);
+    host.appendChild(renderer.domElement);
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true; controls.dampingFactor = 0.08;
+    controls.target.set(0, 0, 0);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.9));
+    const dir = new THREE.DirectionalLight(0xffffff, 0.5); dir.position.set(1,1,1); scene.add(dir);
+    const pointsGroup = new THREE.Group(); scene.add(pointsGroup);
+    const axisGroup = new THREE.Group(); scene.add(axisGroup);
+    const raycaster = new THREE.Raycaster(); raycaster.params.Points = { threshold: 3 };
+    const tip = document.createElement("div");
+    tip.style.cssText = "position:absolute;pointer-events:none;z-index:30;background:#202124;color:#fff;font-size:12px;line-height:1.5;padding:7px 9px;border-radius:8px;box-shadow:0 4px 14px rgba(0,0,0,0.25);white-space:nowrap;display:none;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;";
+    host.appendChild(tip);
+    this._three = { scene, camera, renderer, controls, pointsGroup, axisGroup, raycaster, tip, host, meshes:[], hoverMesh:null };
+    // interaction
+    const onMove = (e) => {
+      const r = renderer.domElement.getBoundingClientRect();
+      const mx = ((e.clientX - r.left) / r.width) * 2 - 1;
+      const my = -((e.clientY - r.top) / r.height) * 2 + 1;
+      raycaster.setFromCamera({ x:mx, y:my }, camera);
+      const hit = raycaster.intersectObjects(this._three.meshes)[0];
+      if (hit) {
+        const d = hit.object.userData.d;
+        tip.innerHTML = "<b>" + d.brand + " " + d.name + "</b><br>" + this._three.tipText(d);
+        tip.style.display = "block";
+        tip.style.left = (e.clientX - r.left + 12) + "px";
+        tip.style.top = (e.clientY - r.top + 12) + "px";
+        host.style.cursor = "pointer";
+        if (this._three.hoverMesh && this._three.hoverMesh !== hit.object) this._three.hoverMesh.scale.setScalar(1);
+        hit.object.scale.setScalar(1.7); this._three.hoverMesh = hit.object;
+      } else {
+        tip.style.display = "none"; host.style.cursor = "grab";
+        if (this._three.hoverMesh) { this._three.hoverMesh.scale.setScalar(1); this._three.hoverMesh = null; }
+      }
+    };
+    const onClick = (e) => {
+      const r = renderer.domElement.getBoundingClientRect();
+      const mx = ((e.clientX - r.left) / r.width) * 2 - 1;
+      const my = -((e.clientY - r.top) / r.height) * 2 + 1;
+      raycaster.setFromCamera({ x:mx, y:my }, camera);
+      const hit = raycaster.intersectObjects(this._three.meshes)[0];
+      if (hit) this.setState({ detailId: hit.object.userData.d.id });
+    };
+    renderer.domElement.addEventListener("pointermove", onMove);
+    renderer.domElement.addEventListener("click", onClick);
+    this._three._onWinResize = () => {
+      const w = host.clientWidth, h = host.clientHeight;
+      camera.aspect = w/h; camera.updateProjectionMatrix(); renderer.setSize(w, h);
+    };
+    window.addEventListener("resize", this._three._onWinResize);
+  }
+  _txtSprite(text, color, px) {
+    const cv = document.createElement("canvas"); const s = 2.5; const fs = (px||26);
+    const ctx = cv.getContext("2d"); ctx.font = "600 " + (fs*s) + "px -apple-system,'Hiragino Sans',sans-serif";
+    const w = ctx.measureText(text).width; cv.width = w + 8; cv.height = fs*s + 8;
+    ctx.font = "600 " + (fs*s) + "px -apple-system,'Hiragino Sans',sans-serif";
+    ctx.fillStyle = color; ctx.textBaseline = "top"; ctx.fillText(text, 4, 4);
+    const tex = new THREE.CanvasTexture(cv); tex.minFilter = THREE.LinearFilter;
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map:tex, transparent:true, depthTest:false }));
+    sp.scale.set(cv.width/s/2.4, cv.height/s/2.4, 1);
+    return sp;
+  }
+  build3D() {
+    const T = this._three; if (!T) return;
+    // clear
+    while (T.pointsGroup.children.length) T.pointsGroup.remove(T.pointsGroup.children[0]);
+    while (T.axisGroup.children.length) T.axisGroup.remove(T.axisGroup.children[0]);
+    T.meshes = [];
+    const all = this.data();
+    const filtered = all.filter(d => this.passFilter(d));
+    const ax = this.axisByKey(this.state.xAxis), ay = this.axisByKey(this.state.yAxis), az = this.axisByKey(this.state.zAxis);
+    const pts = filtered.filter(d => ax.get(d)!=null && ay.get(d)!=null && az.get(d)!=null);
+    const HALF = 60;
+    const AXCOL = { x:"#D93025", y:"#0057B8", z:"#0A5B35" };
+    // mean-centered scaling: origin (0,0,0) sits at each axis's MEAN; symmetric span = max abs deviation
+    const stat = (axis) => {
+      const vs = pts.map(axis.get);
+      const mean = vs.reduce((a,b)=>a+b,0)/(vs.length||1);
+      let dev = Math.max.apply(null, vs.map(v=>Math.abs(v-mean)));
+      if (!isFinite(dev) || dev===0) dev = 1;
+      dev *= 1.08; // small pad so extreme points sit inside the cube
+      return { mean, dev, min:mean-dev, max:mean+dev };
+    };
+    const S = pts.length ? { x:stat(ax), y:stat(ay), z:stat(az) } : { x:{mean:0,dev:1,min:-1,max:1}, y:{mean:0,dev:1,min:-1,max:1}, z:{mean:0,dev:1,min:-1,max:1} };
+    const normA = (v, st) => ((v - st.mean) / st.dev) * HALF;
+    // faint bounding cube + floor grid for depth reference
+    const box = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(HALF*2, HALF*2, HALF*2)), new THREE.LineBasicMaterial({ color:0xE3E6EA }));
+    T.axisGroup.add(box);
+    const grid = new THREE.GridHelper(HALF*2, 8, 0xEAECEF, 0xF2F3F5); grid.position.y = -HALF; T.axisGroup.add(grid);
+    // Spatial mapping (Z-up, CAD convention): X軸→水平(right) / Z軸→高さ(up) / Y軸→奥行き(depth)
+    // three.js Y is up, three.js Z is depth. Data az -> up, data ay -> depth.
+    // bold colored axes crossing at the CENTER (origin = mean of each axis)
+    const axisLine = (a, b, hex) => { const g=new THREE.BufferGeometry().setFromPoints([a,b]); return new THREE.Line(g, new THREE.LineBasicMaterial({ color:new THREE.Color(hex) })); };
+    T.axisGroup.add(axisLine(new THREE.Vector3(-HALF,0,0), new THREE.Vector3(HALF,0,0), AXCOL.x)); // X data → horizontal (red)
+    T.axisGroup.add(axisLine(new THREE.Vector3(0,-HALF,0), new THREE.Vector3(0,HALF,0), AXCOL.z)); // Z data → vertical/up (green)
+    T.axisGroup.add(axisLine(new THREE.Vector3(0,0,-HALF), new THREE.Vector3(0,0,HALF), AXCOL.y)); // Y data → depth (blue)
+    // small marker at the mean origin
+    const originDot = new THREE.Mesh(new THREE.SphereGeometry(2.0, 12, 12), new THREE.MeshBasicMaterial({ color:0x202124 }));
+    T.axisGroup.add(originDot);
+    const clean = (l) => l.replace(/\s*\(.*\)/, "");
+    const addLabel = (txt, x, y, z, color, px) => { const sp = this._txtSprite(txt, color||"#5F6368", px); sp.position.set(x,y,z); T.axisGroup.add(sp); };
+    // axis name at the positive end (colored to match the axis line)
+    addLabel(clean(ax.label) + " →", HALF+18, 0, 0, AXCOL.x, 28);            // X data, horizontal
+    addLabel("↑ " + clean(az.label), 0, HALF+14, 0, AXCOL.z, 28);            // Z data, vertical (up)
+    addLabel(clean(ay.label) + " ↗", 0, 0, -HALF-18, AXCOL.y, 28);           // Y data, depth (+ goes INTO the screen, CAD convention)
+    // min / max at each axis end (grey)
+    addLabel(ax.fmt(S.x.max), HALF, -7, 0, "#80868B", 20);
+    addLabel(ax.fmt(S.x.min), -HALF, -7, 0, "#80868B", 20);
+    addLabel(az.fmt(S.z.max), -9, HALF, 0, "#80868B", 20);                    // vertical top = Z data max
+    addLabel(az.fmt(S.z.min), -9, -HALF, 0, "#80868B", 20);
+    addLabel(ay.fmt(S.y.max), 0, -7, -HALF, "#80868B", 20);                   // + end (into screen) = Y data max
+    addLabel(ay.fmt(S.y.min), 0, -7, HALF, "#80868B", 20);
+    // fixed +/- polarity markers at each axis end (colored, always readable while rotating)
+    addLabel("＋", HALF+7, 9, 0, AXCOL.x, 30);   addLabel("−", -HALF-7, 9, 0, AXCOL.x, 30);   // X (red)
+    addLabel("＋", 13, HALF, 0, AXCOL.z, 30);      addLabel("−", 13, -HALF, 0, AXCOL.z, 30);      // Z data / vertical (green)
+    addLabel("＋", 0, 9, -HALF-7, AXCOL.y, 30);   addLabel("−", 0, 9, HALF+7, AXCOL.y, 30);      // Y data / depth (blue, + into screen)
+    // mean (=0) values, colored, nudged off the origin so they don't overlap
+    addLabel("平均 " + ax.fmt(S.x.mean), 30, 6, 0, AXCOL.x, 19);               // X data (red)
+    addLabel("平均 " + az.fmt(S.z.mean), -24, 20, 0, AXCOL.z, 19);              // Z data / vertical (green)
+    addLabel("平均 " + ay.fmt(S.y.mean), 0, -10, -30, AXCOL.y, 19);             // Y data / depth (blue)
+    // tooltip text builder (captures current axes)
+    T.tipText = (d) => clean(ax.label)+" "+ax.fmt(ax.get(d))+" / "+clean(ay.label)+" "+ay.fmt(ay.get(d))+" / "+clean(az.label)+" "+az.fmt(az.get(d));
+    // ---- section plane (仮想平面) + trim ----
+    const s3 = this.state;
+    // three independent section planes; each holds one data axis constant
+    const PMETA = {
+      xy: { cAxis:az, cStat:S.z, dir:"y", col:AXCOL.z, sign: 1 }, // 水平面（静的剛性一定）
+      yz: { cAxis:ax, cStat:S.x, dir:"x", col:AXCOL.x, sign: 1 }, // パワー一定
+      zx: { cAxis:ay, cStat:S.y, dir:"z", col:AXCOL.y, sign:-1 }, // スピン一定（奥行きは反転）
+    };
+    const activePlanes = pts.length ? ["xy","yz","zx"].filter(k => s3.planes[k] && s3.planes[k].on) : [];
+    // points  (spatial: x=data X, y=data Z [up], z=data Y [depth, flipped])
+    const geo = new THREE.SphereGeometry(2.4, 16, 16);
+    let shown = 0;
+    pts.forEach(d => {
+      // trim: a point survives only if it passes EVERY enabled plane's trim (AND)
+      let keep = true;
+      for (const k of activePlanes) {
+        const P = s3.planes[k]; if (P.trim === "none") continue;
+        const meta = PMETA[k];
+        const fracD = (meta.cAxis.get(d) - meta.cStat.mean) / meta.cStat.dev;
+        const ok = P.trim === "plus" ? (fracD >= P.frac) : (fracD <= P.frac);
+        if (!ok) { keep = false; break; }
+      }
+      if (!keep) return;
+      const col = this.MATFAM_COL[d.matFam] || "#80868B";
+      const m = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color: new THREE.Color(col) }));
+      m.position.set(normA(ax.get(d), S.x), normA(az.get(d), S.z), -normA(ay.get(d), S.y));
+      m.userData.d = d; T.pointsGroup.add(m); T.meshes.push(m); shown++;
+    });
+    // draw enabled planes last so they overlay
+    activePlanes.forEach(k => {
+      const meta = PMETA[k]; const P = s3.planes[k];
+      const coord = P.frac * HALF * meta.sign;
+      const pg = new THREE.PlaneGeometry(HALF*2, HALF*2);
+      const pmat = new THREE.MeshBasicMaterial({ color:new THREE.Color(meta.col), transparent:true, opacity:0.13, side:THREE.DoubleSide, depthWrite:false });
+      const plane = new THREE.Mesh(pg, pmat);
+      const edge = new THREE.LineSegments(new THREE.EdgesGeometry(pg), new THREE.LineBasicMaterial({ color:new THREE.Color(meta.col) }));
+      plane.add(edge);
+      if (meta.dir === "y") { plane.rotation.x = -Math.PI/2; plane.position.y = coord; }
+      else if (meta.dir === "x") { plane.rotation.y = Math.PI/2; plane.position.x = coord; }
+      else { plane.position.z = coord; }
+      T.axisGroup.add(plane);
+    });
+    this._3dPlotted = shown; this._3dTotal = filtered.length;
+  }
   dedupeLabels() {
     // accurate, DOM-measured collision removal: keep labels in DOM order (lab points first),
     // hide any whose real bounding box overlaps an already-kept one.
@@ -725,10 +1002,11 @@ class Component extends DCLogic {
 
     return {
       summary:`全 ${all.length} 本 · 表示 ${filtered.length} 本 · 8軸 ${labN} 本 · 詳細測定 ${dynN} 本`,
-      scatterView:s.view==="scatter", tableView:s.view==="table",
+      scatterView:s.view==="scatter", tableView:s.view==="table", threeView:s.view==="threed",
       tabScatterStyle:tabBase+(s.view==="scatter"?"color:#007AFF;border-bottom-color:#007AFF;":"color:#80868B;"),
       tabTableStyle:tabBase+(s.view==="table"?"color:#007AFF;border-bottom-color:#007AFF;":"color:#80868B;"),
-      onScatter:()=>this.setState({view:"scatter"}), onTable:()=>this.setState({view:"table"}),
+      tab3DStyle:tabBase+(s.view==="threed"?"color:#007AFF;border-bottom-color:#007AFF;":"color:#80868B;"),
+      onScatter:()=>this.setState({view:"scatter"}), onTable:()=>this.setState({view:"table"}), on3D:()=>this.setState({view:"threed"}),
 
       search:s.search, matFilter:s.mat, shapeFilter:s.shape,
       matOptions:this.distinct("matFam"), shapeOptions:this.distinct("shpFam"),
@@ -751,8 +1029,37 @@ class Component extends DCLogic {
       onBrandClose:()=>this.setState({brandOpen:false}),
       stopClick:(e)=>e.stopPropagation(),
 
-      axisOptions:axOpts, xAxis:s.xAxis, yAxis:s.yAxis,
-      onX:e=>this.setState({xAxis:e.target.value}), onY:e=>this.setState({yAxis:e.target.value}),
+      axisOptions:axOpts, xAxis:s.xAxis, yAxis:s.yAxis, zAxis:s.zAxis,
+      planeRows:(()=>{
+        const az2=this.axisByKey(s.zAxis);
+        const p3=filtered.filter(d=>ax.get(d)!=null&&ay.get(d)!=null&&az2.get(d)!=null);
+        const META={ xy:{cAxis:az2,label:"XY平面（Z＝静的剛性 一定）",col:"#0A5B35"}, yz:{cAxis:ax,label:"YZ平面（X＝パワー 一定）",col:"#D93025"}, zx:{cAxis:ay,label:"ZX平面（Y＝スピン 一定）",col:"#0057B8"} };
+        const setPlane=(k,patch)=>this.setState(st=>({planes:{...st.planes,[k]:{...st.planes[k],...patch}}}));
+        return ["xy","yz","zx"].map(k=>{
+          const P=s.planes[k]||{on:false,frac:0,trim:"none"}; const m=META[k];
+          const vs=p3.map(m.cAxis.get); let valueText="";
+          if(vs.length){ const mean=vs.reduce((a,b)=>a+b,0)/vs.length; let dev=Math.max.apply(null,vs.map(v=>Math.abs(v-mean)))||1; dev*=1.08; valueText=m.cAxis.label.replace(/\s*\(.*\)/,"")+" = "+m.cAxis.fmt(mean+P.frac*dev); }
+          return { key:k, on:P.on, frac:P.frac, trim:P.trim, label:m.label, col:m.col, valueText,
+            boxStyle:"flex:0 0 16px;width:16px;height:16px;border-radius:4px;display:flex;align-items:center;justify-content:center;border:1.5px solid "+(P.on?m.col:"#C7C7CC")+";background:"+(P.on?m.col:"#fff")+";",
+            onToggle:(e)=>{ e.stopPropagation(); setPlane(k,{on:!P.on}); },
+            onFrac:(e)=>setPlane(k,{frac:parseFloat(e.target.value)}),
+            onTrim:(e)=>setPlane(k,{trim:e.target.value}),
+          };
+        });
+      })(),
+      threeStatus:(()=>{
+        const az2=this.axisByKey(s.zAxis);
+        const p3=filtered.filter(d=>ax.get(d)!=null&&ay.get(d)!=null&&az2.get(d)!=null);
+        const n=p3.length;
+        const AX={ xy:az2, yz:ax, zx:ay };
+        const active=["xy","yz","zx"].filter(k=>s.planes[k]&&s.planes[k].on&&s.planes[k].trim!=="none");
+        if(!active.length) return "表示 "+n+" 本（3軸すべてに実測値がある弦）";
+        const stat=(cAxis)=>{ const vs=p3.map(cAxis.get); const mean=vs.reduce((a,b)=>a+b,0)/(vs.length||1); let dev=Math.max.apply(null,vs.map(v=>Math.abs(v-mean)))||1; return {mean,dev:dev*1.08}; };
+        const st2={}; active.forEach(k=>st2[k]=stat(AX[k]));
+        const kept=p3.filter(d=>active.every(k=>{ const P=s.planes[k]; const {mean,dev}=st2[k]; const fr=(AX[k].get(d)-mean)/dev; return P.trim==="plus"?fr>=P.frac:fr<=P.frac; })).length;
+        return "表示 "+kept+" / "+n+" 本（トリム中）";
+      })(),
+      onX:e=>this.setState({xAxis:e.target.value}), onY:e=>this.setState({yAxis:e.target.value}), onZ:e=>this.setState({zAxis:e.target.value}),
       onSwap:()=>this.setState(st=>({xAxis:st.yAxis,yAxis:st.xAxis})),
       labelToggleStyle:"font-size:12px;cursor:pointer;padding:6px 10px;border-radius:8px;display:flex;align-items:center;gap:5px;border:1px solid "+(s.alwaysLabels?"#A9D2FF":"#DADCE0")+";background:"+(s.alwaysLabels?"#E1F0FF":"#fff")+";color:"+(s.alwaysLabels?"#0057B8":"#5F6368")+";",
       onToggleLabels:()=>this.setState(st=>({alwaysLabels:!st.alwaysLabels})),

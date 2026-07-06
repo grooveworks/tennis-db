@@ -208,12 +208,13 @@ design = design.replace(_c2,
     "    document.addEventListener('keydown', this._onKey);\n"
     "  }", 1)
 
+# 3D版は componentWillUnmount に this.stop3D() を持つ。両対応で当てる。
 _c3 = ("componentWillUnmount() { if (this._iv) clearInterval(this._iv); "
-       "if (this._onResize) window.removeEventListener('resize', this._onResize); }")
-assert _c3 in design, 'componentWillUnmount が見つからない'
+       "if (this._onResize) window.removeEventListener('resize', this._onResize); this.stop3D(); }")
+assert _c3 in design, 'componentWillUnmount(3D版) が見つからない'
 design = design.replace(_c3,
     "componentWillUnmount() { if (this._iv) clearInterval(this._iv); "
-    "if (this._onResize) window.removeEventListener('resize', this._onResize); "
+    "if (this._onResize) window.removeEventListener('resize', this._onResize); this.stop3D(); "
     "if (this._onDocDown) document.removeEventListener('mousedown', this._onDocDown, true); "
     "if (this._onKey) document.removeEventListener('keydown', this._onKey); }", 1)
 

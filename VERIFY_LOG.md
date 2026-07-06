@@ -6,6 +6,36 @@
 
 ## 現行 push 候補
 
+### feat: ストリング比較PCに3Dマップ(3軸)を追加 (2026-07-07)
+push 候補: gear/racketpedia/build_compare.py(3D版デザインに合わせ componentWillUnmount パッチ当て直し) / gear/strings.html(器 再生成・+313行=3Dコード) / VERIFY_LOG.md。
+
+バージョン: 変更なし (4.8.7-S17 維持) — **アプリ(v4/,src/)には一切触れていない**。
+
+主な変更:
+- ユーザーが Claude デザインで 3Dマップ(X/Y/Z 3軸・Three.js・OrbitControls回転/ズーム/パン)を作成 → ZIP受領し設計束を差替
+- タブが 表/マップ/**3Dマップ** の3つに。3Dは Three.js r128 を unpkg から動的読込(3Dタブを開いた時のみ・self-heal付き)
+- build_compare.py: 3D版は componentWillUnmount に this.stop3D() を持つため、クラスタ閉じパッチのアンカーを新文字列に当て直し(他パッチのアンカーは健在)
+- データ再アップロードなし(会員データ不変・器はデータなし)
+
+データ保護:
+- 器 gear/strings.html を機械検査: **SC_DATA埋込なし / 実データ(RPM Blast)なし / 初期view=table / 3Dタブあり / ログインゲートあり / support.js参照** を確認
+- 設計束(.dc.html)と実データ入り string_compare.html は .gitignore 除外(git check-ignore で確認)・他の器3枚は無変更
+
+実画面検証: 済
+- ローカル配信で string_compare.html(実データ入り)を実描画。3タブ(表/マップ/3Dマップ)を確認
+- 3Dマップ: Three.js+OrbitControls をCDNから読込成功・WebGL有効・**Threeシーンに111メッシュ(3軸実測ありの110本+補助)構築・強制描画で drawCalls=134/三角形53,100/非空ピクセル5.2%** = 実際に見える形で描画されることを確認
+- 3D canvas が幅0だった件はプレビュー headless の innerWidth=0 由来と特定。実幅を与えると canvas=1186×620 で正常描画
+- 既存2Dマップ(ドラッグ拡大/パン/クラスタ)も健在を確認(plotVisible・dotCount・ドラッグ拡大UI)
+- 初期表示=表 も維持
+
+console error 0: 済
+- level=error のログ 0件(表・2Dマップ・3Dマップ・Three読込とも)
+
+未確認: なし
+- 実URL(github.io)でのGoogleログイン成功と3D実描画のみ push 後の本人確認事項(失敗時は私が直す)
+
+---
+
 ### fix: ストリング比較PCの初期表示を「表」にする (2026-07-06)
 push 候補: gear/racketpedia/build_compare.py(初期view=table パッチ追加) / gear/racketpedia/string_compare.html(再生成) / gear/strings.html(器 再生成) / VERIFY_LOG.md。
 
