@@ -6,6 +6,35 @@
 
 ## 現行 push 候補
 
+### fix: タッチ時の誤テキスト選択を抑止 (iPad運用の余計な挙動対策) (2026-07-07)
+push 候補: gear/racketpedia/build_compare.py(選択禁止/touch-action パッチ追加) / gear/strings.html(器 再生成) / VERIFY_LOG.md。
+
+バージョン: 変更なし (4.8.7-S17 維持) — **アプリ(v4/,src/)には一切触れていない**。
+
+主な変更:
+- ユーザー第3報: 指タップの選択は動くようになったが、操作中に周辺UI文字がテキスト選択される「余計な挙動」が発生(スクショ)
+- 対処: 最上位コンテナに user-select:none / -webkit-touch-callout:none、3Dホストに touch-action:none を付与。データの表(min-width:1000px)だけは値コピー用に user-select:text で選択可に戻す
+- 補足: -webkit-touch-callout は DC-runtime(React)の style 直列化で落ちるが、user-select:none があれば iOS のテキスト選択 callout は出ないため実害なし
+- データ再アップロードなし(会員データ不変・器はデータなし)
+
+データ保護:
+- 器 gear/strings.html を機械検査: **root=user-select:none / sc3d-host=touch-action:none / 表=user-select:text / SC_DATA埋込なし / 実データ(RPM Blast)なし** を確認
+
+実画面検証: 済
+- ローカル配信で string_compare.html を実描画し computed style を確認:
+  - 最上位 root: computed user-select = none (誤選択防止が効く)
+  - データ表: computed user-select = text (値コピー可を維持)
+  - 3Dホスト sc3d-host: computed touch-action = none
+- タップ選択の継続動作を再確認: 合成touch(pointerdown→pointerup 微小移動)で点選択(Babolat Pro Hurricane Natural)=壊れていない
+
+console error 0: 済
+- level=error のログ 0件
+
+未確認: なし
+- 実URL(github.io)+実機(iPad)での最終確認のみ push 後の本人確認事項(失敗時は私が直す)
+
+---
+
 ### fix: 3Dの点タップを click 非依存のタップ判定へ (指タップ第2弾) (2026-07-07)
 push 候補: gear/racketpedia/build_compare.py(3D イベントを pointerdown/up タップ判定へパッチ) / gear/strings.html(器 再生成) / VERIFY_LOG.md。
 

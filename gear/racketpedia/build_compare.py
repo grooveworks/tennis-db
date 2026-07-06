@@ -367,6 +367,32 @@ _P2_NEW = (
     '    this._three._tapCleanup = () => { renderer.domElement.removeEventListener("pointerdown", onPtrDown); renderer.domElement.removeEventListener("pointerup", onPtrUp); };')
 design = design.replace(_p2, _P2_NEW, 1)
 
+# 7) タッチ操作中の「余計な挙動」対策 (2026-07-07 ユーザー第3報)。
+#    iPad で点を操作するとブラウザが周辺UI文字をテキスト選択/長押しメニュー表示してしまう。
+#    ツール全体で選択・callout を無効化。データの表だけは値コピーのため選択可に戻す。
+# 7a) 最上位コンテナに user-select:none / touch-callout:none
+_s1 = ("<div style=\"min-height:100%;background:#F2F2F7;font-family:-apple-system,"
+       "BlinkMacSystemFont,'Hiragino Sans','Helvetica Neue',Arial,sans-serif;"
+       "color:#202124;padding:26px 30px 60px;\">")
+assert _s1 in design, '最上位コンテナが見つからない'
+design = design.replace(_s1, _s1.replace(
+    'padding:26px 30px 60px;">',
+    'padding:26px 30px 60px;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;">'), 1)
+
+# 7b) 3Dホストに touch-action:none も追加 (OrbitControls補助・スクロール誤爆防止)
+_s2 = ('<div id="sc3d-host" style="position:relative;width:100%;height:620px;'
+       'border:1px solid #E8EAED;border-radius:12px;overflow:hidden;'
+       'background:radial-gradient(circle at 50% 35%,#FCFCFD,#F4F5F7);cursor:grab;">')
+assert _s2 in design, 'sc3d-host が見つからない'
+design = design.replace(_s2, _s2.replace(
+    'cursor:grab;">', 'cursor:grab;touch-action:none;-webkit-touch-callout:none;">'), 1)
+
+# 7c) データの表(min-width:1000px)だけは選択可に戻す (値コピー用)
+_s3 = '<table style="width:100%;border-collapse:collapse;font-size:13px;min-width:1000px;">'
+assert _s3 in design, 'データ表が見つからない'
+design = design.replace(_s3, _s3.replace(
+    'min-width:1000px;">', 'min-width:1000px;-webkit-user-select:text;user-select:text;">'), 1)
+
 open(OUT, 'w', encoding='utf-8').write(design)
 print('実データ弦数:', len(out))
 print('  うち 8軸レーダーあり:', sum(1 for d in out if d['obj']))

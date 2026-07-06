@@ -17,7 +17,7 @@
   .scdot:hover { z-index:20 !important; }
 </style>
 </helmet>
-<div style="min-height:100%;background:#F2F2F7;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Helvetica Neue',Arial,sans-serif;color:#202124;padding:26px 30px 60px;">
+<div style="min-height:100%;background:#F2F2F7;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Helvetica Neue',Arial,sans-serif;color:#202124;padding:26px 30px 60px;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;">
   <div style="max-width:1320px;margin:0 auto;">
 
     <!-- Header -->
@@ -209,7 +209,7 @@
       </div>
 
       <div style="margin-top:14px;background:#fff;border:1px solid #DADCE0;border-radius:20px;padding:16px 16px 14px;">
-        <div id="sc3d-host" style="position:relative;width:100%;height:620px;border:1px solid #E8EAED;border-radius:12px;overflow:hidden;background:radial-gradient(circle at 50% 35%,#FCFCFD,#F4F5F7);cursor:grab;"></div>
+        <div id="sc3d-host" style="position:relative;width:100%;height:620px;border:1px solid #E8EAED;border-radius:12px;overflow:hidden;background:radial-gradient(circle at 50% 35%,#FCFCFD,#F4F5F7);cursor:grab;touch-action:none;-webkit-touch-callout:none;"></div>
         <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:12px;">
           <div style="display:flex;align-items:center;gap:14px;font-size:11.5px;color:#5F6368;flex-wrap:wrap;">
             <span style="display:flex;align-items:center;gap:5px;"><span style="width:9px;height:9px;border-radius:50%;background:#007AFF;display:inline-block;"></span>ポリエステル</span>
@@ -228,7 +228,7 @@
     <sc-if value="{{ tableView }}" hint-placeholder-val="{{ false }}">
       <div style="margin-top:14px;background:#fff;border:1px solid #DADCE0;border-radius:20px;overflow:hidden;">
         <div style="overflow:auto;max-height:70vh;">
-          <table style="width:100%;border-collapse:collapse;font-size:13px;min-width:1000px;">
+          <table style="width:100%;border-collapse:collapse;font-size:13px;min-width:1000px;-webkit-user-select:text;user-select:text;">
             <thead>
               <tr style="background:#FAFAFB;border-bottom:1px solid #E8EAED;">
                 <th style="text-align:center;padding:10px 6px;font-size:11px;font-weight:600;color:#80868B;white-space:nowrap;position:sticky;top:0;background:#FAFAFB;">比較</th>
