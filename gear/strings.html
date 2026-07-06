@@ -551,7 +551,18 @@ class Component extends DCLogic {
       if (obj) this.setState({ detailId: obj.userData.d.id });
     };
     renderer.domElement.addEventListener("pointermove", onMove);
-    renderer.domElement.addEventListener("click", onClick);
+    // タップ判定: click に依存せず pointerdown/up の移動量で判定 (iOS指タップ対策)
+    let _tapStart = null;
+    const onPtrDown = (ev) => { _tapStart = { id: ev.pointerId, x: ev.clientX, y: ev.clientY, t: Date.now() }; };
+    const onPtrUp = (ev) => {
+      const st = _tapStart; _tapStart = null;
+      if (!st || st.id !== ev.pointerId) return;
+      const moved = Math.hypot(ev.clientX - st.x, ev.clientY - st.y);
+      if (moved <= 12 && (Date.now() - st.t) <= 700) onClick(ev);
+    };
+    renderer.domElement.addEventListener("pointerdown", onPtrDown);
+    renderer.domElement.addEventListener("pointerup", onPtrUp);
+    this._three._tapCleanup = () => { renderer.domElement.removeEventListener("pointerdown", onPtrDown); renderer.domElement.removeEventListener("pointerup", onPtrUp); };
     this._three._onWinResize = () => {
       const w = host.clientWidth, h = host.clientHeight;
       camera.aspect = w/h; camera.updateProjectionMatrix(); renderer.setSize(w, h);

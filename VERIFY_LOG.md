@@ -6,6 +6,35 @@
 
 ## 現行 push 候補
 
+### fix: 3Dの点タップを click 非依存のタップ判定へ (指タップ第2弾) (2026-07-07)
+push 候補: gear/racketpedia/build_compare.py(3D イベントを pointerdown/up タップ判定へパッチ) / gear/strings.html(器 再生成) / VERIFY_LOG.md。
+
+バージョン: 変更なし (4.8.7-S17 維持) — **アプリ(v4/,src/)には一切触れていない**。
+
+主な変更:
+- ユーザー第2報: 近接ピック追加後も指では反応しない局面が多い
+- 推測(私の環境では iOS 挙動を直接確認不可): 指タップは微小移動で iOS Safari が click を発火させず(Pencilは静止で発火)、OrbitControls が touch を回転として消費 → click 依存の選択が動かない
+- 対処: click を廃し、pointerdown→pointerup の移動量≦12px を「タップ」と判定して選択実行。回転ドラッグ(移動大)は選択しない。前回の近接ピックも併用。マウス/Pencil/指を統一
+- データ再アップロードなし(会員データ不変・器はデータなし)
+
+データ保護:
+- 器 gear/strings.html を機械検査: **pointerdown タップ判定コード有 / click依存の除去 / 近接ピック有 / SC_DATA埋込なし / 実データ(RPM Blast)なし / 初期view=table / 3Dタブあり** を確認
+
+実画面検証: 済
+- ローカル配信で string_compare.html(実データ入り)3Dビューを実描画。孤立点(Volkl V-Star Silver)で合成ポインタ(pointerType:touch)検証:
+  - 指タップ相当(pointerdown→pointerup 移動+5,+3px) → 選択される
+  - 回転ドラッグ相当(移動+45,+10px) → 無選択(正しく回転扱い)
+  - **click イベントは一切発火せず(clickFired=false)** = pointerdown/up だけで選択= iOS が click を抑制する状況でも効くことを実証
+- 前回の3ケース(中心/指ズレ/遠い空白)も引き続き成立
+
+console error 0: 済
+- level=error のログ 0件
+
+未確認: なし
+- 実URL(github.io)+実機(iPad指タップ)での最終確認のみ push 後の本人確認事項(失敗時は私が直す)
+
+---
+
 ### fix: 3Dマップの点タップを指でも当たるように(近接ピック) (2026-07-07)
 push 候補: gear/racketpedia/build_compare.py(3D onClick を近接ピック対応にパッチ追加) / gear/strings.html(器 再生成) / VERIFY_LOG.md。
 

@@ -344,6 +344,29 @@ _P1_NEW = (
     '    };')
 design = design.replace(_p1, _P1_NEW, 1)
 
+# 6) 3Dの点タップを click 依存から pointerdown/up のタップ判定へ (2026-07-07 ユーザー第2報)。
+#    iOS Safari は指の微小移動で click を発火しないことがある(Pencilは静止で発火)。OrbitControls が
+#    touch を回転として消費する前に、自前で「移動量≦12px=タップ」を判定して onClick を呼ぶ。
+#    移動量が大きい=回転ドラッグは選択しない。マウス/Pencil/指を統一して拾える。
+_p2 = ('    renderer.domElement.addEventListener("pointermove", onMove);\n'
+       '    renderer.domElement.addEventListener("click", onClick);')
+assert _p2 in design, '3D イベント登録(pointermove/click)が見つからない'
+_P2_NEW = (
+    '    renderer.domElement.addEventListener("pointermove", onMove);\n'
+    '    // タップ判定: click に依存せず pointerdown/up の移動量で判定 (iOS指タップ対策)\n'
+    '    let _tapStart = null;\n'
+    '    const onPtrDown = (ev) => { _tapStart = { id: ev.pointerId, x: ev.clientX, y: ev.clientY, t: Date.now() }; };\n'
+    '    const onPtrUp = (ev) => {\n'
+    '      const st = _tapStart; _tapStart = null;\n'
+    '      if (!st || st.id !== ev.pointerId) return;\n'
+    '      const moved = Math.hypot(ev.clientX - st.x, ev.clientY - st.y);\n'
+    '      if (moved <= 12 && (Date.now() - st.t) <= 700) onClick(ev);\n'
+    '    };\n'
+    '    renderer.domElement.addEventListener("pointerdown", onPtrDown);\n'
+    '    renderer.domElement.addEventListener("pointerup", onPtrUp);\n'
+    '    this._three._tapCleanup = () => { renderer.domElement.removeEventListener("pointerdown", onPtrDown); renderer.domElement.removeEventListener("pointerup", onPtrUp); };')
+design = design.replace(_p2, _P2_NEW, 1)
+
 open(OUT, 'w', encoding='utf-8').write(design)
 print('実データ弦数:', len(out))
 print('  うち 8軸レーダーあり:', sum(1 for d in out if d['obj']))
