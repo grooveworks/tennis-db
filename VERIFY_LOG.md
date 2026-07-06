@@ -6,6 +6,35 @@
 
 ## 現行 push 候補
 
+### fix: 3Dマップの点タップを指でも当たるように(近接ピック) (2026-07-07)
+push 候補: gear/racketpedia/build_compare.py(3D onClick を近接ピック対応にパッチ追加) / gear/strings.html(器 再生成) / VERIFY_LOG.md。
+
+バージョン: 変更なし (4.8.7-S17 維持) — **アプリ(v4/,src/)には一切触れていない**。
+
+主な変更:
+- ユーザー報告: iPad で 3Dの点を Apple Pencil だと選択できるが、指だと当たらないことがある
+- 原因: 点は小さな球(Mesh)で、選択が厳密レイキャスト(ray が球表面に当たる)方式。Pencil=正確で当たる/指=接触点がズレて外す。Meshレイキャストに許容半径が無い(params.Pointsの閾値はMeshに無効)
+- 対処: 厳密ヒットが無い時のみ、画面上で最も近い点を許容半径 TOL=max(26px, 短辺6%)内で拾う近接ピックにフォールバック。厳密ヒットは優先=Pencil/マウス挙動不変
+- データ再アップロードなし(会員データ不変・器はデータなし)
+
+データ保護:
+- 器 gear/strings.html を機械検査: **近接ピックコード有 / SC_DATA埋込なし / 実データ(RPM Blast)なし / 初期view=table / 3Dタブあり** を確認
+
+実画面検証: 済
+- ローカル配信で string_compare.html(実データ入り)3Dビューを実描画。孤立点(Volkl V-Star Silver・最近傍72px)で3ケース検証:
+  - A 中心クリック → 選択される(厳密ヒット健在・精密ポインタ挙動不変)
+  - B 指ズレ相当(+14,+10px・厳密レイキャストは MISS を確認) → 近接ピックで選択される(修正が効く)
+  - C 遠い空白(+160px・TOL外) → 無選択(過剰反応なし)
+- 別テスト: +14px オフセットで厳密=MISS だが detailId が null→有効IDに変化することを確認(旧挙動なら無反応)
+
+console error 0: 済
+- level=error のログ 0件
+
+未確認: なし
+- 実URL(github.io)+実機(指タップ)での最終確認のみ push 後の本人確認事項(失敗時は私が直す)
+
+---
+
 ### feat: ストリング比較PCに3Dマップ(3軸)を追加 (2026-07-07)
 push 候補: gear/racketpedia/build_compare.py(3D版デザインに合わせ componentWillUnmount パッチ当て直し) / gear/strings.html(器 再生成・+313行=3Dコード) / VERIFY_LOG.md。
 

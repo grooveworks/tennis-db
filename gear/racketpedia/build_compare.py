@@ -309,6 +309,41 @@ design = design.replace(_z6,
     '</sc-if></div>\n'
     '        <div style="position:relative;width:100%;height:{{ plotBoxH }}px;">', 1)
 
+# 5) 3Dマップの点タップ: 指(接触面が広くズレる)で当たらない対策 (2026-07-07 ユーザー報告)。
+#    Meshレイキャストは許容半径が無く、Pencil(正確)は当たるが指は外す。厳密ヒットが無い時は
+#    画面上で最も近い点を許容半径内で拾う「近接ピック」にフォールバック。厳密ヒット優先=挙動不変。
+_p1 = ('    const onClick = (e) => {\n'
+       '      const r = renderer.domElement.getBoundingClientRect();\n'
+       '      const mx = ((e.clientX - r.left) / r.width) * 2 - 1;\n'
+       '      const my = -((e.clientY - r.top) / r.height) * 2 + 1;\n'
+       '      raycaster.setFromCamera({ x:mx, y:my }, camera);\n'
+       '      const hit = raycaster.intersectObjects(this._three.meshes)[0];\n'
+       '      if (hit) this.setState({ detailId: hit.object.userData.d.id });\n'
+       '    };')
+assert _p1 in design, '3D onClick が見つからない'
+_P1_NEW = (
+    '    const onClick = (e) => {\n'
+    '      const r = renderer.domElement.getBoundingClientRect();\n'
+    '      const px = e.clientX - r.left, py = e.clientY - r.top;\n'
+    '      const mx = (px / r.width) * 2 - 1, my = -(py / r.height) * 2 + 1;\n'
+    '      raycaster.setFromCamera({ x:mx, y:my }, camera);\n'
+    '      let obj = null; const exact = raycaster.intersectObjects(this._three.meshes)[0];\n'
+    '      if (exact) { obj = exact.object; }\n'
+    '      else {\n'
+    '        // 指タップ用フォールバック: 画面上で最も近い点を許容半径内で選ぶ\n'
+    '        const v = new THREE.Vector3(); let best=null, bestD=Infinity;\n'
+    '        for (const m of this._three.meshes) {\n'
+    '          m.getWorldPosition(v); v.project(camera); if (v.z > 1) continue;\n'
+    '          const sx=(v.x*0.5+0.5)*r.width, sy=(-v.y*0.5+0.5)*r.height, dd=Math.hypot(sx-px, sy-py);\n'
+    '          if (dd < bestD) { bestD = dd; best = m; }\n'
+    '        }\n'
+    '        const TOL = Math.max(26, Math.min(r.width, r.height) * 0.06);\n'
+    '        if (best && bestD <= TOL) obj = best;\n'
+    '      }\n'
+    '      if (obj) this.setState({ detailId: obj.userData.d.id });\n'
+    '    };')
+design = design.replace(_p1, _P1_NEW, 1)
+
 open(OUT, 'w', encoding='utf-8').write(design)
 print('実データ弦数:', len(out))
 print('  うち 8軸レーダーあり:', sum(1 for d in out if d['obj']))

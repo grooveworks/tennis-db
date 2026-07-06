@@ -532,11 +532,23 @@ class Component extends DCLogic {
     };
     const onClick = (e) => {
       const r = renderer.domElement.getBoundingClientRect();
-      const mx = ((e.clientX - r.left) / r.width) * 2 - 1;
-      const my = -((e.clientY - r.top) / r.height) * 2 + 1;
+      const px = e.clientX - r.left, py = e.clientY - r.top;
+      const mx = (px / r.width) * 2 - 1, my = -(py / r.height) * 2 + 1;
       raycaster.setFromCamera({ x:mx, y:my }, camera);
-      const hit = raycaster.intersectObjects(this._three.meshes)[0];
-      if (hit) this.setState({ detailId: hit.object.userData.d.id });
+      let obj = null; const exact = raycaster.intersectObjects(this._three.meshes)[0];
+      if (exact) { obj = exact.object; }
+      else {
+        // 指タップ用フォールバック: 画面上で最も近い点を許容半径内で選ぶ
+        const v = new THREE.Vector3(); let best=null, bestD=Infinity;
+        for (const m of this._three.meshes) {
+          m.getWorldPosition(v); v.project(camera); if (v.z > 1) continue;
+          const sx=(v.x*0.5+0.5)*r.width, sy=(-v.y*0.5+0.5)*r.height, dd=Math.hypot(sx-px, sy-py);
+          if (dd < bestD) { bestD = dd; best = m; }
+        }
+        const TOL = Math.max(26, Math.min(r.width, r.height) * 0.06);
+        if (best && bestD <= TOL) obj = best;
+      }
+      if (obj) this.setState({ detailId: obj.userData.d.id });
     };
     renderer.domElement.addEventListener("pointermove", onMove);
     renderer.domElement.addEventListener("click", onClick);
