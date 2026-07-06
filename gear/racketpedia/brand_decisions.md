@@ -57,6 +57,15 @@
 - 公開カタログは6月末公開分で凍結方針 (会員データの横流し防止)。データは racketpedia/out/ (git外)
 - 次: SEデモ後 → Firebase 方式着手 / 今日の分の commit 待ち (ユーザー承認後)
 
+## 2026-07-05 クラウド化 完了 (本人確認済み)
+- 「器は公開・中身は本人だけ」方式が本稼働。commit c19dc97 + f376c45 を push 済み
+- 閲覧URL (どの端末でも・localhost不要): https://grooveworks.github.io/tennis-db/gear/{strings,strings-mobile,rackets,reader}.html → Googleログイン → 表示 (2026-07-05 本人が実機で「確認できた」)
+- データは Firestore users/{uid}/cloudpages に分割保存 (strings 2 / rackets 1 / reader 9)。既存ルール (本人のみR/W) にそのまま乗る
+- 取込→再生成チェーン末尾で .claude/cloud-upload.js --apply が自動同期 (store._cloud_sync、鍵が無い環境では黙ってスキップ)
+- 器の再生成: racketpedia/gen_cloud_pages.py (データ抜き+ログインゲート注入)。相互ナビ: racketpedia/add_nav.py
+- **障害記録**: push 直後の GitHub Pages デプロイが「Deployment failed, try again later」(GitHub側一時エラー) で失敗し 404 に。rerun は成果物二重 (`Multiple artifacts named "github-pages"`) で必ず失敗するため、**復旧は `.claude/gh-dispatch.ps1` (新規起動) 一択**。ログ確認は `.claude/gh-run-log.ps1`
+- 残タスク: 8080 ローカルサーバの廃止判断 (クラウド運用が安定してから) / claude.ai デザインラウンドの戻り待ち (モバイル版マップ)
+
 ## 2026-07-02 ライブ取込 開通 + 自動翻訳ガード
 - Tampermonkey 開通 (Chrome「ユーザースクリプトを許可」ON が必要だった)。閲覧だけで取込が動くことを実証 (yonex-poly-tour-strike-grey-125 がライブで届いた)
 - 【訂正】当初「radar 8軸が enrich された」と説明したが誤り。radar は 6月末公開時点で取得済み (HEAD カタログと一致で確認)。今日の 'changed' は自動翻訳による name 上書きのみ

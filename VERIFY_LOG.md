@@ -6,6 +6,34 @@
 
 ## 現行 push 候補
 
+### feat: ストリング比較PCをClaudeデザインに刷新(2軸マップ) + gear配下へ集約 (2026-07-06)
+push 候補: gear/ 配下一式(器 strings/strings-mobile/rackets/reader + support.js + racketpedia/tennisone/catalog をgear配下へ移動) / racketpedia,tennisone,catalog(旧位置)の削除 / .claude/{cloud-upload.js,rp-restart,rp-status,rp-backup} / .gitignore / VERIFY_LOG.md。
+
+バージョン: 変更なし (4.8.7-S17 維持) — **アプリ(v4/,src/)には一切触れていない**。ストリング比較は独立ページ(gear/)。
+
+主な変更:
+- ストリング比較PC版を Claude デザイン本体(.dc.html + DCランタイム support.js)へ全面刷新。2軸マップ(散布図)+ ドラッグ拡大 + パン + クラスタ一覧。build_compare.py がデザインに実データを SC_DATA として注入
+- 私の当初の「貼り付け実装」は破棄しデザイン本体を土台に(見た目がデザインと一致)
+- gen_cloud_pages.py: ストリングPC版のデザイン方式(SC_DATA除去+ログイン後セット+support.js配信)に対応
+- フォルダ集約: racketpedia/tennisone/catalog を gear/ 配下へ移動(公開URL不変・公開器は gear 直下)。全スクリプトのパスと .gitignore を追従
+
+データ保護(最重要):
+- 公開器 gear/strings.html は **SC_DATA埋込なし・実データ(RPM Blast等)なし・66KB(データ入りなら470KB超)・ログインゲートあり**を機械検査で確認
+- 会員データ(out/cache/design_handoff/tennisone data/reader.html/string_compare*.html)は .gitignore で公開除外、git status に不在を確認
+- support.js は DCランタイム(公開ライブラリ・会員データ非含有)
+
+実画面検証: 済
+- 公開器 gear/strings.html をローカル配信で実描画: ログインゲート表示・「Google でログイン」ボタン・Firebase/support.js 読込・**ログイン前 SC_DATA=undefined(会員データ保護)** を確認
+- マップ本体(listener /compare): デザイン忠実再現・表/マップ両ビュー・ドラッグ拡大・パン・クラスタ閉じ を本人が実機確認済み
+
+console error 0: 済
+- 公開器・マップ本体とも console にエラーなし
+
+未確認: なし
+- 実URL(github.io)でのGoogleログイン成功のみ push 後の本人確認事項(失敗時は私が直す)
+
+---
+
 ### feat: ギア4ページのクラウド化 + tennis-oneアーカイブ基盤 (2026-07-03)
 push 候補: commit c19dc97 (gear/器4枚 + racketpedia生成系 + tennisone基盤 + .gitignore防御) / commit 5e6c5ec (会員データ取込+比較ページ、既済) / VERIFY_LOG.md。
 

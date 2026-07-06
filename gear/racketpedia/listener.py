@@ -33,15 +33,18 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):  # ヘルスチェック + 比較ページ配信 (レイアウト検証用・このパスのみ)
-        if self.path in ('/compare', '/compare-racket', '/compare-mobile', '/reader'):
+        if self.path in ('/compare', '/compare-racket', '/compare-mobile', '/reader', '/design-data', '/support.js'):
             fn = {'/compare': 'string_compare.html', '/compare-racket': 'racket_compare.html',
                   '/compare-mobile': 'string_compare_mobile.html',
-                  '/reader': os.path.join('..', 'tennisone', 'reader.html')}[self.path]
+                  '/reader': os.path.join('..', 'tennisone', 'reader.html'),
+                  '/design-data': os.path.join('design_handoff_v2', '実データ_マップ用_650本.js'),
+                  '/support.js': 'support.js'}[self.path]  # 比較ページが参照するDCランタイム
             p = os.path.join(os.path.dirname(os.path.abspath(__file__)), fn)
             body = open(p, 'rb').read()
             self.send_response(200)
             self._cors()
-            self.send_header('Content-Type', 'text/html; charset=utf-8')
+            ctype = 'application/javascript; charset=utf-8' if self.path.endswith('.js') else 'text/html; charset=utf-8'
+            self.send_header('Content-Type', ctype)
             self.end_headers()
             self.wfile.write(body)
             return

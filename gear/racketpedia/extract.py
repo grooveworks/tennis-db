@@ -360,7 +360,7 @@ def max_page(t):
 if __name__ == '__main__':
     import json, sys, io
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-    t = open('racketpedia/cache/string/head-lynx-tour-grey-125.html', encoding='utf-8').read()
+    t = open('gear/racketpedia/cache/string/head-lynx-tour-grey-125.html', encoding='utf-8').read()
     d = parse_detail(t)
     sim = d.pop('similar_radars')
     print(json.dumps(d, ensure_ascii=False, indent=2))

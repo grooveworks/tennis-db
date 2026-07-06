@@ -51,27 +51,27 @@ Prince_TOUR100_305g_リサーチまとめ.md
 # === Racketpedia 収集データ (絶対に commit しない、2026-07-02 追加) ===
 # このリポは GitHub Pages で丸ごと公開される。収集した生HTML/DB を上げると
 # racketpedia.com のデータ(将来は会員限定データ含む)を公開してしまう。コードと文書のみ commit。
-racketpedia/cache/
-racketpedia/out/
-racketpedia/state/
-racketpedia/__pycache__/
-racketpedia/listener.log
+gear/racketpedia/cache/
+gear/racketpedia/out/
+gear/racketpedia/state/
+gear/racketpedia/__pycache__/
+gear/racketpedia/listener.log
 # 生成物 (会員データ埋め込みのため公開リポに絶対上げない。build_*.py で再生成可)
-racketpedia/string_compare.html
-racketpedia/string_compare_mobile.html
-racketpedia/racket_compare.html
+gear/racketpedia/string_compare.html
+gear/racketpedia/string_compare_mobile.html
+gear/racketpedia/racket_compare.html
 
 # === tennis-one.jp 個人アーカイブ (記事の著作権は同サイトに帰属。公開リポに絶対上げない) ===
-tennisone/data/
-tennisone/reader.html
-tennisone/__pycache__/
+gear/tennisone/data/
+gear/tennisone/reader.html
+gear/tennisone/__pycache__/
 
 # === デザイン引継フォルダ (会員データ入りの現物HTMLを含むため公開しない) ===
-racketpedia/design_handoff_v2/
-racketpedia/design_handoff_string_compare/
+gear/racketpedia/design_handoff_v2/
+gear/racketpedia/design_handoff_string_compare/
 # 本家解説文の抽出 (racketpedia の文章のため公開しない)
-racketpedia/axis_definitions.json
+gear/racketpedia/axis_definitions.json
 
 # === tennis-one.jp 個人アーカイブ (記事本文・公開リポに絶対上げない、2026-07-03 追加) ===
-tennisone/data/
-tennisone/reader.html
+gear/tennisone/data/
+gear/tennisone/reader.html

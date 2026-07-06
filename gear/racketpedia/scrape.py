@@ -16,7 +16,7 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 BASE = "https://www.racketpedia.com"
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
-ROOT = "racketpedia"
+ROOT = "gear/racketpedia"
 CACHE = os.path.join(ROOT, "cache")
 STATE = os.path.join(ROOT, "state")
 OUT = os.path.join(ROOT, "out")

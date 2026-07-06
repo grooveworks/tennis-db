@@ -7,9 +7,9 @@ var DATA をデスクトップ版 (string_compare.html) と同じ実データに
 import re, io, sys, json, os
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
-TEMPLATE = 'racketpedia/design_handoff_string_compare/ストリング比較_mobile.html'
-SRC = 'racketpedia/string_compare.html'   # 実データはデスクトップ版から取る (常に同期)
-OUT = 'racketpedia/string_compare_mobile.html'
+TEMPLATE = 'gear/racketpedia/design_handoff_string_compare/ストリング比較_mobile.html'
+SRC = 'gear/racketpedia/string_compare.html'   # 実データはデスクトップ版から取る (常に同期)
+OUT = 'gear/racketpedia/string_compare_mobile.html'
 
 if not (os.path.exists(TEMPLATE) and os.path.exists(SRC)):
     print('テンプレート or 実データ元なし — スキップ')

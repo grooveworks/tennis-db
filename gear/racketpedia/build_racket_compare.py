@@ -11,7 +11,7 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 FLEX_BG = ''
 FLEX_AR = 0.33  # 画像の縦横比 (高さ/幅) 既定値
-_p = 'racketpedia/cache/assets/racket-profile-flex.png'
+_p = 'gear/racketpedia/cache/assets/racket-profile-flex.png'
 if os.path.exists(_p):
     _raw = open(_p, 'rb').read()
     FLEX_BG = 'data:image/png;base64,' + base64.b64encode(_raw).decode()
@@ -19,9 +19,9 @@ if os.path.exists(_p):
     _w, _h = struct.unpack('>II', _raw[16:24])  # PNG IHDR
     FLEX_AR = _h / _w
 
-TEMPLATE = 'racketpedia/string_compare_template.html'
-OUT = 'racketpedia/racket_compare.html'
-SRC = 'racketpedia/out/rackets.json'
+TEMPLATE = 'gear/racketpedia/string_compare_template.html'
+OUT = 'gear/racketpedia/racket_compare.html'
+SRC = 'gear/racketpedia/out/rackets.json'
 
 if not os.path.exists(SRC):
     print('rackets.json なし — ラケット未取込')

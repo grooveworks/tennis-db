@@ -6,8 +6,8 @@
 import os, json, csv, sqlite3, datetime
 import extract
 
-OUT = os.path.join('racketpedia', 'out')
-STATE = os.path.join('racketpedia', 'state')
+OUT = os.path.join('gear', 'racketpedia', 'out')
+STATE = os.path.join('gear', 'racketpedia', 'state')
 BASE = 'https://www.racketpedia.com'
 os.makedirs(OUT, exist_ok=True)
 
@@ -204,11 +204,11 @@ def rebuild(kind):
             print('  (catalog 再生成スキップ:', e, ')')
         try:  # 比較ページも自動再生成 (デザイン取り込みはスキップ = --no-import)。モバイル版も続けて同期
             import subprocess, sys as _sys
-            subprocess.run([_sys.executable, os.path.join('racketpedia', 'build_compare.py'), '--no-import'],
+            subprocess.run([_sys.executable, os.path.join('gear', 'racketpedia', 'build_compare.py'), '--no-import'],
                            capture_output=True, timeout=60)
-            subprocess.run([_sys.executable, os.path.join('racketpedia', 'build_mobile_compare.py')],
+            subprocess.run([_sys.executable, os.path.join('gear', 'racketpedia', 'build_mobile_compare.py')],
                            capture_output=True, timeout=60)
-            subprocess.run([_sys.executable, os.path.join('racketpedia', 'add_nav.py')],
+            subprocess.run([_sys.executable, os.path.join('gear', 'racketpedia', 'add_nav.py')],
                            capture_output=True, timeout=30)
             _cloud_sync()
         except Exception as e:
@@ -216,9 +216,9 @@ def rebuild(kind):
     if kind == 'racket':  # ラケット比較ページも自動再生成
         try:
             import subprocess, sys as _sys
-            subprocess.run([_sys.executable, os.path.join('racketpedia', 'build_racket_compare.py')],
+            subprocess.run([_sys.executable, os.path.join('gear', 'racketpedia', 'build_racket_compare.py')],
                            capture_output=True, timeout=60)
-            subprocess.run([_sys.executable, os.path.join('racketpedia', 'add_nav.py')],
+            subprocess.run([_sys.executable, os.path.join('gear', 'racketpedia', 'add_nav.py')],
                            capture_output=True, timeout=30)
             _cloud_sync()
         except Exception as e:

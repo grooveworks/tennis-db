@@ -3,8 +3,8 @@
 import io, sys, json, re, os, html as H
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
-posts = json.load(open('tennisone/data/posts.json', encoding='utf-8'))
-outdir = 'tennisone/data/articles'
+posts = json.load(open('gear/tennisone/data/posts.json', encoding='utf-8'))
+outdir = 'gear/tennisone/data/articles'
 os.makedirs(outdir, exist_ok=True)
 
 
