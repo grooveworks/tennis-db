@@ -6,6 +6,30 @@
 
 ## 現行 push 候補
 
+### fix: ストリング比較PCの初期表示を「表」にする (2026-07-06)
+push 候補: gear/racketpedia/build_compare.py(初期view=table パッチ追加) / gear/racketpedia/string_compare.html(再生成) / gear/strings.html(器 再生成) / VERIFY_LOG.md。
+
+バージョン: 変更なし (4.8.7-S17 維持) — **アプリ(v4/,src/)には一切触れていない**。
+
+主な変更:
+- ユーザー要望: 開いてまず「表」を見せる。デザイン既定は view:"scatter"(マップ)だったのを build_compare.py で view:"table" に差し替え(デザイン束は不改変・タブでマップにも行ける)
+- データ再アップロードなし(会員データ不変・器はデータなし)
+
+データ保護:
+- 器 gear/strings.html を機械検査: **初期state view=table / SC_DATA埋込なし / 実データ(RPM Blast)なし / ログインゲートあり / support.js参照** を確認
+
+実画面検証: 済
+- ローカル配信で string_compare.html(実データ入り)を実描画: **初期表示=表(表タブが青#007AFF・アクティブ、マップは灰・非アクティブ、プロット領域 mp-plotarea 非表示)、表に650行**を確認
+- マップタブ click → 散布図に切替(plotVisible=true, dots描画, トグル健在)を確認
+
+console error 0: 済
+- level=error のログ 0件
+
+未確認: なし
+- 実URL(github.io)でのGoogleログイン成功のみ push 後の本人確認事項(失敗時は私が直す)
+
+---
+
 ### feat: ストリング比較PCをClaudeデザインに刷新(2軸マップ) + gear配下へ集約 (2026-07-06)
 push 候補: gear/ 配下一式(器 strings/strings-mobile/rackets/reader + support.js + racketpedia/tennisone/catalog をgear配下へ移動) / racketpedia,tennisone,catalog(旧位置)の削除 / .claude/{cloud-upload.js,rp-restart,rp-status,rp-backup} / .gitignore / VERIFY_LOG.md。
 
