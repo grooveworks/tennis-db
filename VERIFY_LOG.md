@@ -6,6 +6,29 @@
 
 ## 現行 push 候補
 
+### fix: ストリング比較PCの表を完全版に復元 (デザイン化で壊した表を戻す・マップ/3Dは含めない) (2026-07-07)
+push 候補: gear/racketpedia/build_compare.py(前パイプライン復元) / gear/racketpedia/gen_cloud_pages.py(前パイプライン復元) / gear/strings.html(完全版の表) / VERIFY_LOG.md。
+
+バージョン: 変更なし (4.8.7-S17 維持) — **アプリ(v4/,src/)には一切触れていない**。
+
+主な変更:
+- 経緯: 私がデザインを土台に丸ごと差し替えた結果、表が簡易版に劣化しナビも消えた(私の失態)。ユーザー指示は一貫して「**表だけ戻せ**」。
+- 対応: **表を git の完全版パイプライン(build_compare/gen_cloud_pages/template/add_nav = f32aa1b~1)ごと復元**。作り直しでなく実物復元=隠れ劣化ゼロ。**表のコードは無改変**。
+- マップ/3D は今回含めない(ユーザー指示「表だけ」)。一時試作したタブ/iframe/全画面/別ページ(strings-map)・build_map.py は全撤去。.gitignore も元に戻し、差分は表復元の3ファイルのみ。
+- 表 = 前バージョンの完全版: 主観の重ね/バリエーション/推奨テンション/寿命/比較cmp/詳細ページ/フレーム絞り込み/差分ハイライト/密度切替/ナビ(弦📱/ラケット/記事)。
+
+実画面検証: 済
+- ローカル配信で string_compare.html を実描画: **650行・16列・行展開OK・タブバー無し(マップ痕跡ゼロ)**
+- 公開器 gear/strings.html を機械検査: 完全版機能(主観/バリエーション/推奨テンション/寿命/cmp/詳細/colspan16)+ナビ有り / vtabs・iframe・strings-map・mapview すべて0 / **会員データ漏れ0(RPM Blast/var DATA[ =0)**
+
+console error 0: 済
+- 表ページ level=error 0件
+
+未確認: なし
+- 実URL(github.io)での本人ログイン後の最終見た目のみ push 後の本人確認事項(万一おかしければ git から前版へ即復元可)
+
+---
+
 ### fix: タッチ時の誤テキスト選択を抑止 (iPad運用の余計な挙動対策) (2026-07-07)
 push 候補: gear/racketpedia/build_compare.py(選択禁止/touch-action パッチ追加) / gear/strings.html(器 再生成) / VERIFY_LOG.md。
 

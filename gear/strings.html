@@ -1,1132 +1,858 @@
 <!DOCTYPE html>
-<html>
+<html lang="ja">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<script src="./support.js"></script>
+<title>ストリング比較</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  :root{
+    --bg:#F2F2F7; --panel:#FFFFFF; --border:#DADCE0; --divider:#E8EAED;
+    --text:#202124; --sec:#5F6368; --muted:#80868B; --gray4:#C7C7CC;
+    --obj:#007AFF; --subj:#FF9500; --subjtext:#E07B00;
+    --mono:"SF Mono",Menlo,Consolas,"Roboto Mono",monospace;
+  }
+  html,body{ font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Helvetica Neue",Arial,sans-serif; color:var(--text); background:var(--bg); line-height:1.5; }
+  .wrap{ padding:28px 32px 64px; }
+  .inner{ max-width:1340px; margin:0 auto; }
+  .head{ display:flex; align-items:flex-end; justify-content:space-between; gap:24px; flex-wrap:wrap; }
+  .title{ font-size:22px; font-weight:700; letter-spacing:-0.01em; display:flex; align-items:center; gap:9px; }
+  .subtitle{ font-size:13px; color:var(--sec); margin-top:5px; }
+  .summary{ font-size:12px; color:var(--sec); background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:8px 14px; }
+  .controls{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:18px; }
+  .search{ position:relative; flex:0 0 248px; }
+  .search svg{ position:absolute; left:11px; top:50%; transform:translateY(-50%); }
+  .search input{ width:100%; height:38px; padding:0 12px 0 36px; border:1px solid var(--border); border-radius:12px; background:var(--panel); font-size:13px; font-family:inherit; color:var(--text); outline:none; }
+  .search input:focus{ border-color:var(--obj); box-shadow:0 0 0 2px #E1F0FF; }
+  select{ height:38px; padding:0 30px 0 12px; border:1px solid var(--border); border-radius:12px; background:var(--panel); font-size:13px; font-family:inherit; color:var(--text); outline:none; cursor:pointer; appearance:none; -webkit-appearance:none;
+    background-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="10" height="6"><path d="M1 1l4 4 4-4" fill="none" stroke="%2380868B" stroke-width="1.5"/></svg>'); background-repeat:no-repeat; background-position:right 12px center; }
+  select:focus{ border-color:var(--obj); }
+  .spacer{ flex:1; }
+  .legend{ display:flex; align-items:center; gap:14px; font-size:12px; color:var(--sec); flex-wrap:wrap; }
+  .legend span{ display:flex; align-items:center; gap:6px; }
+  .sw{ width:11px; height:11px; border-radius:3px; display:inline-block; }
+  .framenote{ margin-top:12px; display:flex; align-items:center; gap:9px; background:#E6F4EA; border:1px solid #B7E1C9; border-radius:12px; padding:9px 14px; font-size:12.5px; color:#0A5B35; }
+  .tablecard{ margin-top:16px; background:var(--panel); border:1px solid var(--border); border-radius:20px; overflow:hidden; }
+  .scroller{ overflow-x:auto; }
+  table{ width:100%; border-collapse:collapse; font-size:13px; min-width:1000px; }
+  thead tr{ background:#FAFAFB; border-bottom:1px solid var(--divider); }
+  th{ font-size:11px; font-weight:600; color:var(--muted); white-space:nowrap; padding:11px 10px; text-align:left; }
+  th.c{ text-align:center; padding:11px 8px; }
+  th.sortable{ cursor:pointer; user-select:none; }
+  th.sortable:hover{ color:var(--obj); }
+  th.active{ color:var(--obj); }
+  th .unit{ font-size:9px; font-weight:400; color:#9AA0A6; }
+  th.eval, td.eval{ position:sticky; right:0; z-index:1; border-left:1px solid var(--divider); box-shadow:-6px 0 8px -6px rgba(0,0,0,0.07); }
+  th.eval{ z-index:3; background:#FAFAFB; padding:11px 14px; }
+  tbody tr.data{ cursor:pointer; transition:background 150ms ease; background:var(--panel); }
+  tbody tr.data:hover{ background:#F7F8FA; }
+  tbody tr.data.expanded{ background:#F3F7FF; }
+  td{ padding:11px 10px; border-bottom:1px solid #F1F3F4; vertical-align:middle; white-space:nowrap; }
+  table.compact td{ padding:7px 10px; }
+  table.compact th{ padding-top:9px; padding-bottom:9px; }
+  td.c{ text-align:center; }
+  td.mono{ font-family:var(--mono); }
+  td.eval{ background:var(--panel); padding:11px 14px; }
+  tr.expanded td.eval{ background:#F3F7FF; }
+  .name{ font-weight:600; font-size:13.5px; }
+  .brand{ font-size:11px; color:var(--muted); margin-top:1px; }
+  .namecell{ display:flex; align-items:center; gap:7px; }
+  .caret{ color:var(--muted); width:12px; flex:0 0 12px; transition:transform 150ms ease; }
+  tr.expanded .caret{ transform:rotate(90deg); }
+  .pill{ display:inline-block; font-size:11px; font-weight:600; line-height:1; border-radius:6px; padding:4px 8px; white-space:nowrap; border:1px solid; }
+  .rec{ font-size:10px; font-weight:700; color:#0A5B35; background:#E6F4EA; border:1px solid #8FD0A8; border-radius:6px; padding:2px 6px; margin-left:7px; white-space:nowrap; }
+  .obj{ color:var(--obj); font-weight:600; }
+  .objnull{ color:var(--gray4); }
+  .subj{ color:var(--subjtext); font-weight:600; font-size:11px; }
+  td.big{ background:#FCE3C4; }
+  .axisval{ font-family:var(--mono); font-size:13px; line-height:1.15; }
+  .axissubj{ font-family:var(--mono); font-size:11px; line-height:1.3; }
+  /* panel */
+  .panel{ display:flex; gap:28px; padding:22px 24px 26px; flex-wrap:wrap; animation:enter 150ms ease-out; }
+  @keyframes enter{ from{opacity:0;transform:translateY(-6px);} to{opacity:1;transform:translateY(0);} }
+  td.panelcell{ padding:0; border-bottom:1px solid var(--divider); background:#FBFBFC; white-space:normal; }
+  .pcol-radar{ flex:0 0 auto; }
+  .pcol-bars{ flex:1 1 340px; min-width:300px; }
+  .pcol-notes{ flex:1 1 300px; min-width:260px; display:flex; flex-direction:column; gap:16px; }
+  .plabel{ font-size:12px; font-weight:600; color:var(--sec); margin-bottom:8px; }
+  .plabel-sm{ font-size:11px; font-weight:600; color:var(--muted); margin-bottom:6px; }
+  .radarlegend{ display:flex; gap:16px; font-size:11.5px; color:var(--sec); margin-top:2px; justify-content:center; }
+  .radarlegend span{ display:flex; align-items:center; gap:5px; }
+  .rl{ width:18px; height:3px; display:inline-block; border-radius:2px; }
+  .nolab{ width:240px; height:240px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; border:1px dashed var(--border); border-radius:16px; color:var(--muted); text-align:center; padding:0 24px; font-size:12px; line-height:1.6; }
+  .bar-row{ display:flex; align-items:center; gap:12px; margin-bottom:9px; }
+  .bar-row.big{ background:#FFF6E9; margin:0 -8px 9px; padding:5px 8px; border-radius:8px; }
+  .bar-label{ flex:0 0 86px; font-size:12px; }
+  .bar-tracks{ flex:1; display:flex; flex-direction:column; gap:3px; }
+  .track{ height:7px; background:#EEF0F2; border-radius:4px; overflow:hidden; }
+  .track > div{ height:100%; border-radius:4px; }
+  .bar-nums{ flex:0 0 80px; text-align:right; font-family:var(--mono); font-size:12px; }
+  .bar-delta{ flex:0 0 52px; text-align:right; }
+  .deltabadge{ font-size:10px; font-weight:700; color:#A04F00; background:#FCE3C4; border-radius:6px; padding:2px 6px; white-space:nowrap; }
+  .memo{ font-size:13px; line-height:1.6; background:var(--panel); border:1px solid var(--divider); border-radius:12px; padding:11px 13px; }
+  .memo.empty{ color:var(--muted); }
+  .stiffbox{ background:var(--panel); border:1px solid var(--divider); border-radius:12px; padding:11px 13px; display:flex; flex-direction:column; gap:7px; }
+  .stiffrow{ display:flex; justify-content:space-between; font-size:12.5px; }
+  .stiffrow .k{ color:var(--sec); }
+  .stiffrow .v{ font-family:var(--mono); font-weight:600; }
+  .stiffrow .vmuted{ color:var(--muted); }
+  .stiffhint{ font-size:11px; color:var(--muted); line-height:1.5; border-top:1px solid #F1F3F4; padding-top:7px; }
+  .foot{ margin-top:12px; font-size:11.5px; color:var(--muted); line-height:1.6; }
+  /* settings */
+  .settings{ display:flex; align-items:center; gap:18px; flex-wrap:wrap; margin-top:14px; background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:11px 16px; }
+  .settings .grp{ display:flex; align-items:center; gap:9px; font-size:12.5px; color:var(--sec); }
+  .settings .grp.sep{ border-left:1px solid var(--divider); padding-left:18px; }
+  .switch{ position:relative; width:38px; height:22px; flex:0 0 38px; }
+  .switch input{ opacity:0; width:0; height:0; position:absolute; }
+  .slider{ position:absolute; inset:0; background:#E0E2E6; border-radius:22px; transition:background 150ms ease; cursor:pointer; }
+  .slider::before{ content:""; position:absolute; width:18px; height:18px; left:2px; top:2px; background:#fff; border-radius:50%; transition:transform 150ms ease; box-shadow:0 1px 2px rgba(0,0,0,0.2); }
+  .switch input:checked + .slider{ background:var(--obj); }
+  .switch input:checked + .slider::before{ transform:translateX(16px); }
+  .seg{ display:inline-flex; border:1px solid var(--border); border-radius:10px; overflow:hidden; }
+  .seg button{ font:inherit; font-size:12px; padding:5px 12px; border:none; background:var(--panel); color:var(--sec); cursor:pointer; }
+  .seg button.on{ background:#E1F0FF; color:var(--obj); font-weight:500; }
+  .settings input[type=range]{ accent-color:var(--obj); cursor:pointer; }
+  .thval{ font-family:var(--mono); font-size:12px; color:var(--text); min-width:34px; }
+  ::-webkit-scrollbar{ width:8px; height:8px; }
+  ::-webkit-scrollbar-thumb{ background:rgba(0,0,0,0.18); border-radius:4px; }
+  ::-webkit-scrollbar-track{ background:transparent; }
+  @media (prefers-reduced-motion: reduce){ *{ animation-duration:0.01ms !important; transition-duration:0.01ms !important; } }
+
+  /* ===== 詳細画面 (dv-) 2026-07-03 注入 ===== */
+  .dv-open{ font:inherit; font-size:12px; font-weight:600; color:#007AFF; background:#E1F0FF; border:1px solid #A9D2FF; border-radius:9px; padding:6px 12px; cursor:pointer; margin-bottom:4px; }
+  .dv-open:hover{ background:#D2E7FF; }
+  .dv-ov{ position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:1000; overflow-y:auto; }
+  .dv-sheet{ max-width:1320px; margin:26px auto; background:#F2F2F7; border-radius:22px; padding:24px 28px 40px; position:relative; }
+  .dv-x{ position:absolute; top:16px; right:18px; width:32px; height:32px; border:none; border-radius:50%; background:#E0E2E6; color:#5F6368; font-size:16px; font-weight:700; cursor:pointer; }
+  .dv-x:hover{ background:#D2D5DA; }
+  .dv-title{ font-size:22px; font-weight:700; letter-spacing:-0.01em; }
+  .dv-sub{ font-size:12.5px; color:#5F6368; margin-top:3px; display:flex; gap:12px; flex-wrap:wrap; }
+  .dv-badge{ display:inline-block; font-size:11px; font-weight:700; color:#fff; background:#007AFF; border-radius:7px; padding:3px 9px; margin-left:10px; vertical-align:3px; }
+  .dv-badge.none{ background:#9AA0A6; }
+  .dv-chips{ display:flex; gap:8px; flex-wrap:wrap; margin:12px 0 16px; }
+  .dv-chip{ font-size:12px; color:#5F6368; background:#FFFFFF; border:1px solid #DADCE0; border-radius:9px; padding:4px 11px; }
+  .dv-chip b{ color:#202124; font-weight:600; margin-left:5px; }
+  .dv-chip.tag{ color:#0A5B35; background:#E6F4EA; border-color:#8FD0A8; font-weight:600; }
+  .dv-card{ background:#FFFFFF; border:1px solid #DADCE0; border-radius:20px; padding:20px 22px; margin-top:14px; }
+  .dv-card h3{ font-size:13px; font-weight:700; color:#5F6368; margin-bottom:14px; }
+  .dv-core{ display:grid; grid-template-columns:auto 1fr; gap:26px; align-items:center; }
+  @media (max-width:900px){ .dv-core{ grid-template-columns:1fr; justify-items:center; } }
+  .dv-grid2{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  @media (max-width:900px){ .dv-grid2{ grid-template-columns:1fr; } }
+  .dv-axr{ padding:7px 2px; border-bottom:1px solid #F1F3F4; }
+  .dv-axr:last-child{ border-bottom:none; }
+  .dv-axline{ display:flex; align-items:center; gap:13px; }
+  .dv-axname{ flex:0 0 126px; font-size:13px; }
+  .dv-q{ display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; border-radius:50%; background:#EEF0F2; color:#80868B; font-size:10.5px; font-weight:700; cursor:pointer; margin-left:6px; border:none; font-family:inherit; vertical-align:1px; }
+  .dv-q:hover{ background:#E1F0FF; color:#007AFF; }
+  .dv-def{ display:none; font-size:12px; color:#5F6368; background:#F8F9FA; border:1px solid #E8EAED; border-radius:10px; padding:8px 12px; margin:6px 0 3px; line-height:1.7; }
+  .dv-def.on{ display:block; }
+  .dv-axbar{ flex:1; }
+  .dv-axv{ font-family:"SF Mono",Menlo,Consolas,monospace; font-size:12px; font-weight:600; margin-bottom:2px; }
+  .dv-axv .of{ color:#80868B; font-weight:400; }
+  .dv-tr{ height:9px; background:#EEF0F2; border-radius:5px; overflow:hidden; }
+  .dv-tr>div{ height:100%; border-radius:5px; background:#007AFF; }
+  .dv-delta{ flex:0 0 116px; text-align:right; }
+  .dv-db{ display:inline-block; font-size:11px; font-weight:700; border-radius:8px; padding:3px 8px; white-space:nowrap; }
+  .dv-db.up{ color:#1E8E3E; background:#E6F4EA; }
+  .dv-db.down{ color:#D93025; background:#FCE8E6; }
+  .dv-db.eq{ color:#80868B; background:#F1F3F4; }
+  .dv-rows{ display:flex; flex-direction:column; }
+  .dv-row{ display:flex; justify-content:space-between; align-items:baseline; padding:8px 2px; border-bottom:1px solid #F1F3F4; gap:14px; }
+  .dv-row:last-child{ border-bottom:none; }
+  .dv-row .k{ font-size:12.5px; color:#5F6368; white-space:nowrap; }
+  .dv-row .v{ font-size:13px; font-weight:600; text-align:right; font-family:"SF Mono",Menlo,Consolas,monospace; }
+  .dv-row .v .u{ font-size:11px; font-weight:400; color:#80868B; margin-left:3px; }
+  .dv-row .v .orig{ font-size:11px; font-weight:400; color:#C7C7CC; margin-left:7px; }
+  .dv-row .v.txt{ font-family:inherit; }
+  .dv-band{ display:flex; align-items:center; gap:10px; margin-bottom:7px; }
+  .dv-band .bl{ flex:0 0 90px; font-size:11.5px; color:#5F6368; font-family:"SF Mono",Menlo,Consolas,monospace; }
+  .dv-band .tr2{ flex:1; height:8px; background:#EEF0F2; border-radius:4px; overflow:hidden; }
+  .dv-band .tr2>div{ height:100%; border-radius:4px; background:#007AFF; }
+  .dv-band .bv{ flex:0 0 78px; text-align:right; font-family:"SF Mono",Menlo,Consolas,monospace; font-size:12px; font-weight:600; }
+  .dv-hint{ font-size:11px; color:#80868B; line-height:1.6; border-top:1px solid #F1F3F4; margin-top:11px; padding-top:8px; }
+  .dv-vleg{ display:flex; gap:16px; font-size:12px; color:#5F6368; flex-wrap:wrap; margin-bottom:10px; }
+  .dv-vleg span{ display:flex; align-items:center; gap:6px; }
+  .dv-rl{ width:18px; height:3px; border-radius:2px; display:inline-block; }
+  .dv-vgrid{ display:grid; grid-template-columns:auto 1fr; gap:22px; align-items:start; }
+  @media (max-width:900px){ .dv-vgrid{ grid-template-columns:1fr; justify-items:center; } }
+  .dv-gr{ display:flex; align-items:center; gap:10px; margin-bottom:9px; }
+  .dv-gl{ flex:0 0 94px; font-size:12px; color:#5F6368; }
+  .dv-gt{ flex:1; display:flex; flex-direction:column; gap:2px; }
+  .dv-g1{ height:6px; background:#EEF0F2; border-radius:3px; overflow:hidden; }
+  .dv-g1>div{ height:100%; border-radius:3px; }
+  .dv-gn{ flex:0 0 160px; font-family:"SF Mono",Menlo,Consolas,monospace; font-size:11px; color:#5F6368; text-align:right; line-height:1.35; white-space:nowrap; }
+  table.dv-vt{ width:100%; border-collapse:collapse; font-size:12.5px; margin-top:12px; }
+  table.dv-vt th{ font-size:11px; font-weight:600; color:#80868B; text-align:right; padding:7px 8px; border-bottom:1px solid #E8EAED; white-space:nowrap; }
+  table.dv-vt th:first-child{ text-align:left; }
+  table.dv-vt td{ padding:8px; text-align:right; font-family:"SF Mono",Menlo,Consolas,monospace; border-bottom:1px solid #F1F3F4; white-space:nowrap; }
+  table.dv-vt td:first-child{ text-align:left; font-family:inherit; font-weight:600; }
+  table.dv-vt tr.cur td{ background:#F3F7FF; }
+  .dv-dot{ display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:7px; }
+  .dv-subj{ border-color:#F5CD9B; }
+  .dv-subj h3{ color:#E07B00; }
+  .dv-memo{ font-size:13px; color:#80868B; background:#FFFDF9; border:1px dashed #F5CD9B; border-radius:12px; padding:11px 13px; line-height:1.7; }
+  .dv-foot{ margin-top:14px; font-size:11px; color:#80868B; line-height:1.7; }
+
+  /* ===== 複数比較 (cmp-) 2026-07-03 注入 ===== */
+  /* チェック列の追加幅を軸列の余白で吸収し、16列でも元の幅に収める (数字切れ防止) */
+  td.cmpc, th.cmpc{ width:24px; text-align:center; padding:11px 3px; }
+  th.c, td.c{ padding-left:6px; padding-right:6px; }
+  .cmp-chk{ width:16px; height:16px; accent-color:#007AFF; cursor:pointer; }
+  .cmp-bar{ position:fixed; right:22px; bottom:22px; z-index:900; display:flex; gap:8px; align-items:center;
+    background:#FFFFFF; border:1px solid #DADCE0; border-radius:14px; padding:10px 14px; box-shadow:0 4px 16px rgba(0,0,0,0.13); }
+  .cmp-bar .n{ font-size:12.5px; color:#5F6368; }
+  .cmp-go{ font:inherit; font-size:13px; font-weight:700; color:#fff; background:#007AFF; border:none; border-radius:10px; padding:8px 16px; cursor:pointer; }
+  .cmp-go:disabled{ background:#C7C7CC; cursor:default; }
+  .cmp-clear{ font:inherit; font-size:12px; color:#5F6368; background:none; border:none; cursor:pointer; text-decoration:underline; }
+
+  .labmark{ font-size:9px; font-weight:700; color:#0057B8; background:#E1F0FF; border:1px solid #A9D2FF; border-radius:5px; padding:1px 5px; margin-left:6px; vertical-align:1px; white-space:nowrap; }
+</style>
 </head>
 <body>
-<x-dc>
-<helmet>
-<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
-<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/bold/style.css">
-
-<style>
-  @keyframes panelEnter { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:translateY(0); } }
-  .scsel { height:36px; padding:0 30px 0 12px; border:1px solid #DADCE0; border-radius:10px; background:#fff; font-size:13px; font-family:inherit; color:#202124; outline:none; cursor:pointer; -webkit-appearance:none; appearance:none; background-image:url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2210%22 height=%226%22><path d=%22M1 1l4 4 4-4%22 fill=%22none%22 stroke=%22%2380868B%22 stroke-width=%221.5%22/></svg>'); background-repeat:no-repeat; background-position:right 12px center; }
-  .scdot:hover { z-index:20 !important; }
-</style>
-</helmet>
-<div style="min-height:100%;background:#F2F2F7;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Helvetica Neue',Arial,sans-serif;color:#202124;padding:26px 30px 60px;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;">
-  <div style="max-width:1320px;margin:0 auto;">
-
-    <!-- Header -->
-    <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex-wrap:wrap;">
-      <div>
-        <div style="font-size:22px;font-weight:700;letter-spacing:-0.01em;display:flex;align-items:center;gap:9px;"><i class="ph-bold ph-tennis-ball" style="color:#9334E0;font-size:22px;"></i>ストリング比較 — PC</div>
-        <div style="font-size:13px;color:#5F6368;margin-top:5px;">実データ 650 本。2 軸を自由に選んで弦の位置関係を見る（マップ）／全数値を一覧で見る（表）。</div>
+<div class="wrap"><div class="inner">
+  <div class="head">
+    <div>
+      <div class="title">
+        <svg width="22" height="22" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5" fill="none" stroke="#9334E0" stroke-width="2"/><path d="M4 7c3.5 2 3.5 8 0 10M20 7c-3.5 2-3.5 8 0 10" fill="none" stroke="#9334E0" stroke-width="2"/></svg>
+        ストリング比較
       </div>
-      <div style="font-size:12px;color:#5F6368;background:#FFFFFF;border:1px solid #DADCE0;border-radius:12px;padding:8px 14px;">{{ summary }}</div>
+      <div class="subtitle">客観データ（ラボ計測）と自分の試打体感を 8 軸で重ねて、ラケットに合う弦を選ぶ。</div>
     </div>
-
-    <!-- View tabs -->
-    <div style="display:flex;gap:4px;margin-top:18px;border-bottom:1px solid #E1E3E6;">
-      <div onClick="{{ onTable }}" style="{{ tabTableStyle }}"><i class="ph-bold ph-table" style="font-size:15px;"></i>表</div>
-      <div onClick="{{ onScatter }}" style="{{ tabScatterStyle }}"><i class="ph-bold ph-chart-scatter" style="font-size:15px;"></i>マップ</div>
-      <div onClick="{{ on3D }}" style="{{ tab3DStyle }}"><i class="ph-bold ph-cube" style="font-size:15px;"></i>3Dマップ</div>
-    </div>
-
-    <!-- Shared controls -->
-    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:16px;">
-      <div style="position:relative;flex:0 0 230px;">
-        <i class="ph ph-magnifying-glass" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#80868B;font-size:16px;"></i>
-        <input value="{{ search }}" onInput="{{ onSearch }}" placeholder="弦名・メーカーで検索" style="width:100%;height:36px;padding:0 12px 0 36px;border:1px solid #DADCE0;border-radius:10px;background:#fff;font-size:13px;font-family:inherit;color:#202124;outline:none;box-sizing:border-box;" />
-      </div>
-      <div style="position:relative;">
-        <div onClick="{{ onBrandToggle }}" style="{{ brandButtonStyle }}">{{ brandButtonLabel }}<i class="ph-bold ph-caret-down" style="font-size:11px;margin-left:auto;"></i></div>
-        <sc-if value="{{ brandOpen }}" hint-placeholder-val="{{ false }}">
-          <div onClick="{{ onBrandClose }}" style="position:fixed;inset:0;z-index:39;"></div>
-          <div onClick="{{ stopClick }}" style="position:absolute;top:42px;left:0;z-index:40;width:230px;max-height:320px;overflow:auto;background:#fff;border:1px solid #DADCE0;border-radius:12px;box-shadow:0 6px 24px rgba(0,0,0,0.14);padding:6px;">
-            <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 8px 8px;border-bottom:1px solid #F1F3F4;margin-bottom:4px;">
-              <span style="font-size:11px;color:#80868B;">メーカーを複数選択</span>
-              <span onClick="{{ onBrandClear }}" style="font-size:11px;color:#007AFF;cursor:pointer;">クリア</span>
-            </div>
-            <sc-for list="{{ brandItems }}" as="b" hint-placeholder-count="10">
-              <div onClick="{{ b.onToggle }}" style="display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:8px;cursor:pointer;font-size:13px;color:#202124;" style-hover="background:#F5F6F8;">
-                <span style="{{ b.boxStyle }}"><sc-if value="{{ b.checked }}" hint-placeholder-val="{{ false }}"><i class="ph-bold ph-check" style="font-size:11px;color:#fff;"></i></sc-if></span>{{ b.name }}
-              </div>
-            </sc-for>
-          </div>
-        </sc-if>
-      </div>
-      <select value="{{ matFilter }}" onChange="{{ onMat }}" class="scsel"><option value="">素材：すべて</option><sc-for list="{{ matOptions }}" as="o" hint-placeholder-count="4"><option value="{{ o }}">{{ o }}</option></sc-for></select>
-      <select value="{{ shapeFilter }}" onChange="{{ onShape }}" class="scsel"><option value="">形状：すべて</option><sc-for list="{{ shapeOptions }}" as="o" hint-placeholder-count="3"><option value="{{ o }}">{{ o }}</option></sc-for></select>
-      <sc-if value="{{ hasFilter }}" hint-placeholder-val="{{ false }}"><div onClick="{{ onClear }}" style="font-size:12px;color:#007AFF;cursor:pointer;padding:6px 8px;">絞り込み解除</div></sc-if>
-      <div style="flex:1;"></div>
-      <div style="display:flex;align-items:center;gap:12px;font-size:11.5px;color:#5F6368;flex-wrap:wrap;">
-        <span style="display:flex;align-items:center;gap:5px;"><span style="width:9px;height:9px;border-radius:50%;background:#007AFF;display:inline-block;"></span>ポリエステル</span>
-        <span style="display:flex;align-items:center;gap:5px;"><span style="width:9px;height:9px;border-radius:50%;background:#0F9D58;display:inline-block;"></span>ナイロン系</span>
-        <span style="display:flex;align-items:center;gap:5px;"><span style="width:9px;height:9px;border-radius:50%;background:#9334E0;display:inline-block;"></span>ナチュラルガット</span>
-        <span style="display:flex;align-items:center;gap:5px;"><span style="width:9px;height:9px;border-radius:50%;background:#F9AB00;display:inline-block;"></span>アラミド</span>
-        <span style="display:flex;align-items:center;gap:5px;"><span style="width:9px;height:9px;border-radius:50%;background:#80868B;display:inline-block;"></span>その他</span>
-      </div>
-    </div>
-
-    <!-- ===== SCATTER ===== -->
-    <sc-if value="{{ scatterView }}" hint-placeholder-val="{{ true }}">
-      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:16px;">
-        <span style="font-size:12px;color:#80868B;">横軸(X)</span>
-        <select value="{{ xAxis }}" onChange="{{ onX }}" class="scsel"><sc-for list="{{ axisOptions }}" as="o" hint-placeholder-count="10"><option value="{{ o.k }}">{{ o.label }}</option></sc-for></select>
-        <span style="font-size:12px;color:#80868B;margin-left:6px;">縦軸(Y)</span>
-        <select value="{{ yAxis }}" onChange="{{ onY }}" class="scsel"><sc-for list="{{ axisOptions }}" as="o" hint-placeholder-count="10"><option value="{{ o.k }}">{{ o.label }}</option></sc-for></select>
-        <div onClick="{{ onSwap }}" style="font-size:12px;color:#007AFF;cursor:pointer;padding:6px 8px;display:flex;align-items:center;gap:4px;"><i class="ph-bold ph-arrows-left-right"></i>入替</div>
-        <div onClick="{{ onToggleLabels }}" style="{{ labelToggleStyle }}"><i class="ph-bold ph-tag"></i>名前を常に表示</div>
-        <div onClick="{{ onToggleCenterMean }}" style="{{ centerMeanStyle }}"><i class="ph-bold ph-crosshair"></i>平均を中央に</div>
-        <div style="flex:1;"></div>
-        <div style="font-size:12px;color:#5F6368;">打点 <b style="color:#202124;">{{ plottedCount }}</b> / {{ totalCount }} 本<span style="color:#9AA0A6;"> · 両軸に実測値がある弦のみ</span></div>
-      </div>
-
-      <div style="display:flex;gap:16px;margin-top:14px;flex-wrap:wrap;">
-        <div style="flex:1 1 300px;min-width:260px;background:#fff;border:1px solid #DADCE0;border-radius:14px;padding:12px 14px;">
-          <div style="font-size:11px;color:#80868B;margin-bottom:6px;">横軸(X) {{ xHistLabel }} の分布 · 実数 {{ xHistN }} 本（{{ xHistMin }}〜{{ xHistMax }}）</div>
-          <div style="display:flex;align-items:flex-end;gap:2px;height:44px;">
-            <sc-for list="{{ xHistBars }}" as="b" hint-placeholder-count="12"><div title="{{ b.title }}" style="{{ b.barStyle }}"></div></sc-for>
-          </div>
-        </div>
-        <div style="flex:1 1 300px;min-width:260px;background:#fff;border:1px solid #DADCE0;border-radius:14px;padding:12px 14px;">
-          <div style="font-size:11px;color:#80868B;margin-bottom:6px;">縦軸(Y) {{ yHistLabel }} の分布 · 実数 {{ yHistN }} 本（{{ yHistMin }}〜{{ yHistMax }}）</div>
-          <div style="display:flex;align-items:flex-end;gap:2px;height:44px;">
-            <sc-for list="{{ yHistBars }}" as="b" hint-placeholder-count="12"><div title="{{ b.title }}" style="{{ b.barStyle }}"></div></sc-for>
-          </div>
-        </div>
-      </div>
-
-      <div style="margin-top:14px;background:#fff;border:1px solid #DADCE0;border-radius:20px;padding:20px 22px 22px;">
-        <!-- plot -->
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;font-size:11.5px;color:#80868B;flex-wrap:wrap;"><span>ドラッグで範囲拡大（外れ値で中央に潰れる時に）。拡大中はドラッグで移動・Shift+ドラッグでさらに拡大。</span><sc-if value="{{ isZoomed }}" hint-placeholder-val="{{ false }}"><button onClick="{{ onResetZoom }}" style="font:inherit;font-size:11.5px;font-weight:600;color:#0057B8;background:#E1F0FF;border:1px solid #A9D2FF;border-radius:8px;padding:3px 10px;cursor:pointer;">全体に戻す</button></sc-if></div>
-        <div style="position:relative;width:100%;height:{{ plotBoxH }}px;">
-          <!-- Y high (context word, directly above the Y tick column) -->
-          <div style="position:absolute;left:0;right:0;top:-2px;text-align:center;font-size:12px;font-weight:700;color:#5F6368;">▲ {{ yHighLabel }}</div>
-          <!-- Y low (context word, directly below the Y tick column) -->
-          <div style="position:absolute;left:0;right:0;bottom:0px;text-align:center;font-size:12px;font-weight:700;color:#5F6368;">▼ {{ yLowLabel }}</div>
-          <!-- X low -->
-          <div style="position:absolute;left:2px;top:50%;transform:translateY(-50%);font-size:12px;font-weight:700;color:#5F6368;writing-mode:vertical-rl;">◀ {{ xLowLabel }}</div>
-          <!-- X high -->
-          <div style="position:absolute;right:2px;top:50%;transform:translateY(-50%);font-size:12px;font-weight:700;color:#5F6368;writing-mode:vertical-rl;">{{ xHighLabel }} ▶</div>
-
-          <!-- plot inner area -->
-          <div id="mp-plotarea" onMouseDown="{{ onPlotDown }}" style="position:absolute;left:64px;right:64px;top:22px;bottom:22px;border:1px solid #E8EAED;border-radius:8px;background:linear-gradient(#FAFBFC,#FAFBFC);cursor:crosshair;">
-            <!-- grid -->
-            <div style="position:absolute;left:25%;top:0;bottom:0;width:1px;background:#EEF0F2;"></div>
-            <div style="position:absolute;left:50%;top:0;bottom:0;width:1px;background:#DADCE0;"></div>
-            <div style="position:absolute;left:75%;top:0;bottom:0;width:1px;background:#EEF0F2;"></div>
-            <div style="position:absolute;top:25%;left:0;right:0;height:1px;background:#EEF0F2;"></div>
-            <div style="position:absolute;top:50%;left:0;right:0;height:1px;background:#DADCE0;"></div>
-            <div style="position:absolute;top:75%;left:0;right:0;height:1px;background:#EEF0F2;"></div>
-
-            <!-- average (mean) reference lines in red -->
-            <sc-if value="{{ hasXMean }}" hint-placeholder-val="{{ false }}">
-              <div style="position:absolute;left:{{ xMeanPct }}%;top:0;bottom:0;width:1px;background:#D93025;opacity:0.65;pointer-events:none;z-index:3;"></div>
-              <div style="position:absolute;left:{{ xMeanPct }}%;bottom:2px;transform:translateX(-50%);font-size:10px;font-weight:700;color:#D93025;background:rgba(255,255,255,0.9);padding:0 3px;border-radius:3px;pointer-events:none;z-index:9;white-space:nowrap;">{{ xMeanLabel }}</div>
-            </sc-if>
-            <sc-if value="{{ hasYMean }}" hint-placeholder-val="{{ false }}">
-              <div style="position:absolute;top:{{ yMeanPct }}%;left:0;right:0;height:1px;background:#D93025;opacity:0.65;pointer-events:none;z-index:3;"></div>
-              <div style="position:absolute;top:{{ yMeanPct }}%;left:2px;transform:translateY(-50%);font-size:10px;font-weight:700;color:#D93025;background:rgba(255,255,255,0.9);padding:0 3px;border-radius:3px;pointer-events:none;z-index:9;white-space:nowrap;">{{ yMeanLabel }}</div>
-            </sc-if>
-
-            <!-- X axis: numbers on the center vertical crossing line -->
-            <sc-for list="{{ xTicks }}" as="t" hint-placeholder-count="5">
-              <div style="position:absolute;left:{{ t.pct }}%;top:50%;transform:translate(-50%,6px);font-size:11px;font-weight:700;color:#202124;font-family:'SF Mono',Menlo,Consolas,monospace;pointer-events:none;white-space:nowrap;background:rgba(255,255,255,0.92);padding:0 3px;border-radius:3px;z-index:8;">{{ t.label }}</div>
-            </sc-for>
-            <!-- Y axis: numbers on the center horizontal crossing line -->
-            <sc-for list="{{ yTicks }}" as="t" hint-placeholder-count="5">
-              <div style="position:absolute;top:{{ t.pct }}%;left:50%;transform:translate(calc(-100% - 6px),-50%);font-size:11px;font-weight:700;color:#202124;font-family:'SF Mono',Menlo,Consolas,monospace;pointer-events:none;white-space:nowrap;background:rgba(255,255,255,0.92);padding:0 3px;border-radius:3px;z-index:8;">{{ t.label }}</div>
-            </sc-for>
-
-            <!-- dots -->
-            <sc-for list="{{ dots }}" as="d" hint-placeholder-count="40">
-              <div class="scdot" onClick="{{ d.onClick }}" onMouseenter="{{ d.onEnter }}" onMouseleave="{{ d.onLeave }}" title="{{ d.title }}" style="{{ d.dotStyle }}"></div>
-            </sc-for>
-            <!-- stack count badges (separate layer) -->
-            <sc-for list="{{ stackBadges }}" as="b" hint-placeholder-count="6">
-              <div style="{{ b.style }}">{{ b.count }}</div>
-            </sc-for>
-            <!-- cluster hover list: every string sharing one plotted point -->
-            <sc-if value="{{ clusterPanel }}" hint-placeholder-val="{{ false }}">
-              <div class="sccluster" onMouseenter="{{ onClusterEnter }}" onMouseleave="{{ onClusterLeave }}" style="{{ clusterPanel.wrapStyle }}">
-                <div style="background:#fff;border:1px solid #DADCE0;border-radius:12px;box-shadow:0 6px 24px rgba(0,0,0,0.16);padding:8px;min-width:180px;max-width:260px;max-height:240px;overflow:auto;">
-                  <div style="font-size:10.5px;color:#80868B;padding:2px 6px 7px;border-bottom:1px solid #F1F3F4;margin-bottom:4px;">同じ位置に {{ clusterPanel.count }} 本</div>
-                  <sc-for list="{{ clusterPanel.rows }}" as="r" hint-placeholder-count="4">
-                    <div onClick="{{ r.onClick }}" style="display:flex;align-items:center;gap:8px;padding:6px 6px;border-radius:8px;cursor:pointer;font-size:12.5px;color:#202124;" style-hover="background:#F5F6F8;"><span style="{{ r.swatchStyle }}"></span><span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ r.name }}</span><span style="flex:0 0 auto;font-family:'SF Mono',Menlo,Consolas,monospace;font-size:11px;color:#5F6368;">{{ r.gauge }}</span></div>
-                  </sc-for>
-                </div>
-              </div>
-            </sc-if>
-            <!-- labels (separate layer so they sit above dots) -->
-            <sc-for list="{{ labels }}" as="l" hint-placeholder-count="10">
-              <div data-sclabel="1" style="{{ l.style }}">{{ l.text }}</div>
-            </sc-for>
-          </div>
-        </div>
-        <sc-if value="{{ emptyPlot }}" hint-placeholder-val="{{ false }}">
-          <div style="text-align:center;color:#80868B;font-size:13px;padding:8px 0 2px;">この 2 軸の両方に実測値がある弦がありません（軸を静的剛性など実データの多い軸に変えてください）。</div>
-        </sc-if>
-      </div>
-      <div style="margin-top:10px;font-size:11.5px;color:#9AA0A6;line-height:1.6;">点をクリックすると詳細（8軸レーダー・数値）を表示。色は素材（ポリエステル／ナイロン系／ナチュラルガット／アラミド／その他）、大きめの点はラボ8軸あり。静的剛性は全 650 本、8軸スコアはラボ計測の 110 本、動的剛性は 60 本のみ（未計測は「—」で表示し、推測で埋めていません）。</div>
-    </sc-if>
-
-    <!-- ===== 3D MAP ===== -->
-    <sc-if value="{{ threeView }}" hint-placeholder-val="{{ false }}">
-      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:16px;">
-        <span style="font-size:12px;color:#80868B;">X軸</span>
-        <select value="{{ xAxis }}" onChange="{{ onX }}" class="scsel"><sc-for list="{{ axisOptions }}" as="o" hint-placeholder-count="10"><option value="{{ o.k }}">{{ o.label }}</option></sc-for></select>
-        <span style="font-size:12px;color:#80868B;margin-left:6px;">Y軸</span>
-        <select value="{{ yAxis }}" onChange="{{ onY }}" class="scsel"><sc-for list="{{ axisOptions }}" as="o" hint-placeholder-count="10"><option value="{{ o.k }}">{{ o.label }}</option></sc-for></select>
-        <span style="font-size:12px;color:#80868B;margin-left:6px;">Z軸</span>
-        <select value="{{ zAxis }}" onChange="{{ onZ }}" class="scsel"><sc-for list="{{ axisOptions }}" as="o" hint-placeholder-count="10"><option value="{{ o.k }}">{{ o.label }}</option></sc-for></select>
-      </div>
-
-      <div style="margin-top:10px;border-top:1px solid #F1F3F4;padding-top:10px;">
-        <div style="font-size:12px;color:#80868B;margin-bottom:6px;">断面平面（3面を同時に使えます）</div>
-        <sc-for list="{{ planeRows }}" as="p" hint-placeholder-count="3">
-          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:7px;">
-            <label onClick="{{ p.onToggle }}" style="display:flex;align-items:center;gap:7px;cursor:pointer;min-width:210px;">
-              <span style="{{ p.boxStyle }}"><sc-if value="{{ p.on }}" hint-placeholder-val="{{ false }}"><i class="ph-bold ph-check" style="font-size:11px;color:#fff;"></i></sc-if></span>
-              <span style="width:11px;height:11px;border-radius:3px;background:{{ p.col }};display:inline-block;"></span>
-              <span style="font-size:12.5px;color:#202124;">{{ p.label }}</span>
-            </label>
-            <sc-if value="{{ p.on }}" hint-placeholder-val="{{ false }}">
-              <input type="range" min="-1" max="1" step="0.02" value="{{ p.frac }}" onInput="{{ p.onFrac }}" style="width:160px;accent-color:{{ p.col }};cursor:pointer;" />
-              <span style="font-size:12px;color:#202124;font-family:'SF Mono',Menlo,Consolas,monospace;min-width:150px;">{{ p.valueText }}</span>
-              <select value="{{ p.trim }}" onChange="{{ p.onTrim }}" class="scsel" style="height:32px;">
-                <option value="none">両側表示</option>
-                <option value="plus">＋側のみ</option>
-                <option value="minus">−側のみ</option>
-              </select>
-            </sc-if>
-          </div>
-        </sc-for>
-      </div>
-
-      <div style="margin-top:14px;background:#fff;border:1px solid #DADCE0;border-radius:20px;padding:16px 16px 14px;">
-        <div id="sc3d-host" style="position:relative;width:100%;height:620px;border:1px solid #E8EAED;border-radius:12px;overflow:hidden;background:radial-gradient(circle at 50% 35%,#FCFCFD,#F4F5F7);cursor:grab;touch-action:none;-webkit-touch-callout:none;"></div>
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:12px;">
-          <div style="display:flex;align-items:center;gap:14px;font-size:11.5px;color:#5F6368;flex-wrap:wrap;">
-            <span style="display:flex;align-items:center;gap:5px;"><span style="width:9px;height:9px;border-radius:50%;background:#007AFF;display:inline-block;"></span>ポリエステル</span>
-            <span style="display:flex;align-items:center;gap:5px;"><span style="width:9px;height:9px;border-radius:50%;background:#0F9D58;display:inline-block;"></span>ナイロン系</span>
-            <span style="display:flex;align-items:center;gap:5px;"><span style="width:9px;height:9px;border-radius:50%;background:#9334E0;display:inline-block;"></span>ナチュラルガット</span>
-            <span style="display:flex;align-items:center;gap:5px;"><span style="width:9px;height:9px;border-radius:50%;background:#F9AB00;display:inline-block;"></span>アラミド</span>
-            <span style="display:flex;align-items:center;gap:5px;"><span style="width:9px;height:9px;border-radius:50%;background:#80868B;display:inline-block;"></span>その他</span>
-          </div>
-          <div style="font-size:11.5px;color:#9AA0A6;">{{ threeStatus }}</div>
-        </div>
-        <div style="margin-top:8px;font-size:11.5px;color:#9AA0A6;line-height:1.6;">ドラッグで回転・ホイールでズーム・右ドラッグで平行移動。点にカーソルを合わせると弦名と3軸の値、クリックで詳細。3軸すべてに実測値がある弦のみ表示（推測で埋めていません）。</div>
-      </div>
-    </sc-if>
-
-    <!-- ===== TABLE ===== -->
-    <sc-if value="{{ tableView }}" hint-placeholder-val="{{ false }}">
-      <div style="margin-top:14px;background:#fff;border:1px solid #DADCE0;border-radius:20px;overflow:hidden;">
-        <div style="overflow:auto;max-height:70vh;">
-          <table style="width:100%;border-collapse:collapse;font-size:13px;min-width:1000px;-webkit-user-select:text;user-select:text;">
-            <thead>
-              <tr style="background:#FAFAFB;border-bottom:1px solid #E8EAED;">
-                <th style="text-align:center;padding:10px 6px;font-size:11px;font-weight:600;color:#80868B;white-space:nowrap;position:sticky;top:0;background:#FAFAFB;">比較</th>
-                <th style="text-align:left;padding:10px 10px 10px 4px;font-size:11px;font-weight:600;color:#80868B;white-space:nowrap;position:sticky;top:0;background:#FAFAFB;">弦名</th>
-                <th style="text-align:left;padding:10px;font-size:11px;font-weight:600;color:#80868B;white-space:nowrap;position:sticky;top:0;background:#FAFAFB;">構造・素材</th>
-                <th style="text-align:center;padding:10px;font-size:11px;font-weight:600;color:#80868B;white-space:nowrap;position:sticky;top:0;background:#FAFAFB;">形状</th>
-                <th style="text-align:center;padding:10px;font-size:11px;font-weight:600;color:#80868B;white-space:nowrap;position:sticky;top:0;background:#FAFAFB;">ゲージ</th>
-                <th onClick="{{ onSortStiff }}" style="{{ stiffHeadStyle }}">静的剛性{{ stiffCaret }}</th>
-                <th style="text-align:center;padding:10px 8px;font-size:11px;font-weight:600;color:#80868B;white-space:nowrap;position:sticky;top:0;background:#FAFAFB;">動的剛性</th>
-                <sc-for list="{{ axisHeaders }}" as="h" hint-placeholder-count="8"><th onClick="{{ h.onClick }}" title="{{ h.full }}" style="{{ h.style }}">{{ h.short }}{{ h.caret }}</th></sc-for>
-                <th style="text-align:center;padding:10px 14px;font-size:11px;font-weight:600;color:#80868B;white-space:nowrap;position:sticky;top:0;right:0;background:#FAFAFB;border-left:1px solid #E8EAED;">評価</th>
-              </tr>
-            </thead>
-            <tbody>
-              <sc-for list="{{ rows }}" as="r" hint-placeholder-count="24">
-                <tr onClick="{{ r.onToggle }}" style="{{ r.rowStyle }}" style-hover="background:#F7F8FA;">
-                  <td onClick="{{ stop }}" style="padding:9px 6px;text-align:center;"><input type="checkbox" checked="{{ r.cmpChecked }}" onChange="{{ r.onCmpToggle }}" style="width:15px;height:15px;accent-color:#007AFF;cursor:pointer;" /></td>
-                  <td style="padding:9px 10px 9px 4px;white-space:nowrap;"><div style="display:flex;align-items:center;gap:7px;"><i class="ph-bold ph-caret-right" style="{{ r.caretStyle }}"></i><div><div style="font-weight:600;font-size:13px;color:#202124;">{{ r.name }}<sc-if value="{{ r.hasLab }}" hint-placeholder-val="{{ false }}"><span style="font-size:9px;font-weight:700;color:#0057B8;background:#E1F0FF;border:1px solid #A9D2FF;border-radius:5px;padding:1px 5px;margin-left:6px;vertical-align:1px;white-space:nowrap;">ラボ8軸</span></sc-if><sc-if value="{{ r.hasDyn }}" hint-placeholder-val="{{ false }}"><span style="font-size:9px;font-weight:700;color:#0A5B35;background:#E6F4EA;border:1px solid #8FD0A8;border-radius:5px;padding:1px 5px;margin-left:4px;vertical-align:1px;white-space:nowrap;">詳細測定済み</span></sc-if></div><div style="font-size:11px;color:#80868B;">{{ r.brand }}</div></div></div></td>
-                  <td style="padding:9px 10px;white-space:nowrap;color:#5F6368;">{{ r.structMat }}</td>
-                  <td style="padding:9px 10px;text-align:center;white-space:nowrap;color:#5F6368;">{{ r.shape }}</td>
-                  <td style="padding:9px 10px;text-align:center;font-family:'SF Mono',Menlo,Consolas,monospace;color:#5F6368;">{{ r.gauge }}</td>
-                  <td style="padding:9px 10px;text-align:center;font-family:'SF Mono',Menlo,Consolas,monospace;font-weight:600;white-space:nowrap;">{{ r.stiffStr }}</td>
-                  <td style="padding:9px 8px;text-align:center;font-family:'SF Mono',Menlo,Consolas,monospace;font-weight:{{ r.dynWeight }};color:{{ r.dynColor }};white-space:nowrap;">{{ r.dynStr }}</td>
-                  <sc-for list="{{ r.cells }}" as="c" hint-placeholder-count="8"><td style="padding:9px 8px;text-align:center;font-family:'SF Mono',Menlo,Consolas,monospace;font-size:13px;font-weight:600;color:{{ c.color }};white-space:nowrap;">{{ c.text }}</td></sc-for>
-                  <td style="padding:9px 14px;text-align:center;white-space:nowrap;position:sticky;right:0;background:#fff;border-left:1px solid #F1F3F4;"><span style="{{ r.pillStyle }}">{{ r.evalText }}</span></td>
-                </tr>
-                <sc-if value="{{ r.expanded }}" hint-placeholder-val="{{ false }}">
-                  <tr>
-                    <td colspan="16" style="padding:0;border-bottom:1px solid #E8EAED;background:#FBFBFC;">
-                      <div style="display:flex;gap:26px;padding:18px 22px 22px;flex-wrap:wrap;animation:panelEnter 150ms ease-out;">
-                        <div style="flex:0 0 auto;">
-                          <div style="font-size:11px;font-weight:600;color:#80868B;margin-bottom:6px;">8軸レーダー</div>
-                          <sc-if value="{{ r.panel.hasLab }}" hint-placeholder-val="{{ false }}"><div>{{ r.panel.radarEl }}</div></sc-if>
-                          <sc-if value="{{ r.panel.noLab }}" hint-placeholder-val="{{ true }}"><div style="width:230px;height:230px;display:flex;align-items:center;justify-content:center;border:1px dashed #DADCE0;border-radius:14px;color:#80868B;font-size:12px;text-align:center;line-height:1.6;">ラボ8軸データ<br>未取得</div></sc-if>
-                        </div>
-                        <div style="flex:1 1 320px;min-width:280px;">
-                          <div style="font-size:11px;font-weight:600;color:#80868B;margin-bottom:8px;">軸ごとのスコア</div>
-                          <sc-for list="{{ r.panel.barsRows }}" as="a" hint-placeholder-count="8">
-                            <div style="display:flex;align-items:center;gap:10px;font-size:12.5px;margin-bottom:8px;">
-                              <span style="flex:0 0 74px;color:#5F6368;">{{ a.label }}</span>
-                              <span style="flex:1;height:7px;background:#EEF0F2;border-radius:4px;overflow:hidden;"><span style="display:block;height:100%;width:{{ a.pct }};background:#007AFF;border-radius:4px;"></span></span>
-                              <span style="flex:0 0 32px;text-align:right;font-family:'SF Mono',Menlo,Consolas,monospace;font-weight:600;color:{{ a.color }};">{{ a.text }}</span>
-                            </div>
-                          </sc-for>
-                        </div>
-                        <div style="flex:1 1 220px;min-width:220px;display:flex;flex-direction:column;gap:12px;">
-                          <div style="background:#fff;border:1px solid #E8EAED;border-radius:12px;padding:11px 13px;">
-                            <div style="display:flex;justify-content:space-between;font-size:12.5px;"><span style="color:#5F6368;">静的剛性</span><span style="font-family:'SF Mono',Menlo,Consolas,monospace;font-weight:600;">{{ r.panel.stiffStr }} kg/mm</span></div>
-                            <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-top:6px;"><span style="color:#5F6368;">動的剛性</span><span style="font-family:'SF Mono',Menlo,Consolas,monospace;font-weight:{{ r.dynWeight }};color:{{ r.panel.dynColor }};">{{ r.panel.dynStr }}</span></div>
-                            <div style="font-size:11px;color:#80868B;line-height:1.5;border-top:1px solid #F1F3F4;margin-top:7px;padding-top:7px;">{{ r.panel.hint }}</div>
-                          </div>
-                          <div style="background:#fff;border:1px solid #E8EAED;border-radius:12px;padding:11px 13px;">
-                            <div style="font-size:11px;font-weight:600;color:#80868B;margin-bottom:5px;">試打メモ</div>
-                            <div style="font-size:12px;color:{{ r.panel.memoColor }};line-height:1.5;">{{ r.panel.memoText }}</div>
-                          </div>
-                          <div onClick="{{ r.panel.onOpenDetail }}" style="font-size:12px;font-weight:600;color:#007AFF;background:#E1F0FF;border:1px solid #A9D2FF;border-radius:9px;padding:8px 12px;cursor:pointer;text-align:center;">詳細ページを開く</div>
-                        </div>
-                      </div>
-                    </td>
-                  </tr>
-                </sc-if>
-              </sc-for>
-            </tbody>
-          </table>
-        </div>
-      </div>
-      <div style="margin-top:10px;font-size:11.5px;color:#9AA0A6;">列見出し（静的剛性・各軸）クリックで並べ替え。行クリックで軸スコア・レーダーを展開。チェックで最大 4 本まで選んで比較。8 軸が「—」の弦はラボ未計測（推測で埋めていません）。</div>
-    </sc-if>
-
+    <div class="summary" id="summary"></div>
   </div>
 
-  <!-- Detail modal -->
-  <sc-if value="{{ detail }}" hint-placeholder-val="{{ false }}">
-    <div onClick="{{ onCloseDetail }}" style="position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:60;display:flex;align-items:center;justify-content:center;padding:24px;">
-      <div onClick="{{ stop }}" style="background:#fff;border-radius:20px;max-width:640px;width:100%;max-height:86vh;overflow:auto;padding:22px 24px 26px;animation:panelEnter 150ms ease-out;">
-        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;">
-          <div>
-            <div style="font-size:18px;font-weight:700;">{{ detail.name }}</div>
-            <div style="font-size:12.5px;color:#80868B;margin-top:2px;">{{ detail.brand }} · {{ detail.gauge }}mm · {{ detail.material }} · {{ detail.shape }}</div>
-          </div>
-          <div onClick="{{ onCloseDetail }}" style="cursor:pointer;color:#80868B;font-size:22px;line-height:1;padding:2px 4px;">×</div>
-        </div>
-        <div style="display:flex;gap:24px;margin-top:16px;flex-wrap:wrap;">
-          <div style="flex:0 0 auto;">
-            <div style="font-size:11px;font-weight:600;color:#80868B;margin-bottom:6px;">8軸レーダー</div>
-            <sc-if value="{{ detail.hasLab }}" hint-placeholder-val="{{ true }}"><div>{{ detail.radarEl }}</div></sc-if>
-            <sc-if value="{{ detail.noLab }}" hint-placeholder-val="{{ false }}"><div style="width:230px;height:230px;display:flex;align-items:center;justify-content:center;border:1px dashed #DADCE0;border-radius:14px;color:#80868B;font-size:12px;text-align:center;line-height:1.6;">ラボ8軸データ<br>未取得</div></sc-if>
-          </div>
-          <div style="flex:1 1 240px;min-width:220px;">
-            <div style="display:flex;flex-direction:column;gap:7px;">
-              <div style="display:flex;justify-content:space-between;font-size:13px;border-bottom:1px solid #F1F3F4;padding-bottom:6px;"><span style="color:#5F6368;">静的剛性</span><span style="font-family:'SF Mono',Menlo,Consolas,monospace;font-weight:600;">{{ detail.stiffStr }} kg/mm</span></div>
-              <div style="display:flex;justify-content:space-between;font-size:13px;border-bottom:1px solid #F1F3F4;padding-bottom:6px;"><span style="color:#5F6368;">動的剛性</span><span style="font-family:'SF Mono',Menlo,Consolas,monospace;font-weight:600;color:{{ detail.dynColor }};">{{ detail.dynStr }}</span></div>
-              <sc-for list="{{ detail.axisRows }}" as="a" hint-placeholder-count="8">
-                <div style="display:flex;align-items:center;gap:10px;font-size:12.5px;">
-                  <span style="flex:0 0 74px;color:#5F6368;">{{ a.label }}</span>
-                  <span style="flex:1;height:7px;background:#EEF0F2;border-radius:4px;overflow:hidden;"><span style="display:block;height:100%;width:{{ a.w }};background:#007AFF;border-radius:4px;"></span></span>
-                  <span style="flex:0 0 30px;text-align:right;font-family:'SF Mono',Menlo,Consolas,monospace;font-weight:600;color:{{ a.color }};">{{ a.text }}</span>
-                </div>
-              </sc-for>
-            </div>
-          </div>
-        </div>
+  <div class="controls">
+    <div class="search">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#80868B" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+      <input id="search" placeholder="名前で検索">
+    </div>
+    <select id="brand">
+      <option value="">メーカー：すべて</option>
+      <option value="Head">Head</option>
+      <option value="Yonex">Yonex</option>
+      <option value="Babolat">Babolat</option>
+      <option value="Tecnifibre">Tecnifibre</option>
+      <option value="Big Breakers">Big Breakers</option>
+    </select>
+    <select id="material">
+      <option value="">素材：すべて</option>
+      <option value="コポリエステル">コポリエステル</option>
+      <option value="コポリアミド">コポリアミド</option>
+      <option value="ナチュラルガット">ナチュラルガット</option>
+    </select>
+    <select id="shape">
+      <option value="">形状：すべて</option>
+      <option value="ラウンド">ラウンド</option>
+      <option value="八角">八角</option>
+    </select>
+    <select id="frame">
+      <option value="">フレーム：指定なし</option>
+      <option value="boom">BOOM PRO（低パワー）</option>
+      <option value="ezone">EZONE 98（高パワー）</option>
+      <option value="pure">Pure Drive（高パワー）</option>
+    </select>
+    <div class="spacer"></div>
+    <div class="legend">
+      <span><span class="sw" style="background:#007AFF"></span>客観（ラボ）</span>
+      <span><span class="sw" style="background:#FF9500"></span>主観（試打）</span>
+      <span><span class="sw" style="background:#FCE3C4;border:1px solid #F0B968"></span>ズレ大</span>
+    </div>
+  </div>
+
+  <div id="framenote"></div>
+
+  <div class="settings">
+    <div class="grp">
+      <label class="switch"><input type="checkbox" id="set-highlight" checked><span class="slider"></span></label>
+      <span>ズレを強調</span>
+    </div>
+    <div class="grp">
+      <span>強調する差</span>
+      <input type="range" id="set-threshold" min="10" max="40" step="5" value="20">
+      <span class="thval" id="set-threshold-val">20pt</span>
+    </div>
+    <div class="grp sep">
+      <label class="switch"><input type="checkbox" id="set-subj" checked><span class="slider"></span></label>
+      <span>主観スコアを併記</span>
+    </div>
+    <div class="grp sep">
+      <span>行の密度</span>
+      <div class="seg" id="set-density">
+        <button data-d="標準" class="on">標準</button>
+        <button data-d="コンパクト">コンパクト</button>
       </div>
     </div>
-  </sc-if>
+  </div>
 
-  <!-- Compare floating bar -->
-  <sc-if value="{{ cmpBarVisible }}" hint-placeholder-val="{{ false }}">
-    <div style="position:fixed;right:22px;bottom:22px;z-index:55;display:flex;gap:8px;align-items:center;background:#fff;border:1px solid #DADCE0;border-radius:14px;padding:10px 14px;box-shadow:0 4px 16px rgba(0,0,0,0.13);">
-      <span style="font-size:12.5px;color:#5F6368;">選択中 {{ cmpCount }} / 4 本</span>
-      <button onClick="{{ onCmpGo }}" style="{{ cmpGoStyle }}">比較する</button>
-      <div onClick="{{ onCmpClear }}" style="font-size:12px;color:#5F6368;cursor:pointer;text-decoration:underline;">クリア</div>
-    </div>
-  </sc-if>
+  <div class="tablecard"><div class="scroller">
+    <table>
+      <thead><tr id="headrow"></tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div></div>
 
-  <!-- Compare modal -->
-  <sc-if value="{{ cmpOpen }}" hint-placeholder-val="{{ false }}">
-    <div onClick="{{ onCloseCmp }}" style="position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:70;display:flex;align-items:center;justify-content:center;padding:24px;">
-      <div onClick="{{ stop }}" style="background:#fff;border-radius:20px;max-width:780px;width:100%;max-height:88vh;overflow:auto;padding:22px 24px 26px;animation:panelEnter 150ms ease-out;">
-        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;">
-          <div style="font-size:18px;font-weight:700;">ストリング比較（{{ cmpCount }} 本）</div>
-          <div onClick="{{ onCloseCmp }}" style="cursor:pointer;color:#80868B;font-size:22px;line-height:1;padding:2px 4px;">×</div>
-        </div>
-        <div style="display:flex;gap:16px;margin-top:10px;flex-wrap:wrap;">
-          <sc-for list="{{ cmpLegend }}" as="lg" hint-placeholder-count="4">
-            <span style="display:flex;align-items:center;gap:6px;font-size:12px;color:#5F6368;"><span style="width:14px;height:3px;border-radius:2px;display:inline-block;background:{{ lg.color }};"></span>{{ lg.label }}</span>
-          </sc-for>
-        </div>
-        <div style="display:flex;justify-content:center;margin-top:14px;">
-          <sc-if value="{{ cmpHasRadar }}" hint-placeholder-val="{{ false }}"><div>{{ cmpRadarEl }}</div></sc-if>
-          <sc-if value="{{ cmpNoRadar }}" hint-placeholder-val="{{ true }}"><div style="font-size:12.5px;color:#80868B;padding:40px 20px;">選んだ弦にラボ8軸データがありません。</div></sc-if>
-        </div>
-        <div style="margin-top:18px;overflow:auto;">
-          <table style="width:100%;border-collapse:collapse;font-size:12.5px;">
-            <thead><tr style="border-bottom:1px solid #E8EAED;">
-              <th style="text-align:left;padding:7px 8px;color:#80868B;font-weight:600;font-size:11px;">弦</th>
-              <th style="text-align:right;padding:7px 8px;color:#80868B;font-weight:600;font-size:11px;">ゲージ</th>
-              <th style="text-align:right;padding:7px 8px;color:#80868B;font-weight:600;font-size:11px;">静的剛性</th>
-              <th style="text-align:left;padding:7px 8px;color:#80868B;font-weight:600;font-size:11px;">構造・素材</th>
-              <th style="text-align:left;padding:7px 8px;color:#80868B;font-weight:600;font-size:11px;">形状</th>
-            </tr></thead>
-            <tbody>
-            <sc-for list="{{ cmpRows }}" as="r" hint-placeholder-count="4">
-              <tr style="border-bottom:1px solid #F1F3F4;">
-                <td style="padding:8px;font-weight:600;white-space:nowrap;"><span style="width:9px;height:9px;border-radius:50%;display:inline-block;background:{{ r.color }};margin-right:6px;"></span>{{ r.name }}</td>
-                <td style="padding:8px;text-align:right;font-family:'SF Mono',Menlo,Consolas,monospace;">{{ r.gauge }}</td>
-                <td style="padding:8px;text-align:right;font-family:'SF Mono',Menlo,Consolas,monospace;font-weight:600;">{{ r.stiffStr }}</td>
-                <td style="padding:8px;color:#5F6368;white-space:nowrap;">{{ r.matStr }}</td>
-                <td style="padding:8px;color:#5F6368;white-space:nowrap;">{{ r.shape }}</td>
-              </tr>
-            </sc-for>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  </sc-if>
-</div>
-</x-dc>
-<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1320,&quot;height&quot;:860}}">
-class Component extends DCLogic {
-  state = {
-    view: "table",
-    xAxis: "0",   // パワー
-    yAxis: "3",   // スピン
-    zAxis: "stiff", // 静的剛性
-    planes: { xy:{on:false,frac:0,trim:"none"}, yz:{on:false,frac:0,trim:"none"}, zx:{on:false,frac:0,trim:"none"} },
-    search: "", brand: "", mat: "", shape: "",
-    brands: [], brandOpen: false,
-    centerMean: false,
-    hoverId: null, detailId: null, mpZoom: null,
-    sortKey: "stiff", sortDir: "asc",
-    alwaysLabels: true,
-    expandedId: null,
-    cmpIds: [],
-    cmpOpen: false,
+  <div class="foot">行をクリックすると 8 軸レーダー・バー・試打メモが開きます。動的剛性／帯別剛性／8軸スコアは有料会員のラボデータ。未取得は「空欄（—）」で表示し、推測で埋めていません。</div>
+</div></div>
+
+<script type="text/plain" id="appsrc">
+(function(){
+  "use strict";
+
+  var AXES = ["パワー","弾き","弾性","スピン","コントロール","維持","安定","快適"];
+  var AXES_SHORT = ["パワー","弾き","弾性","スピン","コント","維持","安定","快適"];
+
+  var DATA = window.__CLOUD_DATA__;
+
+  var FRAMES = {
+    boom: { label:"BOOM PRO", power:"低", lo:0.55, hi:0.95, advice:"柔らかめ" },
+    ezone:{ label:"EZONE 98", power:"高", lo:1.05, hi:1.25, advice:"硬め" },
+    pure: { label:"Pure Drive", power:"高", lo:1.05, hi:1.25, advice:"硬め" }
   };
 
-  AXES = ["パワー","弾き","弾性","スピン","コントロール","維持","安定","快適"];
-  AXES_SHORT = ["パワー","弾き","弾性","スピン","コント","維持","安定","快適"];
-  CATBAR = { honmei:"#007AFF", ka:"#0F9D58", bimyo:"#FBBC04", kyakka:"#D93025", mishida:"#C7C7CC" };
-  STRUCT_COL = { "モノ":"#007AFF", "マルチ":"#0F9D58", "ガット":"#9334E0" };
-  MATFAM_COL = { "ポリエステル":"#007AFF", "ナイロン系":"#0F9D58", "ナチュラルガット":"#9334E0", "アラミド":"#F9AB00", "その他":"#80868B" };
-  PILL = {
-    honmei:{fg:"#0057B8",bg:"#E1F0FF",bd:"#A9D2FF"}, ka:{fg:"#0A5B35",bg:"#E6F4EA",bd:"#A9D9BE"},
-    bimyo:{fg:"#7E5D00",bg:"#FEF7E0",bd:"#EAD79A"}, kyakka:{fg:"#A31511",bg:"#FCE8E6",bd:"#EFB7B2"},
-    mishida:{fg:"#5F6368",bg:"#F1F3F4",bd:"#DADCE0"},
+  var PILL = {
+    honmei: { fg:"#0057B8", bg:"#E1F0FF", bd:"#A9D2FF" },
+    ka:     { fg:"#0A5B35", bg:"#E6F4EA", bd:"#A9D9BE" },
+    bimyo:  { fg:"#7E5D00", bg:"#FEF7E0", bd:"#EAD79A" },
+    kyakka: { fg:"#A31511", bg:"#FCE8E6", bd:"#EFB7B2" },
+    mishida:{ fg:"#5F6368", bg:"#F1F3F4", bd:"#DADCE0" }
   };
-  CMP_COLORS = ["#007AFF","#1C1C1E","#FF9500","#34C759"];
 
-  componentDidMount() {
-    if (!(window.SC_DATA && window.SC_DATA.length)) {
-      this._iv = setInterval(() => {
-        if (window.SC_DATA && window.SC_DATA.length) { clearInterval(this._iv); this.forceUpdate(); }
-      }, 60);
-    }
-    this.dedupeLabels();
-    this._onResize = () => { if (this._rz) cancelAnimationFrame(this._rz); this._rz = requestAnimationFrame(() => this.dedupeLabels()); };
-    window.addEventListener('resize', this._onResize);
-    this._onDocDown = (e) => { if (this.state.hoverId!=null && !e.target.closest('.scdot') && !e.target.closest('.sccluster')) this.setState({hoverId:null}); };
-    this._onKey = (e) => { if (e.key==='Escape' && this.state.hoverId!=null) this.setState({hoverId:null}); };
-    document.addEventListener('mousedown', this._onDocDown, true);
-    document.addEventListener('keydown', this._onKey);
+  var state = { search:"", brand:"", material:"", shape:"", frame:"", sortKey:"brand", sortDir:"asc", expandedId:null,
+    highlightDelta:true, threshold:20, showSubjective:true, density:"標準" };
+
+  function esc(s){ return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+
+  function radarPoints(vals){
+    return vals.map(function(v,i){
+      var ang=(-90+i*45)*Math.PI/180, r=(v/100)*90;
+      return (120+r*Math.cos(ang)).toFixed(1)+","+(120+r*Math.sin(ang)).toFixed(1);
+    }).join(" ");
   }
-  componentWillUnmount() { if (this._iv) clearInterval(this._iv); if (this._onResize) window.removeEventListener('resize', this._onResize); this.stop3D(); if (this._onDocDown) document.removeEventListener('mousedown', this._onDocDown, true); if (this._onKey) document.removeEventListener('keydown', this._onKey); }
 
-  componentDidUpdate() { if (this._dd) clearTimeout(this._dd); this._dd = setTimeout(() => this.dedupeLabels(), 60); this.ensure3D(); }
-
-  // ---------- 3D map (Three.js) ----------
-  _loadScript(src) {
-    return new Promise((resolve, reject) => {
-      const existing = document.querySelector('script[data-sc3d="' + src + '"]');
-      if (existing) { if (existing._loaded) resolve(); else { existing.addEventListener('load', () => resolve()); existing.addEventListener('error', reject); } return; }
-      const el = document.createElement('script');
-      el.src = src; el.async = false; el.setAttribute('data-sc3d', src);
-      el.addEventListener('load', () => { el._loaded = true; resolve(); });
-      el.addEventListener('error', reject);
-      document.head.appendChild(el);
+  function axesGeom(){
+    return AXES.map(function(label,i){
+      var ang=(-90+i*45)*Math.PI/180, c=Math.cos(ang), s=Math.sin(ang), anchor="middle";
+      if(c>0.3) anchor="start"; else if(c<-0.3) anchor="end";
+      return { label:label, ex:(120+90*c).toFixed(1), ey:(120+90*s).toFixed(1), lx:(120+110*c).toFixed(1), ly:(120+110*s+3).toFixed(1), anchor:anchor };
     });
   }
-  loadThreeLibs() {
-    if (this._threeLibsPromise) return this._threeLibsPromise;
-    this._threeLibsPromise = (async () => {
-      if (typeof THREE === "undefined" || !window.THREE) {
-        await this._loadScript("https://unpkg.com/three@0.128.0/build/three.min.js");
-      }
-      if (!window.THREE.OrbitControls) {
-        await this._loadScript("https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js");
-      }
-    })();
-    return this._threeLibsPromise;
+
+  function radarSVG(obj, subj){
+    var axes=axesGeom(), p="";
+    p+='<svg width="240" height="240" style="display:block;overflow:visible">';
+    [25,50,75,100].forEach(function(v){ p+='<polygon points="'+radarPoints([v,v,v,v,v,v,v,v])+'" fill="none" stroke="#E8EAED" stroke-width="1"/>'; });
+    axes.forEach(function(a){ p+='<line x1="120" y1="120" x2="'+a.ex+'" y2="'+a.ey+'" stroke="#E8EAED" stroke-width="1"/>'; });
+    p+='<polygon points="'+radarPoints(obj)+'" fill="rgba(0,122,255,0.15)" stroke="#007AFF" stroke-width="2" stroke-linejoin="round"/>';
+    if(subj) p+='<polygon points="'+radarPoints(subj)+'" fill="rgba(255,149,0,0.10)" stroke="#FF9500" stroke-width="2" stroke-linejoin="round"/>';
+    axes.forEach(function(a){ p+='<text x="'+a.lx+'" y="'+a.ly+'" font-size="10" fill="#5F6368" text-anchor="'+a.anchor+'">'+a.label+'</text>'; });
+    p+='</svg>';
+    return p;
   }
-  ensure3D() {
-    if (this.state.view !== "threed") { this.stop3D(); return; }
-    if (typeof window.THREE === "undefined" || !window.THREE.OrbitControls) {
-      // deterministically load three.js then OrbitControls (in order), then re-render
-      if (!this._3dLoading) {
-        this._3dLoading = true;
-        this.loadThreeLibs().then(() => { this._3dLoading = false; this.forceUpdate(); })
-          .catch(() => { this._3dLoading = false; });
-      }
-      return;
-    }
-    const host = document.getElementById("sc3d-host");
-    if (!host) return;
-    if (!this._three) this.init3D(host);
-    const key = this.state.xAxis + "|" + this.state.yAxis + "|" + this.state.zAxis + "|" + JSON.stringify(this.state.planes) + "|" + this._filterKey();
-    if (key !== this._3dKey) { this._3dKey = key; this.build3D(); }
-    this._three.renderer.setAnimationLoop(() => {
-      this._three.controls.update();
-      this._three.renderer.render(this._three.scene, this._three.camera);
+
+  function stiffHint(d){
+    if(!d.obj && d.evalCat==="mishida") return "未試打。静的剛性のみ把握。試打して体感を重ねたい候補。";
+    if(!d.obj) return "ラボの8軸スコアは未取得。静的剛性のみ把握。";
+    if(d.stiff<=0.85) return "静的剛性は柔らかめの帯。低パワーフレーム向き。";
+    if(d.stiff>=1.10) return "静的剛性は硬めの帯。高パワーフレーム向き。";
+    return "静的剛性は中間帯。汎用的に合わせやすい。";
+  }
+
+  function getFrame(){ return FRAMES[state.frame]||null; }
+
+  function filteredSorted(){
+    var f=getFrame();
+    var list=DATA.filter(function(d){
+      if(state.search && (d.brand+" "+d.name).toLowerCase().indexOf(state.search.toLowerCase())===-1) return false;
+      if(state.brand && d.brand!==state.brand) return false;
+      if(state.material && d.matFam!==state.material) return false;
+      if(state.shape && d.shpFam!==state.shape) return false;
+      return true;
+    });
+    var dir=state.sortDir==="asc"?1:-1;
+    list=list.slice().sort(function(a,b){
+      var av,bv;
+      if(state.sortKey==="brand"){ return ((a.brand+" "+a.name).localeCompare(b.brand+" "+b.name,"ja"))*dir; }
+      if(state.sortKey==="stiff"){ av=a.stiff; bv=b.stiff; }
+      else { av=a.obj?a.obj[state.sortKey]:null; bv=b.obj?b.obj[state.sortKey]:null; }
+      if(av==null && bv==null) return 0;
+      if(av==null) return 1;
+      if(bv==null) return -1;
+      return (av-bv)*dir;
+    });
+    return list;
+  }
+
+  function renderHead(){
+    var h=document.getElementById("headrow");
+    var html="";
+    html+='<th class="cmpc" title="比較に追加">比較</th>';
+    var sb=state.sortKey==="brand";
+    html+='<th class="sortable'+(sb?" active":"")+'" data-sort="brand">弦名'+(sb?(state.sortDir==="asc"?" ▲":" ▼"):"")+'</th><th>構造・素材</th><th>形状</th>';
+    html+='<th class="c">ゲージ (mm)</th>';
+    var sa=state.sortKey==="stiff";
+    html+='<th class="c sortable'+(sa?' active':'')+'" data-sort="stiff">静的剛性'+(sa?(state.sortDir==="asc"?" ▲":" ▼"):"")+'<div class="unit">kg/mm</div></th>';
+    html+='<th class="c">動的剛性<div class="unit">g/mm</div></th>';
+    AXES_SHORT.forEach(function(s,i){
+      var act=state.sortKey===i;
+      html+='<th class="c sortable'+(act?' active':'')+'" data-sort="'+i+'" title="'+AXES[i]+'">'+s+(act?(state.sortDir==="asc"?" ▲":" ▼"):"")+'</th>';
+    });
+    html+='<th class="eval">評価</th>';
+    h.innerHTML=html;
+    [].forEach.call(h.querySelectorAll(".sortable"),function(th){
+      th.addEventListener("click",function(){ setSort(th.getAttribute("data-sort")); });
     });
   }
-  stop3D() { if (this._three) { this._three.renderer.setAnimationLoop(null); } }
-  _filterKey() {
-    const s = this.state;
-    return s.search + "~" + (s.brands||[]).join(",") + "~" + s.mat + "~" + s.shape;
+
+  function setSort(key){
+    if(key!=="stiff"&&key!=="brand") key=parseInt(key,10);
+    if(state.sortKey===key){ state.sortDir=state.sortDir==="asc"?"desc":"asc"; }
+    else { state.sortKey=key; state.sortDir=(key==="stiff"||key==="brand")?"asc":"desc"; }
+    render();
   }
-  init3D(host) {
-    const W = host.clientWidth, H = host.clientHeight;
-    const scene = new THREE.Scene();
-    scene.background = null;
-    const camera = new THREE.PerspectiveCamera(45, W/H, 1, 4000);
-    camera.position.set(150, 120, 180);
-    const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true, preserveDrawingBuffer:true });
-    renderer.setPixelRatio(window.devicePixelRatio || 1);
-    renderer.setSize(W, H);
-    host.appendChild(renderer.domElement);
-    const controls = new THREE.OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true; controls.dampingFactor = 0.08;
-    controls.target.set(0, 0, 0);
-    scene.add(new THREE.AmbientLight(0xffffff, 0.9));
-    const dir = new THREE.DirectionalLight(0xffffff, 0.5); dir.position.set(1,1,1); scene.add(dir);
-    const pointsGroup = new THREE.Group(); scene.add(pointsGroup);
-    const axisGroup = new THREE.Group(); scene.add(axisGroup);
-    const raycaster = new THREE.Raycaster(); raycaster.params.Points = { threshold: 3 };
-    const tip = document.createElement("div");
-    tip.style.cssText = "position:absolute;pointer-events:none;z-index:30;background:#202124;color:#fff;font-size:12px;line-height:1.5;padding:7px 9px;border-radius:8px;box-shadow:0 4px 14px rgba(0,0,0,0.25);white-space:nowrap;display:none;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;";
-    host.appendChild(tip);
-    this._three = { scene, camera, renderer, controls, pointsGroup, axisGroup, raycaster, tip, host, meshes:[], hoverMesh:null };
-    // interaction
-    const onMove = (e) => {
-      const r = renderer.domElement.getBoundingClientRect();
-      const mx = ((e.clientX - r.left) / r.width) * 2 - 1;
-      const my = -((e.clientY - r.top) / r.height) * 2 + 1;
-      raycaster.setFromCamera({ x:mx, y:my }, camera);
-      const hit = raycaster.intersectObjects(this._three.meshes)[0];
-      if (hit) {
-        const d = hit.object.userData.d;
-        tip.innerHTML = "<b>" + d.brand + " " + d.name + "</b><br>" + this._three.tipText(d);
-        tip.style.display = "block";
-        tip.style.left = (e.clientX - r.left + 12) + "px";
-        tip.style.top = (e.clientY - r.top + 12) + "px";
-        host.style.cursor = "pointer";
-        if (this._three.hoverMesh && this._three.hoverMesh !== hit.object) this._three.hoverMesh.scale.setScalar(1);
-        hit.object.scale.setScalar(1.7); this._three.hoverMesh = hit.object;
-      } else {
-        tip.style.display = "none"; host.style.cursor = "grab";
-        if (this._three.hoverMesh) { this._three.hoverMesh.scale.setScalar(1); this._three.hoverMesh = null; }
+
+  function axisCell(d,i){
+    var o=d.obj?d.obj[i]:null, sv=d.subj?d.subj[i]:null;
+    var delta=(o!=null&&sv!=null)?Math.abs(o-sv):0;
+    var big=state.highlightDelta && delta>=state.threshold;
+    var html='<td class="c'+(big?' big':'')+'">';
+    html+='<div class="axisval '+(o!=null?'obj':'objnull')+'">'+(o!=null?o:"—")+'</div>';
+    if(sv!=null && state.showSubjective) html+='<div class="axissubj subj">'+sv+'</div>';
+    html+='</td>';
+    return html;
+  }
+
+  function renderRow(d, frame){
+    var p=PILL[d.evalCat];
+    var rec=!!(frame && d.stiff>=frame.lo && d.stiff<=frame.hi);
+    var expanded=state.expandedId===d.id;
+    var html='<tr class="data'+(expanded?' expanded':'')+'" data-id="'+d.id+'">';
+    html+='<td class="cmpc"><input type="checkbox" class="cmp-chk" data-cmp="'+d.id+'"'+((state.cmpIds||[]).indexOf(d.id)>=0?' checked':'')+'></td>';
+    html+='<td><div class="namecell"><svg class="caret" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#80868B" stroke-width="2.5"><path d="M9 6l6 6-6 6"/></svg><div><div class="name">'+esc(d.name)+'</div><div class="brand">'+esc(d.brand)+((d.tech&&d.tech.dyn!=null)?' <span class="labmark" title="詳細測定済み（動的剛性まで取得）">詳細</span>':'')+'</div></div></div></td>';
+    html+='<td style="color:#5F6368">'+esc(d.structure)+'・'+esc(d.material)+'</td>';
+    html+='<td style="color:#5F6368">'+esc(d.shape)+'</td>';
+    html+='<td class="c mono" style="color:#5F6368">'+d.gauge+'</td>';
+    html+='<td class="c mono" style="font-weight:600">'+d.stiff.toFixed(2)+'</td>';
+    html+=(d.tech&&d.tech.dyn!=null)?'<td class="c mono" style="font-weight:600">'+d.tech.dyn+'</td>':'<td class="c mono" style="color:#C7C7CC">—</td>';
+    for(var i=0;i<8;i++) html+=axisCell(d,i);
+    html+='<td class="eval"><span class="pill" style="color:'+p.fg+';background:'+p.bg+';border-color:'+p.bd+'">'+esc(d.evalText)+'</span>'+(rec?'<span class="rec">推奨</span>':'')+'</td>';
+    html+='</tr>';
+    if(expanded) html+=renderPanel(d);
+    return html;
+  }
+
+  function renderPanel(d){
+    var html='<tr class="expanded"><td class="panelcell" colspan="16"><div class="panel">';
+    // radar
+    html+='<div class="pcol-radar"><div class="plabel">8軸レーダー（客観 / 主観の重ね）</div>';
+    if(d.obj){
+      html+=radarSVG(d.obj,d.subj);
+      html+='<div class="radarlegend"><span><span class="rl" style="background:#007AFF"></span>客観</span>'+(d.subj?'<span><span class="rl" style="background:#FF9500"></span>主観</span>':'')+'</div>';
+    } else {
+      html+='<div class="nolab"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#80868B" stroke-width="1.8"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><div>ラボデータ未取得<br>（有料会員のラボ計測）</div></div>';
+    }
+    html+='</div>';
+    // bars
+    if(d.obj){
+      html+='<div class="pcol-bars"><div class="plabel">軸ごとのスコア</div>';
+      for(var i=0;i<8;i++){
+        var o=d.obj[i], sv=d.subj?d.subj[i]:null, delta=sv!=null?Math.abs(o-sv):0, big=state.highlightDelta && delta>=state.threshold;
+        html+='<div class="bar-row'+(big?' big':'')+'">';
+        html+='<div class="bar-label">'+AXES[i]+'</div>';
+        html+='<div class="bar-tracks"><div class="track"><div style="width:'+o+'%;background:#007AFF"></div></div>'+(sv!=null?'<div class="track"><div style="width:'+sv+'%;background:#FF9500"></div></div>':'')+'</div>';
+        html+='<div class="bar-nums"><span style="color:#007AFF;font-weight:600">'+o+'</span>'+(sv!=null?'<span style="color:#80868B"> / </span><span style="color:#E07B00;font-weight:600">'+sv+'</span>':'')+'</div>';
+        html+='<div class="bar-delta">'+(big?'<span class="deltabadge">差'+delta+'</span>':'')+'</div>';
+        html+='</div>';
       }
+      html+='</div>';
+    }
+    // notes
+    html+='<div class="pcol-notes">';
+    html+='<button class="dv-open" data-dv="'+d.id+'">詳細ページを開く</button>';
+    html+='<div><div class="plabel-sm">試打メモ</div><div class="memo'+(d.memo?'':' empty')+'">'+(d.memo?esc(d.memo):"メモなし")+'</div></div>';
+    html+='<div><div class="plabel-sm">剛性の裏付け</div><div class="stiffbox">';
+    html+='<div class="stiffrow"><span class="k">静的剛性</span><span class="v">'+d.stiff.toFixed(2)+' kg/mm</span></div>';
+    html+=(d.tech&&d.tech.dyn!=null)?'<div class="stiffrow"><span class="k">動的剛性</span><span class="v">'+d.tech.dyn+' g/mm</span></div>':'<div class="stiffrow"><span class="k">動的剛性</span><span class="vmuted">空欄（未取得）</span></div>';
+    html+='<div class="stiffhint">'+stiffHint(d)+'</div>';
+    html+='</div></div>';
+    html+='</div>';
+    html+='</div></td></tr>';
+    return html;
+  }
+
+  function renderFrameNote(){
+    var fn=document.getElementById("framenote"); var f=getFrame();
+    if(!f){ fn.innerHTML=""; return; }
+    fn.innerHTML='<div class="framenote"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0A5B35" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5" fill="#0A5B35"/></svg><span>'+f.label+'（'+f.power+'パワー）→ '+f.advice+'（静的剛性 '+f.lo.toFixed(2)+'–'+f.hi.toFixed(2)+' kg/mm）を推奨。低パワーは柔らかめ・高パワーは硬めの逆相関。</span></div>';
+  }
+
+  function render(){
+    renderHead();
+    renderFrameNote();
+    var frame=getFrame();
+    var list=filteredSorted();
+    var tb=document.getElementById("tbody");
+    tb.parentNode.className=(state.density==="コンパクト"?"compact":"");
+    tb.innerHTML=list.map(function(d){ return renderRow(d,frame); }).join("");
+    [].forEach.call(tb.querySelectorAll("tr.data"),function(tr){
+      tr.addEventListener("click",function(){
+        var id=parseInt(tr.getAttribute("data-id"),10);
+        state.expandedId=(state.expandedId===id)?null:id;
+        render();
+      });
+    });
+    var labN=DATA.filter(function(d){return d.obj;}).length;
+    var trialN=DATA.filter(function(d){return d.subj;}).length;
+    document.getElementById("summary").textContent="全"+DATA.length+"件 · ラボデータ "+labN+"件 · 試打体感 "+trialN+"件";
+  }
+
+  document.getElementById("search").addEventListener("input",function(e){ state.search=e.target.value; render(); });
+  document.getElementById("brand").addEventListener("change",function(e){ state.brand=e.target.value; render(); });
+  document.getElementById("material").addEventListener("change",function(e){ state.material=e.target.value; render(); });
+  document.getElementById("shape").addEventListener("change",function(e){ state.shape=e.target.value; render(); });
+  document.getElementById("frame").addEventListener("change",function(e){ state.frame=e.target.value; render(); });
+
+  document.getElementById("set-highlight").addEventListener("change",function(e){ state.highlightDelta=e.target.checked; render(); });
+  document.getElementById("set-subj").addEventListener("change",function(e){ state.showSubjective=e.target.checked; render(); });
+  document.getElementById("set-threshold").addEventListener("input",function(e){ state.threshold=parseInt(e.target.value,10); document.getElementById("set-threshold-val").textContent=state.threshold+"pt"; render(); });
+  [].forEach.call(document.querySelectorAll("#set-density button"),function(b){
+    b.addEventListener("click",function(){
+      state.density=b.getAttribute("data-d");
+      [].forEach.call(document.querySelectorAll("#set-density button"),function(x){ x.className=(x===b?"on":""); });
+      render();
+    });
+  });
+
+  (function(){
+    var KMAP={brand:"brand",material:"matFam",shape:"shpFam"};
+    function uniq(k){var m={};DATA.forEach(function(d){if(d[k])m[d[k]]=1;});return Object.keys(m).sort(function(a,b){return a.localeCompare(b,"ja");});}
+    ["brand","material","shape"].forEach(function(k){
+      var dk=KMAP[k]; var sel=document.getElementById(k); if(!sel)return; var head=sel.options[0];
+      sel.innerHTML=""; sel.appendChild(head);
+      uniq(dk).forEach(function(v){var o=document.createElement("option");o.value=v;o.textContent=v;sel.appendChild(o);});
+    });
+  })();
+
+
+  /* ===== 状態の保存/復元 (F5 対応) 2026-07-03 注入 ===== */
+  (function(){
+    var saved=null;
+    try{ saved=JSON.parse(localStorage.getItem("sc_state")||"null"); }catch(e){}
+    if(saved){
+      ["search","brand","material","shape","frame","sortKey","sortDir","highlightDelta","threshold","showSubjective","density","cmpIds"].forEach(function(k){
+        if(saved[k]!==undefined) state[k]=saved[k];
+      });
+      state.expandedId=null;
+      document.getElementById("search").value=state.search||"";
+      ["brand","material","shape","frame"].forEach(function(k){
+        var sel=document.getElementById(k); sel.value=state[k]||"";
+        if(sel.value!==(state[k]||"")) state[k]="";  // 保存値が選択肢に無い場合は解除
+      });
+      document.getElementById("set-highlight").checked=!!state.highlightDelta;
+      document.getElementById("set-subj").checked=!!state.showSubjective;
+      document.getElementById("set-threshold").value=state.threshold;
+      document.getElementById("set-threshold-val").textContent=state.threshold+"pt";
+      [].forEach.call(document.querySelectorAll("#set-density button"),function(x){
+        x.className=(x.getAttribute("data-d")===state.density?"on":"");
+      });
+    }
+    var _origRender=render;
+    render=function(){
+      try{ localStorage.setItem("sc_state", JSON.stringify({
+        search:state.search, brand:state.brand, material:state.material, shape:state.shape, frame:state.frame,
+        sortKey:state.sortKey, sortDir:state.sortDir, highlightDelta:state.highlightDelta,
+        threshold:state.threshold, showSubjective:state.showSubjective, density:state.density, cmpIds:state.cmpIds })); }catch(e){}
+      if(window.cmpBar||typeof cmpBar==="function") cmpBar();
+      _origRender();
     };
-    const onClick = (e) => {
-      const r = renderer.domElement.getBoundingClientRect();
-      const px = e.clientX - r.left, py = e.clientY - r.top;
-      const mx = (px / r.width) * 2 - 1, my = -(py / r.height) * 2 + 1;
-      raycaster.setFromCamera({ x:mx, y:my }, camera);
-      let obj = null; const exact = raycaster.intersectObjects(this._three.meshes)[0];
-      if (exact) { obj = exact.object; }
-      else {
-        // 指タップ用フォールバック: 画面上で最も近い点を許容半径内で選ぶ
-        const v = new THREE.Vector3(); let best=null, bestD=Infinity;
-        for (const m of this._three.meshes) {
-          m.getWorldPosition(v); v.project(camera); if (v.z > 1) continue;
-          const sx=(v.x*0.5+0.5)*r.width, sy=(-v.y*0.5+0.5)*r.height, dd=Math.hypot(sx-px, sy-py);
-          if (dd < bestD) { bestD = dd; best = m; }
+  })();
+
+
+  /* ===== 詳細画面モジュール (dv-) 2026-07-03 注入 ===== */
+  var DV_DEFS = [
+    "反発力・反応の速さ・打球時の柔らかい感触といった物理要因で決まるパワー特性。",
+    "速いインパクト時のボール応答。値が高いほど速く弾き、低いほど遅く柔らかい応答になる。",
+    "引っ張り・戻りでの伸縮性。ナチュラルガットとの比較値。",
+    "弾きのピーク・剛性・ボールの食いつき（ポケッティング）で決まるスピン性能。",
+    "剛性・食いつき・段階的な張力低下などの物理要因で決まるコントロール性能。",
+    "66–71 lbs（30–32kg）まで引いた300秒の静的試験でのテンション低下率から算出。",
+    "プレー開始から数時間後の、テンションと挙動の安定度。",
+    "静的剛性と動的剛性で決まる快適性。"
+  ];
+  var DV_AXFULL = ["力（パワー）","弾き（回復ピーク）","弾性","スピン","コントロール","テンション維持","安定性","快適性"];
+  var DV_BANDLBS = ["22–33 lbs","33–44 lbs","44–55 lbs","55–66 lbs","66–77 lbs"];
+  var DV_COLORS = ["#007AFF","#1C1C1E","#FF9500","#34C759","#AF52DE","#FF3B30"];
+
+  function dvLbs(kg){ return Math.round(kg*2.20462); }
+  function dvLbsRange(s){
+    var m=/([\d.]+)\s*-\s*([\d.]+)/.exec(s||"");
+    if(!m) return null;
+    return { lbs: dvLbs(parseFloat(m[1]))+"–"+dvLbs(parseFloat(m[2])), kg: m[1]+"–"+m[2]+" kg" };
+  }
+  function dvNumColor(dv){
+    if(dv==null) return "#5F6368";
+    if(dv>0) return "#1E8E3E";
+    if(dv<0) return "#D93025";
+    return "#5F6368";
+  }
+  function dvDeltaBadge(v){
+    if(v==null) return "";
+    if(v===0) return '<span class="dv-db eq">＝ 平均と同じ</span>';
+    if(v>0) return '<span class="dv-db up">▲ 平均より +'+v+'</span>';
+    return '<span class="dv-db down">▼ 平均より '+v+'</span>';
+  }
+  function dvRadarSVG(series, W, H, R){
+    var cx=W/2, cy=H/2+4, i, s, g="";
+    function pt(i,v){ var a=-Math.PI/2+i*Math.PI/4; return (cx+Math.cos(a)*R*v/100).toFixed(1)+","+(cy+Math.sin(a)*R*v/100).toFixed(1); }
+    g+='<svg width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'" style="display:block;overflow:visible">';
+    [25,50,75,100].forEach(function(lv){
+      var pts=[]; for(i=0;i<8;i++) pts.push(pt(i,lv));
+      g+='<polygon points="'+pts.join(" ")+'" fill="none" stroke="#E8EAED"/>';
+    });
+    for(i=0;i<8;i++){ var p=pt(i,100).split(","); g+='<line x1="'+cx+'" y1="'+cy+'" x2="'+p[0]+'" y2="'+p[1]+'" stroke="#E8EAED"/>'; }
+    for(i=0;i<8;i++){
+      var a=-Math.PI/2+i*Math.PI/4, c=Math.cos(a);
+      var x=cx+c*(R+15), y=cy+Math.sin(a)*(R+15)+4;
+      var anc=Math.abs(c)<0.3?"middle":(c>0?"start":"end");
+      g+='<text x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" font-size="10" fill="#5F6368" text-anchor="'+anc+'">'+AXES[i]+'</text>';
+    }
+    for(var si=0;si<series.length;si++){
+      s=series[si];
+      var pts2=[]; for(i=0;i<8;i++) pts2.push(pt(i,s.vals[i]));
+      g+='<polygon points="'+pts2.join(" ")+'" fill="'+s.color+'" fill-opacity="'+(s.fill!=null?s.fill:0.10)+'" stroke="'+s.color+'" stroke-width="2" stroke-linejoin="round"/>';
+    }
+    g+='</svg>';
+    return g;
+  }
+  function dvVariants(d){
+    if(!d.vkey) return [];
+    return DATA.filter(function(x){ return x.vkey===d.vkey; })
+      .sort(function(a,b){ return (a.gauge||"").localeCompare(b.gauge||""); });
+  }
+  function dvRow(k,v){ return '<div class="dv-row"><span class="k">'+k+'</span>'+v+'</div>'; }
+  function dvOpen(d){
+    var t=d.tech||{}, i;
+    var hasLab = t.dyn!=null || (d.obj&&d.delta);
+    var h='<div class="dv-sheet">';
+    h+='<button class="dv-x" title="閉じる">✕</button>';
+    h+='<div class="dv-title">'+esc(d.fullName||d.name)+'<span class="dv-badge'+(t.dyn!=null?'':' none')+'">'+(t.dyn!=null?'詳細測定済み':'基本情報のみ')+'</span></div>';
+    h+='<div class="dv-sub"><span>'+esc(d.brand)+'</span>'+(t.pub?'<span>測定公開: '+esc(t.pub)+'</span>':'')+'</div>';
+    h+='<div class="dv-chips">';
+    (t.tags||"").split(",").forEach(function(tg){ tg=tg.trim(); if(tg) h+='<span class="dv-chip tag">'+esc(tg)+'</span>'; });
+    if(d.structure) h+='<span class="dv-chip">構造<b>'+esc(d.structure)+'</b></span>';
+    if(d.shape) h+='<span class="dv-chip">断面<b>'+esc(d.shape)+'</b></span>';
+    if(d.material) h+='<span class="dv-chip">素材<b>'+esc(d.material)+'</b></span>';
+    if(t.lineup) h+='<span class="dv-chip">ゲージ展開<b>'+esc(t.lineup)+'</b></span>';
+    if(t.colors) h+='<span class="dv-chip">色<b>'+esc(t.colors)+'</b></span>';
+    h+='</div>';
+    // 順位1: 8軸評価
+    h+='<div class="dv-card"><h3>8軸ラボ評価 — 全弦平均との比較つき</h3>';
+    if(d.obj){
+      var series=[{vals:d.obj,color:"#007AFF",fill:0.14}];
+      if(d.subj) series.push({vals:d.subj,color:"#FF9500"});
+      h+='<div class="dv-core"><div>'+dvRadarSVG(series,320,266,88);
+      h+='<div style="font-size:11px;color:#80868B;text-align:center;margin-top:4px">青 = ラボ実測'+(d.subj?'　<span style="color:#E07B00;font-weight:600">オレンジ = あなたの体感</span>':'。試打すると体感（オレンジ）が重なる')+'</div></div>';
+      h+='<div>';
+      for(i=0;i<8;i++){
+        h+='<div class="dv-axr"><div class="dv-axline">';
+        h+='<span class="dv-axname">'+DV_AXFULL[i]+'<button class="dv-q" data-dvq="'+i+'">?</button></span>';
+        h+='<div class="dv-axbar"><div class="dv-axv">'+d.obj[i]+'<span class="of"> / 100</span></div><div class="dv-tr"><div style="width:'+d.obj[i]+'%"></div></div></div>';
+        h+='<span class="dv-delta">'+(d.delta?dvDeltaBadge(d.delta[i]):'')+'</span>';
+        h+='</div><div class="dv-def" id="dv-def-'+i+'">'+DV_DEFS[i]+'</div></div>';
+      }
+      h+='</div></div>';
+      h+='<div class="dv-hint">「平均より」= Racketpedia 全テスト弦の平均との差'+(d.delta?'':'（この弦は未取得 — 個別ページを開くと入る）')+'。<b>?</b> で項目の意味。</div>';
+    } else {
+      h+='<div class="dv-memo">8軸ラボスコアは未取得（会員ページを開くと自動で入ります）。</div>';
+    }
+    h+='</div>';
+    // 順位2: 技術データ
+    h+='<div class="dv-grid2">';
+    h+='<div class="dv-card"><h3>技術データ</h3><div class="dv-rows">';
+    var tr=dvLbsRange(t.ten);
+    h+=dvRow('推奨テンション', tr?'<span class="v">'+tr.lbs+'<span class="u">lbs</span><span class="orig">('+tr.kg+')</span></span>':'<span class="v" style="color:#C7C7CC">—</span>');
+    var rr=dvLbsRange(t.resil);
+    h+=dvRow('反発レンジ', rr?'<span class="v">'+rr.lbs+'<span class="u">lbs</span><span class="orig">('+rr.kg+')</span></span>':'<span class="v" style="color:#C7C7CC">—</span>');
+    h+=dvRow('寿命の目安', t.life?'<span class="v">'+esc(t.life)+'<span class="u">時間</span></span>':'<span class="v" style="color:#C7C7CC">—</span>');
+    h+=dvRow('プレストレッチ推奨', '<span class="v txt">'+(t.pre==='Yes'?'推奨':(t.pre==='No'?'不要':'—'))+'</span>');
+    h+=dvRow('段階的な張力低下', '<span class="v txt">'+(t.prog==='Yes'||t.prog==='Progressive'?'あり':(t.prog?'なし':'—'))+'</span>');
+    h+=dvRow('動的剛性 <button class="dv-q" data-dvq="dyn">?</button>', t.dyn!=null?'<span class="v">'+t.dyn+'<span class="u">g/mm</span>'+(t.dynsim!=null?'<span class="orig">換算 '+t.dynsim+' lbs/inch</span>':'')+'</span>':'<span class="v" style="color:#C7C7CC">—</span>');
+    h+='<div class="dv-def" id="dv-def-dyn">インパクトの瞬間に弦へかかる張力の急上昇（動的オーバーテンション）。低いほど衝撃がマイルド。素材・構造など多くの要因で決まる。</div>';
+    h+=dvRow('平均静的剛性 <button class="dv-q" data-dvq="stat">?</button>', '<span class="v">'+d.stiff.toFixed(2)+'<span class="u">kg/mm</span></span>');
+    h+='<div class="dv-def" id="dv-def-stat">引っ張りに対する硬さ。1 kg/mm = 1mm 伸ばすのに 1kg の力が必要。5→35kg まで連続的に引いて測定した 15–30kg 帯の平均。</div>';
+    h+=dvRow('平均伸び（11–77 lbs 加重）', t.elong!=null?'<span class="v">'+t.elong+'<span class="u">mm</span></span>':'<span class="v" style="color:#C7C7CC">—</span>');
+    h+='</div></div>';
+    h+='<div class="dv-card"><h3>テンション帯別の静的剛性 <button class="dv-q" data-dvq="band">?</button></h3>';
+    h+='<div class="dv-def" id="dv-def-band">帯域ごとの硬さ。自分が張るテンションの帯の行を見る。低テンション帯ほど値が大きい＝張り始めが硬い。</div>';
+    var hasBand=false;
+    for(i=0;i<5;i++) if(t.bands&&t.bands[i]!=null) hasBand=true;
+    if(hasBand){
+      for(i=0;i<5;i++){
+        var bv=t.bands[i];
+        h+='<div class="dv-band"><span class="bl">'+DV_BANDLBS[i]+'</span><div class="tr2"><div style="width:'+(bv!=null?Math.min(100,bv/2.0*100).toFixed(0):0)+'%"></div></div><span class="bv">'+(bv!=null?bv.toFixed(2)+' kg/mm':'—')+'</span></div>';
+      }
+      h+='<div class="dv-hint">テンション帯はポンド表示（元表記 kg を換算）。剛性値は測定単位（kg/mm）のまま。</div>';
+    } else {
+      h+='<div class="dv-memo">帯別剛性は未取得（会員ページを開くと自動で入ります）。</div>';
+    }
+    h+='</div></div>';
+    // 順位3: バリエーション比較
+    var vs=dvVariants(d);
+    if(vs.length>1){
+      h+='<div class="dv-card"><h3>バリエーション比較 — 同モデルのゲージ違い</h3>';
+      var withR=vs.filter(function(v){return v.obj;}).slice(0,4);
+      h+='<div class="dv-vleg">';
+      vs.forEach(function(v,vi){
+        h+='<span><i class="dv-rl" style="background:'+DV_COLORS[vi%DV_COLORS.length]+'"></i>'+esc(v.gauge||v.name)+(v.id===d.id?'（この弦）':'')+'</span>';
+      });
+      h+='</div>';
+      if(withR.length>1){
+        var series2=vs.map(function(v,vi){ return v.obj?{vals:v.obj,color:DV_COLORS[vi%DV_COLORS.length]}:null; }).filter(Boolean).slice(0,4);
+        h+='<div class="dv-vgrid"><div>'+dvRadarSVG(series2,360,290,92)+'</div><div>';
+        for(i=0;i<8;i++){
+          var tracks='', nums=[];
+          vs.forEach(function(v,vi){
+            if(!v.obj) return;
+            tracks+='<div class="dv-g1"><div style="width:'+v.obj[i]+'%;background:'+DV_COLORS[vi%DV_COLORS.length]+'"></div></div>';
+            nums.push('<span style="color:'+dvNumColor(v.delta?v.delta[i]:null)+';font-weight:600">'+v.obj[i]+'</span>');
+          });
+          h+='<div class="dv-gr"><span class="dv-gl">'+AXES[i]+'</span><div class="dv-gt">'+tracks+'</div><span class="dv-gn">'+nums.join('<span style="color:#C7C7CC"> / </span>')+'</span></div>';
         }
-        const TOL = Math.max(26, Math.min(r.width, r.height) * 0.06);
-        if (best && bestD <= TOL) obj = best;
+        h+='</div></div>';
       }
-      if (obj) this.setState({ detailId: obj.userData.d.id });
-    };
-    renderer.domElement.addEventListener("pointermove", onMove);
-    // タップ判定: click に依存せず pointerdown/up の移動量で判定 (iOS指タップ対策)
-    let _tapStart = null;
-    const onPtrDown = (ev) => { _tapStart = { id: ev.pointerId, x: ev.clientX, y: ev.clientY, t: Date.now() }; };
-    const onPtrUp = (ev) => {
-      const st = _tapStart; _tapStart = null;
-      if (!st || st.id !== ev.pointerId) return;
-      const moved = Math.hypot(ev.clientX - st.x, ev.clientY - st.y);
-      if (moved <= 12 && (Date.now() - st.t) <= 700) onClick(ev);
-    };
-    renderer.domElement.addEventListener("pointerdown", onPtrDown);
-    renderer.domElement.addEventListener("pointerup", onPtrUp);
-    this._three._tapCleanup = () => { renderer.domElement.removeEventListener("pointerdown", onPtrDown); renderer.domElement.removeEventListener("pointerup", onPtrUp); };
-    this._three._onWinResize = () => {
-      const w = host.clientWidth, h = host.clientHeight;
-      camera.aspect = w/h; camera.updateProjectionMatrix(); renderer.setSize(w, h);
-    };
-    window.addEventListener("resize", this._three._onWinResize);
-  }
-  _txtSprite(text, color, px) {
-    const cv = document.createElement("canvas"); const s = 2.5; const fs = (px||26);
-    const ctx = cv.getContext("2d"); ctx.font = "600 " + (fs*s) + "px -apple-system,'Hiragino Sans',sans-serif";
-    const w = ctx.measureText(text).width; cv.width = w + 8; cv.height = fs*s + 8;
-    ctx.font = "600 " + (fs*s) + "px -apple-system,'Hiragino Sans',sans-serif";
-    ctx.fillStyle = color; ctx.textBaseline = "top"; ctx.fillText(text, 4, 4);
-    const tex = new THREE.CanvasTexture(cv); tex.minFilter = THREE.LinearFilter;
-    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map:tex, transparent:true, depthTest:false }));
-    sp.scale.set(cv.width/s/2.4, cv.height/s/2.4, 1);
-    return sp;
-  }
-  build3D() {
-    const T = this._three; if (!T) return;
-    // clear
-    while (T.pointsGroup.children.length) T.pointsGroup.remove(T.pointsGroup.children[0]);
-    while (T.axisGroup.children.length) T.axisGroup.remove(T.axisGroup.children[0]);
-    T.meshes = [];
-    const all = this.data();
-    const filtered = all.filter(d => this.passFilter(d));
-    const ax = this.axisByKey(this.state.xAxis), ay = this.axisByKey(this.state.yAxis), az = this.axisByKey(this.state.zAxis);
-    const pts = filtered.filter(d => ax.get(d)!=null && ay.get(d)!=null && az.get(d)!=null);
-    const HALF = 60;
-    const AXCOL = { x:"#D93025", y:"#0057B8", z:"#0A5B35" };
-    // mean-centered scaling: origin (0,0,0) sits at each axis's MEAN; symmetric span = max abs deviation
-    const stat = (axis) => {
-      const vs = pts.map(axis.get);
-      const mean = vs.reduce((a,b)=>a+b,0)/(vs.length||1);
-      let dev = Math.max.apply(null, vs.map(v=>Math.abs(v-mean)));
-      if (!isFinite(dev) || dev===0) dev = 1;
-      dev *= 1.08; // small pad so extreme points sit inside the cube
-      return { mean, dev, min:mean-dev, max:mean+dev };
-    };
-    const S = pts.length ? { x:stat(ax), y:stat(ay), z:stat(az) } : { x:{mean:0,dev:1,min:-1,max:1}, y:{mean:0,dev:1,min:-1,max:1}, z:{mean:0,dev:1,min:-1,max:1} };
-    const normA = (v, st) => ((v - st.mean) / st.dev) * HALF;
-    // faint bounding cube + floor grid for depth reference
-    const box = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(HALF*2, HALF*2, HALF*2)), new THREE.LineBasicMaterial({ color:0xE3E6EA }));
-    T.axisGroup.add(box);
-    const grid = new THREE.GridHelper(HALF*2, 8, 0xEAECEF, 0xF2F3F5); grid.position.y = -HALF; T.axisGroup.add(grid);
-    // Spatial mapping (Z-up, CAD convention): X軸→水平(right) / Z軸→高さ(up) / Y軸→奥行き(depth)
-    // three.js Y is up, three.js Z is depth. Data az -> up, data ay -> depth.
-    // bold colored axes crossing at the CENTER (origin = mean of each axis)
-    const axisLine = (a, b, hex) => { const g=new THREE.BufferGeometry().setFromPoints([a,b]); return new THREE.Line(g, new THREE.LineBasicMaterial({ color:new THREE.Color(hex) })); };
-    T.axisGroup.add(axisLine(new THREE.Vector3(-HALF,0,0), new THREE.Vector3(HALF,0,0), AXCOL.x)); // X data → horizontal (red)
-    T.axisGroup.add(axisLine(new THREE.Vector3(0,-HALF,0), new THREE.Vector3(0,HALF,0), AXCOL.z)); // Z data → vertical/up (green)
-    T.axisGroup.add(axisLine(new THREE.Vector3(0,0,-HALF), new THREE.Vector3(0,0,HALF), AXCOL.y)); // Y data → depth (blue)
-    // small marker at the mean origin
-    const originDot = new THREE.Mesh(new THREE.SphereGeometry(2.0, 12, 12), new THREE.MeshBasicMaterial({ color:0x202124 }));
-    T.axisGroup.add(originDot);
-    const clean = (l) => l.replace(/\s*\(.*\)/, "");
-    const addLabel = (txt, x, y, z, color, px) => { const sp = this._txtSprite(txt, color||"#5F6368", px); sp.position.set(x,y,z); T.axisGroup.add(sp); };
-    // axis name at the positive end (colored to match the axis line)
-    addLabel(clean(ax.label) + " →", HALF+18, 0, 0, AXCOL.x, 28);            // X data, horizontal
-    addLabel("↑ " + clean(az.label), 0, HALF+14, 0, AXCOL.z, 28);            // Z data, vertical (up)
-    addLabel(clean(ay.label) + " ↗", 0, 0, -HALF-18, AXCOL.y, 28);           // Y data, depth (+ goes INTO the screen, CAD convention)
-    // min / max at each axis end (grey)
-    addLabel(ax.fmt(S.x.max), HALF, -7, 0, "#80868B", 20);
-    addLabel(ax.fmt(S.x.min), -HALF, -7, 0, "#80868B", 20);
-    addLabel(az.fmt(S.z.max), -9, HALF, 0, "#80868B", 20);                    // vertical top = Z data max
-    addLabel(az.fmt(S.z.min), -9, -HALF, 0, "#80868B", 20);
-    addLabel(ay.fmt(S.y.max), 0, -7, -HALF, "#80868B", 20);                   // + end (into screen) = Y data max
-    addLabel(ay.fmt(S.y.min), 0, -7, HALF, "#80868B", 20);
-    // fixed +/- polarity markers at each axis end (colored, always readable while rotating)
-    addLabel("＋", HALF+7, 9, 0, AXCOL.x, 30);   addLabel("−", -HALF-7, 9, 0, AXCOL.x, 30);   // X (red)
-    addLabel("＋", 13, HALF, 0, AXCOL.z, 30);      addLabel("−", 13, -HALF, 0, AXCOL.z, 30);      // Z data / vertical (green)
-    addLabel("＋", 0, 9, -HALF-7, AXCOL.y, 30);   addLabel("−", 0, 9, HALF+7, AXCOL.y, 30);      // Y data / depth (blue, + into screen)
-    // mean (=0) values, colored, nudged off the origin so they don't overlap
-    addLabel("平均 " + ax.fmt(S.x.mean), 30, 6, 0, AXCOL.x, 19);               // X data (red)
-    addLabel("平均 " + az.fmt(S.z.mean), -24, 20, 0, AXCOL.z, 19);              // Z data / vertical (green)
-    addLabel("平均 " + ay.fmt(S.y.mean), 0, -10, -30, AXCOL.y, 19);             // Y data / depth (blue)
-    // tooltip text builder (captures current axes)
-    T.tipText = (d) => clean(ax.label)+" "+ax.fmt(ax.get(d))+" / "+clean(ay.label)+" "+ay.fmt(ay.get(d))+" / "+clean(az.label)+" "+az.fmt(az.get(d));
-    // ---- section plane (仮想平面) + trim ----
-    const s3 = this.state;
-    // three independent section planes; each holds one data axis constant
-    const PMETA = {
-      xy: { cAxis:az, cStat:S.z, dir:"y", col:AXCOL.z, sign: 1 }, // 水平面（静的剛性一定）
-      yz: { cAxis:ax, cStat:S.x, dir:"x", col:AXCOL.x, sign: 1 }, // パワー一定
-      zx: { cAxis:ay, cStat:S.y, dir:"z", col:AXCOL.y, sign:-1 }, // スピン一定（奥行きは反転）
-    };
-    const activePlanes = pts.length ? ["xy","yz","zx"].filter(k => s3.planes[k] && s3.planes[k].on) : [];
-    // points  (spatial: x=data X, y=data Z [up], z=data Y [depth, flipped])
-    const geo = new THREE.SphereGeometry(2.4, 16, 16);
-    let shown = 0;
-    pts.forEach(d => {
-      // trim: a point survives only if it passes EVERY enabled plane's trim (AND)
-      let keep = true;
-      for (const k of activePlanes) {
-        const P = s3.planes[k]; if (P.trim === "none") continue;
-        const meta = PMETA[k];
-        const fracD = (meta.cAxis.get(d) - meta.cStat.mean) / meta.cStat.dev;
-        const ok = P.trim === "plus" ? (fracD >= P.frac) : (fracD <= P.frac);
-        if (!ok) { keep = false; break; }
-      }
-      if (!keep) return;
-      const col = this.MATFAM_COL[d.matFam] || "#80868B";
-      const m = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color: new THREE.Color(col) }));
-      m.position.set(normA(ax.get(d), S.x), normA(az.get(d), S.z), -normA(ay.get(d), S.y));
-      m.userData.d = d; T.pointsGroup.add(m); T.meshes.push(m); shown++;
-    });
-    // draw enabled planes last so they overlay
-    activePlanes.forEach(k => {
-      const meta = PMETA[k]; const P = s3.planes[k];
-      const coord = P.frac * HALF * meta.sign;
-      const pg = new THREE.PlaneGeometry(HALF*2, HALF*2);
-      const pmat = new THREE.MeshBasicMaterial({ color:new THREE.Color(meta.col), transparent:true, opacity:0.13, side:THREE.DoubleSide, depthWrite:false });
-      const plane = new THREE.Mesh(pg, pmat);
-      const edge = new THREE.LineSegments(new THREE.EdgesGeometry(pg), new THREE.LineBasicMaterial({ color:new THREE.Color(meta.col) }));
-      plane.add(edge);
-      if (meta.dir === "y") { plane.rotation.x = -Math.PI/2; plane.position.y = coord; }
-      else if (meta.dir === "x") { plane.rotation.y = Math.PI/2; plane.position.x = coord; }
-      else { plane.position.z = coord; }
-      T.axisGroup.add(plane);
-    });
-    this._3dPlotted = shown; this._3dTotal = filtered.length;
-  }
-  dedupeLabels() {
-    // accurate, DOM-measured collision removal: keep labels in DOM order (lab points first),
-    // hide any whose real bounding box overlaps an already-kept one.
-    const nodes = document.querySelectorAll('[data-sclabel]');
-    const BASE = 'translate(9px, -50%)';
-    // measure natural positions, then greedily keep non-overlapping labels (nudge up/down first, else hide)
-    nodes.forEach(n => { n.style.visibility='visible'; n.style.transform=BASE; });
-    const info = [];
-    nodes.forEach(n => { const b=n.getBoundingClientRect(); info.push({ n, l:b.left, r:b.right, top:b.top, h:b.height }); });
-    const kept = [];
-    info.forEach(it => {
-      const l=it.l-2, r=it.r+2, t=it.top-1, b=it.top+it.h+1;
-      let clash = false;
-      for (const k of kept) { if (l<k.r && r>k.l && t<k.b && b>k.t) { clash = true; break; } }
-      if (clash) { it.n.style.visibility='hidden'; } else { kept.push({l,r,t,b}); }
-    });
-  }
-
-  data() { return window.SC_DATA || []; }
-
-  midOfRange(s){
-    if (!s) return null;
-    const m = String(s).match(/([\d.]+)\s*-\s*([\d.]+)/);
-    if (!m) return null;
-    return (parseFloat(m[1]) + parseFloat(m[2])) / 2;
-  }
-  axisDefs() {
-    const A = [
-      { k:"stiff", label:"静的剛性 (kg/mm)", get:d=>d.stiff, fmt:v=>v.toFixed(2), min:null, max:null, hiWord:"硬い", loWord:"柔らかい" },
-      { k:"dyn", label:"動的剛性 (g/mm)", get:d=>d.tech?d.tech.dyn:null, fmt:v=>String(Math.round(v)), min:null, max:null, hiWord:"高", loWord:"低" },
-      { k:"elong", label:"伸び率 (mm)", get:d=>d.tech?d.tech.elong:null, fmt:v=>v.toFixed(1), min:null, max:null, hiWord:"大", loWord:"小" },
-      { k:"ten", label:"推奨テンション中央値 (lbs)", get:d=>d.tech?this.midOfRange(d.tech.ten):null, fmt:v=>v.toFixed(1), min:null, max:null, hiWord:"高", loWord:"低" },
-      { k:"resil", label:"反発レンジ中央値 (lbs)", get:d=>d.tech?this.midOfRange(d.tech.resil):null, fmt:v=>v.toFixed(1), min:null, max:null, hiWord:"高", loWord:"低" },
-      { k:"life", label:"寿命時間中央値 (hrs)", get:d=>d.tech?this.midOfRange(d.tech.life):null, fmt:v=>v.toFixed(1), min:null, max:null, hiWord:"長", loWord:"短" },
-    ];
-    this.AXES.forEach((a,i)=>A.push({ k:String(i), label:a, get:d=>d.obj?d.obj[i]:null, fmt:v=>String(Math.round(v)), min:null, max:null, hiWord:"高", loWord:"低" }));
-    return A;
-  }
-  axisByKey(k){ return this.axisDefs().filter(a=>a.k===k)[0] || this.axisDefs()[0]; }
-
-  histogram(ax, list){
-    const vs = list.map(ax.get).filter(v=>v!=null);
-    if (!vs.length) return { bins:[], n:0 };
-    const mn=Math.min.apply(null,vs), mx=Math.max.apply(null,vs);
-    const nb = 12;
-    const w = (mx-mn)/nb || 1;
-    const counts = new Array(nb).fill(0);
-    vs.forEach(v=>{ let i=Math.floor((v-mn)/w); if(i>=nb)i=nb-1; if(i<0)i=0; counts[i]++; });
-    const maxC = Math.max.apply(null,counts);
-    const bins = counts.map((c,i)=>({ lo:mn+i*w, hi:mn+(i+1)*w, count:c, pct:maxC?(c/maxC*100):0 }));
-    return { bins, n:vs.length, min:mn, max:mx };
-  }
-  axisRange(ax, list){
-    if (ax.min!=null && ax.max!=null) return [ax.min, ax.max];
-    const src = list || this.data();
-    const vs = src.map(ax.get).filter(v=>v!=null);
-    if (!vs.length) return [0,1];
-    let mn=Math.min.apply(null,vs), mx=Math.max.apply(null,vs);
-    const pad=(mx-mn)*0.08||0.1; return [mn-pad, mx+pad];
-  }
-
-  passFilter(d){
-    const s=this.state;
-    if (s.search && (d.brand+" "+d.name).toLowerCase().indexOf(s.search.toLowerCase())===-1) return false;
-    if (s.brands && s.brands.length && s.brands.indexOf(d.brand)<0) return false;
-    if (s.mat && d.matFam!==s.mat) return false;
-    if (s.shape && d.shpFam!==s.shape) return false;
-    return true;
-  }
-
-  distinct(field){
-    const seen={}, out=[];
-    this.data().forEach(d=>{ const v=d[field]; if(v && !seen[v]){ seen[v]=1; out.push(v); } });
-    out.sort();
-    return out;
-  }
-
-  radarPoints(vals,r0){
-    return vals.map((v,i)=>{ const ang=(-90+i*45)*Math.PI/180, r=(v/100)*r0; return (90+r*Math.cos(ang)).toFixed(1)+","+(90+r*Math.sin(ang)).toFixed(1); }).join(" ");
-  }
-  makeRadar(obj){
-    const r0=70, els=[];
-    const geom=this.AXES.map((label,i)=>{ const ang=(-90+i*45)*Math.PI/180,c=Math.cos(ang),s=Math.sin(ang); let anc="middle"; if(c>0.3)anc="start"; else if(c<-0.3)anc="end"; return {label,ex:120+90*c,ey:120+90*s,lx:120+112*c,ly:120+112*s+3,anc,ang}; });
-    [25,50,75,100].forEach(p=>els.push(React.createElement("polygon",{key:"g"+p,points:this.AXES.map((_,i)=>{const ang=(-90+i*45)*Math.PI/180;return (120+(p/100)*r0*Math.cos(ang)).toFixed(1)+","+(120+(p/100)*r0*Math.sin(ang)).toFixed(1);}).join(" "),fill:"none",stroke:"#E8EAED",strokeWidth:1})));
-    geom.forEach((a,i)=>els.push(React.createElement("line",{key:"l"+i,x1:120,y1:120,x2:a.ex,y2:a.ey,stroke:"#E8EAED",strokeWidth:1})));
-    els.push(React.createElement("polygon",{key:"o",points:this.AXES.map((_,i)=>{const ang=(-90+i*45)*Math.PI/180,r=(obj[i]/100)*r0;return (120+r*Math.cos(ang)).toFixed(1)+","+(120+r*Math.sin(ang)).toFixed(1);}).join(" "),fill:"rgba(0,122,255,0.15)",stroke:"#007AFF",strokeWidth:2,strokeLinejoin:"round"}));
-    geom.forEach((a,i)=>els.push(React.createElement("text",{key:"t"+i,x:a.lx,y:a.ly,fontSize:10,fill:"#5F6368",textAnchor:a.anc},a.label)));
-    return React.createElement("svg",{viewBox:"0 0 240 240",width:230,height:230,style:{display:"block",overflow:"visible"}},els);
-  }
-
-  toggleCmp(id){
-    this.setState(st=>{
-      const has = st.cmpIds.indexOf(id)>=0;
-      if (has) return { cmpIds: st.cmpIds.filter(x=>x!==id) };
-      if (st.cmpIds.length>=4) return null;
-      return { cmpIds: st.cmpIds.concat([id]) };
-    });
-  }
-  stiffHint(d){
-    if (d.stiff==null) return "静的剛性は未取得。";
-    if (!d.obj) return "ラボ8軸スコアは未取得。静的剛性のみ把握。";
-    if (d.stiff<=0.85) return "柔らかめの帯。低パワー志向のフレームに合わせやすい。";
-    if (d.stiff>=1.10) return "硬めの帯。高パワー志向のフレームに合わせやすい。";
-    return "中間帯。汎用的に合わせやすい。";
-  }
-  makeMultiRadar(seriesList){
-    const r0=70, els=[];
-    const geom=this.AXES.map((label,i)=>{ const ang=(-90+i*45)*Math.PI/180,c=Math.cos(ang),s=Math.sin(ang); let anc="middle"; if(c>0.3)anc="start"; else if(c<-0.3)anc="end"; return {label,ex:120+90*c,ey:120+90*s,lx:120+112*c,ly:120+112*s+3,anc}; });
-    [25,50,75,100].forEach(p=>els.push(React.createElement("polygon",{key:"g"+p,points:this.AXES.map((_,i)=>{const ang=(-90+i*45)*Math.PI/180;return (120+(p/100)*r0*Math.cos(ang)).toFixed(1)+","+(120+(p/100)*r0*Math.sin(ang)).toFixed(1);}).join(" "),fill:"none",stroke:"#E8EAED",strokeWidth:1})));
-    geom.forEach((a,i)=>els.push(React.createElement("line",{key:"l"+i,x1:120,y1:120,x2:a.ex,y2:a.ey,stroke:"#E8EAED",strokeWidth:1})));
-    seriesList.forEach((sr,si)=>{
-      els.push(React.createElement("polygon",{key:"s"+si,points:this.AXES.map((_,i)=>{const ang=(-90+i*45)*Math.PI/180,r=(sr.vals[i]/100)*r0;return (120+r*Math.cos(ang)).toFixed(1)+","+(120+r*Math.sin(ang)).toFixed(1);}).join(" "),fill:sr.color,fillOpacity:0.08,stroke:sr.color,strokeWidth:2,strokeLinejoin:"round"}));
-    });
-    geom.forEach((a,i)=>els.push(React.createElement("text",{key:"t"+i,x:a.lx,y:a.ly,fontSize:10,fill:"#5F6368",textAnchor:a.anc},a.label)));
-    return React.createElement("svg",{viewBox:"0 0 240 240",width:260,height:260,style:{display:"block",overflow:"visible"}},els);
-  }
-
-  startZoomDrag(e){
-    if (e.button!==0) return;
-    if (e.target.closest('.scdot') || e.target.closest('.sccluster') || e.target.hasAttribute('data-sclabel')) return;
-    const area=e.currentTarget, r=area.getBoundingClientRect(), sx=e.clientX, sy=e.clientY;
-    const rr0=this._range;
-    if (this.state.mpZoom && !e.shiftKey && rr0){
-      // 拡大中: ドラッグで移動 (パン)
-      const base={xmn:rr0.xmn,xmx:rr0.xmx,ymn:rr0.ymn,ymx:rr0.ymx}, w=base.xmx-base.xmn, h=base.ymx-base.ymn;
-      area.style.cursor='grabbing';
-      let raf=null, lastEv=null;
-      const move=(ev)=>{ lastEv=ev; if(raf) return; raf=requestAnimationFrame(()=>{ raf=null; const v=lastEv;
-        const dx=(v.clientX-sx)/r.width*w, dy=(v.clientY-sy)/r.height*h;
-        this.setState({mpZoom:{x0:base.xmn-dx, x1:base.xmx-dx, y0:base.ymn+dy, y1:base.ymx+dy}, hoverId:null}); }); };
-      const up=()=>{ document.removeEventListener('mousemove',move); document.removeEventListener('mouseup',up); area.style.cursor=''; };
-      document.addEventListener('mousemove',move); document.addEventListener('mouseup',up); e.preventDefault();
-      return;
-    }
-    // 範囲拡大 (ボックス選択)
-    const band=document.createElement('div');
-    band.style.cssText='position:absolute;border:1px solid #007AFF;background:rgba(0,122,255,0.12);z-index:50;pointer-events:none;';
-    area.appendChild(band);
-    const move=(ev)=>{ band.style.left=(Math.min(sx,ev.clientX)-r.left)+'px'; band.style.top=(Math.min(sy,ev.clientY)-r.top)+'px'; band.style.width=Math.abs(ev.clientX-sx)+'px'; band.style.height=Math.abs(ev.clientY-sy)+'px'; };
-    const up=(ev)=>{ document.removeEventListener('mousemove',move); document.removeEventListener('mouseup',up); band.remove();
-      if (Math.abs(ev.clientX-sx)<8 || Math.abs(ev.clientY-sy)<8) return;
-      const rr=this._range; if(!rr) return;
-      const l=(Math.min(sx,ev.clientX)-r.left)/r.width, rt=(Math.max(sx,ev.clientX)-r.left)/r.width;
-      const t=(Math.min(sy,ev.clientY)-r.top)/r.height, b=(Math.max(sy,ev.clientY)-r.top)/r.height;
-      this.setState({mpZoom:{ x0:rr.xmn+(rr.xmx-rr.xmn)*l, x1:rr.xmn+(rr.xmx-rr.xmn)*rt, y1:rr.ymx-(rr.ymx-rr.ymn)*t, y0:rr.ymx-(rr.ymx-rr.ymn)*b }, hoverId:null});
-    };
-    document.addEventListener('mousemove',move); document.addEventListener('mouseup',up); e.preventDefault();
-  }
-  renderVals(){
-    const s=this.state;
-    const all=this.data();
-    const filtered=all.filter(d=>this.passFilter(d));
-
-    const axOpts=this.axisDefs().map(a=>({k:a.k,label:a.label}));
-    const ax=this.axisByKey(s.xAxis), ay=this.axisByKey(s.yAxis);
-    let [xmn,xmx]=this.axisRange(ax, filtered), [ymn,ymx]=this.axisRange(ay, filtered);
-    const meanVal=(getter)=>{ const vs=filtered.map(getter).filter(v=>v!=null); return vs.length?vs.reduce((a,b)=>a+b,0)/vs.length:null; };
-    if (s.centerMean){
-      const cx=meanVal(ax.get); if (cx!=null){ const h=Math.max(cx-xmn, xmx-cx)||0.1; xmn=cx-h; xmx=cx+h; }
-      const cy=meanVal(ay.get); if (cy!=null){ const h=Math.max(cy-ymn, ymx-cy)||0.1; ymn=cy-h; ymx=cy+h; }
-    }
-    if (s.mpZoom){ xmn=s.mpZoom.x0; xmx=s.mpZoom.x1; ymn=s.mpZoom.y0; ymx=s.mpZoom.y1; }
-    this._range = { xmn, xmx, ymn, ymx };
-
-    // ---- scatter dots ----
-    const plotW=1000, plotH=560; // logical; positioned via %
-    const plotBoxH=600;
-    const pts=filtered.filter(d=>ax.get(d)!=null && ay.get(d)!=null);
-    const showAllLabels = s.alwaysLabels;   // when on, collision-avoidance decides which fit
-    const dots=[], labels=[];
-    // sort so lab (8-axis) points get label priority in the DOM de-overlap pass
-    const ordered = pts.slice().sort((a,b)=>(b.obj?1:0)-(a.obj?1:0) || a.id-b.id);
-    // group strings that land on the exact same plotted spot (rounded to 0.1%) so a hover can list them all
-    const cluster = {};
-    ordered.forEach(d=>{
-      const xv=ax.get(d), yv=ay.get(d);
-      const px=((xv-xmn)/((xmx-xmn)||1))*100;
-      const py=(1-(yv-ymn)/((ymx-ymn)||1))*100;
-      const pkey=px.toFixed(1)+","+py.toFixed(1);
-      (cluster[pkey]=cluster[pkey]||[]).push(d);
-    });
-    ordered.forEach(d=>{
-      const xv=ax.get(d), yv=ay.get(d);
-      const px=((xv-xmn)/((xmx-xmn)||1))*100;
-      const py=(1-(yv-ymn)/((ymx-ymn)||1))*100;
-      if (px<-1||px>101||py<-1||py>101) return;
-      const hasLab=!!d.obj;
-      const col=this.MATFAM_COL[d.matFam]||"#80868B";
-      const hovered=s.hoverId===d.id;
-      const pkey=px.toFixed(1)+","+py.toFixed(1);
-      const stack=cluster[pkey]||[d];
-      const isStack=stack.length>1;
-      const isStackHead=isStack && stack[0].id===d.id;   // only the top dot is interactive/visible
-      const size=hovered?14:(hasLab?11:8.5);
-      if (isStack && !isStackHead) return;   // skip buried dots entirely
-      dots.push({
-        id:d.id,
-        title:isStack ? (stack.length+" 本が同じ位置 — ホバーで一覧") : (d.brand+" "+d.name+"  ("+ax.label.replace(/\s*\(.*\)/,"")+" "+ax.fmt(xv)+" / "+ay.label.replace(/\s*\(.*\)/,"")+" "+ay.fmt(yv)+")"),
-        dotStyle:`position:absolute;left:${px.toFixed(2)}%;top:${py.toFixed(2)}%;width:${size}px;height:${size}px;margin-left:${-size/2}px;margin-top:${-size/2}px;border-radius:50%;background:${col};border:1.5px solid #fff;box-shadow:0 1px 2px rgba(0,0,0,0.18);cursor:pointer;z-index:${hovered?20:(hasLab?6:4)};transition:width 100ms,height 100ms;`,
-        isStack:isStack,
-        countStyle:`position:absolute;left:${px.toFixed(2)}%;top:${py.toFixed(2)}%;transform:translate(${(size/2-1).toFixed(1)}px,${(-size/2-7).toFixed(1)}px);min-width:14px;height:14px;padding:0 3px;border-radius:8px;background:#202124;color:#fff;font-size:9px;font-weight:700;line-height:14px;text-align:center;pointer-events:none;z-index:${hovered?22:8};box-sizing:border-box;`,
-        count:stack.length,
-        onClick:()=> isStack ? this.setState({hoverId:d.id}) : this.setState({detailId:d.id}),
-        onEnter:()=>{ if(this._hoverT){clearTimeout(this._hoverT);this._hoverT=null;} this.setState({hoverId:d.id}); },
-        onLeave:()=>{ if(this._hoverT)clearTimeout(this._hoverT); this._hoverT=setTimeout(()=>this.setState(st=>st.hoverId===d.id?{hoverId:null}:null),160); },
+      h+='<table class="dv-vt"><tr><th>バリエーション</th><th>推奨テンション (lbs)</th><th>動的剛性 (g/mm)</th><th>平均静的剛性 (kg/mm)</th></tr>';
+      vs.forEach(function(v,vi){
+        var vt=v.tech||{}, vtr=dvLbsRange(vt.ten);
+        h+='<tr'+(v.id===d.id?' class="cur"':'')+'><td><i class="dv-dot" style="background:'+DV_COLORS[vi%DV_COLORS.length]+'"></i>'+esc(v.gauge||v.name)+(v.id===d.id?'（この弦）':'')+'</td>';
+        h+='<td>'+(vtr?vtr.lbs:'—')+'</td><td>'+(vt.dyn!=null?vt.dyn:'—')+'</td><td>'+(v.stiff!=null?v.stiff.toFixed(2):'—')+'</td></tr>';
       });
-      if (hovered && !isStack){
-        labels.push({
-          text:d.name,
-          style:`position:absolute;left:${px.toFixed(2)}%;top:${py.toFixed(2)}%;transform:translate(9px,-50%);font-size:11px;font-weight:700;color:#202124;white-space:nowrap;pointer-events:none;z-index:21;text-shadow:0 1px 0 #fff,0 -1px 0 #fff,1px 0 0 #fff,-1px 0 0 #fff;`,
-        });
-      } else if (showAllLabels && !isStack){
-        labels.push({
-          text:d.name,
-          style:`position:absolute;left:${px.toFixed(2)}%;top:${py.toFixed(2)}%;transform:translate(9px,-50%);font-size:10.5px;font-weight:500;color:#5F6368;white-space:nowrap;pointer-events:none;z-index:5;text-shadow:0 1px 0 #fff,0 -1px 0 #fff,1px 0 0 #fff,-1px 0 0 #fff;`,
-        });
-      }
+      h+='</table></div>';
+    }
+    // あなたの記録
+    h+='<div class="dv-card dv-subj"><h3>あなたの記録（体感）</h3>';
+    if(d.memo){ h+='<div class="dv-memo" style="color:#202124">'+esc(d.memo)+'</div>'; }
+    else { h+='<div class="dv-memo">まだ試打記録がありません。試打すると条件（ラケット・テンション・イベント）ごとの評価がここに並び、上のレーダーに体感（オレンジ）が重なります。</div>'; }
+    h+='</div>';
+    h+='<div class="dv-foot">ポンド換算: 1 kg = 2.20 lbs（テンション系のみ・整数丸め）。項目解説は Racketpedia 本家解説の日本語訳。データ出典: Racketpedia（個人利用）。</div>';
+    h+='</div>';
+    var ov=document.createElement('div');
+    ov.className='dv-ov';
+    ov.innerHTML=h;
+    document.body.appendChild(ov);
+    document.body.style.overflow='hidden';
+    ov.addEventListener('click',function(e){
+      if(e.target===ov || e.target.closest('.dv-x')){ ov.remove(); document.body.style.overflow=''; return; }
+      var q=e.target.closest('.dv-q');
+      if(q){ var el=document.getElementById('dv-def-'+q.getAttribute('data-dvq')); if(el) el.classList.toggle('on'); }
     });
-
-    const stripUnit=(l)=>l.replace(/\s*\(.*\)/,"");
-    const xL=stripUnit(ax.label), yL=stripUnit(ay.label);
-
-    // ---- histograms (real counts, for judging skew/density) ----
-    const mkHistBars=(hist)=>hist.bins.map((b,i)=>({
-      key:i,
-      barStyle:`flex:1;height:${Math.max(b.count?4:1, b.pct*0.42)}px;background:${b.count?"#007AFF":"#EEF0F2"};border-radius:2px 2px 0 0;`,
-      title:`${b.lo.toFixed(2)}〜${b.hi.toFixed(2)}: ${b.count} 本`,
-    }));
-    const xHist=this.histogram(ax, filtered), yHist=this.histogram(ay, filtered);
-    const xHistBars=mkHistBars(xHist), yHistBars=mkHistBars(yHist);
-
-    // ---- axis tick marks (real numbers along the plot edges) ----
-    const xTicks=[0,25,50,75,100].map(p=>({ pct:p, label:ax.fmt(xmn+(xmx-xmn)*p/100) }));
-    const yTicks=[0,25,50,75,100].map(p=>({ pct:p, label:ay.fmt(ymx-(ymx-ymn)*p/100) }));
-    // ---- average (mean) reference lines, drawn in red ----
-    const meanOf=(getter)=>{ const vs=filtered.map(getter).filter(v=>v!=null); return vs.length?vs.reduce((a,b)=>a+b,0)/vs.length:null; };
-    const xMean=meanOf(ax.get), yMean=meanOf(ay.get);
-    const xMeanPct = xMean!=null ? ((xMean-xmn)/((xmx-xmn)||1))*100 : null;
-    const yMeanPct = yMean!=null ? (1-(yMean-ymn)/((ymx-ymn)||1))*100 : null;
-
-    // ---- hover cluster panel: list every string sharing the hovered spot ----
-    let clusterPanel = null;
-    if (s.hoverId!=null){
-      const hd = filtered.filter(x=>x.id===s.hoverId)[0];
-      if (hd){
-        const hx=((ax.get(hd)-xmn)/((xmx-xmn)||1))*100, hy=(1-(ay.get(hd)-ymn)/((ymx-ymn)||1))*100;
-        const list = cluster[hx.toFixed(1)+","+hy.toFixed(1)] || [hd];
-        if (list.length>1){
-          const rightSide = hx < 55;
-          clusterPanel = {
-            count:list.length,
-            wrapStyle:`position:absolute;left:${hx.toFixed(2)}%;top:${hy.toFixed(2)}%;transform:translate(${rightSide?'0':'-100%'},-50%);${rightSide?'padding-left:12px':'padding-right:12px'};z-index:40;`,
-            rows:list.map(d=>({
-              name:d.brand+" "+d.name,
-              gauge:d.gauge?d.gauge+" mm":"—",
-              swatchStyle:`flex:0 0 8px;width:8px;height:8px;border-radius:50%;background:${this.MATFAM_COL[d.matFam]||"#80868B"};`,
-              onClick:()=>this.setState({detailId:d.id}),
-            })),
-          };
-        }
-      }
-    }
-
-    // ---- table rows ----
-    let tblRows=[];
-    if (s.view==="table"){
-      const dir=s.sortDir==="asc"?1:-1;
-      const list=filtered.slice().sort((a,b)=>{
-        let av,bv;
-        if (s.sortKey==="stiff"){av=a.stiff;bv=b.stiff;}
-        else {const i=+s.sortKey; av=a.obj?a.obj[i]:null; bv=b.obj?b.obj[i]:null;}
-        if(av==null&&bv==null)return 0; if(av==null)return 1; if(bv==null)return -1; return (av-bv)*dir;
-      });
-      tblRows=list.map(d=>{
-        const expanded = s.expandedId===d.id;
-        const cmpChecked = s.cmpIds.indexOf(d.id)>=0;
-        return {
-          id:d.id,
-          onToggle:()=>this.setState(st=>({expandedId:st.expandedId===d.id?null:d.id})),
-          onCmpToggle:(e)=>{ e.stopPropagation(); this.toggleCmp(d.id); },
-          cmpChecked,
-          rowStyle:"border-bottom:1px solid #F1F3F4;cursor:pointer;"+(expanded?"background:#F3F7FF;":""),
-          caretStyle:"font-size:11px;color:#80868B;display:inline-block;transition:transform 150ms ease;transform:rotate("+(expanded?90:0)+"deg);",
-          name:d.name, brand:d.brand, hasLab:!!d.obj, hasDyn:!!(d.tech&&d.tech.dyn!=null), structMat:d.structure+"・"+d.material, shape:d.shape, gauge:d.gauge,
-          stiffStr:d.stiff!=null?d.stiff.toFixed(2):"—",
-          dynStr:(d.tech&&d.tech.dyn!=null)?String(d.tech.dyn):"—",
-          dynColor:(d.tech&&d.tech.dyn!=null)?"#202124":"#C7C7CC",
-          dynWeight:(d.tech&&d.tech.dyn!=null)?"600":"400",
-          evalText:d.evalText||"未試打",
-          pillStyle:(()=>{const p=this.PILL[d.evalCat]||this.PILL.mishida; return "display:inline-block;font-size:10.5px;font-weight:600;line-height:1;color:"+p.fg+";background:"+p.bg+";border:1px solid "+p.bd+";border-radius:6px;padding:3px 8px;white-space:nowrap;";})(),
-          cells:this.AXES.map((_,i)=>{const v=d.obj?d.obj[i]:null; return {text:v!=null?String(v):"—",color:v!=null?"#007AFF":"#C7C7CC"};}),
-          expanded,
-          panel: expanded ? {
-            hasLab:!!d.obj, noLab:!d.obj,
-            radarEl: d.obj?this.makeRadar(d.obj):null,
-            barsRows: this.AXES.map((label,i)=>{const v=d.obj?d.obj[i]:null; return {label,pct:(v!=null?v:0)+"%",text:v!=null?String(v):"—",color:v!=null?"#007AFF":"#C7C7CC"};}),
-            stiffStr:d.stiff!=null?d.stiff.toFixed(2):"—",
-            dynStr:(d.tech&&d.tech.dyn!=null)?(d.tech.dyn+" g/mm"):"空欄（未取得）",
-            dynColor:(d.tech&&d.tech.dyn!=null)?"#202124":"#C7C7CC",
-            memoText:(d.memo&&d.memo.trim())?d.memo:"メモなし",
-            memoColor:(d.memo&&d.memo.trim())?"#202124":"#C7C7CC",
-            hint:this.stiffHint(d),
-            onOpenDetail:()=>this.setState({detailId:d.id}),
-          } : null,
-        };
-      });
-    }
-    const headBase="text-align:center;padding:10px 8px;font-size:11px;font-weight:600;color:#80868B;white-space:nowrap;cursor:pointer;user-select:none;position:sticky;top:0;background:#FAFAFB;";
-    const axisHeaders=this.AXES_SHORT.map((short,i)=>{const act=s.sortKey===String(i); return {short,full:this.AXES[i],style:headBase+(act?"color:#007AFF;":""),caret:act?(s.sortDir==="asc"?" ▲":" ▼"):"",onClick:()=>this.setSort(String(i))};});
-    const stiffAct=s.sortKey==="stiff";
-
-    // ---- detail ----
-    let detail=null;
-    if (s.detailId!=null){
-      const d=all.filter(x=>x.id===s.detailId)[0];
-      if (d){
-        detail={
-          name:d.name, brand:d.brand, gauge:d.gauge, material:d.material, shape:d.shape,
-          stiffStr:d.stiff!=null?d.stiff.toFixed(2):"—",
-          dynStr:(d.tech&&d.tech.dyn!=null)?String(Math.round(d.tech.dyn))+" g/mm":"未取得",
-          dynColor:(d.tech&&d.tech.dyn!=null)?"#202124":"#C7C7CC",
-          hasLab:!!d.obj, noLab:!d.obj,
-          radarEl:d.obj?this.makeRadar(d.obj):null,
-          axisRows:this.AXES.map((label,i)=>{const v=d.obj?d.obj[i]:null; return {label,text:v!=null?String(v):"—",color:v!=null?"#007AFF":"#C7C7CC",w:(v!=null?v:0)+"%"};}),
-        };
-      }
-    }
-
-    const labN=all.filter(d=>d.obj).length;
-    const dynN=all.filter(d=>d.tech&&d.tech.dyn!=null).length;
-    const tabBase="display:flex;align-items:center;gap:7px;padding:9px 16px;font-size:13.5px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;";
-
-    // ---- compare ----
-    const cmpItems = s.cmpIds.map(id=>all.filter(x=>x.id===id)[0]).filter(Boolean);
-    const cmpLegend = cmpItems.map((d,i)=>({color:this.CMP_COLORS[i%4], label:d.brand+" "+d.name}));
-    const cmpWithRadar = cmpItems.filter(d=>d.obj);
-    const cmpRadarEl = cmpWithRadar.length ? this.makeMultiRadar(cmpWithRadar.map(d=>({vals:d.obj, color:this.CMP_COLORS[cmpItems.indexOf(d)%4]}))) : null;
-    const cmpRows = cmpItems.map((d,i)=>({color:this.CMP_COLORS[i%4], name:d.brand+" "+d.name, gauge:d.gauge, stiffStr:d.stiff!=null?d.stiff.toFixed(2):"—", matStr:d.structure+"・"+d.material, shape:d.shape}));
-
-    return {
-      summary:`全 ${all.length} 本 · 表示 ${filtered.length} 本 · 8軸 ${labN} 本 · 詳細測定 ${dynN} 本`,
-      scatterView:s.view==="scatter", tableView:s.view==="table", threeView:s.view==="threed",
-      tabScatterStyle:tabBase+(s.view==="scatter"?"color:#007AFF;border-bottom-color:#007AFF;":"color:#80868B;"),
-      tabTableStyle:tabBase+(s.view==="table"?"color:#007AFF;border-bottom-color:#007AFF;":"color:#80868B;"),
-      tab3DStyle:tabBase+(s.view==="threed"?"color:#007AFF;border-bottom-color:#007AFF;":"color:#80868B;"),
-      onScatter:()=>this.setState({view:"scatter"}), onTable:()=>this.setState({view:"table"}), on3D:()=>this.setState({view:"threed"}),
-
-      search:s.search, matFilter:s.mat, shapeFilter:s.shape,
-      matOptions:this.distinct("matFam"), shapeOptions:this.distinct("shpFam"),
-      hasFilter:!!(s.search||(s.brands&&s.brands.length)||s.mat||s.shape),
-      onSearch:e=>this.setState({search:e.target.value}),
-      onMat:e=>this.setState({mat:e.target.value}), onShape:e=>this.setState({shape:e.target.value}),
-      onClear:()=>this.setState({search:"",brands:[],mat:"",shape:""}),
-
-      // maker multi-select
-      brandOpen:s.brandOpen,
-      brandButtonLabel: (s.brands&&s.brands.length) ? ("メーカー："+s.brands.length+"社") : "メーカー：すべて",
-      brandButtonStyle:"height:36px;padding:0 12px;border:1px solid "+((s.brands&&s.brands.length)?"#A9D2FF":"#DADCE0")+";border-radius:10px;background:"+((s.brands&&s.brands.length)?"#E1F0FF":"#fff")+";font-size:13px;color:"+((s.brands&&s.brands.length)?"#0057B8":"#202124")+";cursor:pointer;display:flex;align-items:center;gap:8px;white-space:nowrap;",
-      onBrandToggle:(e)=>{ e.stopPropagation(); this.setState(st=>({brandOpen:!st.brandOpen})); },
-      brandItems: this.distinct("brand").map(b=>({
-        name:b, checked:(s.brands||[]).indexOf(b)>=0,
-        boxStyle:"flex:0 0 15px;width:15px;height:15px;border-radius:4px;display:flex;align-items:center;justify-content:center;border:1.5px solid "+((s.brands||[]).indexOf(b)>=0?"#007AFF":"#C7C7CC")+";background:"+((s.brands||[]).indexOf(b)>=0?"#007AFF":"#fff")+";",
-        onToggle:(e)=>{ e.stopPropagation(); this.setState(st=>{ const has=(st.brands||[]).indexOf(b)>=0; return {brands: has?st.brands.filter(x=>x!==b):(st.brands||[]).concat([b])}; }); },
-      })),
-      onBrandClear:(e)=>{ e.stopPropagation(); this.setState({brands:[]}); },
-      onBrandClose:()=>this.setState({brandOpen:false}),
-      stopClick:(e)=>e.stopPropagation(),
-
-      axisOptions:axOpts, xAxis:s.xAxis, yAxis:s.yAxis, zAxis:s.zAxis,
-      planeRows:(()=>{
-        const az2=this.axisByKey(s.zAxis);
-        const p3=filtered.filter(d=>ax.get(d)!=null&&ay.get(d)!=null&&az2.get(d)!=null);
-        const META={ xy:{cAxis:az2,label:"XY平面（Z＝静的剛性 一定）",col:"#0A5B35"}, yz:{cAxis:ax,label:"YZ平面（X＝パワー 一定）",col:"#D93025"}, zx:{cAxis:ay,label:"ZX平面（Y＝スピン 一定）",col:"#0057B8"} };
-        const setPlane=(k,patch)=>this.setState(st=>({planes:{...st.planes,[k]:{...st.planes[k],...patch}}}));
-        return ["xy","yz","zx"].map(k=>{
-          const P=s.planes[k]||{on:false,frac:0,trim:"none"}; const m=META[k];
-          const vs=p3.map(m.cAxis.get); let valueText="";
-          if(vs.length){ const mean=vs.reduce((a,b)=>a+b,0)/vs.length; let dev=Math.max.apply(null,vs.map(v=>Math.abs(v-mean)))||1; dev*=1.08; valueText=m.cAxis.label.replace(/\s*\(.*\)/,"")+" = "+m.cAxis.fmt(mean+P.frac*dev); }
-          return { key:k, on:P.on, frac:P.frac, trim:P.trim, label:m.label, col:m.col, valueText,
-            boxStyle:"flex:0 0 16px;width:16px;height:16px;border-radius:4px;display:flex;align-items:center;justify-content:center;border:1.5px solid "+(P.on?m.col:"#C7C7CC")+";background:"+(P.on?m.col:"#fff")+";",
-            onToggle:(e)=>{ e.stopPropagation(); setPlane(k,{on:!P.on}); },
-            onFrac:(e)=>setPlane(k,{frac:parseFloat(e.target.value)}),
-            onTrim:(e)=>setPlane(k,{trim:e.target.value}),
-          };
-        });
-      })(),
-      threeStatus:(()=>{
-        const az2=this.axisByKey(s.zAxis);
-        const p3=filtered.filter(d=>ax.get(d)!=null&&ay.get(d)!=null&&az2.get(d)!=null);
-        const n=p3.length;
-        const AX={ xy:az2, yz:ax, zx:ay };
-        const active=["xy","yz","zx"].filter(k=>s.planes[k]&&s.planes[k].on&&s.planes[k].trim!=="none");
-        if(!active.length) return "表示 "+n+" 本（3軸すべてに実測値がある弦）";
-        const stat=(cAxis)=>{ const vs=p3.map(cAxis.get); const mean=vs.reduce((a,b)=>a+b,0)/(vs.length||1); let dev=Math.max.apply(null,vs.map(v=>Math.abs(v-mean)))||1; return {mean,dev:dev*1.08}; };
-        const st2={}; active.forEach(k=>st2[k]=stat(AX[k]));
-        const kept=p3.filter(d=>active.every(k=>{ const P=s.planes[k]; const {mean,dev}=st2[k]; const fr=(AX[k].get(d)-mean)/dev; return P.trim==="plus"?fr>=P.frac:fr<=P.frac; })).length;
-        return "表示 "+kept+" / "+n+" 本（トリム中）";
-      })(),
-      onX:e=>this.setState({xAxis:e.target.value}), onY:e=>this.setState({yAxis:e.target.value}), onZ:e=>this.setState({zAxis:e.target.value}),
-      onSwap:()=>this.setState(st=>({xAxis:st.yAxis,yAxis:st.xAxis})),
-      labelToggleStyle:"font-size:12px;cursor:pointer;padding:6px 10px;border-radius:8px;display:flex;align-items:center;gap:5px;border:1px solid "+(s.alwaysLabels?"#A9D2FF":"#DADCE0")+";background:"+(s.alwaysLabels?"#E1F0FF":"#fff")+";color:"+(s.alwaysLabels?"#0057B8":"#5F6368")+";",
-      onToggleLabels:()=>this.setState(st=>({alwaysLabels:!st.alwaysLabels})),
-      centerMeanStyle:"font-size:12px;cursor:pointer;padding:6px 10px;border-radius:8px;display:flex;align-items:center;gap:5px;border:1px solid "+(s.centerMean?"#EFB7B2":"#DADCE0")+";background:"+(s.centerMean?"#FCE8E6":"#fff")+";color:"+(s.centerMean?"#A31511":"#5F6368")+";",
-      onToggleCenterMean:()=>this.setState(st=>({centerMean:!st.centerMean})),
-      plottedCount:pts.length, totalCount:filtered.length,
-      plotBoxH,
-      onPlotDown:(e)=>this.startZoomDrag(e), isZoomed:!!s.mpZoom, onResetZoom:()=>this.setState({mpZoom:null}),
-      dots, labels, emptyPlot:pts.length===0,
-      stackBadges: dots.filter(d=>d.isStack).map(d=>({style:d.countStyle, count:d.count})),
-      clusterPanel, onClusterEnter:()=>{ if(this._hoverT){clearTimeout(this._hoverT);this._hoverT=null;} }, onClusterLeave:()=>this.setState({hoverId:null}),
-      xHighLabel:xL+"（"+ax.hiWord+"）", xLowLabel:xL+"（"+ax.loWord+"）",
-      yHighLabel:yL+"（"+ay.hiWord+"）", yLowLabel:yL+"（"+ay.loWord+"）",
-      xAxisTitle:xL+" →（"+ax.hiWord+"）", yAxisTitle:"↑ "+yL+"（"+ay.hiWord+"）",
-
-      xHistBars, xHistLabel:xL, xHistN:xHist.n, xHistMin:xHist.min!=null?ax.fmt(xHist.min):"", xHistMax:xHist.max!=null?ax.fmt(xHist.max):"",
-      yHistBars, yHistLabel:yL, yHistN:yHist.n, yHistMin:yHist.min!=null?ay.fmt(yHist.min):"", yHistMax:yHist.max!=null?ay.fmt(yHist.max):"",
-      xTicks, yTicks,
-      hasXMean: xMeanPct!=null, xMeanPct: xMeanPct!=null?xMeanPct.toFixed(2):"0", xMeanLabel: xMean!=null?("平均 "+ax.fmt(xMean)):"",
-      hasYMean: yMeanPct!=null, yMeanPct: yMeanPct!=null?yMeanPct.toFixed(2):"0", yMeanLabel: yMean!=null?("平均 "+ay.fmt(yMean)):"",
-
-      rows:tblRows, axisHeaders,
-      stiffCaret:stiffAct?(s.sortDir==="asc"?" ▲":" ▼"):"",
-      stiffHeadStyle:headBase+(stiffAct?"color:#007AFF;":""),
-      onSortStiff:()=>this.setSort("stiff"),
-
-      detail, onCloseDetail:()=>this.setState({detailId:null}), stop:(e)=>e.stopPropagation(),
-
-      cmpBarVisible: s.cmpIds.length>0 && !s.cmpOpen,
-      cmpCount: s.cmpIds.length,
-      cmpGoStyle:"font-size:13px;font-weight:700;color:#fff;border-radius:10px;padding:8px 16px;cursor:pointer;border:none;font-family:inherit;background:"+(s.cmpIds.length<2?"#C7C7CC":"#007AFF")+";",
-      onCmpGo: s.cmpIds.length>=2 ? ()=>this.setState({cmpOpen:true}) : ()=>{},
-      onCmpClear:()=>this.setState({cmpIds:[]}),
-      cmpOpen:s.cmpOpen && s.cmpIds.length>0,
-      onCloseCmp:()=>this.setState({cmpOpen:false}),
-      cmpLegend, cmpRadarEl, cmpHasRadar:!!cmpRadarEl, cmpNoRadar:!cmpRadarEl,
-      cmpRows,
-    };
   }
+  document.addEventListener('click',function(e){
+    var b=e.target.closest('.dv-open');
+    if(!b) return;
+    e.stopPropagation();
+    var id=parseInt(b.getAttribute('data-dv'),10);
+    var d=null;
+    for(var i=0;i<DATA.length;i++) if(DATA[i].id===id){ d=DATA[i]; break; }
+    if(d) dvOpen(d);
+  }, true);
 
-  setSort(k){ this.setState(st=>st.sortKey===k?{sortDir:st.sortDir==="asc"?"desc":"asc"}:{sortKey:k,sortDir:k==="stiff"?"asc":"desc"}); }
-}
+
+  /* ===== 複数比較モジュール (cmp-) 2026-07-03 注入 ===== */
+  var CMP_MAX = 4;
+  if(!state.cmpIds) state.cmpIds = [];
+  function cmpBar(){
+    var bar=document.getElementById('cmp-bar');
+    if(!state.cmpIds.length){ if(bar) bar.remove(); return; }
+    if(!bar){
+      bar=document.createElement('div');
+      bar.id='cmp-bar'; bar.className='cmp-bar';
+      document.body.appendChild(bar);
+    }
+    bar.innerHTML='<span class="n">選択中 '+state.cmpIds.length+' / '+CMP_MAX+' 本</span>'
+      +'<button class="cmp-go"'+(state.cmpIds.length<2?' disabled':'')+'>比較する</button>'
+      +'<button class="cmp-clear">クリア</button>';
+    bar.querySelector('.cmp-go').onclick=function(){ if(state.cmpIds.length>=2) cmpOpen(); };
+    bar.querySelector('.cmp-clear').onclick=function(){ state.cmpIds=[]; render(); };
+  }
+  function cmpStrings(){
+    return state.cmpIds.map(function(id){
+      for(var i=0;i<DATA.length;i++) if(DATA[i].id===id) return DATA[i];
+      return null;
+    }).filter(Boolean);
+  }
+  function cmpOpen(){
+    var ss=cmpStrings(), i;
+    var h='<div class="dv-sheet">';
+    h+='<button class="dv-x" title="閉じる">✕</button>';
+    h+='<div class="dv-title">ストリング比較（'+ss.length+'本）</div>';
+    h+='<div class="dv-card"><h3>8軸ラボ評価の重ね合わせ</h3>';
+    h+='<div class="dv-vleg">';
+    ss.forEach(function(v,vi){
+      h+='<span><i class="dv-rl" style="background:'+DV_COLORS[vi%DV_COLORS.length]+'"></i>'+esc(v.brand+' '+v.name+' '+v.gauge)+'</span>';
+    });
+    h+='</div>';
+    var withR=ss.filter(function(v){return v.obj;});
+    if(withR.length>=1){
+      var series=ss.map(function(v,vi){ return v.obj?{vals:v.obj,color:DV_COLORS[vi%DV_COLORS.length]}:null; }).filter(Boolean);
+      h+='<div class="dv-vgrid"><div>'+dvRadarSVG(series,360,290,92)+'</div><div>';
+      for(i=0;i<8;i++){
+        var tracks='', nums=[];
+        ss.forEach(function(v,vi){
+          if(!v.obj) return;
+          tracks+='<div class="dv-g1"><div style="width:'+v.obj[i]+'%;background:'+DV_COLORS[vi%DV_COLORS.length]+'"></div></div>';
+          nums.push('<span style="color:'+dvNumColor(v.delta?v.delta[i]:null)+';font-weight:600">'+v.obj[i]+'</span>');
+        });
+        h+='<div class="dv-gr"><span class="dv-gl">'+AXES[i]+'</span><div class="dv-gt">'+tracks+'</div><span class="dv-gn">'+nums.join('<span style="color:#C7C7CC"> / </span>')+'</span></div>';
+      }
+      h+='</div></div>';
+      h+='<div class="dv-hint">数値の色: <b style="color:#1E8E3E">緑 = 平均より上</b>・<b style="color:#D93025">赤 = 平均より下</b>・グレー = 平均並みか平均比未取得。</div>';
+      if(withR.length<ss.length) h+='<div class="dv-hint">8軸スコア未取得の弦はグラフに出ません（表には出ます）。</div>';
+    } else {
+      h+='<div class="dv-memo">選んだ弦に8軸スコアがまだありません（会員ページを開くと自動で入ります）。</div>';
+    }
+    h+='</div>';
+    h+='<div class="dv-card"><h3>数値比較</h3>';
+    h+='<table class="dv-vt"><tr><th>弦</th><th>ゲージ</th><th>静的剛性 (kg/mm)</th><th>動的剛性 (g/mm)</th><th>推奨テンション (lbs)</th><th>寿命 (時間)</th></tr>';
+    ss.forEach(function(v,vi){
+      var t=v.tech||{}, tr=dvLbsRange(t.ten);
+      h+='<tr><td><i class="dv-dot" style="background:'+DV_COLORS[vi%DV_COLORS.length]+'"></i>'+esc(v.brand+' '+v.name)+'</td>';
+      h+='<td>'+esc(v.gauge||'—')+'</td><td>'+(v.stiff!=null?v.stiff.toFixed(2):'—')+'</td><td>'+(t.dyn!=null?t.dyn:'—')+'</td>';
+      h+='<td>'+(tr?tr.lbs:'—')+'</td><td>'+(t.life?esc(t.life):'—')+'</td></tr>';
+    });
+    h+='</table>';
+    h+='<div class="dv-hint">さらに詳しく見る時は、一覧から弦の行を開いて「詳細ページを開く」。</div></div>';
+    h+='</div>';
+    var ov=document.createElement('div');
+    ov.className='dv-ov';
+    ov.innerHTML=h;
+    document.body.appendChild(ov);
+    document.body.style.overflow='hidden';
+    ov.addEventListener('click',function(e){
+      if(e.target===ov || e.target.closest('.dv-x')){ ov.remove(); document.body.style.overflow=''; }
+    });
+  }
+  document.addEventListener('change',function(e){
+    var c=e.target.closest('.cmp-chk');
+    if(!c) return;
+    var id=parseInt(c.getAttribute('data-cmp'),10);
+    var idx=state.cmpIds.indexOf(id);
+    if(c.checked){
+      if(idx===-1){
+        if(state.cmpIds.length>=CMP_MAX){ c.checked=false; return; }
+        state.cmpIds.push(id);
+      }
+    } else if(idx>=0) state.cmpIds.splice(idx,1);
+    render();  // 再描画 = 選択の保存(F5維持)とバー更新を兼ねる
+  });
+  document.addEventListener('click',function(e){
+    if(e.target.closest('.cmp-chk')) e.stopPropagation();
+  }, true);
+  cmpBar();
+
+  render();
+})();
 </script>
-<style>
+<style id="xnavcss">#xnav{position:fixed;top:8px;right:8px;z-index:2000;display:flex;gap:4px;font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",Arial,sans-serif;}#xnav a{font-size:11px;font-weight:700;text-decoration:none;color:#5F6368;background:rgba(255,255,255,0.92);border:1px solid #DADCE0;border-radius:9px;padding:4px 9px;}#xnav a.cur{color:#0057B8;background:#E1F0FF;border-color:#A9D2FF;}</style><div id="xnav"><a href="strings.html" class="cur">弦</a><a href="strings-mobile.html">弦📱</a><a href="rackets.html">ラケット</a><a href="reader.html">記事</a></div><style>
   #cloudgate{ position:fixed; inset:0; background:#F2F2F7; z-index:9999; display:flex; align-items:center; justify-content:center; font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Helvetica Neue",Arial,sans-serif; }
   #cloudgate .gbox{ background:#fff; border:1px solid #DADCE0; border-radius:20px; padding:34px 30px; text-align:center; max-width:340px; }
   #cloudgate h1{ font-size:17px; font-weight:700; color:#202124; margin:0 0 6px; }
@@ -1146,24 +872,40 @@ class Component extends DCLogic {
   var BLOB = "strings";
   firebase.apps.length ? firebase.app() : firebase.initializeApp(CFG);
   var st = function(t){ var el=document.getElementById("gst"); if(el) el.textContent=t; };
-  function apply(data){ window.SC_DATA = data; var g=document.getElementById("cloudgate"); if(g) g.remove(); }
+  function boot(data){
+    window.__CLOUD_DATA__ = data;
+    var src = document.getElementById("appsrc").textContent;
+    var s = document.createElement("script");
+    s.textContent = src;
+    document.body.appendChild(s);
+    var g = document.getElementById("cloudgate");
+    if(g) g.remove();
+  }
   function load(user){
     st("データ取得中…");
     var col = firebase.firestore().collection("users").doc(user.uid).collection("cloudpages");
     col.doc(BLOB + "__meta").get().then(function(meta){
       if(!meta.exists){ st("このアカウントにはデータがありません"); return; }
-      var total = meta.data().total, jobs = [];
+      var total = meta.data().total;
+      var jobs = [];
       for(var i=0;i<total;i++) jobs.push(col.doc(BLOB + "__" + i).get());
       Promise.all(jobs).then(function(parts){
         var json = parts.map(function(p){ return p.data().part; }).join("");
-        st("展開中…"); apply(JSON.parse(json));
+        st("展開中…");
+        boot(JSON.parse(json));
       }).catch(function(e){ st("取得エラー: " + e.message); });
     }).catch(function(e){ st("取得エラー: " + e.message); });
   }
-  firebase.auth().onAuthStateChanged(function(user){ if(user){ load(user); } else { st(""); } });
+  firebase.auth().onAuthStateChanged(function(user){
+    if(user){ load(user); }
+    else { st(""); }
+  });
   document.getElementById("glogin").addEventListener("click", function(){
-    var p = new firebase.auth.GoogleAuthProvider(); st("ログイン中…");
-    firebase.auth().signInWithPopup(p).catch(function(){ firebase.auth().signInWithRedirect(p); });
+    var p = new firebase.auth.GoogleAuthProvider();
+    st("ログイン中…");
+    firebase.auth().signInWithPopup(p).catch(function(){
+      firebase.auth().signInWithRedirect(p);
+    });
   });
 })();
 </script></body>
