@@ -6,6 +6,14 @@
 
 ## 現行 push 候補
 
+### feat: 弦データに「本家データ取得日」を表示 (ヘッダーバッジ + 詳細の弦別取得/変更日) (2026-07-09)
+push 候補: build_map.py / ストリング比較.dc.html(デザイン本体) / string_compare.html(再ビルド) / gear/strings.html(器 再生成) / VERIFY_LOG.md。
+- **背景(ユーザー指摘)**: データが本家の“今”を反映していないのに、いつ取得したか画面に無い。「07-05最新」と私が言ったのはファイル更新日にすぎず誤り。実データの記録では first_captured=全件2026-06-24 / last_captured=大半06-24・一部07-02〜05 / changed_at=61件が07-03。
+- **実装**: (1) build_map.py の tech に cap=last_captured・chg=changed_at を追加。(2) build_map.py が last_captured 分布から「本家データ取得: <最古> 時点（最終再取得 <最新>）」を算出しヘッダーの @@ASOF@@ トークンへ注入。(3) デザイン本体ヘッダーに取得日バッジ枠(ph-clock)、詳細モーダルの出典直前に弦別「この弦の本家データ取得: <cap> 時点（本家で更新 <chg>）」を sc-if で追加。
+- **実画面検証(preview 8082, 静的 string_compare.html を DC ランタイムで描画)**: ヘッダーバッジ実測=「本家データ取得: 2026-06-24 時点（最終再取得 2026-07-05）」。行展開→「詳細ページを開く」→詳細に「この弦の本家データ取得: 2026-07-03 時点（本家で更新 2026-07-03）」を実測。console error 0。
+- **クラウド**: gear/strings.html にバッジ保持・SC_DATA漏れ0(配列0/brand0)。Firestore へ cap/chg 含む新SC_DATA(strings 415KB)を再アップロード済。
+実画面検証: 済 / console error 0: 済 / 公開器データ漏れ0: 済。
+
 ### fix: 軸ヘルプの本文空バグ修正 + アイコンをSVGに統一 (2026-07-09)
 push 候補: gear/strings.html(器 再生成) / VERIFY_LOG.md。
 - **バグ修正(ユーザー指摘: 画像で本文が消えている)**: 8軸の「?」ヘルプだけ helpContent が bodyEl でなく sections を返し、モーダル本文が空だった → bodyEl:this.makeHelpBody([...]) に修正。実測: 力(パワー)モーダルに本文表示を確認。

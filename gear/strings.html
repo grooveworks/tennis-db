@@ -31,6 +31,7 @@
       <div>
         <div style="font-size:22px;font-weight:700;letter-spacing:-0.01em;display:flex;align-items:center;gap:9px;"><i class="ph-bold ph-tennis-ball" style="color:#9334E0;font-size:22px;"></i>ストリング比較 — PC</div>
         <div style="font-size:13px;color:#5F6368;margin-top:5px;">実データ 650 本。2 軸を自由に選んで弦の位置関係を見る（マップ）／全数値を一覧で見る（表）。</div>
+        <div title="アプリのデータは取得時点のスナップショットです。本家サイトの最新の内容とは異なる場合があります。" style="margin-top:9px;font-size:12px;color:#5F6368;background:#F1F3F4;border:1px solid #E3E5E8;border-radius:999px;padding:3px 12px;display:inline-flex;align-items:center;gap:5px;"><i class="ph-bold ph-clock" style="font-size:13px;color:#80868B;"></i>本家データ取得: 2026-06-24 時点（最終再取得 2026-07-05）</div>
       </div>
       <div style="font-size:12px;color:#5F6368;background:#FFFFFF;border:1px solid #DADCE0;border-radius:12px;padding:8px 14px;">{{ summary }}</div>
     </div>
@@ -414,6 +415,9 @@
           <div style="font-size:13px;font-weight:700;color:#E07B00;margin-bottom:8px;">あなたの記録（体感）</div>
           <div style="font-size:13px;color:{{ detail.memoColor }};background:#fff;border:1px dashed #F5CD9B;border-radius:12px;padding:11px 13px;line-height:1.7;">{{ detail.memoText }}</div>
         </div>
+
+        <!-- この弦のデータ取得日 (2026-07-09) -->
+        <sc-if value="{{ detail.hasCap }}" hint-placeholder-val="{{ false }}"><div style="margin-top:12px;font-size:11.5px;color:#5F6368;display:inline-flex;align-items:center;gap:5px;background:#F1F3F4;border-radius:8px;padding:4px 10px;"><i class="ph-bold ph-clock" style="font-size:12px;color:#80868B;"></i>この弦の本家データ取得: {{ detail.capStr }} 時点<sc-if value="{{ detail.hasChg }}" hint-placeholder-val="{{ false }}"><span style="color:#80868B;">（本家で更新 {{ detail.chgStr }}）</span></sc-if></div></sc-if>
 
         <!-- 出典 -->
         <div style="margin-top:14px;font-size:11px;color:#80868B;line-height:1.7;">ポンド換算: 1 kg = 2.20 lbs（テンション系のみ・整数丸め）。項目解説は Racketpedia の解説・測定方法に基づく日本語要約。データ出典: Racketpedia（個人利用）。</div>
@@ -1338,6 +1342,7 @@ class Component extends DCLogic {
           badgeText:(t.dyn!=null)?"詳細測定済み":"基本情報のみ",
           badgeStyle:"display:inline-block;font-size:11px;font-weight:700;color:#fff;border-radius:7px;padding:3px 9px;margin-left:10px;vertical-align:3px;background:"+((t.dyn!=null)?"#007AFF":"#9AA0A6")+";",
           hasPub:!!t.pub, pubStr:t.pub||"",
+          hasCap:!!t.cap, capStr:t.cap||"", hasChg:!!t.chg, chgStr:t.chg||"",
           stiffStr:d.stiff!=null?d.stiff.toFixed(2):"—",
           dynStr:(d.tech&&d.tech.dyn!=null)?String(Math.round(d.tech.dyn))+" g/mm":"未取得",
           dynColor:(d.tech&&d.tech.dyn!=null)?"#202124":"#C7C7CC",
