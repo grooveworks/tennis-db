@@ -315,7 +315,7 @@
             <div style="font-size:20px;font-weight:700;letter-spacing:-0.01em;">{{ detail.name }}<span style="{{ detail.badgeStyle }}">{{ detail.badgeText }}</span></div>
             <div style="font-size:12.5px;color:#80868B;margin-top:3px;display:flex;gap:12px;flex-wrap:wrap;"><span>{{ detail.brand }}</span><sc-if value="{{ detail.hasPub }}" hint-placeholder-val="{{ false }}"><span>測定公開: {{ detail.pubStr }}</span></sc-if></div>
           </div>
-          <div onClick="{{ onCloseDetail }}" style="cursor:pointer;color:#80868B;font-size:22px;line-height:1;padding:2px 4px;">×</div>
+          <div onClick="{{ onCloseDetail }}" style="cursor:pointer;display:inline-flex;align-items:center;padding:2px 4px;">{{ xIcon }}</div>
         </div>
 
         <!-- チップ (タグ・構造・断面・素材・ゲージ展開・色) -->
@@ -336,7 +336,7 @@
                 <sc-for list="{{ detail.axisRows }}" as="a" hint-placeholder-count="8">
                   <div style="padding:7px 2px;border-bottom:1px solid #F1F3F4;">
                     <div style="display:flex;align-items:center;gap:12px;">
-                      <span style="flex:0 0 132px;font-size:13px;color:#202124;">{{ a.label }}<span onClick="{{ a.onHelp }}" style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:#EEF0F2;color:#80868B;font-size:10.5px;font-weight:700;cursor:pointer;margin-left:6px;vertical-align:1px;">?</span></span>
+                      <span style="flex:0 0 132px;font-size:13px;color:#202124;">{{ a.label }}<span onClick="{{ a.onHelp }}" style="cursor:pointer;display:inline-flex;align-items:center;margin-left:5px;vertical-align:-2px;">{{ a.qIcon }}</span></span>
                       <span style="flex:1;">
                         <span style="font-family:'SF Mono',Menlo,Consolas,monospace;font-size:12px;font-weight:600;color:{{ a.color }};">{{ a.text }}<span style="color:#80868B;font-weight:400;"> / 100</span></span>
                         <span style="display:block;height:8px;background:#EEF0F2;border-radius:5px;overflow:hidden;margin-top:2px;"><span style="display:block;height:100%;width:{{ a.w }};background:#007AFF;border-radius:5px;"></span></span>
@@ -359,7 +359,7 @@
             <sc-for list="{{ detail.techRows }}" as="tx" hint-placeholder-count="8">
               <div style="border-bottom:1px solid #F1F3F4;padding:7px 0;">
                 <div style="display:flex;justify-content:space-between;align-items:baseline;gap:14px;font-size:12.5px;">
-                  <span style="color:#5F6368;">{{ tx.k }}<sc-if value="{{ tx.hasQ }}" hint-placeholder-val="{{ false }}"><span onClick="{{ tx.onHelp }}" style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:#EEF0F2;color:#80868B;font-size:10.5px;font-weight:700;cursor:pointer;margin-left:6px;vertical-align:1px;">?</span></sc-if></span>
+                  <span style="color:#5F6368;">{{ tx.k }}<sc-if value="{{ tx.hasQ }}" hint-placeholder-val="{{ false }}"><span onClick="{{ tx.onHelp }}" style="cursor:pointer;display:inline-flex;align-items:center;margin-left:5px;vertical-align:-2px;">{{ tx.qIcon }}</span></sc-if></span>
                   <span style="{{ tx.vstyle }}">{{ tx.v }}</span>
                 </div>
               </div>
@@ -367,7 +367,7 @@
           </div>
           <sc-if value="{{ detail.hasBands }}" hint-placeholder-val="{{ false }}">
             <div style="flex:1 1 300px;min-width:280px;background:#fff;border:1px solid #E8EAED;border-radius:16px;padding:16px 18px;">
-              <div style="font-size:13px;font-weight:700;color:#5F6368;margin-bottom:10px;">テンション帯別の静的剛性<span onClick="{{ detail.bandDef.onHelp }}" style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:#EEF0F2;color:#80868B;font-size:10.5px;font-weight:700;cursor:pointer;margin-left:6px;vertical-align:1px;">?</span><span style="{{ detail.stiffLevelStyle }}">{{ detail.stiffLevelLabel }}</span></div>
+              <div style="font-size:13px;font-weight:700;color:#5F6368;margin-bottom:10px;">テンション帯別の静的剛性<span onClick="{{ detail.bandDef.onHelp }}" style="cursor:pointer;display:inline-flex;align-items:center;margin-left:5px;vertical-align:-2px;">{{ detail.bandDef.qIcon }}</span><span style="{{ detail.stiffLevelStyle }}">{{ detail.stiffLevelLabel }}</span></div>
               <div style="display:flex;gap:16px;margin-bottom:4px;font-size:11px;color:#5F6368;">
                 <span style="display:flex;align-items:center;gap:5px;"><span style="width:14px;height:3px;border-radius:2px;background:#007AFF;display:inline-block;"></span>この弦</span>
                 <span style="display:flex;align-items:center;gap:5px;"><span style="width:14px;height:3px;border-radius:2px;background:#C7CAD0;display:inline-block;"></span>全弦平均</span>
@@ -427,7 +427,7 @@
       <div onClick="{{ stop }}" style="background:#fff;border-radius:18px;max-width:470px;width:100%;max-height:82vh;overflow:auto;padding:20px 22px 24px;animation:panelEnter 150ms ease-out;">
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px;">
           <div style="font-size:16px;font-weight:700;">{{ help.title }}</div>
-          <div onClick="{{ onCloseHelp }}" style="cursor:pointer;color:#80868B;font-size:22px;line-height:1;padding:0 2px;">×</div>
+          <div onClick="{{ onCloseHelp }}" style="cursor:pointer;display:inline-flex;align-items:center;padding:0 2px;">{{ xIcon2 }}</div>
         </div>
         <sc-if value="{{ help.gauge }}" hint-placeholder-val="{{ false }}">
           <div style="margin-bottom:14px;">{{ help.gaugeEl }}</div>
@@ -452,7 +452,7 @@
       <div onClick="{{ stop }}" style="background:#fff;border-radius:20px;max-width:780px;width:100%;max-height:88vh;overflow:auto;padding:22px 24px 26px;animation:panelEnter 150ms ease-out;">
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;">
           <div style="font-size:18px;font-weight:700;">ストリング比較（{{ cmpCount }} 本）</div>
-          <div onClick="{{ onCloseCmp }}" style="cursor:pointer;color:#80868B;font-size:22px;line-height:1;padding:2px 4px;">×</div>
+          <div onClick="{{ onCloseCmp }}" style="cursor:pointer;display:inline-flex;align-items:center;padding:2px 4px;">{{ xIcon3 }}</div>
         </div>
         <div style="display:flex;gap:16px;margin-top:10px;flex-wrap:wrap;">
           <sc-for list="{{ cmpLegend }}" as="lg" hint-placeholder-count="4">
@@ -937,10 +937,31 @@ class Component extends DCLogic {
   }
   openHelp(key){ this.setState({ helpKey:key }); }
   closeHelp(){ this.setState({ helpKey:null }); }
+  svgIcon(name, size, color){
+    const s=size||15, c=color||"#80868B";
+    const P={
+      help:[["circle",{cx:12,cy:12,r:10}],["path",{d:"M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"}],["line",{x1:12,y1:17,x2:12.01,y2:17}]],
+      x:[["line",{x1:18,y1:6,x2:6,y2:18}],["line",{x1:6,y1:6,x2:18,y2:18}]],
+      info:[["circle",{cx:12,cy:12,r:10}],["line",{x1:12,y1:16,x2:12,y2:12}],["line",{x1:12,y1:8,x2:12.01,y2:8}]],
+      list:[["line",{x1:9,y1:6,x2:20,y2:6}],["line",{x1:9,y1:12,x2:20,y2:12}],["line",{x1:9,y1:18,x2:20,y2:18}],["circle",{cx:4.5,cy:6,r:1}],["circle",{cx:4.5,cy:12,r:1}],["circle",{cx:4.5,cy:18,r:1}]],
+      effect:[["polyline",{points:"22 12 18 12 15 21 9 3 6 12 2 12"}]],
+      target:[["circle",{cx:12,cy:12,r:10}],["circle",{cx:12,cy:12,r:6}],["circle",{cx:12,cy:12,r:2}]]
+    };
+    const paths=(P[name]||P.info).map((p,i)=>React.createElement(p[0],Object.assign({key:i},p[1])));
+    return React.createElement("svg",{viewBox:"0 0 24 24",width:s,height:s,fill:"none",stroke:c,strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round",style:{display:"inline-block",verticalAlign:"middle",flex:"0 0 auto"}},paths);
+  }
   makeHelpBody(sections){
     const els=[];
     sections.forEach((s,i)=>{
-      if(s.h) els.push(React.createElement("div",{key:"h"+i,style:{fontSize:"13px",fontWeight:700,color:"#202124",margin:(i>0?"16px":"2px")+" 0 7px"}}, s.h));
+      if(s.h){
+        const EM=[["🎾","info"],["📏","list"],["⚙️","effect"],["🎯","target"]];
+        let head=s.h, icon=s.icon||null;
+        for(let e=0;e<EM.length;e++){ if(head.indexOf(EM[e][0])===0){ if(!icon) icon=EM[e][1]; head=head.slice(EM[e][0].length).replace(/^\s+/,""); break; } }
+        const hk=[];
+        if(icon) hk.push(React.createElement("span",{key:"ic",style:{display:"inline-flex",marginRight:"7px",flex:"0 0 auto"}}, this.svgIcon(icon,16,"#5F6368")));
+        hk.push(React.createElement("span",{key:"tx"}, head));
+        els.push(React.createElement("div",{key:"h"+i,style:{fontSize:"13px",fontWeight:700,color:"#202124",margin:(i>0?"16px":"2px")+" 0 7px",display:"flex",alignItems:"center"}}, hk));
+      }
       if(s.items){
         s.items.forEach((it,j)=>{
           els.push(React.createElement("div",{key:"i"+i+"_"+j,style:{fontSize:"13px",color:"#3C4043",lineHeight:"1.75",display:"flex",gap:"8px",margin:"0 0 3px 4px"}},
@@ -965,7 +986,7 @@ class Component extends DCLogic {
       "プレー最初の数時間を過ぎたあとの、テンションと挙動の安定度です。",
       "静的剛性と動的剛性で決まる、打球時の快適さです。"
     ];
-    if(/^ax[0-7]$/.test(key)){ const i=+key.slice(2); return {title:AXFULL[i], sections:[{t:AXDEF[i]}]}; }
+    if(/^ax[0-7]$/.test(key)){ const i=+key.slice(2); return {title:AXFULL[i], bodyEl:this.makeHelpBody([{t:AXDEF[i]}])}; }
     const MAP={
       ten:{title:"推奨テンション", sections:[
         {h:"🎾 これは何？", t:"この弦で推奨されるストリンギング・テンションの幅です（本家 Tension range、kg→lbs 換算）。"},
@@ -1257,7 +1278,7 @@ class Component extends DCLogic {
           const v=d.obj?d.obj[i]:null, dl=d.delta?d.delta[i]:null, dp=deltaPill(dl);
           return {label, text:v!=null?String(v):"—", w:(v!=null?v:0)+"%", color:v!=null?"#007AFF":"#C7C7CC",
                   deltaShow:dp.show, deltaText:dp.text, deltaStyle:dp.style,
-                  onHelp:()=>this.openHelp("ax"+i)};
+                  onHelp:()=>this.openHelp("ax"+i), qIcon:this.svgIcon("help",15,"#80868B")};
         });
         // チップ (タグ・構造・断面・素材・ゲージ展開・色)
         const chipBase="font-size:12px;border-radius:9px;padding:4px 11px;border:1px solid #DADCE0;background:#fff;color:#5F6368;";
@@ -1272,7 +1293,7 @@ class Component extends DCLogic {
         // 技術データ行 (? は動的剛性/平均静的剛性)
         const vmute="font-family:'SF Mono',Menlo,Consolas,monospace;font-weight:400;color:#C7C7CC;";
         const vnorm="font-family:'SF Mono',Menlo,Consolas,monospace;font-weight:600;color:#202124;";
-        const trow=(k,val,ok,helpKey)=>({k, v:ok?val:"—", vstyle:ok?vnorm:vmute, hasQ:!!helpKey, onHelp:helpKey?(()=>this.openHelp(helpKey)):null});
+        const trow=(k,val,ok,helpKey)=>({k, v:ok?val:"—", vstyle:ok?vnorm:vmute, hasQ:!!helpKey, onHelp:helpKey?(()=>this.openHelp(helpKey)):null, qIcon:helpKey?this.svgIcon("help",15,"#80868B"):null});
         const techRows=[
           trow("推奨テンション", tr?tr.lbs+" lbs ("+tr.kg+" kg)":"", !!tr, "ten"),
           trow("反発レンジ", rr?rr.lbs+" lbs ("+rr.kg+" kg)":"", !!rr, "resil"),
@@ -1297,7 +1318,7 @@ class Component extends DCLogic {
         const bandW=(x)=>(x!=null?Math.min(100,x/2.0*100).toFixed(0):0)+"%";
         const bands=[]; let hasBands=false;
         for(let bi=0;bi<5;bi++){const bv=(t.bands&&t.bands[bi]!=null)?t.bands[bi]:null; if(bv!=null)hasBands=true; const av=avgB?avgB[bi]:null; bands.push({label:BANDLBS[bi], w:bandW(bv), val:bv!=null?bv.toFixed(2)+" kg/mm":"—", hasAvg:av!=null, avgW:bandW(av), avgVal:av!=null?av.toFixed(2):"—"});}
-        const bandDef={onHelp:()=>this.openHelp("band")};
+        const bandDef={onHelp:()=>this.openHelp("band"), qIcon:this.svgIcon("help",15,"#80868B")};
         // バリエーション比較 (同モデルのゲージ違い)
         let variants=null;
         if(d.vkey){
@@ -1439,6 +1460,7 @@ class Component extends DCLogic {
 
       detail, onCloseDetail:()=>this.setState({detailId:null}), stop:(e)=>e.stopPropagation(),
       help, onCloseHelp:()=>this.setState({helpKey:null}),
+      xIcon:this.svgIcon("x",18,"#80868B"), xIcon2:this.svgIcon("x",18,"#80868B"), xIcon3:this.svgIcon("x",18,"#80868B"),
 
       cmpBarVisible: s.cmpIds.length>0 && !s.cmpOpen,
       cmpCount: s.cmpIds.length,

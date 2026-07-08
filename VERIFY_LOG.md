@@ -6,6 +6,12 @@
 
 ## 現行 push 候補
 
+### fix: 軸ヘルプの本文空バグ修正 + アイコンをSVGに統一 (2026-07-09)
+push 候補: gear/strings.html(器 再生成) / VERIFY_LOG.md。
+- **バグ修正(ユーザー指摘: 画像で本文が消えている)**: 8軸の「?」ヘルプだけ helpContent が bodyEl でなく sections を返し、モーダル本文が空だった → bodyEl:this.makeHelpBody([...]) に修正。実測: 力(パワー)モーダルに本文表示を確認。
+- **アイコンをSVGに統一(ユーザー要望)**: 「?」(text)→ help-circle SVG 17個、「×」(text)→ x SVG(詳細/解説/比較の3モーダル)、解説トピックの絵文字(🎾/📏/⚙️/🎯)→ SVGアイコン(info/list/effect/target、makeHelpBodyで絵文字検出し置換)。svgIcon メソッド(Feather系path・React.createElement)。sc-for内は要素再利用を避け各行に個別要素。実測: 旧テキスト?×は0、help-circle 17・トピックSVG描画・console 0。
+実画面検証: 済(DOM実測。プレビュー基盤不安定でスクショ画像は未取得) / console error 0: 済 / 公開器データ漏れ0: 済。
+
 ### fix: ストリング比較PCを「表・マップ・3Dの3独立タブ1ページ」に真っ当に再構築 (2026-07-07)
 push 候補: gear/racketpedia/build_map.py(新規=デザイン本体に実データ注入し3タブ1ページ生成) / gear/racketpedia/build_compare.py(旧テンプレ+iframe切替タブ方式を退役=何もしない) / gear/racketpedia/gen_cloud_pages.py(弦PCをデザイン方式SC_DATA器で生成) / gear/racketpedia/add_nav.py(弦PCはナビ内蔵のため注入対象外) / gear/racketpedia/build_mobile_compare.py(SC_DATA両対応) / gear/racketpedia/store.py(自動再生成を build_map へ) / gear/strings.html(3タブ1ページの公開器) / .gitignore / VERIFY_LOG.md。
 
