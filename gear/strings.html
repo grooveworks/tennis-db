@@ -31,7 +31,7 @@
       <div>
         <div style="font-size:22px;font-weight:700;letter-spacing:-0.01em;display:flex;align-items:center;gap:9px;"><i class="ph-bold ph-tennis-ball" style="color:#9334E0;font-size:22px;"></i>ストリング比較 — PC</div>
         <div style="font-size:13px;color:#5F6368;margin-top:5px;">実データ 650 本。2 軸を自由に選んで弦の位置関係を見る（マップ）／全数値を一覧で見る（表）。</div>
-        <div title="アプリのデータは取得時点のスナップショットです。本家サイトの最新の内容とは異なる場合があります。" style="margin-top:9px;font-size:12px;color:#5F6368;background:#F1F3F4;border:1px solid #E3E5E8;border-radius:999px;padding:3px 12px;display:inline-flex;align-items:center;gap:5px;"><i class="ph-bold ph-clock" style="font-size:13px;color:#80868B;"></i>本家データ取得: 2026-06-24 時点（最終再取得 2026-07-05）</div>
+        <div title="アプリのデータは取得時点のスナップショットです。本家サイトの最新の内容とは異なる場合があります。" style="margin-top:9px;font-size:12px;color:#5F6368;background:#F1F3F4;border:1px solid #E3E5E8;border-radius:999px;padding:3px 12px;display:inline-flex;align-items:center;gap:5px;"><i class="ph-bold ph-clock" style="font-size:13px;color:#80868B;"></i>{{ asof }}</div>
       </div>
       <div style="font-size:12px;color:#5F6368;background:#FFFFFF;border:1px solid #DADCE0;border-radius:12px;padding:8px 14px;">{{ summary }}</div>
     </div>
@@ -1377,7 +1377,12 @@ class Component extends DCLogic {
     const cmpRadarEl = cmpWithRadar.length ? this.makeMultiRadar(cmpWithRadar.map(d=>({vals:d.obj, color:this.CMP_COLORS[cmpItems.indexOf(d)%4]}))) : null;
     const cmpRows = cmpItems.map((d,i)=>({color:this.CMP_COLORS[i%4], name:d.brand+" "+d.name, gauge:d.gauge, stiffStr:d.stiff!=null?d.stiff.toFixed(2):"—", matStr:d.structure+"・"+d.material, shape:d.shape}));
 
+    // 本家データ取得日 (実行時に実データ SC_DATA から算出。自動取込でFirestoreが更新されれば再読込で自動反映) 2026-07-09
+    const _caps = all.map(d=>d.tech&&d.tech.cap).filter(Boolean).sort();
+    const asof = _caps.length ? ("本家データ取得: "+_caps[0]+" 時点"+(_caps[_caps.length-1]!==_caps[0]?"（最終再取得 "+_caps[_caps.length-1]+"）":"")) : "本家データ取得日: 記録なし";
+
     return {
+      asof,
       summary:`全 ${all.length} 本 · 表示 ${filtered.length} 本 · 8軸 ${labN} 本 · 詳細測定 ${dynN} 本`,
       scatterView:s.view==="scatter", tableView:s.view==="table", threeView:s.view==="threed",
       tabScatterStyle:tabBase+(s.view==="scatter"?"color:#007AFF;border-bottom-color:#007AFF;":"color:#80868B;"),

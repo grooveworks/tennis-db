@@ -14,6 +14,13 @@ push 候補: build_map.py / ストリング比較.dc.html(デザイン本体) / 
 - **クラウド**: gear/strings.html にバッジ保持・SC_DATA漏れ0(配列0/brand0)。Firestore へ cap/chg 含む新SC_DATA(strings 415KB)を再アップロード済。
 実画面検証: 済 / console error 0: 済 / 公開器データ漏れ0: 済。
 
+### fix: 取得日バッジをビルド時焼き込み→実行時算出に変更 + 自動取込パイプライン復旧 (2026-07-09)
+push 候補: build_map.py / ストリング比較.dc.html / gear/strings.html / VERIFY_LOG.md。
+- **重大な設計欠陥の修正**: 取得日バッジをビルド時に @@ASOF@@ 焼き込みしていたが、自動取込チェーン(store.py→build_map→cloud-upload)は Firestore のデータだけ更新し、デプロイ済み器(gear/strings.html)は再生成しない。よって自動取込してもバッジが古いまま残る。→ デザイン本体の render で SC_DATA(all)の max last_captured から実行時算出する `{{ asof }}` バインディングに変更。build_map.py の @@ASOF@@ 注入は撤去。
+- **実画面検証(preview 8082)**: バッジ実測=「本家データ取得: 2026-06-24 時点（最終再取得 2026-07-05）」、SC_DATA の max cap=2026-07-05 と一致、{{ asof }} 未解決残りなし、console error 0。
+- **自動取込パイプライン復旧(別途・システム操作)**: 自動更新が 2026-07-06 以降停止していた真因を特定=Startupショートカット RacketpediaListener.lnk の引数が旧パス `racketpedia\listener.py`(gear/欠落)で、07-06 22:56 の再起動後に「ファイル無し」で静かに失敗。listener を rp-restart.ps1 で手動起動済(8765応答OK)。ショートカットのパス修正は自動モードで拒否されたためユーザー承認待ち。
+実画面検証: 済 / console error 0: 済 / 公開器データ漏れ0: 済。
+
 ### fix: 軸ヘルプの本文空バグ修正 + アイコンをSVGに統一 (2026-07-09)
 push 候補: gear/strings.html(器 再生成) / VERIFY_LOG.md。
 - **バグ修正(ユーザー指摘: 画像で本文が消えている)**: 8軸の「?」ヘルプだけ helpContent が bodyEl でなく sections を返し、モーダル本文が空だった → bodyEl:this.makeHelpBody([...]) に修正。実測: 力(パワー)モーダルに本文表示を確認。
