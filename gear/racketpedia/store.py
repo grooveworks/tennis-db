@@ -202,9 +202,9 @@ def rebuild(kind):
             build_catalog.build_catalog()
         except Exception as e:
             print('  (catalog 再生成スキップ:', e, ')')
-        try:  # 比較ページも自動再生成 (デザイン取り込みはスキップ = --no-import)。モバイル版も続けて同期
+        try:  # 比較ページも自動再生成。弦PCはデザイン本体(3タブ=表/マップ/3D)へ実データ注入。モバイル版も続けて同期
             import subprocess, sys as _sys
-            subprocess.run([_sys.executable, os.path.join('gear', 'racketpedia', 'build_compare.py'), '--no-import'],
+            subprocess.run([_sys.executable, os.path.join('gear', 'racketpedia', 'build_map.py')],
                            capture_output=True, timeout=60)
             subprocess.run([_sys.executable, os.path.join('gear', 'racketpedia', 'build_mobile_compare.py')],
                            capture_output=True, timeout=60)

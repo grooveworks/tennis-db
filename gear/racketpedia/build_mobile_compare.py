@@ -16,8 +16,9 @@ if not (os.path.exists(TEMPLATE) and os.path.exists(SRC)):
     sys.exit(0)
 
 src = open(SRC, encoding='utf-8').read()
-m = re.search(r'var DATA = (\[.*?\]);\n', src, re.S)
-assert m, '実データ (string_compare.html の DATA) が見つからない'
+# 弦PC版はデザイン方式(window.SC_DATA)。旧テンプレの var DATA も両対応で拾う。
+m = re.search(r'(?:var DATA|window\.SC_DATA) = (\[.*?\]);', src, re.S)
+assert m, '実データ (string_compare.html の DATA/SC_DATA) が見つからない'
 data = json.loads(m.group(1))
 data_js = json.dumps(data, ensure_ascii=False)
 

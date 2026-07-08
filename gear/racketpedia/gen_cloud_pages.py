@@ -11,8 +11,9 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # = <repo>/g
 OUTDIR = ROOT
 os.makedirs(OUTDIR, exist_ok=True)
 
+# strings (PC) はデザイン本体(3タブ=表/マップ/3D, SC_DATA方式)なので下の SC_DATA 器で別途生成。
+# ここは var DATA 方式のページのみ (モバイル・ラケット・記事)。
 PAGES = [
-    ('racketpedia/string_compare.html', 'strings', 'strings.html', 'ストリング比較'),
     ('racketpedia/string_compare_mobile.html', 'strings', 'strings-mobile.html', 'ストリング比較 (モバイル)'),
     ('racketpedia/racket_compare.html', 'rackets', 'rackets.html', 'ラケット比較'),
     ('tennisone/reader.html', 'reader', 'reader.html', 'tennis-one アーカイブ'),
@@ -108,5 +109,60 @@ for src_rel, blob, out_name, title in PAGES:
     out = os.path.join(OUTDIR, out_name)
     open(out, 'w', encoding='utf-8').write(h2)
     print(f'生成: gear/{out_name} ({len(h2)//1024} KB, blob={blob})')
+
+# === ストリング比較PC (デザイン本体: 表/マップ/3Dの3タブ, window.SC_DATA + 外部 support.js) の器 ===
+# 会員データ(SC_DATA)を抜き、ログイン後に strings blob をセットして本体を起動する。
+BOOT_SCDATA = '''
+(function(){
+  var CFG = {
+    apiKey:"AIzaSyAXWAtHjBOi31FoNXZiAwW-A7ywZcDY2mM",
+    authDomain:"tennis-db-ca9ae.firebaseapp.com",
+    projectId:"tennis-db-ca9ae",
+    storageBucket:"tennis-db-ca9ae.firebasestorage.app",
+    messagingSenderId:"1031131288345",
+    appId:"1:1031131288345:web:2adcb9f2eeafa5801ceb88"
+  };
+  var BLOB = "strings";
+  firebase.apps.length ? firebase.app() : firebase.initializeApp(CFG);
+  var st = function(t){ var el=document.getElementById("gst"); if(el) el.textContent=t; };
+  function apply(data){ window.SC_DATA = data; var g=document.getElementById("cloudgate"); if(g) g.remove(); }
+  function load(user){
+    st("データ取得中…");
+    var col = firebase.firestore().collection("users").doc(user.uid).collection("cloudpages");
+    col.doc(BLOB + "__meta").get().then(function(meta){
+      if(!meta.exists){ st("このアカウントにはデータがありません"); return; }
+      var total = meta.data().total, jobs = [];
+      for(var i=0;i<total;i++) jobs.push(col.doc(BLOB + "__" + i).get());
+      Promise.all(jobs).then(function(parts){
+        var json = parts.map(function(p){ return p.data().part; }).join("");
+        st("展開中…"); apply(JSON.parse(json));
+      }).catch(function(e){ st("取得エラー: " + e.message); });
+    }).catch(function(e){ st("取得エラー: " + e.message); });
+  }
+  firebase.auth().onAuthStateChanged(function(user){ if(user){ load(user); } else { st(""); } });
+  var gl = document.getElementById("glogin");
+  if(gl) gl.addEventListener("click", function(){
+    var p = new firebase.auth.GoogleAuthProvider(); st("ログイン中…");
+    firebase.auth().signInWithPopup(p).catch(function(){ firebase.auth().signInWithRedirect(p); });
+  });
+})();
+'''
+mp = open(os.path.join(ROOT, 'racketpedia/string_compare.html'), encoding='utf-8').read()
+mp, nm = re.subn(r'<script>window\.SC_DATA = \[.*?\];</script>', '', mp, count=1, flags=re.S)
+assert nm == 1, 'SC_DATA スクリプトが見つからない (strings PC)'
+assert 'window.SC_DATA = [' not in mp, '器に SC_DATA が残存 (strings PC)'
+shutil.copy(os.path.join(ROOT, 'racketpedia/support.js'), os.path.join(OUTDIR, 'support.js'))
+gate_mp = ('<style>' + GATE_CSS + '</style>'
+    + '<div id="cloudgate"><div class="gbox"><h1>ストリング比較</h1>'
+    + '<p>データは本人の Firebase にのみ保存。<br>Google ログインで表示します。</p>'
+    + '<button id="glogin">Google でログイン</button><div class="gst" id="gst"></div></div></div>'
+    + '<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>'
+    + '<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>'
+    + '<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>'
+    + '<script>' + BOOT_SCDATA + '</script>')
+assert '</body>' in mp, 'body 終端が見つからない (strings PC)'
+mp = mp.replace('</body>', gate_mp + '</body>', 1)
+open(os.path.join(OUTDIR, 'strings.html'), 'w', encoding='utf-8').write(mp)
+print('生成: gear/strings.html (表/マップ/3Dの3タブ1ページ・SC_DATA除去)')
 
 print('完了。gear/ はデータを含まない器のみ = 公開可能')

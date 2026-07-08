@@ -95,6 +95,13 @@ def gauge_lineup(gauges):
     return ' / '.join('%.2f' % (int(n) / 100) for n in ns)
 
 
+# === 退役 (2026-07-07) ===
+# 弦PC版は build_map.py (Claude デザイン本体 = 表/マップ/3D の3タブ1ページ) で生成する。
+# このファイルの旧テンプレ方式は末尾で iframe 切替タブを注入し「同一ページに見せる錯覚」を
+# 生む構造だったため無効化。string_compare.html を上書きして壊さないよう、何もせず終了する。
+print('build_compare.py は退役しました。弦PCは build_map.py で生成します (このスクリプトは何もしません)。')
+sys.exit(0)
+
 rows = json.load(open(SRC, encoding='utf-8'))
 
 # 国内入手フィルタ: jp_brands.txt があれば、そのブランド(slug)だけに絞る
@@ -731,6 +738,62 @@ html = html.replace(OLD_SAVE, NEW_SAVE, 1)
 OLD_RESTORE_KEYS = '["search","brand","material","shape","frame","sortKey","sortDir","highlightDelta","threshold","showSubjective","density"]'
 assert OLD_RESTORE_KEYS in html, '復元キー一覧が見つからない'
 html = html.replace(OLD_RESTORE_KEYS, '["search","brand","material","shape","frame","sortKey","sortDir","highlightDelta","threshold","showSubjective","density","cmpIds"]', 1)
+
+# 6) 表/マップ切替タブを注入。マップ選択時は strings-map.html を「画面いっぱい」で開く(小さくしない)。
+#    表の要素は #tableview へ移動するだけ=表コード無改変。別<script>にしない(器化の取り込みに合わせ IIFE 内)。
+TAB_CODE = '''  (function(){
+    function init(){
+      var inner=document.querySelector('.inner');
+      var head=inner&&inner.querySelector('.head');
+      if(!inner||!head){ return setTimeout(init,80); }
+      if(document.getElementById('vtabs')) return;
+      var els=[], e=head.nextElementSibling;
+      while(e){ els.push(e); e=e.nextElementSibling; }
+      var base='display:flex;align-items:center;gap:6px;padding:9px 18px;font-size:14px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;';
+      var tabs=document.createElement('div'); tabs.id='vtabs';
+      var tT=document.createElement('div'), tM=document.createElement('div');
+      tT.textContent='表'; tM.textContent='マップ / 3D';
+      tabs.appendChild(tT); tabs.appendChild(tM);
+      head.parentNode.insertBefore(tabs, head.nextSibling);
+      var vt=document.createElement('div'); vt.id='tableview';
+      tabs.parentNode.insertBefore(vt, tabs.nextSibling);
+      els.forEach(function(x){ vt.appendChild(x); });
+      var vm=document.createElement('div'); vm.id='mapview';
+      vt.parentNode.insertBefore(vm, vt.nextSibling);
+      var frame=null;
+      function sel(which){
+        var t=(which==='table');
+        tT.style.cssText=base+(t?'color:#007AFF;border-bottom-color:#007AFF;':'color:#80868B;');
+        tM.style.cssText=base+(!t?'color:#007AFF;border-bottom-color:#007AFF;':'color:#80868B;');
+        if(!t && !frame){
+          frame=document.createElement('iframe');
+          frame.src='strings-map.html';
+          frame.setAttribute('title','ストリング分布マップ');
+          frame.style.cssText='width:100%;height:100%;border:none;display:block;background:#F2F2F7;';
+          vm.appendChild(frame);
+        }
+        if(t){
+          tabs.style.cssText='display:flex;align-items:center;gap:4px;margin-top:16px;border-bottom:1px solid #E1E3E6;';
+          vt.style.display='';
+          vm.style.cssText='display:none;';
+          document.body.style.overflow='';
+        } else {
+          tabs.style.cssText='display:flex;align-items:center;gap:4px;position:fixed;top:0;left:0;right:0;height:46px;z-index:10000;background:#fff;border-bottom:1px solid #E1E3E6;padding:0 12px;box-shadow:0 1px 4px rgba(0,0,0,0.06);';
+          vt.style.display='none';
+          vm.style.cssText='display:block;position:fixed;top:46px;left:0;right:0;bottom:0;z-index:9999;';
+          document.body.style.overflow='hidden';
+        }
+      }
+      tT.onclick=function(){ sel('table'); };
+      tM.onclick=function(){ sel('map'); };
+      sel('table');
+    }
+    init();
+  })();
+'''
+_tab_anchor = '  render();\n})();'
+assert _tab_anchor in html, 'アプリ末尾 render() アンカーが見つからない (tab注入)'
+html = html.replace(_tab_anchor, '  render();\n' + TAB_CODE + '})();', 1)
 
 open(OUT, 'w', encoding='utf-8').write(html)
 print('実データ弦数:', len(out))

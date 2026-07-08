@@ -8,8 +8,9 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+# 弦PC (string_compare.html) はデザイン本体にナビを内蔵済み (2026-07-07) のため注入対象外。
+# ここに入れると二重ナビになる。
 PAGES = [
-    ('racketpedia/string_compare.html', 'strings'),
     ('racketpedia/string_compare_mobile.html', 'mobile'),
     ('racketpedia/racket_compare.html', 'rackets'),
     ('tennisone/reader.html', 'reader'),
