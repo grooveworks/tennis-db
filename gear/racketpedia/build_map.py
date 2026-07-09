@@ -190,6 +190,13 @@ design = design.replace('<script src="./strings_data.js"></script>',
 # 注: データ取得日バッジ(asof)はデザイン本体で実行時に SC_DATA から算出する方式に変更 (2026-07-09)。
 #     ビルド時焼き込みだと、自動取込でFirestoreだけ更新された時にバッジが古いまま残るため。
 
+# ページ版(ビルド時刻)を焼き込む。デプロイ反映の新旧を一目で判別できるようにする (2026-07-09 ユーザー要望)。
+import datetime as _dt
+_build_stamp = _dt.datetime.now().strftime('%Y-%m-%d %H:%M')
+assert '@@BUILD@@' in design, 'ヘッダーの @@BUILD@@ トークンが見つからない (dc.html 未更新)'
+design = design.replace('@@BUILD@@', _build_stamp)
+print('ページ版(ビルド時刻):', _build_stamp)
+
 # 2.5) 初期表示は表(ユーザー指定 2026-07-07)。デザイン既定 view:"scatter" を "table" に変更。
 #      表・マップ・3Dの3タブはデザイン本体のまま(タブ除去・全画面ハックは廃止)。
 _v0 = '    view: "scatter",'

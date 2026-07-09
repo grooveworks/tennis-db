@@ -6,8 +6,9 @@
 
 ## 現行 push 候補
 
-### fix: 弦PCの並び順を「メーカー→弦名→太さ」に + 絞り込み/並び/ビューの状態保持 (2026-07-09)
-push 候補: ストリング比較.dc.html(gitignore) / gear/strings.html / VERIFY_LOG.md。
+### fix: 弦PCの並び順を「メーカー→弦名→太さ」に + 絞り込み保持 + ページ版(ビルド時刻)表示 (2026-07-09)
+push 候補: ストリング比較.dc.html(gitignore) / build_map.py / gear/strings.html / VERIFY_LOG.md。
+- **ページ版表示追加(ユーザー要望)**: デプロイ反映の新旧を一目で判別できるよう、build_map.py がビルド時刻を @@BUILD@@ に焼き込み、ヘッダーに「ページ版: YYYY-MM-DD HH:MM」を表示。今回分=2026-07-09 17:06。旧版にはこの表示自体が無い。
 - **背景(ユーザー指摘・回帰)**: 07-06のデザイン本体移行時に、旧 build_compare.py の 4c(初期並びメーカー順)/4e(状態保持)を新デザインへ移し忘れ、既定が剛性順に戻り・絞り込みが保たれなくなっていた。私の移植漏れ。
 - **修正(デザイン本体7箇所)**: (1)既定 sortKey stiff→brand。(2)並び比較に brand 分岐=`brand+name` localeCompare・同点は gauge を numeric 昇順（メーカー→弦名→太さ）。(3)setSort の brand 既定 asc。(4)弦名ヘッダークリックで brand 並びに戻す onSortBrand 追加。(5)componentDidMount で localStorage 'sc_state_v2' から検索/絞り込み/並び/ビュー/軸を復元。(6)componentDidUpdate で保存。
 - **実機検証(preview 8082)**: 並び=Babolat M7 が 1.25→1.30→1.35 と太さ順で連続=メーカー→弦名→太さを確認。保持=検索"M7"→3件→再読込後も検索欄"M7"・3件に復元を確認。console error 0。器 gear/strings.html 反映・SC_DATA漏れ0。
