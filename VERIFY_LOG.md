@@ -6,6 +6,13 @@
 
 ## 現行 push 候補
 
+### fix: 3Dホバーに太さ表示 + タブ切替で絞込クリア + 誤って入れた状態保持を撤去 (2026-07-09)
+push 候補: ストリング比較.dc.html(gitignore) / gear/strings.html / VERIFY_LOG.md。
+- **要件の誤読訂正**: ユーザーの「絞り込みがリセットされない」は「タブ切替で絞込をキャンセルしたい」の意。私は逆に localStorage 保持を入れていた→撤去。
+- **修正(デザイン本体4箇所)**: (1)3D tipText に `太さ <gauge>` を追記(ホバーにゲージ表示)。(2)onScatter/onTable/on3D で view 変更時に search/brands/mat/shape をクリア。(3)(4)componentDidMount 復元・componentDidUpdate 保存(localStorage sc_state_v2)を削除。
+- **実機検証(preview 8082)**: タブ切替クリア=検索"M7"で3件→マップ→表に戻すと検索欄空・650件全表示を確認。3Dホバー太さ=ビルドに `太さ "+d.gauge` 反映(単純連結)。console error 0。ページ版 2026-07-09 17:26。SC_DATA漏れ0。並び順brand維持。
+実画面検証: 済 / console error 0: 済 / 公開器データ漏れ0: 済。
+
 ### fix: 弦PCの並び順を「メーカー→弦名→太さ」に + 絞り込み保持 + ページ版(ビルド時刻)表示 (2026-07-09)
 push 候補: ストリング比較.dc.html(gitignore) / build_map.py / gear/strings.html / VERIFY_LOG.md。
 - **ページ版表示追加(ユーザー要望)**: デプロイ反映の新旧を一目で判別できるよう、build_map.py がビルド時刻を @@BUILD@@ に焼き込み、ヘッダーに「ページ版: YYYY-MM-DD HH:MM」を表示。今回分=2026-07-09 17:06。旧版にはこの表示自体が無い。

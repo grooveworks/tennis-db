@@ -32,7 +32,7 @@
         <div style="font-size:22px;font-weight:700;letter-spacing:-0.01em;display:flex;align-items:center;gap:9px;"><i class="ph-bold ph-tennis-ball" style="color:#9334E0;font-size:22px;"></i>ストリング比較 — PC</div>
         <div style="font-size:13px;color:#5F6368;margin-top:5px;">実データ 650 本。2 軸を自由に選んで弦の位置関係を見る（マップ）／全数値を一覧で見る（表）。</div>
         <div title="アプリのデータは取得時点のスナップショットです。本家サイトの最新の内容とは異なる場合があります。" style="margin-top:9px;font-size:12px;color:#5F6368;background:#F1F3F4;border:1px solid #E3E5E8;border-radius:999px;padding:3px 12px;display:inline-flex;align-items:center;gap:5px;"><i class="ph-bold ph-clock" style="font-size:13px;color:#80868B;"></i>{{ asof }}</div>
-        <div style="margin-top:6px;font-size:11px;color:#9AA0A6;">ページ版: 2026-07-09 17:06</div>
+        <div style="margin-top:6px;font-size:11px;color:#9AA0A6;">ページ版: 2026-07-09 17:26</div>
       </div>
       <div style="font-size:12px;color:#5F6368;background:#FFFFFF;border:1px solid #DADCE0;border-radius:12px;padding:8px 14px;">{{ summary }}</div>
     </div>
@@ -527,8 +527,6 @@ class Component extends DCLogic {
   CMP_COLORS = ["#007AFF","#1C1C1E","#FF9500","#34C759"];
 
   componentDidMount() {
-    // 絞り込み・並び・ビューの状態を復元 (切替/再読込で消えないように) 2026-07-09
-    try { var _sv=JSON.parse(localStorage.getItem('sc_state_v2')||'null'); if(_sv){ var _k={}; ['view','xAxis','yAxis','zAxis','search','brand','brands','mat','shape','sortKey','sortDir','alwaysLabels','centerMean'].forEach(function(x){ if(_sv[x]!==undefined) _k[x]=_sv[x]; }); if(Object.keys(_k).length) this.setState(_k); } } catch(e){}
     if (!(window.SC_DATA && window.SC_DATA.length)) {
       this._iv = setInterval(() => {
         if (window.SC_DATA && window.SC_DATA.length) { clearInterval(this._iv); this.forceUpdate(); }
@@ -544,7 +542,7 @@ class Component extends DCLogic {
   }
   componentWillUnmount() { if (this._iv) clearInterval(this._iv); if (this._onResize) window.removeEventListener('resize', this._onResize); this.stop3D(); if (this._onDocDown) document.removeEventListener('mousedown', this._onDocDown, true); if (this._onKey) document.removeEventListener('keydown', this._onKey); }
 
-  componentDidUpdate() { try { var s=this.state,o={}; ['view','xAxis','yAxis','zAxis','search','brand','brands','mat','shape','sortKey','sortDir','alwaysLabels','centerMean'].forEach(function(k){ o[k]=s[k]; }); localStorage.setItem('sc_state_v2', JSON.stringify(o)); } catch(e){} if (this._dd) clearTimeout(this._dd); this._dd = setTimeout(() => this.dedupeLabels(), 60); this.ensure3D(); }
+  componentDidUpdate() { if (this._dd) clearTimeout(this._dd); this._dd = setTimeout(() => this.dedupeLabels(), 60); this.ensure3D(); }
 
   // ---------- 3D map (Three.js) ----------
   _loadScript(src) {
@@ -748,7 +746,7 @@ class Component extends DCLogic {
     addLabel("平均 " + az.fmt(S.z.mean), -24, 20, 0, AXCOL.z, 19);              // Z data / vertical (green)
     addLabel("平均 " + ay.fmt(S.y.mean), 0, -10, -30, AXCOL.y, 19);             // Y data / depth (blue)
     // tooltip text builder (captures current axes)
-    T.tipText = (d) => clean(ax.label)+" "+ax.fmt(ax.get(d))+" / "+clean(ay.label)+" "+ay.fmt(ay.get(d))+" / "+clean(az.label)+" "+az.fmt(az.get(d));
+    T.tipText = (d) => clean(ax.label)+" "+ax.fmt(ax.get(d))+" / "+clean(ay.label)+" "+ay.fmt(ay.get(d))+" / "+clean(az.label)+" "+az.fmt(az.get(d)) + (d.gauge?" / 太さ "+d.gauge:"");
     // ---- section plane (仮想平面) + trim ----
     const s3 = this.state;
     // three independent section planes; each holds one data axis constant
@@ -1392,7 +1390,7 @@ class Component extends DCLogic {
       tabScatterStyle:tabBase+(s.view==="scatter"?"color:#007AFF;border-bottom-color:#007AFF;":"color:#80868B;"),
       tabTableStyle:tabBase+(s.view==="table"?"color:#007AFF;border-bottom-color:#007AFF;":"color:#80868B;"),
       tab3DStyle:tabBase+(s.view==="threed"?"color:#007AFF;border-bottom-color:#007AFF;":"color:#80868B;"),
-      onScatter:()=>this.setState({view:"scatter"}), onTable:()=>this.setState({view:"table"}), on3D:()=>this.setState({view:"threed"}),
+      onScatter:()=>this.setState({view:"scatter",search:"",brands:[],mat:"",shape:""}), onTable:()=>this.setState({view:"table",search:"",brands:[],mat:"",shape:""}), on3D:()=>this.setState({view:"threed",search:"",brands:[],mat:"",shape:""}),
 
       search:s.search, matFilter:s.mat, shapeFilter:s.shape,
       matOptions:this.distinct("matFam"), shapeOptions:this.distinct("shpFam"),
