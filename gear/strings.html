@@ -239,7 +239,7 @@
             <thead>
               <tr style="background:#FAFAFB;border-bottom:1px solid #E8EAED;">
                 <th style="text-align:center;padding:10px 6px;font-size:11px;font-weight:600;color:#80868B;white-space:nowrap;position:sticky;top:0;background:#FAFAFB;">比較</th>
-                <th style="text-align:left;padding:10px 10px 10px 4px;font-size:11px;font-weight:600;color:#80868B;white-space:nowrap;position:sticky;top:0;background:#FAFAFB;">弦名</th>
+                <th onClick="{{ onSortBrand }}" style="{{ brandHeadStyle }}">弦名{{ brandCaret }}</th>
                 <th style="text-align:left;padding:10px;font-size:11px;font-weight:600;color:#80868B;white-space:nowrap;position:sticky;top:0;background:#FAFAFB;">構造・素材</th>
                 <th style="text-align:center;padding:10px;font-size:11px;font-weight:600;color:#80868B;white-space:nowrap;position:sticky;top:0;background:#FAFAFB;">形状</th>
                 <th style="text-align:center;padding:10px;font-size:11px;font-weight:600;color:#80868B;white-space:nowrap;position:sticky;top:0;background:#FAFAFB;">ゲージ</th>
@@ -506,7 +506,7 @@ class Component extends DCLogic {
     brands: [], brandOpen: false,
     centerMean: false,
     hoverId: null, detailId: null, mpZoom: null, defOpen: {}, helpKey: null,
-    sortKey: "stiff", sortDir: "asc",
+    sortKey: "brand", sortDir: "asc",
     alwaysLabels: true,
     expandedId: null,
     cmpIds: [],
@@ -526,6 +526,8 @@ class Component extends DCLogic {
   CMP_COLORS = ["#007AFF","#1C1C1E","#FF9500","#34C759"];
 
   componentDidMount() {
+    // 絞り込み・並び・ビューの状態を復元 (切替/再読込で消えないように) 2026-07-09
+    try { var _sv=JSON.parse(localStorage.getItem('sc_state_v2')||'null'); if(_sv){ var _k={}; ['view','xAxis','yAxis','zAxis','search','brand','brands','mat','shape','sortKey','sortDir','alwaysLabels','centerMean'].forEach(function(x){ if(_sv[x]!==undefined) _k[x]=_sv[x]; }); if(Object.keys(_k).length) this.setState(_k); } } catch(e){}
     if (!(window.SC_DATA && window.SC_DATA.length)) {
       this._iv = setInterval(() => {
         if (window.SC_DATA && window.SC_DATA.length) { clearInterval(this._iv); this.forceUpdate(); }
@@ -541,7 +543,7 @@ class Component extends DCLogic {
   }
   componentWillUnmount() { if (this._iv) clearInterval(this._iv); if (this._onResize) window.removeEventListener('resize', this._onResize); this.stop3D(); if (this._onDocDown) document.removeEventListener('mousedown', this._onDocDown, true); if (this._onKey) document.removeEventListener('keydown', this._onKey); }
 
-  componentDidUpdate() { if (this._dd) clearTimeout(this._dd); this._dd = setTimeout(() => this.dedupeLabels(), 60); this.ensure3D(); }
+  componentDidUpdate() { try { var s=this.state,o={}; ['view','xAxis','yAxis','zAxis','search','brand','brands','mat','shape','sortKey','sortDir','alwaysLabels','centerMean'].forEach(function(k){ o[k]=s[k]; }); localStorage.setItem('sc_state_v2', JSON.stringify(o)); } catch(e){} if (this._dd) clearTimeout(this._dd); this._dd = setTimeout(() => this.dedupeLabels(), 60); this.ensure3D(); }
 
   // ---------- 3D map (Three.js) ----------
   _loadScript(src) {
@@ -1219,6 +1221,7 @@ class Component extends DCLogic {
       const dir=s.sortDir==="asc"?1:-1;
       const list=filtered.slice().sort((a,b)=>{
         let av,bv;
+        if (s.sortKey==="brand"){ return (((a.brand+" "+a.name).localeCompare(b.brand+" "+b.name,"ja")) || (String(a.gauge||"").localeCompare(String(b.gauge||""),undefined,{numeric:true})))*dir; }
         if (s.sortKey==="stiff"){av=a.stiff;bv=b.stiff;}
         else {const i=+s.sortKey; av=a.obj?a.obj[i]:null; bv=b.obj?b.obj[i]:null;}
         if(av==null&&bv==null)return 0; if(av==null)return 1; if(bv==null)return -1; return (av-bv)*dir;
@@ -1467,6 +1470,9 @@ class Component extends DCLogic {
       stiffCaret:stiffAct?(s.sortDir==="asc"?" ▲":" ▼"):"",
       stiffHeadStyle:headBase+(stiffAct?"color:#007AFF;":""),
       onSortStiff:()=>this.setSort("stiff"),
+      onSortBrand:()=>this.setSort("brand"),
+      brandCaret:(s.sortKey==="brand")?(s.sortDir==="asc"?" ▲":" ▼"):"",
+      brandHeadStyle:"text-align:left;padding:10px 10px 10px 4px;font-size:11px;font-weight:600;white-space:nowrap;cursor:pointer;user-select:none;position:sticky;top:0;background:#FAFAFB;color:"+(s.sortKey==="brand"?"#007AFF":"#80868B")+";",
 
       detail, onCloseDetail:()=>this.setState({detailId:null}), stop:(e)=>e.stopPropagation(),
       help, onCloseHelp:()=>this.setState({helpKey:null}),
@@ -1484,7 +1490,7 @@ class Component extends DCLogic {
     };
   }
 
-  setSort(k){ this.setState(st=>st.sortKey===k?{sortDir:st.sortDir==="asc"?"desc":"asc"}:{sortKey:k,sortDir:k==="stiff"?"asc":"desc"}); }
+  setSort(k){ this.setState(st=>st.sortKey===k?{sortDir:st.sortDir==="asc"?"desc":"asc"}:{sortKey:k,sortDir:(k==="stiff"||k==="brand")?"asc":"desc"}); }
 }
 </script>
 <style>
