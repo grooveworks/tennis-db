@@ -33,15 +33,16 @@ jobs:
       - name: Verify measurement fields reached compiled UI
         shell: pwsh
         run: |
+          # esbuild escapes Japanese text as Unicode sequences. Check stable field identifiers instead.
           $html = Get-Content -Raw -Encoding UTF8 ./v4/index.html
-          foreach ($v in @("スイングウェイト SW", "ツイストウェイト TW", "測定日", "3時加重")) {
-            if (-not $html.Contains($v)) { throw "Missing measurement input: $v" }
-          }
           $heavy = Get-Content -Raw -Encoding UTF8 ./v4/bundle-heavy.js
-          foreach ($v in @("m.swingWeight", "m.twistWeight")) {
-            # A minifier renames local object bindings; check user-facing labels instead.
+          foreach ($field in @("measuredAt","swingWeight","twistWeight","lead3","lead9","fixture","gripSetup","stringState")) {
+            if (-not $html.Contains($field)) { throw "Missing compiled input field: $field" }
           }
-          if (-not $heavy.Contains("重量")) { throw "Heavy racket UI was not built" }
+          foreach ($field in @("measuredAt","swingWeight","twistWeight","lead3","lead9","gripSetup","stringState")) {
+            if (-not $heavy.Contains($field)) { throw "Missing compiled history display field: $field" }
+          }
+          Write-Host "Compiled UI contains every measurement field."
       - name: Prepare Pages
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         uses: actions/configure-pages@v5
