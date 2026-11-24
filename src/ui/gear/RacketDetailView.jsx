@@ -357,7 +357,7 @@ function RacketDetailView({
                 onClick={() => onMeasurementEdit(racket, m)}
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "1fr auto auto",
+                  gridTemplateColumns: "1fr auto",
                   gap: 8,
                   padding: m.current ? "8px 10px" : "8px 0",
                   margin: m.current ? "0 -10px 6px" : "0",
@@ -368,22 +368,29 @@ function RacketDetailView({
                   cursor: "pointer",
                 }}
               >
-                <div style={{ fontSize: 12, color: C.text, fontWeight: 500 }}>
-                  {m.state || "(状態未入力)"}
-                  {m.current && (
-                    <span style={{
-                      display: "inline-block", marginLeft: 4,
-                      fontSize: 9, fontWeight: 700, color: C.success,
-                      background: "rgba(15,157,88,0.14)",
-                      padding: "1px 5px", borderRadius: 4,
-                    }}>
-                      {/* リクエスト 4 (Phase B): "CURRENT" → 「現行」(英語混在排除) */}
-                      現行
-                    </span>
+                <div style={{minWidth:0}}>
+                  <div style={{fontSize:12,color:C.text,fontWeight:500}}>
+                    {m.state || "(状態未入力)"}
+                    {m.current && <span style={{display:"inline-block",marginLeft:6,fontSize:10,fontWeight:700,color:C.success}}>現行</span>}
+                  </div>
+                  {m.measuredAt && <div style={{fontSize:11,color:C.textSecondary,marginTop:2}}>測定日: {m.measuredAt}</div>}
+                  <div style={{fontSize:11,color:C.textSecondary,marginTop:3,overflowWrap:"anywhere"}}>
+                    {[
+                      m.weight && "重量 " + m.weight + (/g$/.test(String(m.weight)) ? "" : "g"),
+                      m.balance && "BP " + m.balance + (/mm$/.test(String(m.balance)) ? "" : "mm"),
+                      m.swingWeight && "SW " + m.swingWeight,
+                      m.twistWeight && "TW " + m.twistWeight,
+                    ].filter(Boolean).join(" / ") || "—"}
+                  </div>
+                  {(m.lead3 || m.lead9 || m.gripSetup || m.stringState) && (
+                    <div style={{fontSize:11,color:C.textSecondary,marginTop:2,overflowWrap:"anywhere"}}>
+                      {[
+                        m.stringState,
+                        m.gripSetup,
+                        (m.lead3 || m.lead9) && "3/9時 " + (m.lead3 || "0") + "/" + (m.lead9 || "0") + "g",
+                      ].filter(Boolean).join(" / ")}
+                    </div>
                   )}
-                </div>
-                <div style={{ fontSize: 11, color: C.textSecondary, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
-                  {[m.weight, m.balance, (m.gripW && m.gripT) ? `${m.gripW}×${m.gripT}` : null].filter(Boolean).join(" / ") || "—"}
                 </div>
                 <Icon name="pencil-simple-line" size={16} color={C.textMuted} />
               </div>

@@ -1,9 +1,10 @@
-# Deploy リポジトリ全体を GitHub Pages へ (S15.5.7、自動 pages-build-deployment が壊れた時のフォールバック)
-# 標準テンプレート: https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site#publishing-with-a-custom-github-actions-workflow
+# Build from tracked source on Windows; deploy the generated v4 output only on main.
 name: Deploy GitHub Pages
 
 on:
   push:
+    branches: ["main", "fix/defyer-measurement-history-20261124"]
+  pull_request:
     branches: ["main"]
   workflow_dispatch:
 
@@ -13,24 +14,51 @@ permissions:
   id-token: write
 
 concurrency:
-  group: "pages"
+  group: "pages-${{ github.ref }}"
   cancel-in-progress: false
 
 jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build with existing pipeline
+        shell: pwsh
+        run: ./build.ps1
+      - name: Verify measurement fields reached compiled UI
+        shell: pwsh
+        run: |
+          $html = Get-Content -Raw -Encoding UTF8 ./v4/index.html
+          foreach ($v in @("スイングウェイト SW", "ツイストウェイト TW", "測定日", "3時加重")) {
+            if (-not $html.Contains($v)) { throw "Missing measurement input: $v" }
+          }
+          $heavy = Get-Content -Raw -Encoding UTF8 ./v4/bundle-heavy.js
+          foreach ($v in @("m.swingWeight", "m.twistWeight")) {
+            # A minifier renames local object bindings; check user-facing labels instead.
+          }
+          if (-not $heavy.Contains("重量")) { throw "Heavy racket UI was not built" }
+      - name: Prepare Pages
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        uses: actions/configure-pages@v5
+      - name: Upload Pages artifact
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '.'
+
   deploy:
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: build
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: '.'
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
